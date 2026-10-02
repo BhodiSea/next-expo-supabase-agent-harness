@@ -269,6 +269,27 @@ test('RED: the EMPTY-OWNER spelling, which silently disables review while lookin
   assert.match(r.out, /SILENTLY DISABLES review/)
 })
 
+test('1.0.4: the project corpus is judged whether or not the file exists — the one side effect that reaches every install', () => {
+  // tools/mcp/corpus/project.json joined ESCAPE_LISTS, and the must-cover set is the list,
+  // not the files on disk: an install that never pulled the skeleton is asked too. The
+  // shipped /tools/** rule covers it (GREEN); a later ownerless rule over tools/mcp/ is the
+  // one CODEOWNERS shape that newly reds. The tools/ probe path does not sit under
+  // tools/mcp/, so before 1.0.4 this CODEOWNERS was green.
+  const corpus = join(scaffold, 'tools/mcp/corpus/project.json')
+  const original = readFileSync(corpus)
+  try {
+    rmSync(corpus)
+    const shipped = runGate()
+    assert.equal(shipped.code, 0, shipped.out)
+    const r = withEdit('.github/CODEOWNERS', (text) => `${text}\n/tools/mcp/\n`)
+    assert.equal(r.code, 1, r.out)
+    assert.match(r.out, /names NO OWNER/)
+    assert.match(r.out, /tools\/mcp\/corpus\/project\.json \(matched by/)
+  } finally {
+    writeFileSync(corpus, original)
+  }
+})
+
 test('GREEN: a catch-all owner is enough — the gate asks for coverage, not for ceremony', () => {
   const r = withEdit('.github/CODEOWNERS', () => '* @someone\n')
   assert.equal(r.code, 0, r.out)

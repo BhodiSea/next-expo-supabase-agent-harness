@@ -84,7 +84,7 @@ catalog:
   '@tanstack/react-query': ^5.101.2
   '@supabase/supabase-js': ^2.108.0
   '@supabase/ssr': ^0.10.3 # web-only: the cookie-session adapter apps/web satisfies
-  supabase: ^2.34.3 # the CLI — local stack, migrations, `gen types` (types-drift gate)
+  supabase: 2.118.0 # exact: a CLI release moves the local database image and the `gen types` output (types-drift gate); Renovate proposes each bump in its own PR
   '@types/node': ^22.20.1 # matches the node >=22 engines floor
   # ---- web ---------------------------------------------------------------------
   # exact: the framework's minor bumps move the App Router contract. The PATCH floor is

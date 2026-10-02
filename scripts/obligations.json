@@ -87,8 +87,8 @@
           "mustContain": "auth-posture-cli-census"
         }
       ],
-      "reason": "The standing ask-the-CLI config census is blocked UPSTREAM, not on scheduling: no Supabase CLI subcommand parses config.toml without side effects (config push needs a project ref, functions list needs a token, status binds to whichever stack holds the default ports and prints SECRET_KEY/JWT_SECRET). RE-CHECKED at the 0.10.0 arrival (2026-08-13) against the first real pin bump the standing rule has met — the catalog's `supabase: ^2.34.3` range now resolves to 2.114.0 (GA 2026-08-12) rather than the 2.113.0 both prior re-checks read. The CLI became a pnpm/nx monorepo and the Go CLI moved to apps/cli-go, but apps/cli-go/cmd/config.go AT TAG v2.114.0 still registers `push` alone, and supabase/cli#5894 is still open with no milestone and no linked PR. The consumer deferral entry carries the full re-check record and the standing per-arrival rule; this row is its census twin — it discharges only when the side-effect-free subcommand actually ships, by deleting both together. RE-CHECKED AT THE 1.0.0 CUT (2026-08-16), the settlement release that skips 0.12.0 entirely (every comparison is >=, so the 0.12.0 date arrives at this hop): supabase/cli#5894 is still OPEN, still no milestone, still zero comments, and its only cross-references are this harness's own PRs — the upstream condition is unmet, and npm latest is still 2.114.0, so no pin-bump clause fired. The standing rule moves the date ONE RELEASE (reworded from 'one minor' at 1.0.0: the lineage now cuts by release, and 1.1.0 is the next one) across every listed site.",
-      "reviewedOn": "2026-08-16",
+      "reason": "The standing ask-the-CLI config census is blocked UPSTREAM, not on scheduling: no Supabase CLI subcommand parses config.toml without side effects (config push needs a project ref, functions list needs a token, status binds to whichever stack holds the default ports and prints SECRET_KEY/JWT_SECRET). RE-CHECKED at the 0.10.0 arrival (2026-08-13) against the first real pin bump the standing rule has met — the catalog's `supabase: ^2.34.3` range now resolves to 2.114.0 (GA 2026-08-12) rather than the 2.113.0 both prior re-checks read. The CLI became a pnpm/nx monorepo and the Go CLI moved to apps/cli-go, but apps/cli-go/cmd/config.go AT TAG v2.114.0 still registers `push` alone, and supabase/cli#5894 is still open with no milestone and no linked PR. The consumer deferral entry carries the full re-check record and the standing per-arrival rule; this row is its census twin — it discharges only when the side-effect-free subcommand actually ships, by deleting both together. RE-CHECKED AT THE 1.0.0 CUT (2026-08-16), the settlement release that skips 0.12.0 entirely (every comparison is >=, so the 0.12.0 date arrives at this hop): supabase/cli#5894 is still OPEN, still no milestone, still zero comments, and its only cross-references are this harness's own PRs — the upstream condition is unmet, and npm latest is still 2.114.0, so no pin-bump clause fired. The standing rule moves the date ONE RELEASE (reworded from 'one minor' at 1.0.0: the lineage now cuts by release, and 1.1.0 is the next one) across every listed site. RE-CHECKED AT THE 1.1.0 CUT (2026-09-29), when the target arrived again: supabase/cli#5894 is still OPEN, with no milestone, no linked pull request and zero comments. The nearest upstream work is the one its own body names: supabase/cli#5840, merged 2026-07-09, validates config.toml only on the `db reset --local` path, inside a command with side effects, so it is not the subcommand this census waits for. The Supabase CLI reference still documents `config push` as the only `config` subcommand, and npm latest is 2.118.0, the version the 1.0.4 catalog pins exactly. The upstream condition is unmet, and the standing rule moves the date ONE RELEASE, to 1.2.0, across every listed site.",
+      "reviewedOn": "2026-09-29",
       "evidence": "https://github.com/supabase/cli/issues/5894"
     },
     {
@@ -165,28 +165,36 @@
     {
       "id": "conformance-play-target-api-window",
       "kind": "calendar",
-      "target": "2026-08-31",
+      "target": "2027-05-31",
       "sites": [
         {
           "file": "design/CONFORMANCE-FACTS.md",
-          "mustContain": "2026-08-31"
+          "mustContain": "Play target-API row re-verified 2026-09-29"
+        },
+        {
+          "file": "design/CONFORMANCE-FACTS.md",
+          "mustContain": "2027-05-31"
         }
       ],
-      "reason": "Google Play's target API deadline (36 general, 35 Wear/Automotive, 34 TV/XR; two requirement families — submission and continued-distribution). The regime was CUT as already satisfied and not derivable (the form factor is not expressible in this template's config surface); this row is the dated re-verification that the cut still holds at the deadline, re-opening only if the template ever seeds a Wear/Automotive/TV/XR target. PRE-VERIFIED 2026-08-13 in the 0.10.0 release pass, and the DATE IS DELIBERATELY NOT MOVED: the row's job is to ask the question ON the deadline, so slipping it forward would retire the check rather than satisfy it, and a calendar row cannot red a PR in any case (obligations.mjs gates the calendar branch on `clockful`). What the pre-verification found, all local because the claim is local: tools/store-policy.json's androidTargetSdk floor is 36, matching the requirement that takes effect on the target date; expoSdkDefaults maps SDK 57 to targetSdkVersion 36, so a stock scaffold satisfies it without declaring anything; and a search of the seeded config surface for wear/automotive/androidtv/leanback/xr found NO form-factor target — the only occurrences anywhere are store-policy.json's own prose describing the lower floors those form factors would use. The cut therefore still holds, and the scheduled lane's firing on the date is a confirmation rather than a discovery.",
-      "reviewedOn": "2026-08-13"
+      "reason": "Google Play's target API requirement: to SUBMIT, 36 general, 35 Wear OS/Automotive, 34 TV/XR; to stay available to new users (continued distribution), 35 general, 34 Wear OS/XR, 32 Automotive, and 33 or 34 for TV depending on which of Google's two pages is read. The regime was CUT as already satisfied and not derivable (the form factor is not expressible in this template's config surface); this row is the dated re-verification that the cut and the tools/store-policy.json floor still hold, re-opening if the template ever seeds a Wear/Automotive/TV/XR target or Google publishes a higher level. RE-VERIFIED 2026-09-29, 29 days after the 2026-08-31 deadline the row carried until then (the scheduled obligations-clockful job had been red on it every night since that date). Both Google pages were re-read (developer.android.com's target-sdk page, last updated 2026-09-16, and Play Console Help answer 11926878, which shows no date): the levels are unchanged, the extension runs to 2026-11-01 and store-policy.json does not assume it, and neither page names a requirement after 2026-08-31. The local half was re-confirmed in the tree: the floor is 36; expoSdkDefaults maps SDK 57 to 36, re-derived from the published packages (expo-modules-autolinking 57.0.13 reads targetSdk from React Native's version catalog, and react-native 0.86.2 sets it to 36); expo is pinned at 57.0.9; checkTargetSdk reads both values; and template/ carries no leanback, watch or automotive hardware feature, supportsTVOnly or EXPO_TV. No shipped value is contradicted, so nothing is filed. RE-DATED to 2027-05-31 rather than deleted: three months before the next annual 31 August step that the Help page's own table implies (API 35 from 2025-08-31, API 36 from 2026-08-31). Raising the floor tightens what check-expo-policy judges for an existing install, so it needs a ramp in a minor release, and a row that fires on the deadline fires too late to ship one. The first sites[] anchor pins the re-verification date, so the next re-read has to move this row in the same diff; design/CONFORMANCE-FACTS.md §2 carries the full record and its sources.",
+      "reviewedOn": "2026-09-29"
     },
     {
       "id": "conformance-cra-art14-application",
       "kind": "calendar",
-      "target": "2026-09-11",
+      "target": "2027-06-11",
       "sites": [
         {
           "file": "design/CONFORMANCE-FACTS.md",
-          "mustContain": "2026-09-11"
+          "mustContain": "CRA Article 14 row re-verified 2026-09-29"
+        },
+        {
+          "file": "design/CONFORMANCE-FACTS.md",
+          "mustContain": "2027-06-11"
         }
       ],
-      "reason": "CRA Article 14 reporting applies from this date (Art. 71(2); a SINGLE reporting end-point simultaneously accessible to ENISA, not three recipients). This repository is out of scope as unmonetised FOSS — the deliverable was consumer ENABLEMENT (SECURITY.md ships, planted for existing installs) — and this row is the dated re-verification of that scope reading against the final guidance in force on the day. PRE-VERIFIED 2026-08-13 in the 0.10.0 release pass, and the DATE IS DELIBERATELY NOT MOVED, for the same reason as the Play row: 'the guidance in force on the day' is not readable before the day, so moving the target would convert a dated check into a retired one. The local half of the scope reading was re-confirmed — SECURITY.md ships in template/base and is planted for existing installs, so the consumer-enablement deliverable stands whatever the final guidance says about this repository's own status. The row stays undischarged on purpose: it is the one obligation in this register whose answer this repository cannot compute, only look up.",
-      "reviewedOn": "2026-08-13"
+      "reason": "CRA Article 14 reporting applies from 2026-09-11 (Art. 71(2)): one submission through ENISA's Single Reporting Platform (Art. 16), addressed to the CSIRT of the main establishment and simultaneously available to ENISA, not three recipients. This repository is out of scope as a MANUFACTURER, because unmonetised free and open-source software is not supplied in the course of a commercial activity, so the deliverable was consumer ENABLEMENT (SECURITY.md ships, planted for existing installs). RE-VERIFIED 2026-09-29, 18 days after the 2026-09-11 date the row carried until then. The date, the single end-point (the platform has been operational since 2026-09-11) and the manufacturer-scope reading are CONFIRMED through the Commission's own CRA pages (reporting obligations, summary, open source). EUR-Lex answered every request from that session with an empty bot challenge, and the Commission guidance C(2026) 5252 and the Commission FAQ are hosted on ec.europa.eu, which the session could not reach, so the maintainer re-reads those three before approving this re-dating. The re-read found what neither this row nor §4 had considered: the OPEN-SOURCE SOFTWARE STEWARD (Art. 3(14): a legal person, other than a manufacturer, that systematically supports free and open-source software intended for commercial activities on a sustained basis). Art. 24(3) extends the Art. 14 duties to report actively exploited vulnerabilities and severe incidents to a steward, but from 2027-12-11 (Art. 71(2)), not 2026-09-11. So nothing reached this repository on 2026-09-11 in either role. Whether Cogvera Labs, named as the author in package.json, CITATION.cff and GOVERNANCE.md, is this harness's steward is a fact about the maintainer's organisation that the tree cannot compute, and design/CONFORMANCE-FACTS.md §4 records it as OPEN. Both shipped texts (the Downstream obligations paragraph of template/base/SECURITY.md and the CRA-II.5 note in tools/conformance-map.json) still read true and are unchanged. RE-DATED to 2027-06-11 rather than deleted: six months before the steward duties apply, because a steward's Art. 24 policy and its route into the reporting platform must exist on 2027-12-11, and a row that fires on that day fires too late to prepare them. The first sites[] anchor pins the re-verification date, so the next re-read has to move this row in the same diff.",
+      "reviewedOn": "2026-09-29"
     },
     {
       "id": "conformance-cra-hens-citation",
@@ -216,108 +224,17 @@
       "reviewedOn": "2026-08-10"
     },
     {
-      "id": "docs-sync-gate-list-ramp-expiry",
-      "kind": "release",
-      "target": "1.1.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-docs-sync.mjs",
-          "mustContain": "AGENTS.md gate-list lockstep after an injected chain step"
-        }
-      ],
-      "reason": "The AGENTS.md gate-list ramp is RE-OPENED at 1.0.0 (minVersion 1.0.0, until 1.1.0) for the third time on the same site, because 1.0.0 injects two chain steps and every existing install's seeded AGENTS.md documents 34 (or fewer) while its chain now runs 36 — the reviewed rampExtensions entry in the 1.0.0 migrations record moves the deadline from 0.9.0 to 1.1.0 and the ramp opens ABOVE the population it protects this time (the 0.11.1 lesson). This row is the expiry's owner: at 1.1.0 the site's `until` arrives, the escape closes for every install below 1.0.0, and the 1.1.0 migrations record owes the rampExpiry entry naming that population (every vintage 0.1.3 through 0.11.1). The upgrade lane's sweep leg performs the paste the NOTE describes (§3 AGENTS.md rewrite) and requires graduate to succeed, so the runbook is proven sufficient before the deadline lands. Discharge = the 1.1.0 record's rampExpiry carrying this site's population, then delete this row.",
-      "reviewedOn": "2026-08-16"
-    },
-    {
       "id": "version-sync-eol-arrival-ramp-expiry",
       "kind": "release",
-      "target": "1.1.0",
+      "target": "1.2.0",
       "sites": [
         {
           "file": "template/base/tools/check-version-sync.mjs",
           "mustContain": "the arrival of tools/eol.json's removalTarget dates"
         }
       ],
-      "reason": "RE-OPENED A SECOND TIME, at 1.0.0, and the recurrence is now the point of the row. 0.11.1 re-opened this ramp because the escape excluded the one vintage holding the arrived date; 1.0.0 re-opens it because the SAME shape recurred one release on — the 0.11.x vintages hold a seeded tools/eol.json saying 0.12.0, 0.12.0 was never cut, the date arrives at 1.0.0 (>=), and upgrade-lane leg A found it exactly as the 0.11.0 tag's lane found the first. The 1.0.0 record's rampExtensions entry moves (0.11.0, 0.12.0) → (1.0.0, 1.1.0), and the same record's seededSourceFixes probe (contains '\"removalTarget\": \"0.12.0\"') delivers the harness's own re-affirmation as a parked fix. THE STANDING RULE, written so it stops being rediscovered: every release that moves the template's uuid removalTarget owes BOTH the seededSourceFixes probe on the old literal (scripts/check-eol-target.mjs demands it) AND an arrival ramp opened at that release's own minVersion, until the next; the ramp's expiry is owed by the next record. Discharge = the 1.1.0 record's rampExpiry naming this site's population (0.11.0 and 0.11.1, plus every older vintage that meets it), OR the upstream discharge (an xcode major off uuid 7 reached by @expo/config-plugins), which retires the row and the ramp together.",
-      "reviewedOn": "2026-08-16"
-    },
-    {
-      "id": "suppressions-census-ramp-expiry",
-      "kind": "release",
-      "target": "1.1.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-suppressions.mjs",
-          "mustContain": "the inline-suppression census over the product tree"
-        }
-      ],
-      "reason": "1.0.0 injects the `suppressions` chain step (the inline-directive census — the scanner outside ESLint that polices the rule-less disable no in-ESLint check can see) and, per the ramp doctrine, ships its findings NOTE-only for pre-1.0.0 installs until 1.1.0: an install whose seeded tree predates the census must get one release of dated NOTEs to reason each site and adopt the planted tools/suppressions-allow.json register, not a hard red on the update that delivered the scanner. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry. The register is planted (DELIBERATE_PLANT — green-by-construction: its shipped rows describe the harness-seeded files), so the only surviving NOTE source on an upgraded install is a directive ITS OWN tree added without a row, which is exactly the population the census exists to make visible.",
-      "reviewedOn": "2026-08-15"
-    },
-    {
-      "id": "resilience-register-ramp-expiry",
-      "kind": "release",
-      "target": "1.1.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-resilience.mjs",
-          "mustContain": "the outbound-seam resilience register closure"
-        }
-      ],
-      "reason": "1.0.0 injects the `resilience` chain step (the outbound-seam posture register, closed both ways with symbol-backed claims) and ships its findings NOTE-only for pre-1.0.0 installs until 1.1.0, for the same reason as the suppressions ramp one row up: an install that grew its own outbound seams before the scanner existed gets one release of dated NOTEs to declare each seam in the planted tools/resilience.json, never a hard red on the update that delivered the demand. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry. The planted register declares the scaffold's own eight seams, so an upgraded install NOTEs only on transports its own tree constructed — the undeclared-posture population the register exists to close over.",
-      "reviewedOn": "2026-08-15"
-    },
-    {
-      "id": "boundaries-anatomy-widening-ramp-expiry",
-      "kind": "release",
-      "target": "1.1.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-workspace-deps.mjs",
-          "mustContain": "the behavior-keyed widening of the vertical-anatomy DAL laws"
-        }
-      ],
-      "reason": "1.0.0 re-keys the vertical-anatomy DAL laws on BEHAVIOR — a value-import of @app/supabase/@supabase reds anywhere under src/**, and a file that speaks PostgREST (.from(/.rpc(/.select( in call position) must import a port.ts that exists, wherever both live — discharging vertical-anatomy-folder-name-coupling (the src/repo/ service-role escape the directory keying admitted by construction). Per the ramp doctrine the WIDENED findings ship NOTE-only for pre-1.0.0 installs until 1.1.0: a vertical that satisfied the 0.9.5 directory keying (its DAL under src/data/ with a port beside it) may hold a PostgREST caller elsewhere that never owed a port import before, and it gets one release of dated NOTEs to route the seam through a port or record the reviewed allow entry, never a hard red on the update that delivered the re-keying. Nothing weakens meanwhile: findings the directory keying already produced keep their vintage tag and stay on the expired 0.9.5 ramp, hard for every real install. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry.",
-      "reviewedOn": "2026-08-15"
-    },
-    {
-      "id": "exports-walls-module-closure-ramp-expiry",
-      "kind": "release",
-      "target": "1.1.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-exports-walls.mjs",
-          "mustContain": "the census module-name closure over the shipped module list"
-        }
-      ],
-      "reason": "1.0.0 ships tools/modules.json (OWNED — the installer MODULES list finally has a shipped home a consumer gate can read, discharging exports-walls-module-name-validation) and closes every census entry's `module` value against it, so a typo'd module name can no longer park the stale arm permanently dormant while the entry still pre-authorises a ./client barrel. The census is SEEDED, so per the ramp doctrine the closure's findings ship NOTE-only for pre-1.0.0 installs until 1.1.0: a tree that wrote a module name before any list existed to check it against gets one release of dated NOTEs to fix the name or remove the sanction, never a hard red on the update that delivered the list. The register file itself fails closed unramped when absent or malformed — it is owned and arrives with the same release as the check, so its absence is a broken tree, not a consumer choice. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry.",
-      "reviewedOn": "2026-08-15"
-    },
-    {
-      "id": "auth-posture-hook-ramp-expiry",
-      "kind": "release",
-      "target": "1.1.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-auth-posture.mjs",
-          "mustContain": "the [auth.hook] trail posture (the auth-event trail, new in"
-        }
-      ],
-      "reason": "1.0.0 pins the auth-event trail's hook wiring as auth-posture floors (the [auth.hook.*] enabled/uri keys) and adds the two sections to the census. supabase/config.toml is SEEDED and the sections arrive with the 1.0.0 trail migration, so a pre-1.0.0 install meets these findings on a file `update` refuses to rewrite — the identical ambush the 0.9.9 [auth.mfa] routing resolved, resolved the same way: hook findings ride their own NOTE ramp until 1.1.0, every other auth-posture finding stays hard, and the NOTE names the paired adoption (the migration AND the config sections together, per the ADR). The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry.",
-      "reviewedOn": "2026-08-16"
-    },
-    {
-      "id": "version-sync-support-ramp-expiry",
-      "kind": "release",
-      "target": "1.1.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-version-sync.mjs",
-          "mustContain": "the vendor-support register (PA-11/POS-16)"
-        }
-      ],
-      "reason": "1.0.0 ships tools/support-register.json (the reviewed vendor-support dispositions for the online services and platforms this stack runs on — the decision the deleted e8-eol-closure condition row said someone had to make) and judges it clocklessly in version-sync with a platform-fact closure against the tree's own Postgres/Node pins. The register is SEEDED for eol.json's reason: a consumer on a different Postgres major must be able to review THEIR platform's row, and update must never clobber that review. So the whole section rides one NOTE ramp until 1.1.0 for pre-1.0.0 installs — planted-register adoption with a deadline, never a hard red on the update that delivered the demand. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry.",
-      "reviewedOn": "2026-08-16"
+      "reason": "RE-OPENED A THIRD TIME, at 1.1.0, and this time by the standing rule below rather than by a lane finding. The 1.1.0 re-review of tools/eol.json's uuid row (2026-09-29) found the upstream discharge condition unmet: xcode@3.0.1 is still the latest xcode and still declares uuid ^7.0.3, and @expo/config-plugins still depends on xcode ^3.0.1 at its latest and next tags. So the harness moved its own removalTarget from 1.1.0 to 1.2.0, and the rule's two debts were paid in the 1.1.0 record: the seededSourceFixes probe on the old literal ('\"removalTarget\": \"1.1.0\"', which scripts/check-eol-target.mjs demanded), and this ramp re-opened at minVersion 1.1.0 until 1.2.0 (the record's rampExtensions entry). Every 1.0.x install holds the seeded 1.1.0 date, which arrives at 1.1.0, and an escape opened at 1.0.0 is inert for exactly them. The row is therefore RE-TARGETED to 1.2.0, not deleted. THE HISTORY: it was RE-OPENED A SECOND TIME at 1.0.0, and the recurrence is the point of the row. 0.11.1 re-opened this ramp because the escape excluded the one vintage holding the arrived date; 1.0.0 re-opens it because the SAME shape recurred one release on — the 0.11.x vintages hold a seeded tools/eol.json saying 0.12.0, 0.12.0 was never cut, the date arrives at 1.0.0 (>=), and upgrade-lane leg A found it exactly as the 0.11.0 tag's lane found the first. The 1.0.0 record's rampExtensions entry moves (0.11.0, 0.12.0) → (1.0.0, 1.1.0), and the same record's seededSourceFixes probe (contains '\"removalTarget\": \"0.12.0\"') delivers the harness's own re-affirmation as a parked fix. THE STANDING RULE, written so it stops being rediscovered: every release that moves the template's uuid removalTarget owes BOTH the seededSourceFixes probe on the old literal (scripts/check-eol-target.mjs demands it) AND an arrival ramp opened at that release's own minVersion, until the next; the ramp's expiry is owed by the next record. Discharge = the 1.2.0 record's rampExpiry naming this site's population (every vintage below 1.1.0 that meets it), OR, if the uuid row moves again, the next re-open under the same rule, OR the upstream discharge (an xcode major off uuid 7 reached by @expo/config-plugins), which retires the row and the ramp together.",
+      "reviewedOn": "2026-09-29"
     }
   ]
 }

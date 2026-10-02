@@ -6,7 +6,23 @@
 # over a real server, and — path-filtered + nightly, like every expensive native lane —
 # the generated project building (native), the Maestro flows walking the installed app on
 # a real emulator (mobile-e2e), and the cold-start budgets measured on-device (perf-lane).
-# SOURCE: docs/harness/README.md (CI merge gate; skip-local / fail-closed-CI asymmetry)
+#
+# POST-MERGE REUSE (1.1.0). This workflow runs on the pull request and again on the push its
+# merge produces, and the two runs never cancel each other. `static`, `unit`, `mutation`,
+# `runtime-rls`, `e2e-fast` and `integration-lane` therefore end, on a pull request, with a
+# step that records one marker (the job name, the checked-out merge commit's tree and the
+# pull request's head), and begin, on a push, with a lookup (tools/ci/lane-reuse.mjs) that
+# finds the merged pull request, its newest run at its final head, this job in that run's
+# latest attempt, and the marker in its log. A hit needs all of: that job concluded exactly
+# `success`, one marker, the same tree as this checkout, and the run's own head. On a hit
+# every later step is skipped, the lane names the run it relied on, and gate-summary lists
+# it as REUSED. Anything else — another event, an API error, a merge that changed the tree —
+# runs every step. schedule and workflow_dispatch never reuse, so the nightly run stays the
+# net for what a tree does not pin (history, the runner image, the network, the clock).
+# No job-level `if:` is added, so these lanes stay unconditional for docs-sync. The lookup
+# reads runs, jobs and logs (actions: read) and the merged pull request (pull-requests:
+# read), which is why these jobs carry their own permissions block.
+# SOURCE: docs/harness/README.md (CI merge gate; skip-local / fail-closed-CI asymmetry; post-merge lane reuse)
 name: quality-gate
 
 on:
@@ -42,6 +58,13 @@ jobs:
     name: static (validate floor)
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # A job-level block replaces the workflow's, so contents: read is restated.
+    permissions:
+      contents: read # checkout
+      actions: read # post-merge reuse: this workflow's runs, their jobs and job logs
+      pull-requests: read # post-merge reuse: the pull request this push merged
+    outputs:
+      reused-from: ${{ steps.reuse.outputs.from }}
     env:
       HARNESS_REQUIRE_TOOLCHAINS: '1'
     steps:
@@ -57,22 +80,51 @@ jobs:
           # a shallow clone makes that ref unresolvable and (fail-closed) red.
           fetch-depth: 0
 
+      # Post-merge reuse (see the header). First after checkout, before setup-node: the
+      # script uses Node built-ins only. Every later step carries the `hit != 'true'` clause.
+      - name: Reuse the merged pull request's pass on this identical tree? (push only)
+        id: reuse
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/ci/lane-reuse.mjs --job "static (validate floor)"
+
+      - name: Reused — name the pull request run this lane relied on
+        if: steps.reuse.outputs.hit == 'true'
+        env:
+          REUSED_FROM: ${{ steps.reuse.outputs.from }}
+        run: |
+          echo "::notice::reused: this lane passed on this exact tree in ${REUSED_FROM}; its steps did not run again on this push"
+          echo "**Reused.** This lane passed on this exact tree in ${REUSED_FROM}, so its steps did not run again on this push." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Enable Corepack (pins pnpm from package.json#packageManager)
+        if: steps.reuse.outputs.hit != 'true'
         run: corepack enable
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        if: steps.reuse.outputs.hit != 'true'
         with:
           node-version-file: .node-version
           cache: pnpm
 
       - name: Install dependencies
+        if: steps.reuse.outputs.hit != 'true'
         run: pnpm install --frozen-lockfile
 
       # One entrypoint for the whole floor — identical steps to the local Stop hook, with
       # the hardcoded FLOOR merged in so an edited config can never weaken CI.
       # SOURCE: docs/harness/README.md (single validate entrypoint; CI floor)
       - name: Validate (min floor, toolchains required)
+        if: steps.reuse.outputs.hit != 'true'
         run: node tools/validate.mjs --min-floor
+
+      # LAST, so it runs only if every step above passed. The script builds the marker the
+      # push after merge looks for, so this step's text never contains it.
+      - name: Record this pass for the push after merge (pull request only)
+        if: github.event_name == 'pull_request'
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node tools/ci/lane-reuse.mjs --record --job "static (validate floor)"
 
   # ---------------------------------------------------------------------------
   # Unit floor, BOTH runners — vitest (server, packages, pure mobile logic; the
@@ -84,6 +136,13 @@ jobs:
     name: unit (vitest + jest-expo + diff coverage)
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # A job-level block replaces the workflow's, so contents: read is restated.
+    permissions:
+      contents: read # checkout
+      actions: read # post-merge reuse: this workflow's runs, their jobs and job logs
+      pull-requests: read # post-merge reuse: the pull request this push merged
+    outputs:
+      reused-from: ${{ steps.reuse.outputs.from }}
     steps:
       - name: Harden runner (egress audit)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -98,38 +157,63 @@ jobs:
           # and (fail-closed) red.
           fetch-depth: 0
 
+      # Post-merge reuse (see the header). First after checkout, before setup-node: the
+      # script uses Node built-ins only. Every later step carries the `hit != 'true'` clause.
+      - name: Reuse the merged pull request's pass on this identical tree? (push only)
+        id: reuse
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/ci/lane-reuse.mjs --job "unit (vitest + jest-expo + diff coverage)"
+
+      - name: Reused — name the pull request run this lane relied on
+        if: steps.reuse.outputs.hit == 'true'
+        env:
+          REUSED_FROM: ${{ steps.reuse.outputs.from }}
+        run: |
+          echo "::notice::reused: this lane passed on this exact tree in ${REUSED_FROM}; its steps did not run again on this push"
+          echo "**Reused.** This lane passed on this exact tree in ${REUSED_FROM}, so its steps did not run again on this push." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Enable Corepack
+        if: steps.reuse.outputs.hit != 'true'
         run: corepack enable
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        if: steps.reuse.outputs.hit != 'true'
         with:
           node-version-file: .node-version
           cache: pnpm
 
       - name: Install dependencies
+        if: steps.reuse.outputs.hit != 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Unit + contract tests (vitest — server, packages, pure mobile logic)
+        if: steps.reuse.outputs.hit != 'true'
         run: pnpm exec vitest run --coverage
 
       - name: RN component/screen tests (jest-expo, with coverage)
+        if: steps.reuse.outputs.hit != 'true'
         run: pnpm --filter mobile exec jest --coverage --silent
 
       # Per-file floors on every source file the PR touches, read from the TWO
       # coverage-final.json maps the runs above just wrote — the aggregate
       # thresholds cannot see one untested module inside a green total.
       - name: Diff coverage (merged per-file floors on changed files)
+        if: steps.reuse.outputs.hit != 'true'
         run: node tools/check-diff-coverage.mjs
 
       # Copy-paste rot: the same Stop-chain duplication gate an agent runs at
       # turn-end, enforced on the PR.
       - name: Duplication (token clones across apps/*/src + packages/*/src)
+        if: steps.reuse.outputs.hit != 'true'
         run: node tools/check-duplication.mjs
 
       # Assertion PRESENCE (the cheap half): no `.only` (it silently disables the whole
       # suite), no disabled tests, no test body without an assertion. The mutation lane
       # below is what actually proves a test would NOTICE a break.
       - name: Test quality (assertions present, nothing focused or disabled)
+        if: steps.reuse.outputs.hit != 'true'
         run: node tools/check-test-quality.mjs
 
       # THE TWO STOP STEPS THAT RAN IN NO WORKFLOW (0.3.0). `i18n` and the mobile-perf
@@ -138,13 +222,23 @@ jobs:
       # An agent that never ran (a human push, a bot commit, a merge from a branch built
       # elsewhere) met neither check, and the PR was green.
       - name: Locale seam (no hardcoded user-facing string; Intl only in src/i18n/)
+        if: steps.reuse.outputs.hit != 'true'
         run: node tools/check-i18n.mjs
 
       # Static half of the mobile perf floor: every route in src/routes.ts must have a
       # Maestro flow AND a startup-budget row (and stale rows red). The MEASUREMENT half
       # needs an emulator and lives in perf-lane.
       - name: Mobile perf closure (every route measured and flowed)
+        if: steps.reuse.outputs.hit != 'true'
         run: node tools/check-mobile-perf.mjs --closure
+
+      # LAST, so it runs only if every step above passed. The script builds the marker the
+      # push after merge looks for, so this step's text never contains it.
+      - name: Record this pass for the push after merge (pull request only)
+        if: github.event_name == 'pull_request'
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node tools/ci/lane-reuse.mjs --record --job "unit (vitest + jest-expo + diff coverage)"
 
   # ---------------------------------------------------------------------------
   # MUTATION — the assertion-QUALITY gate, and the only check here that asks the
@@ -164,6 +258,13 @@ jobs:
     name: mutation (critical files in this diff)
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    # A job-level block replaces the workflow's, so contents: read is restated.
+    permissions:
+      contents: read # checkout
+      actions: read # post-merge reuse: this workflow's runs, their jobs and job logs
+      pull-requests: read # post-merge reuse: the pull request this push merged
+    outputs:
+      reused-from: ${{ steps.reuse.outputs.from }}
     steps:
       - name: Harden runner (egress audit)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -179,18 +280,39 @@ jobs:
           # touched nothing critical" and pass forever.
           fetch-depth: 0
 
+      # Post-merge reuse (see the header). First after checkout, before setup-node: the
+      # script uses Node built-ins only. Every later step carries the `hit != 'true'` clause.
+      - name: Reuse the merged pull request's pass on this identical tree? (push only)
+        id: reuse
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/ci/lane-reuse.mjs --job "mutation (critical files in this diff)"
+
+      - name: Reused — name the pull request run this lane relied on
+        if: steps.reuse.outputs.hit == 'true'
+        env:
+          REUSED_FROM: ${{ steps.reuse.outputs.from }}
+        run: |
+          echo "::notice::reused: this lane passed on this exact tree in ${REUSED_FROM}; its steps did not run again on this push"
+          echo "**Reused.** This lane passed on this exact tree in ${REUSED_FROM}, so its steps did not run again on this push." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Enable Corepack
+        if: steps.reuse.outputs.hit != 'true'
         run: corepack enable
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        if: steps.reuse.outputs.hit != 'true'
         with:
           node-version-file: .node-version
           cache: pnpm
 
       - name: Install dependencies
+        if: steps.reuse.outputs.hit != 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Which critical files does this change touch?
+        if: steps.reuse.outputs.hit != 'true'
         id: scope
         # An assignment, THEN the echo. `echo "files=$(…)"` discards the substitution's exit
         # status, so a scoper that failed closed (a scope root matching zero files) read as
@@ -200,7 +322,7 @@ jobs:
           echo "files=$files" >> "$GITHUB_OUTPUT"
 
       - name: Mutate them (StrykerJS)
-        if: steps.scope.outputs.files != ''
+        if: steps.reuse.outputs.hit != 'true' && steps.scope.outputs.files != ''
         # env indirection, not ${{ }} inside run: file NAMES ride this value, and
         # a branch can name a file almost anything — expanding it into the shell
         # text would make that name executable (zizmor: template-injection).
@@ -210,12 +332,20 @@ jobs:
 
       # The gate. A survivor the baseline does not accept reds the PR.
       - name: Mutation ratchet (survivors vs the committed baseline)
-        if: steps.scope.outputs.files != ''
+        if: steps.reuse.outputs.hit != 'true' && steps.scope.outputs.files != ''
         run: node tools/check-mutation-ratchet.mjs
 
       - name: No critical files in this diff — nothing to mutate
-        if: steps.scope.outputs.files == ''
+        if: steps.reuse.outputs.hit != 'true' && steps.scope.outputs.files == ''
         run: echo 'This change touches no file on the critical surface (see tools/lib/mutation-critical.mjs).'
+
+      # LAST, so it runs only if every step above passed. The script builds the marker the
+      # push after merge looks for, so this step's text never contains it.
+      - name: Record this pass for the push after merge (pull request only)
+        if: github.event_name == 'pull_request'
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node tools/ci/lane-reuse.mjs --record --job "mutation (critical files in this diff)"
 
   # ---------------------------------------------------------------------------
   # Runtime RLS — the headline isolation gate against REAL Postgres 16 + pgvector
@@ -227,6 +357,13 @@ jobs:
     name: runtime (rls isolation + pgTAP, real postgres)
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # A job-level block replaces the workflow's, so contents: read is restated.
+    permissions:
+      contents: read # checkout
+      actions: read # post-merge reuse: this workflow's runs, their jobs and job logs
+      pull-requests: read # post-merge reuse: the pull request this push merged
+    outputs:
+      reused-from: ${{ steps.reuse.outputs.from }}
     # No `services:` block. The database under test is the Supabase local stack,
     # started by its own CLI below — a bare postgres service container would be a
     # DIFFERENT database from the one the app runs against: no auth schema, no
@@ -243,15 +380,35 @@ jobs:
         with:
           persist-credentials: false
 
+      # Post-merge reuse (see the header). First after checkout, before setup-node: the
+      # script uses Node built-ins only. Every later step carries the `hit != 'true'` clause.
+      - name: Reuse the merged pull request's pass on this identical tree? (push only)
+        id: reuse
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/ci/lane-reuse.mjs --job "runtime (rls isolation + pgTAP, real postgres)"
+
+      - name: Reused — name the pull request run this lane relied on
+        if: steps.reuse.outputs.hit == 'true'
+        env:
+          REUSED_FROM: ${{ steps.reuse.outputs.from }}
+        run: |
+          echo "::notice::reused: this lane passed on this exact tree in ${REUSED_FROM}; its steps did not run again on this push"
+          echo "**Reused.** This lane passed on this exact tree in ${REUSED_FROM}, so its steps did not run again on this push." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Enable Corepack
+        if: steps.reuse.outputs.hit != 'true'
         run: corepack enable
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        if: steps.reuse.outputs.hit != 'true'
         with:
           node-version-file: .node-version
           cache: pnpm
 
       - name: Install dependencies
+        if: steps.reuse.outputs.hit != 'true'
         run: pnpm install --frozen-lockfile
 
       # The Supabase CLI is a catalog-pinned devDependency, so it lives in
@@ -262,6 +419,7 @@ jobs:
       # node, so an outer `pnpm exec` would not reach it. Deliberately not
       # supabase/setup-cli — that would float a second, un-catalogued CLI version.
       - name: Put the workspace-local Supabase CLI on PATH
+        if: steps.reuse.outputs.hit != 'true'
         run: echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
 
       # `supabase start` applies supabase/migrations from scratch, so a migration
@@ -269,18 +427,21 @@ jobs:
       # The stack ships its own postgres, auth schema and GoTrue — the same shape
       # the app authenticates against.
       - name: Start the Supabase local stack
+        if: steps.reuse.outputs.hit != 'true'
         run: supabase start
 
       # pgTAP over the RLS STRUCTURE: force-RLS on every table, four per-operation
       # policies, no vacuous `USING (true)`, the initPlan sub-select form, and the
       # owner column leading an index.
       - name: RLS structure (pgTAP)
+        if: steps.reuse.outputs.hit != 'true'
         run: supabase test db
 
       # The SDK twin: cross-tenant isolation exercised through a real client with
       # real JWTs. Structure tests prove the policies EXIST and are shaped right;
       # only this proves they DENY.
       - name: RLS isolation suite (cross-tenant matrix)
+        if: steps.reuse.outputs.hit != 'true'
         shell: bash
         run: |
           node tests/rls/run-rls.mjs 2>&1 | tee rls-output.log
@@ -292,7 +453,16 @@ jobs:
       # in the chain notices until a consumer's typecheck breaks against a stale view
       # of the schema. The stack is up here, so this is the one place it can be proved.
       - name: Generated-types drift
+        if: steps.reuse.outputs.hit != 'true'
         run: node tools/check-types-drift.mjs
+
+      # LAST, so it runs only if every step above passed. The script builds the marker the
+      # push after merge looks for, so this step's text never contains it.
+      - name: Record this pass for the push after merge (pull request only)
+        if: github.event_name == 'pull_request'
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node tools/ci/lane-reuse.mjs --record --job "runtime (rls isolation + pgTAP, real postgres)"
 
   # ---------------------------------------------------------------------------
   # e2e fast lane — the SAME gate the Stop chain runs (tools/check-e2e.mjs):
@@ -305,6 +475,13 @@ jobs:
     name: e2e fast lane (jest-expo screen suite)
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # A job-level block replaces the workflow's, so contents: read is restated.
+    permissions:
+      contents: read # checkout
+      actions: read # post-merge reuse: this workflow's runs, their jobs and job logs
+      pull-requests: read # post-merge reuse: the pull request this push merged
+    outputs:
+      reused-from: ${{ steps.reuse.outputs.from }}
     steps:
       - name: Harden runner (egress audit)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -315,19 +492,48 @@ jobs:
         with:
           persist-credentials: false
 
+      # Post-merge reuse (see the header). First after checkout, before setup-node: the
+      # script uses Node built-ins only. Every later step carries the `hit != 'true'` clause.
+      - name: Reuse the merged pull request's pass on this identical tree? (push only)
+        id: reuse
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/ci/lane-reuse.mjs --job "e2e fast lane (jest-expo screen suite)"
+
+      - name: Reused — name the pull request run this lane relied on
+        if: steps.reuse.outputs.hit == 'true'
+        env:
+          REUSED_FROM: ${{ steps.reuse.outputs.from }}
+        run: |
+          echo "::notice::reused: this lane passed on this exact tree in ${REUSED_FROM}; its steps did not run again on this push"
+          echo "**Reused.** This lane passed on this exact tree in ${REUSED_FROM}, so its steps did not run again on this push." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Enable Corepack
+        if: steps.reuse.outputs.hit != 'true'
         run: corepack enable
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        if: steps.reuse.outputs.hit != 'true'
         with:
           node-version-file: .node-version
           cache: pnpm
 
       - name: Install dependencies
+        if: steps.reuse.outputs.hit != 'true'
         run: pnpm install --frozen-lockfile
 
       - name: RN screen suite (check-e2e gate — anti-vacuity enforced)
+        if: steps.reuse.outputs.hit != 'true'
         run: node tools/check-e2e.mjs
+
+      # LAST, so it runs only if every step above passed. The script builds the marker the
+      # push after merge looks for, so this step's text never contains it.
+      - name: Record this pass for the push after merge (pull request only)
+        if: github.event_name == 'pull_request'
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node tools/ci/lane-reuse.mjs --record --job "e2e fast lane (jest-expo screen suite)"
 
   # ---------------------------------------------------------------------------
   # The mobile<->server seam. Every other lane mocks the network, which is how a
@@ -343,6 +549,13 @@ jobs:
     name: integration lane (mobile <-> web-hosted API, real postgres)
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # A job-level block replaces the workflow's, so contents: read is restated.
+    permissions:
+      contents: read # checkout
+      actions: read # post-merge reuse: this workflow's runs, their jobs and job logs
+      pull-requests: read # post-merge reuse: the pull request this push merged
+    outputs:
+      reused-from: ${{ steps.reuse.outputs.from }}
     env:
       HARNESS_INTEGRATION_LANE: '1'
       LIVE_PROOF: '1'
@@ -362,39 +575,89 @@ jobs:
         with:
           persist-credentials: false
 
+      # Post-merge reuse (see the header). First after checkout, before setup-node: the
+      # script uses Node built-ins only. Every later step carries the `hit != 'true'` clause.
+      - name: Reuse the merged pull request's pass on this identical tree? (push only)
+        id: reuse
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/ci/lane-reuse.mjs --job "integration lane (mobile <-> web-hosted API, real postgres)"
+
+      - name: Reused — name the pull request run this lane relied on
+        if: steps.reuse.outputs.hit == 'true'
+        env:
+          REUSED_FROM: ${{ steps.reuse.outputs.from }}
+        run: |
+          echo "::notice::reused: this lane passed on this exact tree in ${REUSED_FROM}; its steps did not run again on this push"
+          echo "**Reused.** This lane passed on this exact tree in ${REUSED_FROM}, so its steps did not run again on this push." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Enable Corepack
+        if: steps.reuse.outputs.hit != 'true'
         run: corepack enable
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        if: steps.reuse.outputs.hit != 'true'
         with:
           node-version-file: .node-version
           cache: pnpm
 
       - name: Install dependencies
+        if: steps.reuse.outputs.hit != 'true'
         run: pnpm install --frozen-lockfile
 
       # See runtime-rls: the catalog-pinned CLI lives in node_modules/.bin.
       - name: Put the workspace-local Supabase CLI on PATH
+        if: steps.reuse.outputs.hit != 'true'
         run: echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
 
       # Starting the stack applies supabase/migrations and seeds deterministically.
       - name: Start the Supabase local stack
+        if: steps.reuse.outputs.hit != 'true'
         run: supabase start
 
+      # BEFORE the web app boots (1.0.4): the host's first request parses @app/env, the
+      # server-only pair (SUPABASE_SERVICE_ROLE_KEY, SUPABASE_DB_URL) and then
+      # NEXT_PUBLIC_SUPABASE_URL / _PUBLISHABLE / NEXT_PUBLIC_WEB_ORIGIN, and one missing
+      # name is a 500 on every route, health included. The live-proof suite below requires
+      # a URL, a publishable key and SUPABASE_SERVICE_ROLE_KEY. Through 1.0.3 this job
+      # booted the host with none of them. Extracted from the running stack at runtime,
+      # never committed: the local stack's keys rotate per `supabase start`. API_URL loses
+      # its trailing slash because the env Origin validator rejects one.
+      - name: Publish the local Supabase env to the job
+        if: steps.reuse.outputs.hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL%/}"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE=${ANON_KEY}"
+            echo "NEXT_PUBLIC_WEB_ORIGIN=http://127.0.0.1:3000"
+            echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
+            echo "SUPABASE_DB_URL=${DB_URL}"
+            echo "SUPABASE_URL=${API_URL%/}"
+            echo "SUPABASE_ANON_KEY=${ANON_KEY}"
+            echo "EXPO_PUBLIC_SUPABASE_URL=${API_URL%/}"
+            echo "EXPO_PUBLIC_SUPABASE_PUBLISHABLE=${ANON_KEY}"
+          } >> "$GITHUB_ENV"
+
       - name: Boot the web app (which hosts /api/trpc)
+        if: steps.reuse.outputs.hit != 'true'
         shell: bash
         run: |
           set -euo pipefail
           pnpm --filter web run dev > /tmp/web.log 2>&1 &
           for _ in $(seq 1 60); do
             # The health PROCEDURE, not the page: a 200 from / proves Next is
-            # serving, not that the router mounted and reached the database.
-            if curl -fsS -m 2 "http://127.0.0.1:3000/api/trpc/health" > /dev/null; then
+            # serving, not that the router mounted. `system.health`, because the
+            # routers are namespaced: /api/trpc/health is a 404 (1.0.4).
+            if curl -fsS -m 2 "http://127.0.0.1:3000/api/trpc/system.health" > /dev/null; then
               echo "web up"; exit 0
             fi
             sleep 1
           done
-          echo "::error::the web app never served a healthy /api/trpc"; cat /tmp/web.log; exit 1
+          echo "::error::the web app never served a healthy /api/trpc/system.health"; cat /tmp/web.log; exit 1
 
       # The suite authenticates through the real Supabase local stack, so the lane
       # exercises the exact JWT path production does — no token is minted
@@ -409,6 +672,7 @@ jobs:
       # traffic is excluded, and the gate refuses to pass on a ZERO count: a budget met
       # by an instrument that is not connected is not a budget.
       - name: Live API proof (app modules against the real API), under a statement budget
+        if: steps.reuse.outputs.hit != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -417,8 +681,16 @@ jobs:
           node tools/check-query-budget.mjs -- pnpm --filter mobile exec jest --silent __tests__/live-api-proof.test.ts
 
       - name: Web log on failure
-        if: failure()
+        if: failure() && steps.reuse.outputs.hit != 'true'
         run: cat /tmp/web.log || true
+
+      # LAST, so it runs only if every step above passed. The script builds the marker the
+      # push after merge looks for, so this step's text never contains it.
+      - name: Record this pass for the push after merge (pull request only)
+        if: github.event_name == 'pull_request'
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node tools/ci/lane-reuse.mjs --record --job "integration lane (mobile <-> web-hosted API, real postgres)"
 
   # ---------------------------------------------------------------------------
   # Native build lane — the generated android project actually assembles.
@@ -438,6 +710,12 @@ jobs:
       mobile: ${{ steps.filter.outputs.mobile }}
       web: ${{ steps.filter.outputs.web }}
       db: ${{ steps.filter.outputs.db }}
+      # 1.1.0: a live row in tools/surfaces.json (the mobile surface is not built yet).
+      # Read ONLY by the pull_request arm of mobile-e2e and perf-lane, and shown by
+      # gate-summary; `mobile-deferral` is `<until>: <reason>` and is never interpolated
+      # into a script, because on a pull request its text comes from the PR's own tree.
+      mobile-deferred: ${{ steps.surfaces.outputs.mobile-deferred }}
+      mobile-deferral: ${{ steps.surfaces.outputs.mobile-deferral }}
     steps:
       - name: Harden runner (egress audit)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -551,6 +829,28 @@ jobs:
               - 'tools/lib/sql-parse.mjs'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
+
+      # THE SURFACE DEFERRAL (1.1.0). A project building its web surface first records the
+      # mobile surface as not built yet in tools/surfaces.json, a dated, reviewed row, and
+      # this step tells the two device lanes. It is a content tripwire as well as a date:
+      # the row is VOID as soon as any tracked file under apps/mobile/ differs from the sha
+      # the installer recorded (or one is added, or a recorded one is gone, or there is no
+      # manifest), so the first real screen re-arms both lanes. Stdout is exactly the two
+      # key=value lines appended to $GITHUB_OUTPUT; everything else goes to the log. An
+      # absent or empty register reads nothing else and prints `false`. It exits 1 only on
+      # a malformed register or a corrupt manifest, after printing `false`.
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      # No install: node built-ins, one `git ls-files` and a sha256 per file.
+      - name: Surface deferral (tools/surfaces.json against the installer's record)
+        id: surfaces
+        run: node tools/ci/surface-deferral.mjs --mode=pr >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------------
   # db-scale — the PLAN probe, and the only lane in this file that can falsify the
@@ -779,7 +1079,8 @@ jobs:
     if: >-
       !cancelled() &&
       (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
-       (github.event_name == 'pull_request' && needs.changes.outputs.mobile == 'true'))
+       (github.event_name == 'pull_request' && needs.changes.outputs.mobile == 'true' &&
+        needs.changes.outputs.mobile-deferred != 'true'))
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
@@ -838,37 +1139,49 @@ jobs:
       - name: Start the Supabase local stack
         run: supabase start
 
+      # The device reaches the host through adb reverse, so the app's public config
+      # must point at loopback. `supabase status -o env` is the source for the local
+      # stack's URL and keys — never a committed literal (the hygiene gate rejects
+      # JWT-shaped strings in the template, and these rotate per `supabase start`).
+      # SUPABASE_SERVICE_ROLE_KEY is the local stack's key, never a deployed project's:
+      # tools/ci/mint-device-user.mjs mints the identity the mutation journey signs in as
+      # with it (admin createUser + its personal org), and it reaches no bundle
+      # (EXPO_PUBLIC_ is the only prefix Metro inlines).
+      # BEFORE the web app boots (1.0.4): the web app is the mutation journey's backend,
+      # and its first request parses @app/env, the server-only pair
+      # (SUPABASE_SERVICE_ROLE_KEY, SUPABASE_DB_URL) and then the NEXT_PUBLIC_ trio; one
+      # missing name is a 500 on every route, health included. Through 1.0.3 this step
+      # ran after the boot and published neither the DB URL nor the trio, so the host never
+      # answered and the journey never ran.
+      - name: Publish the local Supabase env for the web host, the bundle and the minter
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL%/}"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE=${ANON_KEY}"
+            echo "NEXT_PUBLIC_WEB_ORIGIN=http://127.0.0.1:3000"
+            echo "EXPO_PUBLIC_SUPABASE_URL=${API_URL%/}"
+            echo "EXPO_PUBLIC_SUPABASE_PUBLISHABLE=${ANON_KEY}"
+            echo "EXPO_PUBLIC_WEB_ORIGIN=http://127.0.0.1:3000"
+            echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
+            echo "SUPABASE_DB_URL=${DB_URL}"
+          } >> "$GITHUB_ENV"
+
       - name: Boot the web app (the mutation flow's backend)
         shell: bash
         run: |
           set -euo pipefail
           pnpm --filter web run dev > /tmp/web.log 2>&1 &
           for _ in $(seq 1 60); do
-            if curl -fsS -m 2 "http://127.0.0.1:3000/api/trpc/health" > /dev/null; then
+            # `system.health`: the routers are namespaced, and /api/trpc/health is a 404.
+            if curl -fsS -m 2 "http://127.0.0.1:3000/api/trpc/system.health" > /dev/null; then
               echo "web up"; exit 0
             fi
             sleep 1
           done
-          echo "::error::the web app never served a healthy /api/trpc"; cat /tmp/web.log; exit 1
-
-      # The device reaches the host through adb reverse, so the app's public config
-      # must point at loopback. `supabase status -o env` is the source for the local
-      # stack's URL and publishable key — never a committed literal (the hygiene gate
-      # rejects JWT-shaped strings in the template, and these rotate per `supabase start`).
-      # SUPABASE_SERVICE_ROLE_KEY rides along for ONE step: tools/ci/mint-device-user.mjs
-      # mints the identity the mutation journey signs in as (admin createUser + its
-      # personal org) — the local stack's key, rotated per `supabase start`, never a
-      # deployed project's, and it reaches no bundle (EXPO_PUBLIC_ is the only prefix
-      # Metro inlines).
-      - name: Publish the local Supabase env for the bundle (and the minter)
-        run: |
-          eval "$(supabase status -o env)"
-          {
-            echo "EXPO_PUBLIC_SUPABASE_URL=${API_URL%/}"
-            echo "EXPO_PUBLIC_SUPABASE_PUBLISHABLE=${ANON_KEY}"
-            echo "EXPO_PUBLIC_WEB_ORIGIN=http://127.0.0.1:3000"
-            echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
-          } >> "$GITHUB_ENV"
+          echo "::error::the web app never served a healthy /api/trpc/system.health"; cat /tmp/web.log; exit 1
 
       # Both binaries up front (the emulator step below only installs + drives).
       # Release: EXPO_PUBLIC_ vars are inlined at BUNDLE time, so they must be set on
@@ -911,12 +1224,17 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: bash tools/ci/device-lane.sh
+      # The web app's log is /tmp/web.log, written by the boot step above; through 1.0.3
+      # this step printed /tmp/server.log, which nothing writes.
       - name: Server + Metro logs on failure
         if: failure()
         run: |
-          echo '::group::server.log'; cat /tmp/server.log || true; echo '::endgroup::'
+          echo '::group::web.log'; cat /tmp/web.log || true; echo '::endgroup::'
           echo '::group::metro.log'; cat /tmp/metro.log || true; echo '::endgroup::'
 
+      # include-hidden-files: Maestro writes its debug output (commands, screenshots,
+      # maestro.log) under <out-dir>/<flow>/.maestro/, and upload-artifact drops hidden
+      # files by default, so through 1.0.3 none of it was uploaded.
       - name: Upload Maestro evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -925,6 +1243,7 @@ jobs:
           path: artifacts/maestro/
           retention-days: 7
           if-no-files-found: ignore
+          include-hidden-files: true
 
   # ---------------------------------------------------------------------------
   # perf-lane — the startup MEASUREMENT half of the mobile-perf floor (the
@@ -942,7 +1261,8 @@ jobs:
     if: >-
       !cancelled() &&
       (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
-       (github.event_name == 'pull_request' && needs.changes.outputs.mobile == 'true'))
+       (github.event_name == 'pull_request' && needs.changes.outputs.mobile == 'true' &&
+        needs.changes.outputs.mobile-deferred != 'true'))
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:

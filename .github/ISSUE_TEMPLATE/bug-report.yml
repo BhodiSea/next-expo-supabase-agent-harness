@@ -30,7 +30,8 @@ body:
       value: |
         ```sh
         npx --yes github:BhodiSea/next-expo-supabase-agent-harness init --tier core --yes --dir /tmp/repro
-        cd /tmp/repro && pnpm install
+        cd /tmp/repro && git init -q && pnpm install
+        git add -A && git commit -qm "chore: scaffold"
         # then:
         ```
     validations:

@@ -983,7 +983,7 @@ record its expiry. `graduate` refuses while any of them NOTEs; the sweep above c
 ones a script may clear, and the rest (registers naming YOUR code, the paired trail
 adoption) are yours.
 
-## 1.0.1 — a patch: nothing expires, nothing opens, one lock to regenerate
+## 1.0.1 — a patch: nothing expires, nothing opens, and the lock follows the re-pin
 
 **If you are on 1.0.0 already, no ramp here applies to you** — `EXPIRED` and `NOTING` are
 both empty at `baseVersion` 1.0.0 (`node scripts/ci/ramp-expectations.mjs 1.0.0 1.0.1` in the
@@ -998,12 +998,16 @@ first apostrophe inside `vitest.config.ts`'s exclude array), `.claude/settings.j
 `~/.claude` deny narrowed to the two settings files, so plans and memory can persist under
 `~/.claude`), and `.claude/agents/architecture-reviewer.md` (`model: opus` → `model: fable`).
 
-**The one thing you owe.** `update` never rewrites an existing `tools/agents.lock.json` —
-regenerating it would launder every edit since the last one — so after this hop the `prompts`
-gate reds on exactly that one agent file until you run
-`HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write` and commit the lock. That
-is the re-pin landing as a reviewed diff, which is what the lock is for. It is not a ramp and
-it has no deadline.
+**The agent lock follows the re-pin.** `update` never regenerates an existing
+`tools/agents.lock.json`, because that would launder every edit made since the last one.
+It re-records only the entries of the agent-surface files it rewrote itself, hash and
+model pin together. If your `architecture-reviewer.md` was untouched, `update` rewrites
+it, the lock records its new model, and `prompts` does not red on it: nothing is owed.
+If you had edited it, `update` keeps your copy and parks the incoming one under
+`.harness/pending/` (see "Forking an owned file" in the 1.0.2 section). Merging it is
+your edit, so `prompts` reds on it until a human runs
+`HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write` and commits the lock
+with the merge. That is not a ramp and has no deadline.
 
 ## 1.0.2 — a security patch: the `next` floor moves, and it reds every install below it
 
@@ -1255,6 +1259,574 @@ pnpm validate
 
 Do not use `update --refresh-seeded pnpm-workspace.yaml` for this: it replaces your whole
 catalog with the template's.
+
+## 1.0.4 — the local loop release: a patch, nothing expires, nothing opens
+
+**No ramp here applies to a 1.0.0, 1.0.1, 1.0.2 or 1.0.3 install.** The population 1.0.0
+reds is restated in this release's record for the same reason 1.0.1 through 1.0.3 restated
+it, and the 1.0.0 section above is still the sweep.
+
+**What `update` plants.** Owned files, re-planted when your copy still matches a released
+sha: `tools/check-types-drift.mjs`, `docs/harness/gates-catalog.md`, this runbook, the hooks
+under `.claude/hooks/` (their version stamps, and the telemetry below),
+`.claude/hooks/lib/hookio.mjs`, `.claude/hooks/lib/guard-rules.mjs`, `docs/harness/README.md`,
+`tools/lib/gate.mjs`, `tools/lib/stamp-inputs.mjs`, `tests/rls/run-rls.mjs`,
+`tests/rls/auth-trail.test.ts`, `tools/validate.mjs`, `tools/check-migrations.mjs`,
+`tools/check-version-sync.mjs`, `tools/check-styleguide-manifest.mjs`,
+`tools/check-perf-budget.mjs` and `tools/check-expo-policy.mjs`; where the `eas-update`
+module is enabled, `tools/check-eas-update.mjs`; and where the `store-metadata` module is
+enabled, `docs/store/app-review-notes.md`. `tools/lib/supabase-cli.mjs` is new, and `update`
+plants it. The project citation corpus below adds the new `tools/lib/corpus.mjs`, which
+`update` plants too, and changes `tools/check-sources.mjs`, `tools/check-docs-sync.mjs`,
+`tools/mcp/corpus-search-server.mjs`, `tools/mcp/README.md`,
+`tools/lib/enforcement-surface.mjs`, the header comments of `tools/lib/provenance-rules.mjs`
+and `tools/lib/citation-domains.mjs`, `.claude/rules/provenance.md`,
+`.claude/agents/citation-verifier.md`, `.claude/commands/verify-citations.md`,
+`.claude/skills/authoring-e2ee-feature/SKILL.md`, `docs/adr/README.md` and
+`docs/security/approved-tools.md`. The device lane below changes
+`.github/workflows/quality-gate.yml`, `tools/ci/device-lane.sh`,
+`tools/check-e2e-device.mjs` and `tools/lib/maestro-flows.mjs`, and, where the
+`device-e2e` module is enabled, `.github/workflows/device-e2e.yml`. What you may notice
+afterwards:
+
+- **A `types-drift` FAIL shows the diff.** Before the unchanged FAIL sentence the gate
+  prints each side's line count, the first line that differs, and a bounded window of each
+  side from there (`DIFF_LINES` in the gate), the committed file's lines prefixed `- ` and
+  the generated output's `+ `. The verdict and the exit code do not change.
+- **A new log, `.harness/telemetry.jsonl`.** The hooks append a record per Stop step (its
+  status, duration, and `SKIPPED` and `STAMPED` counts), per gate time in a step's
+  `VALIDATE_TIMINGS` line, and per in-turn deny, provenance block, Biome warning or reviewer
+  bounce. It holds ids and counts, never content, commands or paths. It is never trimmed and
+  no gate reads it, and `.harness/*` is already ignored, so it never shows in `git status`.
+  To reset it, delete it yourself: the guards deny an agent's edits and deletions under
+  `.harness/`. If you forked `.claude/hooks/lib/hookio.mjs` and `update` parked the new one
+  under `.harness/pending/`, every hook still loads and nothing is recorded until you take
+  the parked copy.
+- **A stamp hit prints `STAMPED`.** A gate riding its stamp used to print
+  `<gate>: OK — inputs unchanged since last green run (…)`; it now prints
+  `<gate>: STAMPED — inputs unchanged since last green run (…)`, still exits 0, and the Stop
+  hook lists those lines beside its skipped layers. If a script of yours matched the old
+  line, match the new one. `update` deletes every `.harness/*.ok` as it always has, so the
+  first run after it re-proves every gate.
+- **Stamps expire on more edits.** Each gate's stamp now also hashes the `tools/lib` modules
+  its script imports (`lib/sql-parse.mjs` for `tenancy`, `query-shapes` and `db-limits`, for
+  example) and `lib/fs-walk.mjs`. An edit to one of them re-runs the gate instead of riding
+  a warm stamp. Nothing expires less often than before.
+- **`rls-isolation` can print `STAMPED` with the stack up.** When nothing the two suites
+  read has changed, the `supabase --version` output is the same and the running database
+  has the same start time and applied migrations as at the last green run, the Stop step
+  prints `rls-isolation: STAMPED` and runs neither suite. `pnpm db:reset`, `pnpm db:down`
+  then `pnpm db:up`, a migration applied from the command line, or a different CLI each run
+  both suites again. Any non-empty `CI`, `CI=false` included, and
+  `HARNESS_REQUIRE_TOOLCHAINS=1` always run them. The stamp cannot see SQL you run by hand
+  against the running database: after that, run `pnpm db:reset`, or delete
+  `.harness/rls-isolation.ok` yourself (the guards deny an agent's deletions under
+  `.harness/`). If `update` parked your copy of `tools/lib/gate.mjs` or
+  `tools/lib/stamp-inputs.mjs`, the runner stamps nothing and runs both suites, as it did
+  before, until you take the parked copies.
+- **The Stop hook's database steps run your workspace Supabase CLI.** The `rls-isolation`
+  step and `types-drift` now put `node_modules/.bin` first on the `PATH` they spawn with
+  (not on Windows), so they run the CLI your catalog pins, as `pnpm test:rls`,
+  `pnpm db:types` and CI already did. The runner prints which CLI it used.
+- **`types-drift` can now red locally on a stale mirror.** On a machine with no global CLI
+  it used to skip; with your stack up it now runs, and a mirror that no longer matches your
+  schema blocks the turn. CI's `runtime-rls` job was already judging the same file with the
+  same CLI. Clear it the way the FAIL says:
+
+  ```
+  pnpm db:up && pnpm db:types
+  git add packages/platform/supabase/src/database.types.ts
+  ```
+
+- **The two `tests/rls` files change together.** The runner now hands vitest
+  `SUPABASE_DB_URL`, and `auth-trail.test.ts` reads it instead of naming a port. If you
+  forked `tests/rls/run-rls.mjs`, `update` keeps your fork and parks the incoming copy under
+  `.harness/pending/`, while the unmodified `auth-trail.test.ts` is re-planted. Your fork
+  must then pass `SUPABASE_DB_URL: s['DB_URL'] ?? ''` to vitest, or that suite throws
+  (locally and in `runtime-rls`) with a message naming the runner. Merge the parked copy, or
+  add that one key.
+- **`doctor` reports your toolchain and can clean residue.** Run with this release's CLI, it
+  prints `info` lines naming the `node`, `pnpm`, Supabase CLI and `psql` it found, their
+  versions and their pins. `doctor --clean` deletes `.harness/stop-output/`,
+  `apps/mobile/dist/`, `apps/web/.next/`, `apps/mobile/.expo/`, `coverage/`, `.stryker-tmp/`
+  and `.eslintcache` when git ignores them and they hold no tracked file (`--clean --dry-run`
+  lists them first). Your `.gitignore` is yours, so an entry it does not ignore is skipped
+  with a note. Neither changes its exit code. The bash guard still denies a recursive
+  force-delete, and its message now names `doctor --clean`.
+- **A new flag, `node tools/validate.mjs --ci-parity`.** It gives one local run CI's
+  posture: a missing prerequisite fails instead of skipping, no stamp is honoured, and the
+  run closes by naming each missing prerequisite. Run
+  `node tools/validate.mjs --min-floor --ci-parity` before you push to see what CI's
+  `static` job will say. Without the flag nothing changes, and no chain step, floor or
+  workflow moves. If you forked `tools/lib/gate.mjs` and `update` parked the new one, the
+  gates still run and nothing is recorded until you take the parked copy.
+- **You can edit a migration draft you have not committed.** The write guard used to deny
+  every Edit or Write to an existing `supabase/migrations/*.sql`, so the file
+  `supabase migration new` or `supabase db diff -f` had just written could not be filled in.
+  It now allows it when git reports the file as untracked (`?? <path>`) and it has one hard
+  link, `.harness/manifest.json` does not record it, and the session has no `GIT_DIR`,
+  `GIT_WORK_TREE`, `GIT_INDEX_FILE` or `GIT_COMMON_DIR` set. Once you `git add` it, it is
+  history again, and the deny returns naming the proof that failed. Committed migrations stay
+  append-only: the `migrations` gate and CI's `append-only` job judge them as before. A
+  migration someone applied to a shared database by hand and never committed reads as a
+  draft too, so commit what you apply. If your install sits in a subdirectory of its git
+  repository, git names the file with that prefix, which is not exactly `?? <path>`, so the
+  deny stays as it was through 1.0.3. If you forked
+  `.claude/hooks/pretool-write-guard.mjs`, `update` parks the new one under
+  `.harness/pending/` and your fork keeps denying every existing migration until you take
+  it.
+- **Two optional register keys; neither is needed, and neither changes a verdict unless
+  you add it.** Both registers are escape-listed and write-guarded, so each key lands as a
+  committed human edit.
+  - `tools/perf-budget.json` may declare `"subjects": []` beside
+    `"emptySubjects": { "reason": …, "reviewedOn": "YYYY-MM-DD" }` when nothing in your
+    app is dense enough to measure. The reason needs at least 40 characters after
+    trimming; the date is checked for format only. `perf-budget` then prints a NOTE and
+    names the reason in its OK line. The leak scan and the dense-feature closure still
+    run, so a `features/*/perfSubject.tsx` you keep needs a reviewed `exempt` row for its
+    directory (declaring it as a subject ends the empty state), and the row beside a
+    non-empty `subjects[]` reds as a stale escape.
+  - `tools/store-tunables.json` `accountDeletion` may carry `"registry"` when your command
+    registry is not `apps/mobile/src/features/actions/registry.ts`: a forward-slash `.ts`
+    or `.tsx` path under `apps/mobile/src/` with no `..` segment, legal only with
+    `"surface": "action"`. Without the key `expo-policy` reads the default path, as
+    before. **If you move the registry, move the mobile entry in `tools/data-flow.json`
+    `erase.clients` with it**, in the same commit: that entry names the file the mobile
+    app starts erasure from, and `data-flow` reds once the file it names is gone.
+- **`expo-policy` re-checks more often locally.** Its stamp now also hashes
+  `tools/store-tunables.json`, `apps/mobile/src`, `apps/mobile/app` and
+  `supabase/functions`, which it read without hashing, so an edit to any of them could
+  pass on a warm stamp. Any mobile source or Edge Function edit now re-runs
+  `expo-policy`, as a mobile source edit already re-runs `build` and `e2e`. CI never
+  honoured a stamp, so no CI verdict moves.
+- **A new vertical's events reach the catalog only through a forked generator, until
+  1.1.0.** `tools/gen-event-catalog.mjs` walks only the catalogs it imports by name, and
+  it is owned and hash-pinned, so adding your vertical's import line reds
+  `gate-integrity` unless you keep it as a deliberate fork: re-record its sha as the
+  1.0.2 section's "Forking an owned file" describes. Without the line, that vertical's
+  events are missing from the committed catalog while `contracts` stays green. Discovery
+  is planned for 1.1.0, and that release's section will say what changes.
+- **A project adds a citation authority in `tools/mcp/corpus/project.json`.** The
+  `provenance` gate, the ADR check in `docs-sync` and the `corpus_search` MCP server read
+  it beside `tools/mcp/corpus/index.json`, through `tools/lib/corpus.mjs`. An absent file
+  counts as empty, so until you create one every verdict is what it was. Once it exists,
+  `provenance` judges it: it must parse as exactly `{ comment, entries }`, each entry
+  passes the same lint as an index entry, and an id the index already pins reds naming
+  both files. The gate's remedies now point at `project.json`. The one change that
+  reaches you whether or not you create the file is in `wiring`; see "The CODEOWNERS
+  case" below.
+- **`update` can exit 2 over an owned file it holds no record for.** A file at a path the
+  harness owns, with no record in `.harness/manifest.json`, is now judged by its bytes.
+  Unless a release shipped exactly those bytes for that path, `update` keeps your file,
+  parks the incoming copy and exits 2, where it used to overwrite the file and exit 0. See
+  "A harness-owned file with no manifest record" below.
+- **The 1.0.1 section above and `docs/harness/gates-catalog.md` are corrected.** They said
+  `update` leaves an existing `tools/agents.lock.json` alone, and the 1.0.1 section said the
+  `architecture-reviewer.md` re-pin left `prompts` red until a human regenerated the lock.
+  Since 0.3.0 `update` has re-recorded the lock entry of each agent-surface file it
+  rewrites, hash and model pin together, so an install that had not edited that file owed
+  nothing then and owes nothing now. An agent file you edited still needs a human to run
+  `HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write` once you merge its
+  parked copy. What `update` does has not changed.
+- **Your `mobile-e2e` and `integration-lane` jobs reach their suites.** Both booted the web
+  app before the env its first request parses was set (`SUPABASE_SERVICE_ROLE_KEY`,
+  `SUPABASE_DB_URL` and the three `NEXT_PUBLIC_` names), so it answered 500, and waited on
+  `/api/trpc/health`, which is no procedure (the routers are namespaced), so neither could
+  get past the boot step to the device lane or the live-api proof. Each job now has a
+  "Publish the local Supabase env" step before "Boot the web app", fed from
+  `supabase status -o env`, and waits on `/api/trpc/system.health`. From this release the
+  two jobs can go red on their suites; treat that as you would any red suite. If you forked
+  `.github/workflows/quality-gate.yml`, `update` parks the new copy under
+  `.harness/pending/` and neither job gets past the boot until you take those two
+  publish steps and the `system.health` probe from it.
+- **A device red says what was on screen.** `tools/check-e2e-device.mjs` prints
+  `e2e-device: on screen when <flow> failed — ids: …; text: …` before its FAIL line, and
+  the evidence upload now keeps Maestro's own debug output, which it writes under a hidden
+  `.maestro/` directory. The perf-harness journey fails as soon as the screen shows its
+  verdict without `perf-pass`, and the printed text names each breached cap with its
+  measured value. The failure step prints `/tmp/web.log`, the web app's log.
+- **The device lane's Metro prewarm can fail the lane.** `tools/ci/device-lane.sh` fetches
+  the bundle a debug build asks Metro for, the Expo virtual entry, where it fetched
+  `/index.bundle`, a 404 on this SDK, and ignored the result. A Metro that cannot serve the
+  bundle within 600 seconds now fails the lane on that line instead of on the first
+  journey.
+- **A FIX line repeats path arguments.** The command after `FIX[<gate>]: reproduce with`
+  now keeps relative paths and prints a `KEY=VALUE` argument as `KEY=…`, so a value passed
+  with `--env` never reaches a log. If a script of yours reads FIX lines, it may see more
+  arguments than before.
+
+**What only a fresh scaffold gets.** These files are seeded, so `update` never plants them.
+Each note says what an existing install does instead.
+
+- **`packages/platform/supabase/src/database.types.ts`, regenerated with Supabase CLI
+  2.118.0.** The schema is unchanged. The generator's layout moved, and a function that
+  takes no arguments is now typed `Args: Record<PropertyKey, never>` where it was
+  `Args: never`. Your catalog's `supabase` entry decides which CLI your install runs, not
+  this release. Once that CLI generates differently from your committed file, `types-drift`
+  reds with your stack up, and the diff it prints shows where. Regenerate from your own
+  schema and commit the result:
+
+  ```
+  pnpm db:up && pnpm db:types
+  git add packages/platform/supabase/src/database.types.ts
+  pnpm validate
+  ```
+
+  Do not copy the template's file over yours. It describes the example's schema, not
+  your database.
+- **The template pins the Supabase CLI exactly.** New scaffolds get `supabase: 2.118.0`
+  where the catalog said `^2.34.3`. `pnpm-workspace.yaml` is seeded, so `update` leaves
+  yours alone. Your committed lockfile already fixes the CLI your CI installs. To take the
+  pin, set it in your catalog, run the commands below, and commit the lockfile and any
+  change to `packages/platform/supabase/src/database.types.ts`:
+
+  ```
+  # in the pnpm-workspace.yaml catalog: supabase: 2.118.0
+  pnpm install && pnpm db:down && pnpm db:up && pnpm db:types && pnpm validate
+  git add pnpm-lock.yaml pnpm-workspace.yaml packages/platform/supabase/src/database.types.ts
+  ```
+
+  If `rls_structure.test.sql` then goes red on write grants, the 1.0.2 section is the fix.
+  Do not use `update --refresh-seeded pnpm-workspace.yaml`: it replaces your whole catalog.
+- **`tools/store-tunables.json`'s `//` comment documents `accountDeletion.registry`.**
+  The key itself works on an existing install without it; the section above says how.
+- **`tools/mcp/corpus/project.json`, the empty project corpus.** `update` prints
+  `new exemplar available (not auto-planted): tools/mcp/corpus/project.json` instead of
+  planting it: every reader takes an absent file as empty, and a file whose gate reads
+  absence as empty is not planted. Pull it when you need it, as described below.
+- **The seeded sentences that name it.** These seeded files now name `project.json`, and
+  `update` changes none of yours. Each sentence is prose, so copying it changes no verdict,
+  and you may copy any of them from the template:
+  - `AGENTS.md`, the first bullet under `## Provenance` (reworded in place, so its line
+    count and the budget `docs-sync` holds it to do not move);
+  - `tools/decision-groups.json`, the sentence in `comment` about the covering entry a
+    group you add needs;
+  - `tools/provenance-overrides.json`, the sentence in `comment` that prefers a
+    properly-grouped authority over an override;
+  - `tools/approved-tools.json`, the `reason` of the `corpus_search` row.
+
+  The JSON files among them are reviewed escape files: the guards deny an agent's edit,
+  and `gate-integrity` reds an uncommitted one, so a human makes the change and commits it.
+
+### The project citation corpus: pulling it, and moving a forked index into it
+
+Through 1.0.3 the only place to add a citation authority was
+`tools/mcp/corpus/index.json`, which the harness owns and `gate-integrity` hash-pins, and
+the `provenance` gate's own remedy said to extend it. If you did, you re-recorded its sha
+(the "Forking an owned file" section above), and since 1.0.2 every `update` that changed
+the index has parked the incoming copy under `.harness/pending/` for you to merge by hand.
+From 1.0.4 your authorities belong in `tools/mcp/corpus/project.json`, and the index can
+go back to being the harness's.
+
+1. **Pull the skeleton.** `update --refresh-seeded tools/mcp/corpus/project.json` writes
+   `{ "comment": "…", "entries": [] }`. Its `comment` gives the entry shape. The file is
+   write-guarded, so a human edits it.
+2. **Move your additions.** Cut every entry you added to `tools/mcp/corpus/index.json` and
+   paste it, unchanged, into `entries`. Keep each id: a `project/` prefix is recommended
+   for new ids and required of none, so every `[corpus: <id>]` you cite keeps resolving.
+   Do not copy an entry the harness shipped; an id both files pin reds as "already pinned
+   in `tools/mcp/corpus/index.json`". The same red appears if a later release pins an id
+   you chose. Rename your entry and its citations then; the harness's entry stays.
+3. **Return the index to a released version.** Only once step 2 is done, run
+   `update --refresh-seeded tools/mcp/corpus/index.json --force`. Scoped to that one path,
+   `--force` discards your copy, writes the index this release ships and re-records its
+   `sha256` in `.harness/manifest.json`, the reverse of the re-record you made when you
+   forked it; no other file is touched. If an earlier `update` parked a copy at
+   `.harness/pending/tools/mcp/corpus/index.json`, delete it. `doctor` stops listing the
+   index as a fork, and the next `update` refreshes it again.
+4. **Commit `project.json`, `index.json` and `.harness/manifest.json` together** and run
+   `pnpm validate`. `provenance` is green when every citation resolves and each moved
+   entry still hashes; a red names the file and the entry. `project.json` is a reviewed
+   escape file, so `gate-integrity` also reds while an edit to it is uncommitted.
+
+A decision group you add to `tools/decision-groups.json` still needs an entry tagged with
+its key. That entry now goes in `project.json`, so adding a group no longer forks the index.
+
+### The CODEOWNERS case
+
+`tools/mcp/corpus/project.json` joins the escape lists that `wiring` checks CODEOWNERS
+against, and `wiring` asks about every path on them whether or not the file exists. The
+shipped `/tools/**` rule and the `*` catch-all both give it an owner. `wiring` reds only
+when the last CODEOWNERS rule that matches the path names no owner, for example a bare
+`/tools/mcp/` line added below `/tools/**`. GitHub reads that rule as "no review" for
+everything under it. The red names the path and the rule. Give that rule an owner, or add
+a `/tools/mcp/corpus/project.json` line with one below it.
+
+### A harness-owned file with no manifest record: `update` keeps it and parks the incoming copy
+
+**Who is affected.** An install that holds a file at a path the harness owns, with no
+record for that path in `.harness/manifest.json`. `init` and `update` record every owned
+file they write, so an install nobody has touched has none. One appears when:
+
+- a release starts shipping a path where your project already had its own file;
+- `enable` found your file at a module path, kept it and parked the module's copy, which
+  records nothing for the path;
+- `disable` kept a module file you had modified and dropped its record, and you enabled
+  the module again;
+- someone deleted a record by hand.
+
+**What you see.** Through 1.0.3 `update` read a missing record as "unmodified": it
+replaced your file with the harness's copy, recorded it and exited 0, and a `removed` or
+`renamed` migration deleted it. From 1.0.4 `update` asks whether any release of the
+harness shipped exactly the bytes on disk for that path. When one did, the file is
+refreshed and recorded as before. When none did, `update`:
+
+- keeps your file and records nothing for it;
+- parks the incoming version at `.harness/pending/<path>` and lists the path as drift;
+- adds one note, `<path> has no manifest record and its bytes match no release of this
+  harness — kept; …`;
+- exits 2, as it does for any drift. `update --dry-run` reports the same park.
+
+It parks even when upstream has not changed the file since your install's version: with
+no record, nothing shows that your file started as the harness's copy. A `removed` or
+`renamed` migration leaves such a file in place and says so in a note ending `left in
+place; remove it manually`. `gate-integrity` checks recorded files only, so the file stays
+outside it until you resolve the park, as it was before the update, and `doctor` keeps
+naming the parked copy.
+
+**Three ways to resolve it.**
+
+1. **Keep your file, merged.** Merge what you need from `.harness/pending/<path>` into
+   your file, delete the parked copy, and have a human record the file's `sha256` in
+   `.harness/manifest.json`, with mode `owned`, in a reviewed commit. The file is then a
+   fork, and "Forking an owned file" in the 1.0.2 section above applies on every later
+   update.
+2. **Take the harness's copy.** Delete your file and the parked copy, then run `update`
+   again. The path is written fresh and recorded.
+3. **Discard yours in one step.** `update --refresh-seeded <path> --force` overwrites that
+   one file with this release's version, records its `sha256` and notes
+   `--force overwrote locally-modified <path>`; no other file is touched. Delete the parked
+   copy afterwards. A plain `update --force` does the same, but it also discards every
+   other drifted or forked owned file in the run, so read `update --dry-run` first if you
+   use it.
+
+## 1.1.0 — the sharper verdicts release: the 1.0.0 notes fall due
+
+**If your `baseVersion` is 1.0.0 or later, nothing expires for you.** Every ramp 1.0.0
+opened carries `minVersion 1.0.0`, so none of them has ever been live on your install. What
+the version bump itself brings a 1.0.x install is the uuid arrival NOTE below; each ramp a
+later 1.1.0 change opens has its own part of this section. Read what applies
+to YOUR `baseVersion` off `node scripts/ci/ramp-expectations.mjs <your base> 1.1.0` in a
+harness checkout, and off `pnpm validate 2>&1 | grep -E 'NOTE — \(ramp\)|RAMP EXPIRED'` in
+your own tree, never off this page.
+
+**If your `baseVersion` is below 1.0.0, this is where the 1.0.0 sweep stops being
+optional.** The 1.0.0 section above is the sweep, and nothing in it changed. If you are
+more than one release behind, read the sections above in order before crossing this one.
+
+### What ARRIVES (hard) — for installs below 1.0.0
+
+The six-gate NOTE fleet 1.0.0 opened, less its re-opened eol arrival. Each finding that
+printed as `NOTE — (ramp)` with `expires in 1.1.0` now prints under a `RAMP EXPIRED`
+banner and reds its step. The numbers are the items of the 1.0.0 section's "What OPENS"
+list, which says what to do for each:
+
+1. **`suppressions`** (item 1). Reconcile `tools/suppressions-allow.json` to your tree: a
+   directive with no row, and a row naming a directive your tree lacks, both red.
+2. **`resilience`** (item 2). Every outbound seam your tree added needs its
+   `tools/resilience.json` row.
+3. **`docs-sync`'s gate list** (item 3). Your seeded `AGENTS.md` must list every step the
+   chain runs. Paste the names the finding prints.
+4. **`boundaries`, two sites.** The behavior-keyed anatomy widening (item 4), and the
+   census module-name closure: an entry in `tools/exports-walls.json` whose `module` is not
+   in the owned `tools/modules.json` reds. Fix the name, or remove the entry's sanction.
+5. **`version-sync`'s vendor-support register** (item 5, its first half):
+   `tools/support-register.json` and its platform-fact closure against your Postgres and
+   Node pins.
+6. **`auth-posture`'s `[auth.hook.*]` floors** (item 6), and only if the auth-event trail
+   migration is in your tree. With neither the migration nor the config sections, nothing
+   is demanded, exactly as before.
+
+`scripts/ci/upgrade-sweep.mjs` `SWEEPS['1.0.0']` is what the upgrade lane's swept leg runs
+before it requires `graduate` to succeed, and it adds no step for this release
+(`SWEEPS['1.1.0']` is empty, and says why).
+
+### What re-OPENS (a dated NOTE, until 1.2.0) — for every install below 1.1.0
+
+**`version-sync`'s uuid arrival.** The harness re-reviewed its own uuid 7 acceptance at
+this release and moved its `removalTarget` from 1.1.0 to 1.2.0. `xcode` 3.0.1 still
+declares `uuid: ^7.0.3`, `@expo/config-plugins` still depends on that `xcode`, and a
+registry sweep of a fresh scaffold (`scripts/sweep-registry-deprecations.mjs`) still finds
+uuid@7.0.3 as the only deprecated package in the production closure. The vendor's
+message now also tells ESM codebases to update to uuid@latest and CommonJS codebases to
+use uuid@11. Neither is a move this tree can make, because `xcode` chooses the range.
+
+Your `tools/eol.json` is seeded, so it still says what it said: `"removalTarget": "1.1.0"`
+on a 1.0.x install, and `"0.12.0"` or earlier on an older one that never re-dated it. That
+date has arrived. `update` parks the re-affirmation under
+`.harness/pending/source-fixes.json` (a `SEEDED SOURCE FIX` note naming `version-sync`),
+and `version-sync` prints the arrival as `NOTE — (ramp)` with `expires in 1.2.0` rather
+than a hard red. Re-affirm the row under a release you mean, recording what you
+re-checked, or remove the dependency. If you never edited `tools/eol.json`, taking the
+harness's register is the same act:
+
+```
+update --refresh-seeded tools/eol.json
+git add tools/eol.json
+```
+
+That pull replaces the whole file, your own rows included, so read the diff before you
+commit it. The parked fix clears itself once your file no longer says `"1.1.0"`.
+`graduate` refuses while this NOTE stands.
+
+### What `update` plants, and what else moved
+
+Owned files, re-planted when your copy still matches a released sha: the hooks under
+`.claude/hooks/` (their version stamps), this runbook, `tools/check-version-sync.mjs` (the
+re-opened arrival ramp), `tools/deferrals.json`, `tools/auth-posture.json`,
+`tools/check-auth-posture.mjs` and `docs/harness/gates-catalog.md` (the census date below),
+`tools/conformance-map.json` and the comments of `tools/check-docs-sync.mjs` and
+`tools/check-workspace-deps.mjs` (the sentences that called the 1.0.0 ramps open). The
+surface deferral adds `tools/ci/surface-deferral.mjs` and `tools/lib/surface-deferral.mjs`,
+and re-plants `.github/workflows/quality-gate.yml`, `.github/workflows/osv-scan.yml`,
+`tools/ci/summarize-gate.mjs`, `tools/lib/gate.mjs`, `tools/lib/enforcement-surface.mjs`,
+`.claude/hooks/lib/guard-rules.mjs`, `docs/harness/enforcement-tiers.md` and
+`docs/security/threat-model.md`; the register itself is withheld (the subsection below).
+Post-merge lane reuse adds `tools/ci/lane-reuse.mjs` and `tools/lib/lane-reuse.mjs`, and
+re-plants `.github/workflows/quality-gate.yml`, `tools/ci/summarize-gate.mjs` and
+`docs/harness/README.md` (the last subsection before RECOVERY). The generated skill
+references re-plant the vertical-slice skill's
+`.claude/skills/authoring-vertical-slice/references/dal-dto.md` and
+`references/migration-rls.md`, and the `.claude/agents/migration-rls-author.md` agent, and
+`update` re-records their `tools/agents.lock.json` entries. The fixture-table pgTAP suites
+re-plant `tools/conformance-map.json`, `tools/essential-eight.json` and
+`docs/harness/gates-catalog.md`, whose sentences now say where the MFA and audit proofs
+run; the suites themselves are seeded and stay as they are (the last subsection before
+RECOVERY). What you may notice afterwards:
+
+- **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
+  upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
+  subcommand the census waits for, is still open, and the CLI documents `config push` as
+  its only `config` subcommand. The date moved in the owned ledger and its three sentences
+  together, so `docs-sync` does not red on it. Nothing is yours to do.
+- **The `changes` job checks out the tree and runs one more step**, the surface deferral
+  below. With no register it prints `mobile-deferred=false` and reads nothing else, so
+  every lane runs exactly as before.
+- **On a push to your default branch, some merge-gate lanes finish in seconds.** `static`,
+  `unit`, `mutation`, `runtime-rls`, `e2e-fast` and `integration-lane` reuse the pull
+  request run that already passed on the identical tree, name it, and appear under
+  `REUSED` in `gate-summary`. They now request `actions: read` and `pull-requests: read`.
+  The subsection on `quality-gate.yml` below says when a lane reuses and when it runs.
+- **The vertical-slice skill's code blocks name `notes` and sit between `skill-region`
+  comments.** Each is now a verbatim copy of a marked span of the harness's own example:
+  the `create` procedure of `packages/api/src/routers/notes.ts` in `references/dal-dto.md`,
+  and the four permissive policies of `supabase/schemas/20_notes.sql` as the policy half of
+  the RLS skeleton in `references/migration-rls.md`. That half reads `notes` where the
+  skeleton's hand-written half above it reads `<t>`; rename when you copy, as the line
+  beside each block says. A fresh scaffold's copies of those two example files carry the
+  matching markers as comments. Yours are seeded, so `update` leaves them as they are, and
+  nothing asks you to add the markers: the check that reads them runs in the harness
+  repository, not in your chain. If you edited one of the three owned files above, your copy
+  stays, the new one is parked under `.harness/pending/`, and `update` exits 2 while it
+  stays there.
+
+### A surface you have not built yet: `tools/surfaces.json`
+
+A project that builds its web surface first can now say so, instead of forking the owned
+`quality-gate.yml`. A live row skips `mobile-e2e` and `perf-lane` on a pull request, and
+nothing else: scheduled and dispatched runs keep both lanes, every other job ignores the
+file, and `gate-summary` prints the row's reason beside each lane it skipped.
+
+**`update` withholds the register from an existing install.** It is `seedOnInitOnly` in the
+1.1.0 record: its reader treats an absent register as an empty one, which defers nothing,
+so an install that never writes a row sees no change. Fresh scaffolds get the empty
+register. **Creating one is a committed, reviewed act.** The file is write-guarded, so a
+human writes it, and it is on the escape lists, so `gate-integrity` reds while an edit to
+it is uncommitted and `wiring` asks CODEOWNERS about it:
+
+```json
+{
+  "//": "Surfaces this project has not built yet.",
+  "deferrals": [
+    { "surface": "mobile", "deferredUntil": "YYYY-MM-DD", "reason": "one line: why the app is not built yet" }
+  ]
+}
+```
+
+`mobile` is the only surface a row may name, one row per surface; `deferredUntil` is the
+last deferred day; the reason is non-empty and on one line. Any other shape makes the
+`changes` job red, after it reports `mobile-deferred=false`. Check a row before you push:
+`node tools/ci/surface-deferral.mjs --mode=pr` prints the two output lines and, on stderr,
+whether the row is live and how many files it compared.
+
+**What ends a deferral, without anyone touching the row.**
+
+- **The content tripwire.** The row is void, and both lanes run, as soon as any tracked
+  file under `apps/mobile/` differs from the sha256 the installer recorded in
+  `.harness/manifest.json`, a file is added there or a recorded one is gone, or the
+  manifest is absent. Your first real screen re-arms the lanes. Changes to the shared
+  packages do not void the row on their own; one that forces an edit under `apps/mobile/`
+  voids it through that edit. `update --refresh-seeded <path>` rewrites a file and its
+  record together, so it keeps the row live; hand-editing the manifest to do the same is
+  an edit to the write-guarded, CODEOWNERS-covered `.harness/`, and the date still ends it.
+- **The date.** After `deferredUntil` a pull request runs the lanes again, and the
+  scheduled `floor-review` job (`osv-scan.yml`) reds on the lapsed row, naming it. It also
+  reds on a void or malformed row. It never reds a pull request.
+
+**A retrofit install** planted no `apps/mobile/` files. If your project has its own mobile
+app there, its files have no records, so a `mobile` row is void from the start. If nothing
+is tracked or recorded under `apps/mobile/`, the row is live and the CLI says that zero
+files were compared.
+
+### `quality-gate.yml`: a push reuses its pull request's green lanes on an identical tree
+
+`update` re-plants `.github/workflows/quality-gate.yml`, `tools/ci/summarize-gate.mjs` and
+`docs/harness/README.md` when your copies still match a released sha, and plants two new
+owned files, `tools/ci/lane-reuse.mjs` and `tools/lib/lane-reuse.mjs`. What changes for
+you:
+
+- **On a push to your default branch, `static`, `unit`, `mutation`, `runtime-rls`,
+  `e2e-fast` and `integration-lane` may finish in seconds.** Each first asks whether the
+  pull request you just merged passed that same job on the identical tree, at its final
+  head. On a hit its steps are skipped, a notice names the pull request run it relied on,
+  and `gate-summary` lists the lane as `REUSED` with that run. The job still reports
+  success, because it cites one. A merge of a branch that was behind its base, a conflict
+  resolution, a direct push, a red or unfinished pull request run, or a GitHub API error
+  runs everything, as before. Nightly and manually dispatched runs never reuse.
+- **Those jobs now request `actions: read` and `pull-requests: read`** beside
+  `contents: read`, to list the pull request's runs, their jobs and job logs, and the pull
+  request a push merged. Nothing is written. If the token cannot read them, the lookup
+  misses and the lane runs in full.
+- **A pull request from a fork never reuses.** Its run executed workflow text from a
+  repository you do not control, so its merge runs every lane, which is what it did before.
+- **If you forked `quality-gate.yml`,** `update` keeps your fork and parks the incoming copy
+  at `.harness/pending/.github/workflows/quality-gate.yml`, and it exits 2 while that copy
+  is there ("Forking an owned file" in the 1.0.2 section). Your fork keeps running every
+  lane on every push until you merge the new steps in. When you merge them, copy each
+  lane's lookup, hit-report and record steps, its `permissions:` and `outputs:` blocks and
+  the `steps.reuse.outputs.hit != 'true'` condition on every step in between, then
+  re-record the sha. A step you add to one of those lanes later needs the same condition.
+
+### The pgTAP suites prove the rails on a fixture table: fresh scaffolds only
+
+A fresh 1.1.0 scaffold's `supabase/tests/rls_isolation.test.sql`, `mfa_aal2.test.sql` and
+`audit_immutability.test.sql` no longer prove isolation, the aal2 rail and audit capture by
+writing to the example's table. Each builds a table of its own, `public.pgtap_fixture`,
+inside its test transaction, between `-- fixture:begin` and `-- fixture:end`, and the
+suite's ROLLBACK removes it. Its DDL is the RLS skeleton of
+`.claude/skills/authoring-vertical-slice/references/migration-rls.md` with the table
+renamed, plus the example's `title` and `body` columns; `mfa_aal2` adds the example's MFA
+rail and `audit_immutability` its audit trigger, both renamed. The fixture runs on your real
+`private.member_org_ids()`, `private.member_ranks()`, `private.mfa_satisfied()` and
+`audit.write_row()`. A project that deletes the example keeps these proofs.
+
+**Your install keeps its suites.** They are seeded: `update` does not rewrite them, and
+nothing in your chain asks for the new ones. If you never edited a suite, pull the new one
+with `npx next-expo-supabase-agent-harness update --refresh-seeded supabase/tests/<file>`,
+the channel the 1.0.2 section uses for `rls_structure.test.sql`, then run
+`pnpm db:reset && pnpm test:rls`. If you did edit it, `--refresh-seeded` keeps your copy,
+parks the new one under `.harness/pending/supabase/tests/`, and exits 2: merge by hand, by
+adding the fixture region before the suite's first role switch and pointing your
+behavioural assertions at `public.pgtap_fixture`.
+
+**The new suites still name the example.** `rls_isolation`'s recursion probe still reads
+`public.notes`, with every other RLS target, and the structural checks still name it:
+`mfa_aal2`'s shape assertions read the `notes_mfa_aal2` policy, and `audit_immutability`'s
+coverage read lists `notes` among the audited tables, as `rls_structure.test.sql` does. A
+project that removes the example still edits those lines, as it did before. What no pgTAP
+suite does any more is write to `public.notes`: the example's own rank floors, MFA policy
+and audit trigger are judged statically, by `schema-rls` and `tenancy`, and the supabase-js
+suite under `tests/rls/` still reads it across tenants.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

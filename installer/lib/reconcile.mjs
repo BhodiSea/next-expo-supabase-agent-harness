@@ -5,9 +5,12 @@ import { sha256 } from './manifest.mjs'
 
 // current: raw Buffer of the installed file, or null when the destination is
 // absent. incoming: rendered template content (Buffer or string — sha256
-// hashes both identically). recordedSha absent means "no provenance": update
-// treats that as unmodified (refresh-seeded layers its stricter park-on-
-// no-provenance policy on top — that is caller policy, not classification).
+// hashes both identically). recordedSha absent (or empty) means "no
+// provenance", and this table reads it as unmodified. Both callers add their
+// own policy for a missing record on top — that is caller policy, not
+// classification: update's sweep keeps an owned file whose bytes no release
+// shipped and parks the incoming copy (lib/provenance.mjs, 1.0.4), and
+// refresh-seeded parks any file it cannot prove untouched.
 /** @param {{ current: Buffer | string | null, recordedSha?: string, incoming: Buffer | string, force?: boolean }} spec */
 export function classifyDrift({ current, recordedSha, incoming, force = false }) {
   if (current === null) return 'create'

@@ -479,7 +479,12 @@ const RULE_CANARIES = {
     pathAllow('tools/lib/citation-domains.mjs', SELF_EDIT),
   ],
   'tools-lib': [pathDeny('tools/lib/gate.mjs')],
-  'tools-mcp': [pathDeny('tools/mcp/corpus-search-server.mjs')],
+  'tools-mcp': [
+    pathDeny('tools/mcp/corpus-search-server.mjs'),
+    // 1.0.4: the project corpus is the reviewed place a project adds an authority;
+    // adding one stays a human act.
+    pathDeny('tools/mcp/corpus/project.json'),
+  ],
   'lock-json': [pathDeny('tools/identity.lock.json'), pathDeny('tools/prompts.lock.json')],
   'rls-exempt': [pathDeny('tools/rls-exempt.json')],
   // The tenancy contract: predicateForms IS the definition of a correct tenant
@@ -516,6 +521,10 @@ const RULE_CANARIES = {
   // The vendor-support register — a 'ceiling' acceptance or a reviewedUntil move is
   // a human decision, exactly like its eol sibling.
   'support-register': [pathDeny('tools/support-register.json')],
+  // 1.1.0 (#56). The surface register: a live row skips both device lanes on a pull
+  // request, so writing one is the cheapest way past a red Maestro run. Adding a row is
+  // a reviewed human act.
+  'surfaces-register': [pathDeny('tools/surfaces.json')],
   'reviewer-triggers': [pathDeny('tools/reviewer-triggers.json')],
   'rate-limit-budget': [pathDeny('tools/rate-limit-budget.json')],
   // 0.5.0. The reviewed side of the `security-headers` by-value diff: the gate evaluates
@@ -1221,6 +1230,28 @@ for (const cmd of [
   })
 }
 
+// ── bash-guard: the rm-rf deny points at doctor --clean (1.0.4, #45) ─────────
+// The regex, its canaries above and the settings deny list do not move: the deny gains one
+// sentence naming the sanctioned delete for ignored build output. Its FIRST sentence is
+// what docs/security/threat-model.md is generated from (gen-conformance-docs.mjs
+// firstSentence), so it stays byte-identical and the generated doc does not change.
+test('rm-rf: the deny names doctor --clean, and its first sentence is byte-identical', async () => {
+  const { BASH_RULES } = await import(GUARD_RULES.href)
+  const rule = BASH_RULES.find((r) => r.id === 'rm-rf')
+  const FIRST =
+    'Blocked: a recursive force-delete (any flag spelling, any shell — `rm`, `Remove-Item`, `del`, `rd`) is forbidden by the harness.'
+  assert.ok(rule.message.startsWith(`${FIRST} `), rule.message)
+  assert.match(rule.message, /doctor --clean/)
+  const threat = readFileSync(join(TEMPLATE, 'docs/security/threat-model.md'), 'utf8').replaceAll('\r\n', '\n')
+  assert.ok(threat.includes(`- \`rm-rf\` — ${FIRST}\n`), 'threat-model.md still lists the unchanged first sentence')
+  const r = runHook('pretool-bash-guard.mjs', {
+    tool_name: 'Bash',
+    tool_input: { command: 'rm -rf apps/web/.next' },
+  })
+  assert.ok(denied(r), r.stdout)
+  assert.match(JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason, /doctor --clean/)
+})
+
 // ── write-guard: migrations append-only ───────────────────────────────────────
 test('write-guard denies edits to an EXISTING migration, allows a NEW one', () => {
   const existing = runHook('pretool-write-guard.mjs', {
@@ -1503,6 +1534,41 @@ test('stop gate: green output surfaces SKIPPED layers instead of staying silent'
   assert.equal(r.code, 0, r.stderr)
   assert.ok(r.stderr.includes('skipped layers'), r.stderr)
   assert.ok(r.stderr.includes('SKIPPED'), r.stderr)
+})
+
+// A stamp hit is its own status (1.0.4, #42). Through 1.0.3 it printed an OK line, and the hook
+// collected SKIPPED lines only, so a turn that ended on warm stamps read exactly like one that
+// re-proved everything. STAMPED lines are listed beside the skipped layers, green or red.
+test('stop gate: STAMPED lines are listed on a green run and on a red one', () => {
+  const stampedStep = `node -e "console.log(process.env.X_STAMP); console.log('x: OK - ran')"`
+  const stamp = 'rls-isolation: STAMPED — inputs unchanged since last green run (.harness/rls-isolation.ok; CI always re-runs)'
+  writeFileSync(
+    join(proj, 'tools/harness.config.mjs'),
+    `export const VALIDATE_STEPS = []\nexport const STOP_HOOK_STEPS = [['rls-isolation', ${JSON.stringify(stampedStep)}]]\n`,
+  )
+  const green = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_STAMP: stamp } })
+  assert.equal(green.code, 0, green.stderr)
+  assert.match(green.stderr, /stamped/i, green.stderr)
+  assert.ok(green.stderr.includes(`[rls-isolation] ${stamp}`), green.stderr)
+  assert.ok(!green.stderr.includes('x: OK'), 'only STAMPED lines are listed, never a plain OK')
+
+  writeFileSync(
+    join(proj, 'tools/harness.config.mjs'),
+    `export const VALIDATE_STEPS = []\nexport const STOP_HOOK_STEPS = [['rls-isolation', ${JSON.stringify(stampedStep)}], ['boom', '${FAIL}']]\n`,
+  )
+  const red = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_STAMP: stamp } })
+  assert.equal(red.code, 2, red.stderr)
+  assert.ok(red.stderr.includes('boom FAILED'), red.stderr)
+  assert.ok(red.stderr.includes(`[rls-isolation] ${stamp}`), `a red run lists the stamped steps too:\n${red.stderr}`)
+
+  // A line that only CONTAINS the word is not a stamp line: the status follows `<gate>: `.
+  writeFileSync(
+    join(proj, 'tools/harness.config.mjs'),
+    `export const VALIDATE_STEPS = []\nexport const STOP_HOOK_STEPS = [['rls-isolation', ${JSON.stringify(stampedStep)}]]\n`,
+  )
+  const prose = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_STAMP: 'note: nothing was STAMPED — here' } })
+  assert.equal(prose.code, 0, prose.stderr)
+  assert.ok(!/stamped/i.test(prose.stderr), prose.stderr)
 })
 
 // ── symlink shadowing: the write-guard judges the DESTINATION, not the name ───

@@ -295,7 +295,8 @@ The checklist those reviewers are running, and that you run first:
   all-zero refusal), `ietf/rfc8410-x25519-pkcs8` (the fixed PKCS#8 prefix the raw-key
   bridge relies on) and `owasp/key-management` (KEK/DEK separation — the rewrap argument).
   Verify each resolves with the `corpus_search` MCP tool mid-turn; if your decision needs
-  an authority none of them grounds, extend the corpus in the PR that first cites it.
+  an authority none of them grounds, add it to `tools/mcp/corpus/project.json` in the PR
+  that first cites it.
 - Emit the ADR via `/adr <slice>`; its **Sources** section mirrors every inline `// SOURCE:`,
   and its Consequences section carries the losses from step 1 in plain words. Run
   `/verify-citations` until it returns `CITATIONS: CLEAN`.

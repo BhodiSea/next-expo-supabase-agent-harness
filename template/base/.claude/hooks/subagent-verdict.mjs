@@ -54,10 +54,12 @@ import { changedFiles } from '../../tools/lib/git-diff.mjs'
 // error instead of being judged. Through the namespace a missing export is `undefined`, and
 // the hook falls back to `readVerdict`, whose name and return domain did not change.
 import * as verdicts from '../../tools/lib/reviewer-verdicts.mjs'
-import { readHookInput } from './lib/hookio.mjs'
+// hookio as a NAMESPACE too (1.0.4), for the same reason: `recordHookEvent` is new, and a
+// forked lib/hookio.mjs that `update` parked must still load. The guarded call is a no-op there.
+import * as hookio from './lib/hookio.mjs'
 import { TURN_LOG, recordTurnOutcome } from './lib/turn-outcomes.mjs'
 
-export const HARNESS_HOOK_VERSION = '1.0.3'
+export const HARNESS_HOOK_VERSION = '1.1.0'
 
 const AGENTS_DIR = '.claude/agents'
 const LEDGER = '.harness/reviewer-ledger.jsonl'
@@ -129,13 +131,14 @@ function reviewerTypes() {
   return out
 }
 
-const input = await readHookInput()
+const input = await hookio.readHookInput()
 
 // FAIL CLOSED ON AN UNRECOGNIZABLE PAYLOAD — 0.3.0's stated requirement for this feature,
 // and the same posture pretool-mcp-guard takes. A hook that cannot tell what happened must
 // not report that nothing did.
 if (input === null || typeof input !== 'object') {
   recordBlock('subagent-verdict/unparseable-payload', null)
+  hookio.recordHookEvent?.({ hook: 'subagent-verdict', rule: 'unparseable-payload', input: null }, 'bounce')
   process.stderr.write(
     'subagent-verdict: the SubagentStop payload was empty or unparseable, so this hook cannot tell which agent ran or what it concluded. It fails CLOSED rather than recording a silence as a pass. If Claude Code changed the payload shape, re-probe it and update design/CONTROL-PLANE-FACTS.md.\n',
   )
@@ -187,6 +190,8 @@ if (verdict === null) {
   // the moment it matters.
   recordBlock(`subagent-verdict/${agentType}`, input)
   recordBounce()
+  // Telemetry (1.0.4): the bounce and its verdict SHAPE — never the message.
+  hookio.recordHookEvent?.({ hook: 'subagent-verdict', rule: shape, input }, 'bounce')
   process.stderr.write(
     `subagent-verdict: ${agentType} ended without a verdict. Its own definition requires the reply to end with exactly one line reading "VERDICT: PASS" or "VERDICT: BLOCK", and nothing after it.${SHAPE_HINT} Re-state your conclusion in that form — a review nobody can parse is a review that did not happen.\n`,
   )

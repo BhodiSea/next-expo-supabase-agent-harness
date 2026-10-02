@@ -14,16 +14,27 @@
 // is the CI lane that brings the stack up (never a general run with no database). Once a
 // stack IS up, a `gen types` failure or a real drift is a hard red. The committed mirror
 // is opt-in (`pnpm db:types` writes it); until it exists there is nothing to diff.
+//
+// WHICH CLI (1.0.4). Its remedy, `pnpm db:types`, and every CI job run the catalog-pinned
+// CLI in node_modules/.bin, and different CLI versions generate different types. Through
+// 1.0.3 the gate looked `supabase` up on the session's PATH only, so on a machine with
+// another global CLI it could red a mirror `pnpm db:types` had just written, and on one with
+// none it skipped with the stack up. tools/lib/supabase-cli.mjs now puts the workspace copy
+// first when it is installed (never on Windows), for the probes and for `gen types` alike.
+// The skip rule and the verdict are unchanged.
 // SOURCE: docs/harness/README.md (types-drift gate: the generated types are the schema
 // mirror, so drift means a stale schema view); https://supabase.com/docs/guides/api/rest/generating-types
 import { execSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import process from 'node:process'
 import { fail, ok, runCmd } from './lib/gate.mjs'
+import { supabaseCli } from './lib/supabase-cli.mjs'
 
 const GATE = 'types-drift'
 const COMMITTED = 'packages/platform/supabase/src/database.types.ts'
 const GEN = 'supabase gen types typescript --local --schema public'
+// The mirror is read from the working directory, so the CLI is resolved from it too.
+const { env: cliEnv } = supabaseCli(process.cwd(), process.env, process.platform)
 
 function skip(reason) {
   console.log(
@@ -32,9 +43,11 @@ function skip(reason) {
   process.exit(0)
 }
 
+// Bounded, as the rls runner's probe is: a CLI that hangs on `status` (a wedged Docker
+// daemon) must read as "no stack", not hold the step until the job's own timeout.
 function available(cmd) {
   try {
-    execSync(cmd, { stdio: 'ignore' })
+    execSync(cmd, { env: cliEnv, stdio: 'ignore', timeout: 30_000 })
     return true
   } catch {
     return false
@@ -55,7 +68,7 @@ if (!existsSync(COMMITTED)) {
 
 let generated
 try {
-  generated = runCmd(GEN)
+  generated = runCmd(GEN, { env: cliEnv })
 } catch {
   fail(
     GATE,
@@ -63,8 +76,62 @@ try {
   )
 }
 
+// A BOUNDED DIFF before the FAIL (1.0.4). Through 1.0.3 a red said only "stale", and that
+// was not enough the day Supabase CLI 2.118.0 changed its generator's output on an
+// unchanged schema: CI went red on an unchanged tree and no log said which lines differed.
+// So the red now names each side's line count and the first differing line, then shows at
+// most DIFF_LINES lines of each side from there, committed as `- ` and generated as `+ `.
+// It is computed from the same normalised texts the verdict compares, so a view can never
+// show a difference the verdict did not judge. It goes to stderr BEFORE the unchanged FAIL
+// sentence. The summary comes first because the Stop hook keeps a failing step's head and
+// tail. A consumer's CI runs this gate as its own step, so all of it reaches that log. It is
+// bounded because a regenerated file can differ on every one of its hundreds of lines, and
+// the first lines of a change are what tell a generator's layout from a schema change.
+const DIFF_LINES = 20
+
+/** @param {string} text normalised text @returns {string[]} */
+const linesOf = (text) => (text === '' ? [] : text.split('\n'))
+
+/**
+ * Up to DIFF_LINES lines of one side from 0-based `from`, each prefixed; or, when that side
+ * ends first, one line saying so (an empty view would read as "nothing to show").
+ * @param {string} side @param {string[]} lines @param {number} from @param {string} prefix
+ */
+function printSide(side, lines, from, prefix) {
+  if (from >= lines.length) {
+    console.error(`${GATE}: ${side}: no line ${from + 1} (it has ${lines.length} lines)`)
+    return
+  }
+  console.error(`${GATE}: ${side} from line ${from + 1} (at most ${DIFF_LINES} lines):`)
+  for (const line of lines.slice(from, from + DIFF_LINES)) console.error(`${prefix}${line}`)
+}
+
+/**
+ * @param {string} committedText normalised, as the verdict compared it
+ * @param {string} generatedText normalised, as the verdict compared it
+ */
+function printDrift(committedText, generatedText) {
+  const have = linesOf(committedText)
+  const want = linesOf(generatedText)
+  let first = 0
+  while (first < have.length && first < want.length && have[first] === want[first]) first++
+  console.error(
+    `${GATE}: committed ${have.length} lines, generated ${want.length} lines; first difference at line ${first + 1}`,
+  )
+  // Trailing spaces on a line are part of the comparison but invisible in a log.
+  const both = first < have.length && first < want.length
+  if (both && have[first].trimEnd() === want[first].trimEnd()) {
+    console.error(`${GATE}: line ${first + 1} differs only in trailing whitespace`)
+  }
+  printSide('committed', have, first, '- ')
+  printSide('generated', want, first, '+ ')
+}
+
 const norm = (s) => s.replace(/\r\n/g, '\n').trimEnd()
-if (norm(generated) !== norm(readFileSync(COMMITTED, 'utf8'))) {
+const committedNorm = norm(readFileSync(COMMITTED, 'utf8'))
+const generatedNorm = norm(generated)
+if (generatedNorm !== committedNorm) {
+  printDrift(committedNorm, generatedNorm)
   fail(GATE, `${COMMITTED} is stale vs the live schema. Run \`pnpm db:types\` and commit the diff.`)
 }
 

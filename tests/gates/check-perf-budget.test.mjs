@@ -197,6 +197,147 @@ test('RED: budget arithmetic — missing subjects, bad runs, empty/ill-shaped/du
   assert.ok(dup.out.includes(`declares "${MATRIX_SUBJECT}" twice`), dup.out)
 })
 
+// ---- the reviewed empty state (1.0.4) ---------------------------------------------
+// A project with nothing dense to measure declares `subjects: []` beside a reviewed
+// `emptySubjects` row. The row meets the vertical-anatomy escape's bar exactly: a reason
+// of at least 40 characters after trimming and a `reviewedOn` shaped YYYY-MM-DD, checked
+// for format only and never compared with the clock. The leak scan and the dense-feature
+// closure still run, so the row cannot hide a dense screen or an undeclared perfSubject.
+
+const EMPTY_REASON = 'no screen in this app pages a dense list or paints a canvas yet'
+const MATRIX_DENSE_SRC =
+  "import { useKeysetQuery } from './useKeysetQuery'\nexport const q = useKeysetQuery\n"
+
+/** @param {Record<string, any>} [row] @param {Record<string, any>} [overrides] */
+function emptyBudget(row = {}, overrides = {}) {
+  return {
+    runs: 3,
+    subjects: [],
+    emptySubjects: { reason: EMPTY_REASON, reviewedOn: '2026-09-29', ...row },
+    exempt: [],
+    effectCleanupAllow: [],
+    ...overrides,
+  }
+}
+
+test('GREEN empty state: subjects: [] with a reviewed emptySubjects row passes, prints a NOTE, and the OK line names the reason', () => {
+  const r = runGate(fixture({ budget: emptyBudget() }))
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('perf-budget: NOTE'), r.out)
+  assert.ok(r.out.includes('perf-budget: OK'), r.out)
+  const okLine = r.out.split('\n').find((l) => l.startsWith('perf-budget: OK')) ?? ''
+  assert.ok(okLine.includes('emptySubjects'), okLine)
+  assert.ok(okLine.includes(EMPTY_REASON), okLine)
+  // Nothing is measured: there is no subject to spawn the CLI for.
+  assert.ok(!r.out.includes('median'), r.out)
+})
+
+test('GREEN empty state: the day-0 shape — perfSubject.tsx kept for a test, its dense dir exempt by a reviewed row', () => {
+  const r = runGate(
+    fixture({
+      budget: emptyBudget(
+        {},
+        { exempt: [{ dir: 'matrix', reason: 'kept for the a11y test that imports it; no routed screen' }] },
+      ),
+      files: {
+        [MATRIX_SUBJECT]: SUBJECT_SRC,
+        'apps/mobile/src/features/matrix/MatrixList.tsx': MATRIX_DENSE_SRC,
+      },
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('perf-budget: OK'), r.out)
+})
+
+test('RED empty state: a blank, short or missing reason and a malformed reviewedOn each fail naming emptySubjects', () => {
+  // 39 characters after trimming, padded so the untrimmed length clears the bar.
+  const short = `  ${'x'.repeat(39)}  `
+  /** @type {[string, Record<string, any>, string][]} */
+  const cases = [
+    ['blank reason', { reason: '   ' }, 'at least 40 characters'],
+    ['short reason', { reason: short }, 'at least 40 characters'],
+    ['missing reason', { reason: undefined }, 'at least 40 characters'],
+    ['day-first date', { reviewedOn: '29-09-2026' }, 'reviewedOn'],
+    ['unpadded date', { reviewedOn: '2026-9-29' }, 'reviewedOn'],
+    ['numeric date', { reviewedOn: 20260929 }, 'reviewedOn'],
+  ]
+  for (const [label, row, expected] of cases) {
+    const r = runGate(fixture({ budget: emptyBudget(row) }))
+    assert.equal(r.code, 1, `${label}: ${r.out}`)
+    assert.ok(r.out.includes('emptySubjects'), `${label}: ${r.out}`)
+    assert.ok(r.out.includes(expected), `${label}: ${r.out}`)
+  }
+  // Exactly 40 after trimming is the bar, not above it.
+  const atBar = runGate(fixture({ budget: emptyBudget({ reason: `  ${'x'.repeat(40)}  ` }) }))
+  assert.equal(atBar.code, 0, atBar.out)
+
+  for (const notARow of ['reviewed', null, ['a reason that is certainly longer than forty chars']]) {
+    const r = runGate(fixture({ budget: emptyBudget({}, { emptySubjects: notARow }) }))
+    assert.equal(r.code, 1, `${JSON.stringify(notARow)}: ${r.out}`)
+    assert.ok(r.out.includes('"emptySubjects" must be'), `${JSON.stringify(notARow)}: ${r.out}`)
+  }
+})
+
+test('RED empty state: a row next to a non-empty subjects[] is a stale escape', () => {
+  const r = runGate(
+    fixture({
+      budget: { ...subjectsBudget(), emptySubjects: { reason: EMPTY_REASON, reviewedOn: '2026-09-29' } },
+      files: { [MATRIX_SUBJECT]: SUBJECT_SRC },
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('emptySubjects'), r.out)
+  assert.ok(r.out.includes('stale escape'), r.out)
+})
+
+test('RED empty state: the row never excuses an absent subjects key, and [] without it keeps the NON-EMPTY red', () => {
+  const absent = emptyBudget()
+  delete absent.subjects
+  const r = runGate(fixture({ budget: absent }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('must declare subjects:'), r.out)
+
+  const bare = emptyBudget()
+  delete bare.emptySubjects
+  const b = runGate(fixture({ budget: bare }))
+  assert.equal(b.code, 1, b.out)
+  assert.ok(b.out.includes('NON-EMPTY array'), b.out)
+  // The message names the reviewed escape a project with nothing to measure takes.
+  assert.ok(b.out.includes('emptySubjects'), b.out)
+})
+
+test('RED empty state: the dense-feature closure still runs — a dense dir neither declared nor exempt reds', () => {
+  const r = runGate(
+    fixture({
+      budget: emptyBudget(),
+      files: { 'apps/mobile/src/features/reports/HeatPanel.tsx': MATRIX_DENSE_SRC },
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('imports useKeysetQuery (data-dense by doctrine) but ships NO perfSubject.tsx'), r.out)
+  assert.ok(!r.out.includes('perf-budget: OK'), r.out)
+})
+
+test('RED empty state: the inverse closure still runs — an undeclared perfSubject.tsx reds', () => {
+  const r = runGate(fixture({ budget: emptyBudget(), files: { [MATRIX_SUBJECT]: SUBJECT_SRC } }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes(`${MATRIX_SUBJECT} exists but is not declared`), r.out)
+})
+
+test('RED empty state: the leak scan still runs before anything else', () => {
+  const r = runGate(
+    fixture({
+      budget: emptyBudget(),
+      // LEAK_FILE is declared further down; effectFile is a hoisted declaration.
+      files: {
+        'apps/mobile/src/Widget.tsx': effectFile("AppState.addEventListener('change', onChange)", null),
+      },
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('this effect registers addEventListener'), r.out)
+})
+
 // ---- dense-feature closure -------------------------------------------------------
 
 test('RED closure (inverse): a subjects[] entry naming a missing file fails before any spawn', () => {

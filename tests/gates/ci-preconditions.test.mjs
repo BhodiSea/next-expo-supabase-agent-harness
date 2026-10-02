@@ -14,14 +14,16 @@
 // SOURCE: scripts/lib/ci-preconditions.mjs · scripts/ci/consumer-ci-static.sh
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { existsSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import { ciPreconditionProblems } from '../../scripts/lib/ci-preconditions.mjs'
 
 const INIT_NOTE_OK =
-  "report.notes.push(\n  'next: pnpm install, then git init (if new) and COMMIT — the first commit must include pnpm-lock.yaml — then validate',\n)"
+  "report.notes.push(\n  'next: git init (if new), then pnpm install, then COMMIT — the first commit must include pnpm-lock.yaml — then validate',\n)"
 const INIT_NOTE_REGRESSED =
-  "report.notes.push(\n  'next: pnpm install, then git init and commit, then validate',\n)"
+  "report.notes.push(\n  'next: git init, then pnpm install, then commit, then validate',\n)"
 
 const wf = (file, text) => ({ file, text })
 const PINNED = 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0'
@@ -173,4 +175,25 @@ test('the SHIPPED tree is clean through the real runner — the gate is wired, n
   const r = spawnSync(process.execPath, [script], { encoding: 'utf8' })
   assert.equal(r.status, 0, `${r.stdout}${r.stderr}`)
   assert.match(r.stdout, /CI PRECONDITIONS: CLEAN/)
+})
+
+test('the real run reads base AND every module workflow — the CLEAN line counts both trees (#55)', () => {
+  // Through 1.0.3 the gate read template/base/github/workflows only, so an unpinned `uses:` or a
+  // bare `pnpm install` in any of the ten module workflows was never judged. The count is derived
+  // here, independently of the gate's own walk.
+  const root = fileURLToPath(new URL('../../', import.meta.url))
+  const yml = (dir) => readdirSync(dir).filter((f) => /\.ya?ml$/.test(f))
+  const base = yml(join(root, 'template', 'base', 'github', 'workflows')).length
+  const modules = readdirSync(join(root, 'template', 'modules'))
+    .map((m) => join(root, 'template', 'modules', m, 'github', 'workflows'))
+    .filter((dir) => existsSync(dir))
+    .reduce((n, dir) => n + yml(dir).length, 0)
+  assert.ok(base >= 9 && modules >= 10, `expected both workflow trees, got base ${String(base)} and modules ${String(modules)}`)
+  const script = fileURLToPath(new URL('../../scripts/check-ci-preconditions.mjs', import.meta.url))
+  const r = spawnSync(process.execPath, [script], { encoding: 'utf8' })
+  assert.equal(r.status, 0, `${r.stdout}${r.stderr}`)
+  assert.ok(
+    r.stdout.includes(`CI PRECONDITIONS: CLEAN (${String(base + modules)} shipped workflow(s), base and modules:`),
+    `expected ${String(base)} base + ${String(modules)} module workflows in:\n${r.stdout}`,
+  )
 })

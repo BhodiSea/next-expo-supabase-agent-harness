@@ -11,11 +11,998 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
-## [Unreleased]
+## [1.1.0] — 2026-09-29
+
+**A minor, the sharper verdicts release: the notes 1.0.0 opened become verdicts, and the
+checks that land after them judge more precisely.** Seven of the eight ramp sites 1.0.0
+opened reach their deadline, so an install whose `baseVersion` is below 1.0.0 now gets a
+hard failure where it got a dated NOTE: `auth-posture`'s `[auth.hook]` trail posture (only
+where the trail is adopted), `boundaries`' anatomy widening and its census module-name
+closure, `docs-sync`'s AGENTS.md gate list, `resilience`, `suppressions`, and
+`version-sync`'s vendor-support register. A 1.0.x install meets none of them. The eighth
+site, `version-sync`'s eol arrival, re-opens until 1.2.0 instead (see Changed). Each item
+that lands after this bump either ships behind a ramp of its own, opened at 1.1.0, or
+tightens nothing for an existing install, and adds its entry below.
+The `template/migrations.json` record for 1.1.0 carries `rampExpiry` (fifteen vintages,
+0.1.3 through 0.11.1: 1.0.4's thirteen plus 0.11.0 and 0.11.1), one `seededSourceFixes`
+set, one `rampExtensions` entry and one `seedOnInitOnly` path (`tools/surfaces.json`, see
+Added), and injects no chain step. `scripts/lib/ramp-sites.mjs`
+`VINTAGES` grows by `1.0.4`. The obligations register loses seven release rows and
+re-targets the eighth to 1.2.0.
+
+### Security
+
+<!-- Entries from the 1.1.0 items that land after the version bump go here. The cut removes
+this heading if none does. -->
+
+### Added
+
+<!-- Entries from the 1.1.0 items that land after the version bump go here. The cut removes
+this heading if none does. -->
+
+- **A dated, content-tripwired deferral for the device lanes: `tools/surfaces.json`.** A
+  project building its web surface first had no way to say so: the `mobile` paths filter
+  includes the shared packages the app is made of, so every backend pull request armed
+  `mobile-e2e` and `perf-lane`, the two emulator lanes, against the app the scaffold
+  shipped, and the only lever was forking the owned workflow. A seeded register now takes a
+  row `{ "surface": "mobile", "deferredUntil": "YYYY-MM-DD", "reason": "…" }`. The
+  `changes` job runs the new `tools/ci/surface-deferral.mjs --mode=pr` into
+  `$GITHUB_OUTPUT`, and only the `pull_request` arm of those two jobs skips while the row is
+  live; scheduled and dispatched runs keep both, no other job reads it, and `gate-summary`
+  prints the reason beside each skipped lane without counting the skip as a pass. The row
+  is VOID, and the lanes run, as soon as a tracked file under `apps/mobile/` differs from
+  the sha the installer recorded in `.harness/manifest.json`, a file there is added or a
+  recorded one is gone, or the manifest is absent (the judgement is the pure
+  `tools/lib/surface-deferral.mjs`). After `deferredUntil` a pull request runs the lanes
+  again, and the scheduled `floor-review` job's new `--mode=review` step reds on an
+  expired, void or malformed row, in a step of its own under `!cancelled()`. `--mode=pr`
+  exits 1 only on a malformed register or a corrupt manifest, after printing `false`; with
+  no register it reads nothing else. The register is write-guarded (`surfaces-register`), on
+  the escape lists and seeded, and `update` withholds it from existing installs, so
+  creating one is a committed, reviewed act. `tools/lib/gate.mjs` exports its fail-closed
+  manifest read for the CLI, which reaches it through a namespace import, so a parked fork
+  of the lib without it voids a row rather than failing `changes`. No chain step and no
+  ramp (#56).
+- **Post-merge lanes reuse the merged pull request's green result on an identical tree.**
+  `quality-gate.yml` runs on the pull request and again on the push its merge produces, so
+  an up-to-date squash merge re-ran `static`, `unit`, `mutation`, `runtime-rls`, `e2e-fast`
+  and `integration-lane` on the tree the pull request run had just proved, and judged it
+  less strictly: without `GITHUB_BASE_REF` the diff-scoped steps see an empty diff. On a
+  pull request each of those lanes now ends with a step that records one marker (the job
+  name, the checked-out merge commit's tree and the pull request's head). On a push the
+  first step after checkout, `tools/ci/lane-reuse.mjs`, finds the merged pull request's
+  newest run at its final head, the same job in that run's latest attempt, and the marker
+  in its log. Only a conclusion of exactly `success`, a single marker, the same tree and the
+  run's own head make a hit; then every later step is skipped, the lane names the run in its
+  log and step summary, and `gate-summary` lists it as `REUSED` beside its `SKIPPED` list
+  without changing its verdict. Anything else, a pull request from a fork and an API error
+  included, runs every step, and `schedule` and `workflow_dispatch` never reuse. Those jobs now request `actions: read` and
+  `pull-requests: read` beside `contents: read`, and carry no job-level `if:`, so
+  `docs-sync`'s tier verdicts do not change. An install with a forked `quality-gate.yml`
+  keeps its fork, the new copy is parked under `.harness/pending/`, and `update` exits 2
+  while it stays there (#57).
+- **The slice skill's code blocks are generated from the example, and the factory checks
+  them.** `references/dal-dto.md` and `references/migration-rls.md` of the
+  `authoring-vertical-slice` skill say they were copied from the notes example, and nothing
+  held them to it: `prompts` compares each file with its own locked hash, and `docs-sync`
+  reads skill bodies only for commands and retired tokens. Their code is now two regions,
+  each cut verbatim from a span the seeded example marks with `skill-region` comments and
+  rendered between `<!-- skill-region:begin <id> source=<install-relative path> -->` and
+  `<!-- skill-region:end <id> -->` in the owned reference: `create-procedure`, the `create`
+  procedure of `packages/api/src/routers/notes.ts`, and `org-policies`, the four permissive
+  policies of `supabase/schemas/20_notes.sql`. A region shows `notes`, not `<t>`, and a line
+  of prose beside it says to rename. The new `scripts/generate-skill-references.mjs` diffs
+  each region against its span (`--check`, the default) or rewrites it (`--write`). It
+  fails, naming the file and the region id, on drift in either direction, an unknown or
+  duplicate id, unbalanced or malformed markers, an orphan on either side, an installer
+  placeholder inside a span and zero regions. It runs as the factory Stop hook's
+  `skill-references` step and in CONTRIBUTING's Local development list, and its test runs
+  on both selftest operating systems. Before the markers went in, every comment line of the
+  skeleton's policy half moved into `20_notes.sql`, so the reference drops no lesson. The
+  pointers that named `20260101000100_notes.sql` as the pattern, although
+  `20260201000100_notes_org_scope.sql` drops its four policies, are rewritten in
+  `migration-rls.md` and the `migration-rls-author` agent. No consumer gate, chain step, hook
+  or lock semantics change: an install receives markdown (#59).
 
 ### Fixed
 
-- The pin and verify examples in `README.md` and `SECURITY.md` name no release, and this factory-docs change reaches no install.
+<!-- Entries from the 1.1.0 items that land after the version bump go here. The cut removes
+this heading if none does. -->
+
+### Changed
+
+- **The NOTE fleet 1.0.0 opened is now enforcing for installs below 1.0.0.** The seven
+  sites above expire at 1.1.0, as their obligations rows said they would:
+  `docs-sync-gate-list-ramp-expiry`, `suppressions-census-ramp-expiry`,
+  `resilience-register-ramp-expiry`, `boundaries-anatomy-widening-ramp-expiry`,
+  `exports-walls-module-closure-ramp-expiry`, `auth-posture-hook-ramp-expiry` and
+  `version-sync-support-ramp-expiry`. The 1.1.0 record's `rampExpiry` names their
+  population, copied from `check-ramp-ledger`'s output at 1.1.0, and the seven rows are
+  deleted. Nothing new is demanded: the sweep is the 1.0.0 one, and the runbook's 1.1.0
+  section lists what arrives and points to it. The catalog, the conformance map and the
+  gate comments that still called these ramps open are reworded (#39).
+- **The uuid 7 acceptance is re-affirmed and moved to 1.2.0, and its arrival ramp re-opens
+  at 1.1.0.** `tools/eol.json` dated its re-review 1.1.0, and `check-eol-target` reds a
+  production-scope target the version has reached. The re-review on 2026-09-29 found the
+  discharge condition unmet: `xcode` 3.0.1 is still the latest and still declares
+  `uuid: ^7.0.3`, `@expo/config-plugins` depends on it at both `latest` and `next`, and a
+  registry sweep of a fresh strict-tier scaffold (1582 pairs, 0 errors) found the same seven
+  deprecations the register carries, uuid@7.0.3 the only one in the production closure. The
+  vendor's message now also tells ESM codebases to update to uuid@latest and CommonJS
+  codebases to use uuid@11. The register is seeded, so every 1.0.x install still holds
+  `"removalTarget": "1.1.0"`, which arrives here. The rule the 1.0.0 record wrote down is
+  paid in full: a `seededSourceFixes` probe on that literal parks the re-affirmation, a
+  `rampExtensions` entry moves `version-sync`'s arrival escape from (1.0.0, 1.1.0) to
+  (1.1.0, 1.2.0), the obligations row `version-sync-eol-arrival-ramp-expiry` is re-targeted
+  to 1.2.0, and `SWEEPS['1.1.0']` is a reviewed empty entry. The register's review window is
+  not moved: the product support tables were not re-read (#39).
+- **The Supabase CLI config census moves to 1.2.0.** The `auth-posture-cli-census` deferral
+  targeted 1.1.0, and `docs-sync` reds an arrived deferral on every install, fresh scaffolds
+  included. Re-checked on 2026-09-29: supabase/cli#5894 (a side-effect-free
+  `config validate`) is still open with no milestone, no linked pull request and no
+  comments, and the CLI reference documents `config push` as the only `config` subcommand.
+  By the entry's standing rule the date moves one release, in the ledger, the obligations
+  row and the three files the entry lists. A new factory test runs `docs-sync` at the
+  package version against the shipped ledger, so the next arrival reds the bump commit
+  rather than the zero-edit scaffold (#39).
+- **The behavioural pgTAP proofs run on a fixture table, not on the worked example.**
+  `rls_isolation.test.sql`, `mfa_aal2.test.sql` and `audit_immutability.test.sql` proved
+  isolation, the aal2 rail and audit capture by writing to `public.notes`, so a project
+  that deleted the example had to delete or rewrite those proofs with it. Each suite now
+  builds `public.pgtap_fixture` inside its own transaction, as the migration role and
+  before its first role switch, between `-- fixture:begin` and `-- fixture:end`, and its
+  ROLLBACK removes it. The region is the RLS skeleton of the `authoring-vertical-slice`
+  skill with the table renamed, plus the `title` and `body` columns of `20_notes.sql`;
+  `mfa_aal2` adds the example's MFA rail and `audit_immutability` the example's audit
+  trigger, each renamed. What moved to the fixture: every read, write, update and delete
+  that exercises a policy, the rail or the trigger, the inserts that seed them, the trail
+  lookups by table name, and the table name in the forged trail row. What stays on the real
+  tables: `rls_structure.test.sql`, the shape assertions at the top of `mfa_aal2` (the
+  example's `notes_mfa_aal2` policy), the `pg_trigger` coverage read of
+  `audit_immutability`, and `rls_isolation`'s recursion probe, which still reads every RLS
+  target. The fixture runs on the real `private.member_org_ids()`, `private.member_ranks()`,
+  `private.mfa_satisfied()` and `audit.write_row()`, and each suite's `plan()` count is
+  unchanged. The new factory test `tests/gates/pgtap-fixture-shape.test.mjs` holds each
+  region to the skeleton and each addition to its source, as a pure function over the
+  files. The suites are seeded, so the change reaches new scaffolds only: `update` does not
+  rewrite them, and the runbook's 1.1.0 section says how to pull them. No gate, chain step,
+  hook rule or CI job changes (#58).
+
+### What stays open, honestly
+
+- **uuid 7 is re-dated, not discharged.** Nothing in this tree can move `xcode`'s major, and
+  an `overrides` entry forcing uuid 11 into Expo's prebuild tooling would decide a
+  consumer's native build surface to clear the harness's own register. The 1.2.0 record owes
+  either the arrival ramp's expiry or the next re-open (#39).
+- **The CLI config census is re-dated, not built.** It waits on supabase/cli#5894 (#39).
+- **Stamps for `unit` and `mobile-unit` are still not built.** The 1.0.4 entry left them
+  for 1.1.0, because a stamp there needs a wrapper that changes floored commands and a
+  `configCommandUpdates` record. No 1.1.0 issue schedules that work yet (#39).
+- **A surface deferral covers the mobile surface only.** A `web` row is malformed: the web
+  lane's runner fails closed on an absent surface by design and no shipped job would read
+  one. There is no cap on how far ahead `deferredUntil` may sit; the content tripwire and
+  the scheduled review are what end a row. The skip itself is proven on the workflow's text
+  and on the step's own `run:` line, not on a GitHub runner (#56).
+- **Post-merge reuse is proven on fixtures here, not yet on GitHub.** The judge, the
+  transport through a stand-in `gh`, the wiring and the summary are tested in this
+  repository. The live runs the issue asks for need a scratch repository made from the
+  scaffold, and are the owner's to record: an up-to-date squash merge that reuses every one
+  of those lanes and names the pull request run, a merge of a branch behind its base that
+  runs them in full, and a manual dispatch that runs them in full. The lookup runs before
+  `setup-node`, on the runner image's own Node, whose version is not pinned here; the script
+  uses Node built-ins only (#57).
+- **Half of the RLS skeleton is still hand-written.** The table, trigger, index, FORCE and
+  grant statements of `references/migration-rls.md` stay hand-written `<t>` text. The
+  skeleton teaches `REVOKE ALL … FROM authenticated` and an exact re-grant, which 1.0.2
+  added as documentation only, and the example still revokes from `anon` and `service_role`
+  alone, so generating that half now would either drop the revoke or change what the example
+  grants. This release changes neither; the three-role revoke on the example is #74's to
+  apply, and that half can become a region once the example grants what it teaches. Until
+  then the skeleton reads `<t>` above its generated half and `notes` in it (#59).
+- **No pgTAP suite writes to the example any more.** Its own rank floors are no longer
+  proven behaviourally (the `rank-floor` form requires a rank from the ladder, not a
+  particular one); its MFA policy is judged by `schema-rls`, which checks that the policy
+  calls `mfa_satisfied()`, is RESTRICTIVE and FOR ALL and carries USING and WITH CHECK, but
+  not that the predicate is only that call; and its audit trigger by `tenancy`'s tenant
+  argument check. The supabase-js twin, `tests/rls/cross-tenant-isolation.test.ts`, still
+  exercises `public.notes`: it reaches the stack only through the API and has no
+  transaction to build a fixture in, and what stays on the example there is #85's. The
+  fixture regions are copies held to the skeleton by the factory test, not generated from
+  it, because #59's generator copies spans verbatim and has no renaming step (#58).
+- **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
+  `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
+  `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
+  arrived uuid target. The new `docs-sync` test was red on the arrived census, the renamed
+  GROWN-list test red while `VINTAGES` lacked `1.0.4`, and the new sweep test red while
+  `SWEEPS` had no `'1.1.0'` entry. After the fixed cost each is clean. `upgrade-linux` ran
+  locally four times, on three legs. Leg A, from v1.0.3 and from v1.0.4, parked the uuid
+  fix, took the harness's register and graduated un-swept to 1.1.0. Leg M, from v0.11.0,
+  met the seven expiries and nothing older: `docs-sync`'s gate list printed `RAMP EXPIRED`,
+  the other five gates had nothing to withhold, and `graduate` refused on the red chain.
+  Leg E, from v0.3.0, ran the 1.0.0 sweep and `graduate` moved it to 1.1.0. A v1.0.4
+  scaffold updated without the register pull printed the arrival as a NOTE that expires in
+  1.2.0, and at a simulated harness 1.2.0 as `RAMP EXPIRED`; `update --refresh-seeded
+  tools/eol.json` then cleared both the finding and the parked fix. The v1.0.4 tag is
+  local until the maintainer pushes it, so the tag-reading checks on this pull request's
+  CI compare against v1.0.3, and `check-ramp-ledger`'s vintage closure there reports
+  `1.0.4` as not yet released. The local run with the tag present is the one that proves
+  this commit (#39). The surface deferral's tests were red before it existed: the lib
+  would not load, `gate-summary` printed no reason, `workflow-lanes` found no deferral
+  clause and no `changes` step, and the write guard let `tools/surfaces.json` through.
+  They run the CLI over throwaway repositories for each void cause, the retrofit case, a
+  lapsed date and each malformed shape; over a zero-edit init scaffold, where a
+  future-dated row is live over every planted mobile file; and through the `changes`
+  step's own `run:` line under `bash -eo pipefail`, where one appended byte turns the
+  output from `true` to `false`. A 1.0.4 install updated by this installer got the CLI and
+  the new workflow but no register, and printed `mobile-deferred=false` (#56). For
+  post-merge reuse, `tests/gates/lane-reuse.test.mjs` could not load before
+  `tools/lib/lane-reuse.mjs` existed, the wiring rules added to
+  `tests/gates/workflow-lanes.test.mjs` listed every missing piece in each of the lanes, and
+  the reuse cases of `tests/gates/summarize-gate.test.mjs` were red on a summary that named
+  no reused lane. The judge went red a second time when its fixtures served the pull request
+  run the way GitHub serves it after a merge, with an empty `pull_requests` list: a judge
+  that looked for the pull request there missed on every merge. After the change each is
+  green, `actionlint` and `zizmor` report nothing on the rendered workflow, and the judge's
+  line and function coverage is complete (#57). For the skill references, every case of
+  `tests/gates/skill-references.test.mjs` failed while the generator did not exist, and its
+  first `--check` over this tree failed on `zero regions — 0 in the example's source, 0 in
+  the references`. With the markers in, `create-procedure` matched its span byte for byte,
+  and `org-policies` differed only in the policy names and the one comment line the example
+  kept, which `--write` regenerated. Each planted defect now fails `--check` naming its file
+  and region id, `--write` turns only the two drift cases green, and the live case passes.
+  A 1.0.4 install updated by this installer took the three owned files, re-recorded their
+  `tools/agents.lock.json` entries and stayed green on `prompts`, and kept its seeded
+  `20_notes.sql` without markers; one whose `dal-dto.md` was edited kept that copy, got the
+  new one under `.harness/pending/`, and `update` exited 2 (#59). For the fixture table,
+  `tests/gates/pgtap-fixture-shape.test.mjs` failed its live cases on the v1.0.3 suites:
+  none had a fixture region, and each named `public.notes` outside the recursion probe.
+  With the regions in, every case passes, and each rule has a planted failing input. In a
+  zero-edit scaffold on a local stack `pnpm test:rls` passed, which also showed that the
+  suite's role can create the fixture's audit trigger. Replacing `private.member_org_ids()`
+  with a function that returns every org, `private.mfa_satisfied()` with one that returns
+  true, and `audit.write_row()` with one that inserts nothing each failed fixture
+  assertions in its suite ("a cross-org note read returns the EMPTY SET", "aal1 +
+  enrolled: ZERO ROWS", "the write produced an audit row"), and the suites were green again
+  after `db:reset`. A 1.0.4 install kept its suites on `update`; `--refresh-seeded` pulled
+  an unedited one and parked an edited one, exiting 2 (#58).
+
+## [1.0.4] — 2026-10-01
+
+**A patch, the local loop release: what a local run says matches what CI will say.** No gate
+is added, the chain length does not change, and no ramp opens or moves. `update` delivers
+every changed file that is owned. The seeded changes, the regenerated database types, the
+Supabase CLI's exact catalog pin, a comment in `tools/store-tunables.json` and the new
+project citation corpus with the sentences that name it, reach fresh scaffolds only (see
+Fixed, Added and Changed, which say what an existing install does instead).
+One gate can red locally where it used to skip: `types-drift`, on a machine with no global
+Supabase CLI, now runs on the workspace CLI with the stack up, as CI's `runtime-rls` job
+already did (see Fixed). One gate can red on an unchanged tree, narrowly: `wiring`, on a
+CODEOWNERS whose last rule matching `tools/mcp/corpus/project.json` names no owner; the
+shipped rules name one (see Changed). One installer fix can move `update`'s exit code
+from 0 to 2 (below). Two shipped CI jobs that could not get past their boot step,
+`mobile-e2e` and `integration-lane`, now reach their suites (see Fixed).
+The `template/migrations.json` record for 1.0.4 carries `rampExpiry`, restating 1.0.0's
+thirteen-vintage population, and one `seedOnInitOnly` path, the empty project corpus (#47);
+`baseVersion` 1.0.0 through 1.0.3 meet no expiry here.
+`scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `1.0.3`.
+
+**`update` can now exit 2 where it exited 0.** An install that holds a file at a
+harness-owned path with no record in `.harness/manifest.json`, whose bytes no release of
+the harness shipped for that path, used to have that file overwritten and recorded with
+exit 0. It is now kept, the incoming version is parked under `.harness/pending/`, and
+`update` exits 2 like any other drift, even when upstream left the file alone. A `removed`
+or `renamed` migration now leaves such a file in place instead of deleting it. An
+unrecorded file whose bytes a release shipped refreshes as before, and an install with no
+unrecorded owned file sees no change; `init` and `update` record every owned file they
+write. `update --force` still overwrites. The remedy is in
+`docs/runbooks/harness-upgrade.md`, 1.0.4 section.
+
+### Added
+
+- **`node tools/validate.mjs --ci-parity` gives a local run CI's posture.** Local and CI
+  verdicts split on one predicate: a gate whose prerequisite is missing skips locally and
+  fails in CI, and a warm stamp is honoured only locally. No `validate` flag set it, so the
+  way to get CI's verdict before pushing was to export `HARNESS_REQUIRE_TOOLCHAINS=1` by hand,
+  and `docs/cli.md` did not say that the variable also turns every stamp off. The flag sets
+  that variable for every step, prints the posture as its first line, and after the summary's
+  total prints one line per missing prerequisite a gate recorded, naming the step, the gate
+  and the reason, in step order under `--report-all` too. `VALIDATE_TIMINGS` stays the last
+  line. `tools/lib/gate.mjs` gains `noteMissingPrerequisite`, which `skipOrFail` calls, and so
+  do the CI branches of the partial legs that used to print only a local NOTE: `migrations`'
+  append-only diff, `version-sync`'s zod and React walks, and `styleguide`'s install-less
+  regen-diff. The records live in a temp directory outside the project and never decide the
+  exit code. `--min-floor --ci-parity` is the local counterpart of CI's `static` job. With
+  `--list` the flag changes nothing, and it refuses `--stop-chain`, whose `reviewer-verdicts`
+  step needs a live turn. Without the flag nothing changes, and the chain, both frozen floors
+  and the workflows are untouched. `update` delivers `tools/validate.mjs`,
+  `tools/lib/gate.mjs`, the three gates, `docs/harness/gates-catalog.md`,
+  `docs/harness/README.md` and the upgrade runbook. The three gates reach the new export
+  through a namespace import, so an install whose forked `tools/lib/gate.mjs` was parked still
+  runs them and records nothing (#44).
+- **Two reviewed escapes for a project that does not keep the example's anchors.** Both are
+  optional keys in registers that are write-guarded and escape-listed, so each lands only as
+  a committed human edit, and neither appears in any shipped register, so no existing
+  install's verdict changes.
+  - `perf-budget` accepts `subjects: []` beside `"emptySubjects": { "reason", "reviewedOn" }`,
+    held to the vertical-anatomy escape's bar: a reason of at least 40 characters after
+    trimming, and a `reviewedOn` shaped `YYYY-MM-DD` that is never compared with the clock.
+    It prints a NOTE and names the empty state and its reason in its OK line. A row beside a
+    non-empty `subjects[]` reds as a stale escape, and `[]` without the row still reds with
+    "NON-EMPTY array", now naming the row. The leak scan and both directions of the
+    dense-feature closure run unchanged, so the row cannot hide a dense screen or an
+    undeclared `perfSubject.tsx`. Until now a project with nothing dense to measure went
+    green only by keeping a subject it did not have.
+  - `expo-policy` reads the command registry the `action` surface checks from an optional
+    `accountDeletion.registry`: a forward-slash `.ts` or `.tsx` path under `apps/mobile/src/`
+    with no `..` segment, legal only on that surface. Any other value fails the shape check,
+    the red names the file the gate read, and without the key the gate reads
+    `apps/mobile/src/features/actions/registry.ts` as before.
+
+  `update` delivers both gates and the gates catalog. `tools/store-tunables.json` is seeded,
+  so the `//` comment that documents the registry key reaches fresh scaffolds only; the
+  upgrade runbook's 1.0.4 section documents both keys, says that moving the registry also
+  moves the mobile entry in `tools/data-flow.json` `erase.clients`, and says that a new
+  vertical's events reach the committed event catalog only through a forked generator until
+  1.1.0. A new factory lane, `day0-empty-states`, runs the Stop chain on a scaffold that uses
+  both escapes and proves each red (#46).
+
+### Fixed
+
+- The pin and verify examples in `README.md` and `SECURITY.md` name no release, and this
+  factory-docs change reaches no install (#51).
+- **The committed database types match Supabase CLI 2.118.0.** The catalog gave the CLI as
+  `supabase: ^2.34.3` and the scaffold ships no lockfile, so every install and every CI run
+  took the newest 2.x. On 2026-09-25 that became 2.118.0, which generates types natively
+  instead of through a container, and on the same schema its output no longer matched
+  `packages/platform/supabase/src/database.types.ts`. With the stack up, `types-drift`
+  reported the file stale, and from the next day's scheduled run both `bootstrap-linux`
+  legs were red on an unchanged tree.
+  The file under `template/stack/` is regenerated with 2.118.0 from a rendered scaffold
+  (`pnpm db:up && pnpm db:types`). The schema is unchanged: put through one formatter, the
+  two files differ in layout and in how a function with no arguments is written
+  (`Args: never` is now `Args: Record<PropertyKey, never>`, for `effective_limits`,
+  `ensure_personal_org` and `reconcile_org_usage`). No table, column, view, function or
+  enum is added, removed or retyped, and nothing compiles against the generated `Database`
+  type. The file is seeded, so `update` never plants it. **An existing install whose own
+  CLI moves to 2.118.0 gets the same red with the stack up, and clears it the same way:**
+  `pnpm db:types`, then commit the diff. New scaffolds now pin the CLI (see Changed), and
+  an install whose catalog still gives a range can meet this again with a later CLI (#40).
+- **A `types-drift` FAIL shows the diff.** It used to print only "stale", and in CI that
+  line also went through the Stop hook's head-and-tail trim, so nobody could read from a log
+  which lines had changed. Before the unchanged FAIL sentence the gate now writes each side's
+  line count, the first line that differs, and up to 20 lines of each side from there, the
+  committed file's prefixed `- ` and the generated output's prefixed `+ `. It also says when
+  that line differs only in trailing whitespace, which a log cannot show. The verdict and exit
+  code do not change, and a line-ending-only difference still passes. `update` delivers the
+  gate. `selftest.yml` also prints the CLI version and a full `diff -u` of the two files
+  when `bootstrap-linux` fails, from the stack that is still up (#40).
+- **The two overdue calendar rows in `scripts/obligations.json` are re-read and re-dated, so
+  neither holds the nightly `obligations-clockful` job red any more.**
+  `conformance-play-target-api-window` (due 2026-08-31) now falls due 2027-05-31, and
+  `conformance-cra-art14-application` (due 2026-09-11) now falls due 2027-06-11. The dated
+  re-reads and their sources are in `design/CONFORMANCE-FACTS.md` §2 and §4, which also
+  records a new open question about open-source software stewards. Nothing here reaches an
+  install (#54).
+- **A gate's stamp covers the libraries the gate imports.** A stamp hashed the gate's data
+  paths, its script, `.harness/manifest.json`, `lib/gate.mjs` and `lib/stamp-inputs.mjs`,
+  and none of the `tools/lib` modules the script imports. So an edit to `lib/sql-parse.mjs`
+  left the `tenancy`, `query-shapes` and `db-limits` stamps warm, and `version-sync` ignored
+  the four judges it delegates to. Every list in `tools/lib/stamp-inputs.mjs` now names each
+  `tools/lib` module its script reaches through static imports, and `lib/fs-walk.mjs`, which
+  `gate.mjs` walks directories with, joins the machinery every list carries. The `eas-update`
+  module gate passed an inline list with no script, manifest or machinery; it now passes
+  `withMachinery('tools/check-eas-update.mjs', […])`, which the register exports for it. A
+  test reds any list, base or module, that misses a module its script imports. A closure only
+  adds inputs, so a stamp can expire more often and never less, and CI still never rides one.
+  `update` delivers both libs, and the eas-update gate where that module is enabled (#42).
+- **The Stop hook's database steps run the workspace Supabase CLI.** The hook starts
+  `node tests/rls/run-rls.mjs` and `node tools/check-types-drift.mjs` with the session's
+  `PATH`, and both spawned a bare `supabase`, while `pnpm test:rls`, `pnpm db:types` and
+  every CI job run the catalog-pinned copy in `node_modules/.bin`. On a machine with no
+  global CLI the `rls-isolation` step failed closed with the stack up ("supabase CLI not
+  installed"), so every turn was blocked while `pnpm test:rls` passed; on a machine with
+  another version the suite ran on that version. A new owned helper,
+  `tools/lib/supabase-cli.mjs`, puts `node_modules/.bin` first on the child's `PATH` when it
+  holds `supabase`, and falls back to `PATH` as before when it does not. On Windows it
+  changes nothing, because `.bin` holds `.cmd` shims there. The runner prints the CLI's
+  version and where it came from; its rule for when to skip and when to fail is unchanged,
+  and every spawn, the stamp's database-identity query included, uses that CLI. The
+  `rls-isolation` stamp list names the helper, so an edit to it runs both suites again.
+  **`types-drift` uses the same CLI, and that is the one place a gate can now red locally
+  where it used to skip:** on a machine with no global CLI, with the stack up and a stale
+  mirror, it reds a turn. CI's `runtime-rls` job already judges the same tree with the same
+  binary, and `pnpm db:types`, then committing the diff, clears it. Its probes gain the
+  runner's 30-second timeout (#43).
+- **`auth-trail.test.ts` reads the running stack's database URL.** It named port 54322 in a
+  literal, so a project that moved the port in `supabase/config.toml`, or a machine where
+  another stack held it, sent its `psql` to another database or to none. The runner now
+  hands vitest `SUPABASE_DB_URL` from `supabase status -o env`, the name the shipped
+  workflow and tools already use, and the suite reads it when it runs, never at module
+  scope, so a skipped suite still loads. With no URL it throws, naming
+  `node tests/rls/run-rls.mjs`; there is no fallback. The RLS doctrine in
+  `docs/harness/README.md` now says which CLI the runner resolves and that it hands vitest
+  `SUPABASE_DB_URL`, which it never did before, and `docs/harness/gates-catalog.md` says the
+  same of both steps. `update` plants the new helper and re-plants, when unmodified, the
+  owned files these two fixes touch: `tests/rls/run-rls.mjs`, `tests/rls/auth-trail.test.ts`,
+  `tools/check-types-drift.mjs`, `tools/lib/stamp-inputs.mjs`, `docs/harness/README.md`,
+  `docs/harness/gates-catalog.md` and the upgrade runbook (#43).
+- **An untracked migration draft can be edited.** The write guard denied an Edit or Write
+  to every `supabase/migrations/*.sql` on disk, with no git call. So the draft that
+  `supabase migration new` or `supabase db diff -f` leaves, which the authoring skill and the
+  `migration-rls-author` agent then tell the agent to write, was denied as if a database had
+  already run it. `existsSync` stays the trigger, so a new file costs no git call. An
+  existing migration is now writable only when every spelling of it (its name, and where a
+  symlink lands) passes three proofs: git reports exactly `?? <path>` for it and the file
+  has one hard link; `.harness/manifest.json` parses and records no such file, because a
+  file `init` planted is the harness's history; and `CLAUDE_PROJECT_DIR` is set while no
+  `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE` or `GIT_COMMON_DIR` is. A tracked, staged,
+  ignored, hard-linked or `git rm --cached` migration is still denied, and so is every case
+  where git fails or times out. The deny keeps its opening and its `supabase migration new` advice, and now names the
+  path and the proof that failed. `HARNESS_ALLOW_SELF_EDIT=1` still does not open the rule,
+  the content rules still judge what the draft receives, the bash guard's rules on
+  `supabase/migrations/` do not change, and the `migrations` gate and CI's `append-only` job
+  judge committed history as before. `update` re-plants
+  `.claude/hooks/pretool-write-guard.mjs`, `docs/harness/README.md`, whose write-guard
+  section now states the three proofs and the residual, and the upgrade runbook (#45).
+- **`expo-policy`'s stamp hashes every file the gate reads after stamping.** The declared
+  inputs left out `tools/store-tunables.json`, the mobile source the `EXPO_PUBLIC_` name scan
+  walks (`apps/mobile/src` and `apps/mobile/app`, which also hold the routes the `route`
+  surface reads and the auth-surface probe's paths), and every Edge Function but
+  `delete-account`. So locally, an edit to any of them could pass on a warm stamp: setting
+  `accountDeletion.actionId` to an id the registry lacks, or adding a secret-shaped
+  `EXPO_PUBLIC_` name under `apps/mobile/src`. The four paths join the list and the existing
+  entries stay. Any mobile source or Edge Function edit now re-runs the gate locally, as a
+  mobile source edit already re-runs `build` and `e2e`; CI never honoured a stamp, so no CI
+  verdict moves. `update` delivers `tools/lib/stamp-inputs.mjs` (#46).
+- **Two docs named a deletion route the template does not ship.** The gates catalog's
+  `expo-policy` section and the `store-metadata` module's `docs/store/app-review-notes.md`
+  said the deletion action calls `DELETE /api/me`. The closure checks the `delete-account`
+  Edge Function, on disk and declared in `supabase/config.toml`, and both docs now say so.
+  `update` delivers both (#46).
+- **`update` keeps an owned file that has no manifest record unless a release shipped its
+  bytes.** `classifyDrift` reads a missing record as "unmodified", and the provenance check
+  1.0.2 added to the sweep returned early when there was no record, so `update` replaced
+  such a file with the harness's copy, recorded it and exited 0. The 1.0.2 entry listed
+  this as open. An unrecorded owned file appears when a release starts shipping a path
+  where the project already had its own file, when `enable` keeps a file at a module path
+  (it parks its own copy and records nothing, so its refusal lasted only until the next
+  `update`), when `disable` keeps a modified module file and drops its record and the
+  module is enabled again, or when a record is deleted by hand. `update` now asks whether
+  any release up to the running installer shipped the bytes on disk for that path, from the
+  same `template/shas/` tables (`releasedAnywhere` in `installer/lib/provenance.mjs`). When
+  one did, the file is refreshed and recorded as before. When none did, the file is kept,
+  the incoming copy is parked at `.harness/pending/<path>` with one note, and `update`
+  exits 2. Unlike a recorded fork it parks even when upstream left the file alone, and
+  `tsconfig.json` gets no exemption, because both of those rules rest on a record.
+  `--force` still overwrites it, and now says so in the `--force overwrote` note, in the
+  sweep and under `--refresh-seeded`. A `removed` or `renamed` migration leaves an
+  unrecorded file no release shipped in place with a note; the tables list owned paths
+  only, so that includes every unrecorded seeded file. `classifyDrift` does not change.
+  `docs/cli.md` and a new subsection of the upgrade runbook's 1.0.4 section describe the
+  case, and `update` re-plants the runbook (#48).
+- **CONTRIBUTING's zero-edit scaffold recipe runs `git init` before `pnpm install`, and so
+  do the issue forms.** The recipe installed first, so the scaffold's `prepare` script,
+  `lefthook install`, found no repository and the install failed before `validate` ran;
+  init's closing note, the README and `bootstrap-linux` already put git first. The
+  bug-report form's reproduction now runs `git init` and commits, and the gate-proposal
+  form's fresh-scaffold bar names `git init` and the commit.
+  `scripts/ci/consumer-ci-static.sh` quotes init's note in its current order, and so do the
+  `check-ci-preconditions` fixtures, whose regressed note still leaves out `pnpm-lock.yaml`.
+  A new test, `tests/gates/next-steps-order.test.mjs`, reds when any of those texts, init's
+  note or the README's post-init block names `pnpm install` before `git init`, leaves
+  either out, or loses the anchor the test finds it by. The change is factory-only: no
+  `template/` file changes, and it reaches no install (#50).
+- **`update --rollback` removes a directory the update created instead of throwing.** A
+  release that replaces an owned file with files under a directory of the same name leaves
+  a directory where the rollback snapshot recorded a file or nothing. Rollback removed an
+  absent path with `rmSync` and no `recursive`, and restored a file by renaming a staged
+  copy onto the path, so it threw on that directory: every path sorted after it and
+  `.harness/manifest.json` kept their post-update state, and a re-run threw at the same
+  path. The 1.0.3 entry listed this as open. The snapshot now records `vacant: true`
+  beside `existed: false` when nothing at all was at a path, and its blob says `v: 2`; no
+  path's `existed` changes. Rollback removes a directory only on that evidence, or where
+  the snapshot recorded a file, which it then restores with its bytes and mode, and only
+  when the directory's parent resolves inside the install. Its recursive walk unlinks a
+  symlink without following it. A directory at a path where the snapshot found something
+  other than a regular file, such as the consumer's own directory, stays, and the report
+  notes it. A snapshot written by 1.0.3 or earlier never records `vacant`, so from one of
+  those a directory at an absent path stays as a conflict naming it, and so does a
+  directory whose parent leads outside the install through a symlink. The other paths and
+  the manifest are still restored, and `update --rollback` exits 2, which the exit-code
+  table in `docs/cli.md` now names. The fix is in the installer, so an install gets it by
+  running `update --rollback` with the 1.0.4 CLI; no template file changes (#52).
+- **The complexity ratchet reads and writes its record at the repository root, whichever
+  directory it is started from.** `scripts/check-complexity-ratchet.mjs` linted the tree its
+  own file sits in but resolved `scripts/complexity-ratchet.json` against the working
+  directory. Started anywhere but the root, it judged against no record and reported every
+  recorded function as new; started inside another checkout, it judged against that
+  checkout's record, where a function that grew could read clean; and `--write` either threw
+  or wrote a stray record there, leaving the real one untouched. Both paths now resolve from
+  the root the script lints, as `scripts/check-rule-integrity.mjs` already did. CI and the
+  factory Stop hook start it from the root, so their verdicts do not change, and a record
+  missing at the root still reports every function as new. The 1.0.3 entry listed this as
+  open. The fix is factory-only: `scripts/` does not ship, so no install gets it (#53).
+- **The factory's workflow checks read the module workflows too.** Through 1.0.3,
+  `workflow-lanes`, `check-ci-preconditions` and the canary `lanes` closure read
+  `template/base/` only, so the module workflows, which run in every install that enables
+  their module, were outside all three; 1.0.2 recorded the gap and left it open. `check-canary-coverage` now closes
+  every module job through a new `moduleLanes` section of `tests/canary/injections.json`,
+  keyed `<module>/<file>#<job>`, and judges its proofs with the function that judges
+  `lanes`, so a fixture proof is run unless `--no-spawn` is passed and a `steps` proof needs
+  a note. A module job with no entry, a stale or malformed key, a module file with no
+  `jobs:` block or no parseable job, and an empty module tree each red, and a new
+  `--modules-dir` flag lets a test present its own tree. `lanes` keeps its bare base ids,
+  so the conformance and Essential Eight evidence that reads it does not change.
+  `check-ci-preconditions` judges every module workflow's installs and action pins and names
+  the module's path in a finding, and the generic `workflow-lanes` tests run over both trees
+  with a minimum file count for each. No module workflow needed an edit and nothing under
+  `template/` changes, so nothing here reaches an install (#55).
+- **The shipped device lane reaches the mutation journey, and a device red says what was on
+  screen.** Issue #10 reported `maestro/journeys/mutation.yaml` timing out on a selector in
+  every scheduled `maestro-smoke` run. 1.0.0 fixed that journey, which tapped an empty
+  sign-in form, and it has passed in every scheduled run since that reached the emulator
+  and was read for #10. The consumer's copy of the lane, the `mobile-e2e` job, never got
+  that far. It booted the web app, the journey's backend, before it published any
+  Supabase env, never published `SUPABASE_DB_URL` or the `NEXT_PUBLIC_` trio at all, and
+  waited on `/api/trpc/health`. The host's first request parses the server-only
+  `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_DB_URL`, then the `NEXT_PUBLIC_` trio, so it
+  answered 500, and the routers are namespaced, so with the env set `/api/trpc/health`
+  answers 404: the boot loop could only fail, after 60 seconds. `integration-lane` boots the
+  host the same way, so it never reached the live-api proof either, which also needs a URL,
+  a publishable key and a service-role key the job did not publish. Both jobs now publish
+  that env from `supabase status` before the boot, as the harness's own `integration` and
+  `maestro-smoke` jobs do, and wait on `/api/trpc/system.health`, so each can now go red on
+  its suite where it went red on its boot. In the same lane, the failure step prints
+  `/tmp/web.log`, which the boot writes, instead of `/tmp/server.log`, which nothing writes.
+  The evidence upload keeps hidden files, so Maestro's debug output under
+  `<flow>/.maestro/` reaches the artifact; every `maestro-smoke` upload read for #10 held
+  only the runner's own files.
+  `tools/ci/device-lane.sh` prewarms the bundle a debug build asks Metro for, the Expo
+  virtual entry, where it fetched `/index.bundle`, a 404, and ignored the result; a failed
+  prewarm now fails the lane.
+  `tools/check-e2e-device.mjs` prints the ids and text on screen before a flow's FAIL line,
+  and the perf-harness journey waits for the measurement to end and then asserts
+  `perf-pass`, so a breached budget fails at once and names its cap, where a 120-second
+  wait for `perf-pass` read the same as a measurement that never ended. The `device-e2e`
+  module's evidence upload keeps hidden files too, and the gates catalog's live-api entry
+  names the env `integration-lane` publishes where it named an `AUTH_MODE=stub` server,
+  which the template no longer has. `update` delivers
+  `.github/workflows/quality-gate.yml`, `tools/ci/device-lane.sh`,
+  `tools/check-e2e-device.mjs`, `tools/lib/maestro-flows.mjs`, the gates catalog, and,
+  where the module is enabled, `.github/workflows/device-e2e.yml`. The journey itself does
+  not change (#10).
+
+### Changed
+
+- **The hooks keep a telemetry log, `.harness/telemetry.jsonl`.** It records what the turn
+  ledger never did: each Stop step's status, duration and count of `SKIPPED` lines, the gate
+  times from the last `VALIDATE_TIMINGS` line a step printed, and every guard deny,
+  provenance block, Biome warning and reviewer bounce with the rule that fired, so a red fixed
+  inside the same turn still leaves a trace. A deny from the write guard's protected-path
+  table now names the matching row's `id`; inline deny sites carry telemetry labels, which are
+  not rule ids. Records hold enumerated values, ids, timestamps and counts, never content,
+  commands, paths or messages. `.harness/telemetry.jsonl` is a new diagnostic the hooks append
+  to, append-only and never trimmed; `.harness/*` is already ignored. The hooks write it only
+  where `.harness/manifest.json` exists, no gate reads it, and a record that cannot be written
+  changes no exit code and no stdout byte. `update` delivers the changed hooks,
+  `lib/hookio.mjs` and `docs/harness/README.md`. The hooks reach hookio's new exports through a
+  namespace import, so an install whose forked `lib/hookio.mjs` was parked still loads every
+  hook and records nothing (#41).
+- **A stamp hit prints `STAMPED`, and the `rls-isolation` Stop step is stamped.** A hit used
+  to print through `ok()`, as `<gate>: OK — inputs unchanged since last green run (…)`, and
+  the Stop hook listed only `SKIPPED` lines, so a turn that ended on warm stamps read like one
+  that re-proved everything. A hit now prints `<gate>: STAMPED — inputs unchanged since last
+  green run (…; CI always re-runs)` and still exits 0. The Stop hook lists the `STAMPED`
+  lines of its green steps beside the skipped layers, on a green turn and a red one, and each
+  `stop-step` telemetry record counts them in `stamps` and says `stamped` for a step that
+  rode its own stamp. `tests/rls/run-rls.mjs`, with its command unchanged, now checks a stamp
+  once `supabase status` succeeds: when nothing either suite reads has changed it prints
+  `rls-isolation: STAMPED` and runs neither. `stampGate` takes an optional salt, and the
+  runner's is the `supabase --version` output plus the running database's identity, its
+  server start time and applied migration versions, so a CLI change, `pnpm db:reset`, a
+  restart or an applied migration runs both suites again. It rides the stamp only when `CI`
+  is empty or unset and `HARNESS_REQUIRE_TOOLCHAINS` is not `1`, and records
+  `.harness/rls-isolation.ok` only after `[rls] OK`; `update` and `graduate` clear it with the
+  other stamps. No step, floor entry or command changes. `update` delivers the Stop hook, the
+  runner, `lib/gate.mjs`, `docs/harness/README.md`, whose new "Stamped gates" section and
+  corrected RLS doctrine say what the runner does, and `docs/harness/gates-catalog.md` (#42).
+- **`doctor` reports the toolchain, and `doctor --clean` deletes ignored residue.** For
+  `node`, `pnpm`, the Supabase CLI (the workspace copy and the one on `PATH`) and `psql`, an
+  `info` line names the binary found, its version and the pin it is compared with:
+  `.node-version`, `packageManager`, the `pnpm-workspace.yaml` catalog and `[db]
+  major_version`. A probe ignores stdin, times out after 10 seconds and never throws, and a
+  tool it could not run is reported as not probed, never as missing. `--clean` deletes
+  `.harness/stop-output/` and `apps/mobile/dist/`, which nothing else deleted, and prints
+  each path; `--clean --dry-run` only lists them. An entry is skipped with a note unless it
+  is inside the install, not reached through a symlink, holds no tracked file and is
+  ignored by git at run time. The manifest, `pending/`, `rollback/`, `turn.lock`, the
+  `.jsonl` ledgers and the `.ok` stamps are never on the list. Neither the report nor
+  `--clean` changes doctor's exit code (#43).
+- **`doctor --clean` also deletes ignored build output, and the `rm-rf` deny names it.** The
+  list gains `apps/web/.next/`, `apps/mobile/.expo/`, `coverage/`, `.stryker-tmp/` and the
+  `.eslintcache` file, each deleted under the same checks as the first two entries: inside
+  the install, not reached through a symlink, ignored by git at run time and holding no
+  tracked file. A partial `.next` left by a failed build reds `build --web`, and the bash
+  guard denied a recursive force-delete of `apps/web/.next` on its flags alone, prescribing
+  the non-force form. That rule's regex, its canaries and the settings deny list do not move.
+  Its deny gains one sentence naming `doctor --clean`, and its first sentence, which
+  `docs/security/threat-model.md` is generated from, is unchanged, so that document does not
+  change. `reports/`, `artifacts/` and the stamps stay off the list. `update` re-plants
+  `.claude/hooks/lib/guard-rules.mjs`; the longer list comes with this release's CLI (#45).
+- **A project adds a citation authority in `tools/mcp/corpus/project.json`, not in the owned
+  index.** The `provenance` gate, the ADR check in `docs-sync` and the `corpus_search` server
+  read one corpus file, `tools/mcp/corpus/index.json`, which is owned and hash-pinned, and the
+  gate's own remedy told a project to extend it. That forked it: `gate-integrity` redded until
+  a human re-recorded its sha, and from 1.0.2 `update` parked each upstream change under
+  `.harness/pending/`. A group added to `tools/decision-groups.json` needs a covering entry,
+  so adding one forced the same fork. All three readers now also read a seeded
+  `tools/mcp/corpus/project.json` (`{ comment, entries }`; an absent file counts as empty)
+  through one helper, `tools/lib/corpus.mjs`. The per-entry lint moved into the helper with
+  its rules unchanged and judges both files, each message naming the entry's file. A project
+  entry justifies only the groups it declares, and an id the index already pins reds naming
+  both files, so a project adds authorities and never replaces one. The file itself reds on
+  invalid JSON, a top level that is not `{ comment, entries }`, a non-array `entries` or an
+  unknown top-level key. Remedies that say where to add an authority now name `project.json`,
+  an unresolved id names both files, and messages about the index's own integrity still name
+  `index.json`. `docs-sync` takes ids only and skips its ADR corpus-id check while either file
+  is malformed, as it did for a malformed index. The server keeps `CORPUS_INDEX_URL` as an
+  override for the index only, answers a colliding id from the index, and ignores a malformed
+  project file. With the file absent or empty, every `provenance` and `docs-sync` verdict is
+  unchanged. The path joins `SEEDED_FILES` and `ESCAPE_LISTS`, and the existing `tools-mcp`
+  write-guard rule already covers it. **One check reaches every install, file or no file:**
+  `wiring`'s CODEOWNERS closure now includes the path. The shipped `/tools/**` rule and the
+  `*` catch-all cover it, so `wiring` newly reds only a CODEOWNERS whose last rule matching the
+  path names no owner. `update` delivers the helper, both gates, the server and the owned docs
+  that say where an authority goes. The empty `project.json` is withheld (`seedOnInitOnly`,
+  and `SWEEPS['1.0.4']` in `scripts/ci/upgrade-sweep.mjs` is reviewed-empty), so `update`
+  prints the `--refresh-seeded` command that pulls it, and the seeded sentences that name it
+  reach fresh scaffolds only (#47).
+- **The catalog pins the Supabase CLI exactly, at 2.118.0.** It read `supabase: ^2.34.3`,
+  and the scaffold ships no lockfile, so every fresh install and every CI run took the
+  newest 2.x. That is how CI moved to 2.117.0 and then to 2.118.0 with no commit, and each
+  move redded an unchanged tree (#40 above). 1.0.3's "The Supabase CLI is pinned exactly"
+  meant the Renovate rule with `rangeStrategy: "pin"`, which did nothing until Renovate ran
+  on this repository; the catalog did not change then. Renovate now runs here, its
+  Dependency Dashboard lists the pin, and the rule proposes each later CLI in its own PR,
+  with a note telling the reviewer to regenerate the database types when `types-drift`
+  reds and to re-check the upstream issue the `auth-posture-cli-census` deferral names.
+  2.118.0 is the CLI the committed types were regenerated with. A new test,
+  `tests/gates/supabase-cli-pin.test.mjs`, holds the pin exact and at or above 2.117.0,
+  because the ADR on authenticated write grants rejects pinning the CLI back to make a test
+  pass, and holds the Renovate rule that moves it. `pnpm-workspace.yaml` is seeded, so only
+  new scaffolds get the pin: `update` leaves an install's catalog alone, and the upgrade
+  runbook's 1.0.4 section says how to take it (#88).
+- **A FIX line repeats path arguments.** The command after `FIX[<gate>]: reproduce with`
+  kept only arguments made of letters, digits and hyphens, so a failed device journey
+  printed `node tools/check-e2e-device.mjs --phase journey --file --out-dir`, which the
+  runner rejects. A relative path now survives, a `KEY=VALUE` argument prints as `KEY=…` so
+  a value passed with `--env` never reaches a log, and an argument that needs shell quoting
+  is dropped together with the flag before it. No verdict or exit code changes. `update`
+  delivers `tools/lib/gate.mjs` (#10).
+
+### Corrections to the record
+
+- **The 1.0.1 entry said a manual `tools/agents.lock.json` regeneration was owed after
+  `update`. It was not.** Since 0.3.0 `update` re-records the lock entries of the
+  agent-surface files it rewrites, hash and model pin together, and the `prompts` gate
+  never reads the model pins. On an install that had not edited
+  `.claude/agents/architecture-reviewer.md`, the re-pin never redded `prompts`. Only an
+  edited copy needs a human regeneration, once its parked incoming version is merged. The
+  upgrade runbook and the gates catalog now say so (#49).
+- **The 1.0.0 entry said the device lane was made true again. That held for the
+  harness's own `maestro-smoke` job, not for the consumer's `mobile-e2e`.** Its three
+  corrections reached every install as owned files, and the mutation journey has passed on
+  the emulator since. But through 1.0.3 the shipped `mobile-e2e` job booted the web host
+  before it published the env the host parses and waited on `/api/trpc/health`, which is no
+  procedure, so it never got past that boot to any journey, and `integration-lane`, booting
+  the same way, never reached the live-api proof. Nothing in this repository runs either
+  job, so no run here showed it. See Fixed (#10).
+
+### What stays open, honestly
+
+- **An existing install keeps its database types until it regenerates them.** The file is
+  seeded, so `update` does not plant the types regenerated for Supabase CLI 2.118.0, and an
+  install whose own CLI has moved sees `types-drift` red with its stack up until it runs
+  `pnpm db:types` and commits the diff (#40).
+- **The two re-dated calendar rows are re-dated, not discharged.** Each falls due again, on
+  2027-05-31 and 2027-06-11. Whether this project has an open-source software steward, whose
+  reporting duties start on 2027-12-11, is recorded as an open question for the maintainer in
+  `design/CONFORMANCE-FACTS.md` §4 (#54).
+- **The telemetry log grows until a human deletes it, and its guard records may carry no
+  ids.** Nothing trims, rotates or reads `.harness/telemetry.jsonl` yet; a summary is #60's
+  and #42 measures its stamps from it. `session_id` and `prompt_id` are observed in the Stop
+  and SubagentStop payloads (`design/CONTROL-PLANE-FACTS.md`), but no PreToolUse or
+  PostToolUse payload has been recorded here, so a guard's record says `null` for each id the
+  payload does not carry as a string (#41).
+- **Stamps still cover the validate gates and `rls-isolation` only.** `unit` and
+  `mobile-unit` call vitest and jest directly; a stamp for them needs a wrapper, which changes
+  floored commands and needs a `configCommandUpdates` record, so it waits for 1.1.0 (#39).
+  The rls stamp cannot see SQL someone runs by hand against the running database; after
+  that, `pnpm db:reset` or a human deleting `.harness/rls-isolation.ok` re-arms it, and CI
+  never rides it (#42).
+- **A forked rls runner must pass `SUPABASE_DB_URL`.** `update` re-plants
+  `tests/rls/run-rls.mjs` and `tests/rls/auth-trail.test.ts` together when both are
+  unmodified. When the runner is forked, `update` keeps the fork and parks the incoming
+  copy, and a fork that does not hand vitest `SUPABASE_DB_URL` makes the new `auth-trail`
+  suite throw, locally and in `runtime-rls`, until it does (#43).
+- **`--ci-parity` is CI's posture, not CI.** It does not set `CI`, so a tool that reads
+  `CI` directly keeps its local behaviour, and ESLint's cache and `*.tsbuildinfo` stay.
+  It does not set `GITHUB_BASE_REF` either, so an edit to a migration already committed
+  on the branch is caught only in CI, or locally with that variable exported and the base
+  branch fetched. `types-drift` still skips on its own with no stack up, as it does in
+  CI's `static` job, and records nothing. The Stop chain has no parity run at all
+  (`docs/harness/README.md`, skip-local / fail-closed-CI asymmetry) (#44).
+- **A migration applied by hand and never committed still reads as a draft.** Untracked
+  means absent from the index and `HEAD`, not from all history, so the write guard lets such
+  a file be edited; the `migrations` gate and CI's `append-only` job judge committed history
+  only. An install whose root sits below its repository's root still gets the deny for every
+  existing migration, as through 1.0.3: git reports the path with that prefix, which is not
+  exactly `?? <path>` (#45).
+- **The lane keeps the example; it does not prove a chain without it.** `day0-empty-states`
+  swaps the two anchors for their reviewed escapes and removes nothing, because deleting the
+  example would red what other items own: the pgTAP proofs on the notes table, the registers
+  that name the example, and the matrix route's startup-budget, suppression, knip and
+  Maestro rows. The event-catalog leg, a generator that discovers each vertical's catalog
+  instead of importing it by name, changes the `contracts` verdict for an existing install
+  and so waits for 1.1.0 (#46).
+- **A forked corpus index stays forked until a human moves its additions.** An install that
+  added authorities to `tools/mcp/corpus/index.json` keeps the fork, and `update` keeps
+  parking upstream copies of it, until someone pulls `project.json`, moves those entries into
+  it and returns the index to a released version; the 1.0.4 runbook section gives the steps.
+  No test starts the `corpus_search` server, which imports `@modelcontextprotocol/sdk` and so
+  resolves only inside a scaffold; `tests/gates/corpus-lib.test.mjs` tests the helper it
+  calls (#47).
+- **An unrecorded owned file shows up only when `update` runs.** `doctor` reads manifest
+  records, so it names the parked copy once `update` has parked one but does not list an
+  owned file that has no record, and `gate-integrity` checks recorded files only, so the
+  file stays outside the integrity check until a human records it. `update --dry-run` names
+  it beforehand (#48).
+- **No CI lane makes a scaffold's first commit with the hooks installed.** With git first,
+  the recipe's first commit runs the scaffold's pre-commit and commit-msg hooks over the
+  whole tree. Every lane that scaffolds and installs commits its baseline before its first
+  install, except `canary-mutation`, which installs before its `git init` inside the
+  harness's own checkout, so lefthook installs into that checkout's hooks; every commit a
+  lane makes after an install follows that baseline. A hook that reds the first commit is
+  caught by CONTRIBUTING's recipe run by hand, not by CI (#50).
+- **Rolling back from a snapshot written before 1.0.4 cannot remove a directory at an
+  absent path.** Such a snapshot records a path where nothing was and a path where a
+  directory already was in the same way, so rollback leaves the directory, exits 2 and names
+  it, and a human removes it if the update created it. Rollback also removes anything placed
+  inside a directory it does remove, as it always overwrote a file edited after the update,
+  so commit before you update, as the runbook's recovery steps assume (#52).
+- **The ratchet's own runs are tested on POSIX only.** The cases that start the script skip
+  on `installer-unit`'s Windows leg and say so: the ratchet spawns `pnpm` without a shell,
+  and a `.cmd` stand-in needs one. The gate itself runs in `machinery-lint`, on Linux, and
+  from the repository root, as the factory Stop hook does (#53).
+- **A module lane's proof is the half this repository owns.** No module workflow runs
+  here, so each `moduleLanes` entry proves the job's wiring and, where the job runs
+  `validate --min-floor`, that chain; the credentialed and vendor-run parts are not
+  reproduced. The module tools the jobs run without a factory test, `check-eas-update.mjs`,
+  `check-notices.mjs`, `check-gbnf.mjs`, `check-eval-disjoint.mjs` and
+  `tools/ci/device-e2e-matrix.sh`, are named in their entries as unproven, and writing those
+  tests is out of scope. #73's consumer-side lint job, for shells and job timeouts, does
+  not cover this factory closure (#55).
+- **An existing install keeps its own CLI entry, and the pin is only as current as the
+  Renovate PR a maintainer merges.** `update` does not touch the seeded catalog, so an
+  install created before 1.0.4 keeps `^2.34.3` and its lockfile decides the CLI its CI
+  installs. Each later CLI reaches new scaffolds only when a maintainer merges Renovate's
+  Supabase CLI PR, and it can need regenerated types. The dated sentences that say the pin
+  is `^2.34.3`, in `tools/check-auth-posture.mjs`, the gates catalog,
+  `supabase/config.toml` and `scripts/obligations.json`, record what was true when they
+  were written and are unchanged (#88).
+- **The perf-harness phase still reds the scheduled device lane, and why is not known
+  yet.** Of the fourteen scheduled runs from 2026-08-17 to 2026-09-29 whose job results were
+  read for #10, every one that reached the emulator passed the mutation journey, and seven
+  failed on the perf-harness marker: five on the first measurement (2026-08-17, 08-19,
+  09-15, 09-22 and 09-24) and two on the one after the Canary 20 revert (09-26 and 09-28).
+  Their logs said only that `perf-pass` never appeared. The runner also writes its own
+  capture of the screen, `perf-harness-hierarchy.txt`, into a red's artifact, but the
+  artifact store was out of reach from where this was fixed, so none was read. The next red
+  prints the on-screen verdict in the log, with each breached cap and its measured value,
+  and the fix, a re-baselined budget in a reviewed commit or a change to the probe, waits
+  for that line or for a downloaded capture. A green run still prints no
+  medians, although `tools/interaction-budget.json` says a re-baseline starts from them.
+  The consumer's `mobile-e2e` and `integration-lane` jobs have not run on GitHub since the
+  change: nothing in this repository runs the shipped workflow's jobs beyond
+  `consumer-ci-static`, so their boot steps were run by hand (#10).
+- **What was proven where.** With full history and every release tag through v1.0.3 fetched,
+  `check-ramp-ledger` computed the thirteen-vintage population at 1.0.4 and the record
+  states it, `check-release-lockstep` passed at 1.0.4 everywhere, and the renamed GROWN-list
+  test failed while `VINTAGES` lacked `1.0.3` before it passed. A fresh core scaffold from
+  the bumped tree passed all 36 steps with no stack up, so `types-drift` skipped loudly
+  there. Leg A of `upgrade-linux` passed locally from v1.0.3: `update` wrote the eleven
+  owned files the record names (the eight hook stamps, the runbook, the types-drift gate and
+  the gates catalog), `doctor` named the seeded types file as the one seeded file that
+  differs, and `graduate` moved the install to 1.0.4 (#38). The regenerated types came from
+  CLI 2.118.0 against a live local stack, where `types-drift` passed on them and printed its
+  bounded diff before its FAIL on v1.0.3's file; both `bootstrap-linux` legs then passed in
+  CI with the stack up (#40). `check-obligations --clockful` was red on the two overdue rows
+  before the re-read and clean after it, on 2026-09-29 (#54). `tests/hooks/telemetry.test.mjs`
+  was red on every telemetry case before the hooks wrote the log and green after, with
+  `check-canary-coverage` green on unchanged `denyToolCallSites` pins. In a zero-edit core
+  scaffold one Stop run with no stack up exited 2 on `rls-isolation` alone and appended a
+  `stop-step` record per chain step and a `validate-gate` record per validate gate;
+  `git status --porcelain .harness` then printed nothing and `validate --report-all` stayed
+  green. `update` from a v1.0.3 install also wrote `lib/hookio.mjs` and
+  `docs/harness/README.md` beside the files above, and a bash deny through the launcher then
+  appended its `hook-event` record (#41). `tests/gates/gate-helpers.test.mjs` was red before
+  the stamp lists grew, on every list's missing `lib/fs-walk.mjs`, on `tenancy`'s missing
+  `lib/sql-parse.mjs` among others, on the eas-update gate's inline list and on a stamp hit
+  printed as OK, and green after; `tests/gates/run-rls.test.mjs` was red on the runner before
+  it stamped. With Supabase CLI 2.118.0 against a live local stack, a second
+  `node tests/rls/run-rls.mjs` printed `rls-isolation: STAMPED`, and `pnpm db:reset`,
+  `pnpm db:down` then `pnpm db:up`, a migration version recorded without a restart, and an
+  edited migration each ran both suites again before the next run rode the new stamp. In a
+  zero-edit core scaffold a warm `validate --report-all` printed a `STAMPED` line for every
+  stamped validate gate, and one Stop run with the stack up exited 0 listing those lines and
+  `rls-isolation` as stamped layers (#42). A fixture copy of the runner with a working
+  workspace fake and a failing `PATH` fake failed under `HARNESS_STOP_GATE=1` with
+  "supabase CLI not installed" before the fix, and after it named the workspace CLI, handed
+  vitest the fake `DB_URL` as `SUPABASE_DB_URL`, ended `[rls] OK` and rode its stamp on the
+  next run through the same CLI; the same fakes took `types-drift` from SKIPPED to OK, and
+  the import-closure test was red until the `rls-isolation` list named the helper. In a
+  zero-edit core scaffold on a machine with no global CLI, with no stack,
+  `pnpm exec vitest run tests/rls` skipped all three files and passed, and the Stop-hook
+  command failed closed on "no running supabase stack" after naming the workspace CLI. With
+  the stack up it named the workspace CLI 2.118.0, passed the pgTAP suite and all three
+  supabase-js files, `auth-trail` among them through `SUPABASE_DB_URL`, and ended
+  `[rls] OK`, and the next run printed `rls-isolation: STAMPED`; `types-drift` ran and
+  passed where it used to skip, and redded a mirror with one line appended; `auth-trail`
+  run without `SUPABASE_DB_URL` threw the error naming the runner. `doctor --clean
+  --dry-run` there listed both entries, removed nothing, and printed a line for each tool.
+  Its report and `--clean` were also driven through an injected probe, including a failing,
+  a timing-out and a throwing one, with the exit code unchanged, and every `--clean` skip
+  case was exercised (#43). The `--ci-parity` cases in `tests/gates/validate-runner.test.mjs`,
+  run over file stubs and a copy of the real `tools/lib/gate.mjs`, were red while the runner
+  ignored the flag and green after it, and the cases pinning `--list` and a run without the
+  flag were green on both sides; each of the partial legs was red on its missing record
+  before its call was added, and a gate run over a `tools/lib/gate.mjs` without the new
+  export failed to load until the gates reached it through a namespace import (#44).
+  `tests/hooks/write-guard-migrations.test.mjs` runs the write guard in a real git
+  repository whose committed baseline holds a manifest that parses. Every
+  case in it was red at v1.0.3 and on this release's base and is green after: the untracked
+  draft takes an Edit and a Write, `USING (true)` written to it is still denied by
+  `policy-using-true`, and every other case, with and without `HARNESS_ALLOW_SELF_EDIT=1`, is
+  denied on exactly the one proof it fails. The hard-link case was allowed by the first
+  version of the change and is denied since the link count joined the untracked proof. The existing append-only test passed unchanged,
+  and `check-canary-coverage` stayed green on the unchanged `denyToolCallSites` pin. The
+  clean-list pin, the tracked-`.next` refusal and the `rm-rf` message test were red before
+  the list and the message moved, and `gen-conformance-docs.mjs --check` still reported
+  `threat-model.md` in sync. In a core scaffold `init` rendered from this tree and committed,
+  the issue's probe printed no decision for an untracked draft and, once it was staged, the
+  append-only deny naming the untracked proof; a migration `init` planted was denied on the
+  manifest proof, under `HARNESS_ALLOW_SELF_EDIT=1` too; and `doctor --clean` removed a
+  planted `apps/web/.next/`, `coverage/` and `.eslintcache` after `--dry-run` listed them
+  (#45). The new cases in `tests/gates/check-perf-budget.test.mjs`,
+  `tests/gates/check-expo-policy.test.mjs` and `tests/gates/gate-helpers.test.mjs` were red
+  on this release's base and green after, except the one showing the leak scan still runs
+  under the empty state, which held on both sides; the `NON-EMPTY array` and 11g cases
+  passed unchanged on both sides, and on the base the stamp proof, run outside CI, printed
+  `expo-policy: STAMPED` on the edited tree. `day0-empty-states`, replayed locally step by
+  step from the workflow text on a core scaffold rendered from this tree, passed the derived
+  Stop-chain union with `perf-budget` naming the reviewed empty state, and Canary 30, 31 and
+  32 each went red with its message and restored green. Leg A of `upgrade-linux` passed
+  locally from v1.0.3 with both gates and `tools/lib/stamp-inputs.mjs` re-planted and
+  `tools/store-tunables.json` untouched (#46). The new cases in
+  `tests/gates/check-sources.test.mjs` and `tests/gates/check-docs-sync.test.mjs`, and the
+  new `tests/gates/corpus-lib.test.mjs`, were red on this release's base and green after,
+  except the missing-index case, which held on both sides by design.
+  `tests/gates/upgrade-sweep.test.mjs` threw on the missing `SWEEPS['1.0.4']` entry once the
+  record withheld the skeleton, then passed with it. The new
+  `tests/gates/check-wiring.test.mjs` case failed against the pre-1.0.4 escape lists, where
+  a later ownerless `/tools/mcp/` rule is green, and passes against the new ones. In a
+  rendered core scaffold, `validate --report-all` stayed green with an entry added to
+  `project.json` at its true sha256 and cited from `apps/`, then redded `provenance` naming
+  `project.json` once the entry's `text` changed, and `gate-integrity` redded while an edit
+  to the file was uncommitted. On the same scaffold forked the 1.0.3 way, the entry in the
+  index with its sha re-recorded and no `project.json`, the runbook's steps pulled the
+  skeleton, moved the entry and put the index back to this release's bytes with its sha
+  re-recorded, and `provenance`, `gate-integrity`, `docs-sync` and `wiring` were green with
+  `doctor` listing no fork of the index; an ownerless `/tools/mcp/` line added to its
+  CODEOWNERS redded `wiring` naming `project.json` and the rule (#47). The
+  unrecorded-file cases in `tests/installer/update-provenance.test.mjs` (the sweep's park,
+  `--force`, a path new since an older `harnessVersion`, no tables at all, the file
+  `enable` kept, and a `removed` migration over an owned file and, on its own, a seeded
+  one) and the `releasedAnywhere` cases in `tests/installer/provenance.test.mjs` were red on
+  this release's base and green after, and the cases for released bytes, dry-run parity and
+  `--refresh-seeded` with no record were green on both sides; `reconcile.test.mjs` passed
+  unchanged. The issue's reproduction, an install whose `tools/validate.mjs` record was
+  deleted and whose file was replaced, exited 0 with the file overwritten and recorded on
+  the base, and exited 2 after, with the file kept, nothing recorded and the incoming copy
+  parked. On that install each of the runbook's three ways out ended as the runbook says.
+  `init` at every release tag from v0.1.3 through v1.0.3, on the core, standard and strict
+  tiers, followed by this tree's `update`, exited 0 without parking an unrecorded file
+  (#48). The new `update-provenance.test.mjs` case, an untouched agent file aged to bytes a
+  release shipped with its old hash and model pin in the lock, passed before and after the
+  two documents changed, as a test of unchanged code must, and failed when
+  `refreshAgentsLockEntries` stopped re-recording the hash or the model pin, or `update`
+  stopped calling it. The issue's reproduction, which it had derived from the code and not
+  run, was then run: a v1.0.0 core install updated by the v1.0.1 installer re-recorded one
+  lock entry, `architecture-reviewer.md` took its new model pin in the file and in the lock,
+  `prompts` passed and `gen-agents-lock.mjs --check` printed `in sync`, and the same install
+  updated by this tree's installer ended the same way (#49).
+  `tests/gates/next-steps-order.test.mjs` was red on CONTRIBUTING's recipe and both issue
+  forms at v1.0.3 and on this release's base, green there on init's note and the README
+  block, and green on every text after the edits. In a fresh core scaffold outside any
+  repository, the old order's `pnpm install` failed at `prepare` with lefthook 2.1.14
+  reporting "not a git repository". The reordered recipe, cut from CONTRIBUTING.md as
+  written with only its directory changed and run with no Supabase stack up, made its first
+  commit through lefthook's pre-commit `format` and `secrets` jobs (`secrets` skipping
+  loudly with no gitleaks binary) and its commit-msg `commitlint` job. Then
+  `validate --report-all` was green: every other step passed and `types-drift` skipped
+  loudly. After it `.git/hooks/pre-commit` named lefthook, `pnpm-lock.yaml` was tracked and
+  the tree was clean (#50). The new cases in `tests/installer/rollback.test.mjs` were red on
+  v1.0.3's `installer/lib/rollback.mjs`, which this release's base carried unchanged, and
+  are green after. The issue's reproduction, a file replaced by a directory and restored
+  with its bytes and mode, a consumer directory kept with a note, a hand-built `v: 1` blob
+  that kept its directory, restored its manifest and exited 2, a symlink inside a removed
+  directory whose target survived, and a symlinked parent leading outside the install, where
+  nothing outside was removed, each threw `EISDIR` from `rmSync` or from the staged rename;
+  the CLI case, which wants exit 2 and a `CONFLICT` line naming the path, exited 1 on that
+  throw; and the amended assertions, a new blob's `v` and a path under a regular file
+  recorded `vacant`, failed. Run as a user other than root, a path under an unreadable
+  directory was recorded without `vacant` and the whole file passed (#52).
+  `tests/gates/check-complexity-ratchet.test.mjs` now runs the ratchet itself over a mirror,
+  with a fake `pnpm` printing a canned ESLint report, so it needs no install. On this
+  release's base the run from a directory with no `scripts/` reported the recorded function
+  as `NEW`, a laxer record in the working directory turned growth into `CLEAN`, and
+  `--write` left a stray record in the working directory and the mirror's record unchanged;
+  all three pass after the fix, and the run from the mirror's root passed on both sides. The
+  cases skip on Windows, where the ratchet's shell-less spawn of `pnpm` cannot reach a test
+  shim. Run from the root and from `installer/`, the ratchet printed the same `CLEAN` line,
+  and `scripts/complexity-ratchet.json` did not change (#53).
+  The new cases in `tests/gates/check-canary-coverage.test.mjs`, the base-plus-module count in
+  `tests/gates/ci-preconditions.test.mjs` and the two-tree `workflow-lanes` tests were red on
+  this release's base, where the checker printed CLEAN on every module case, the
+  precondition gate counted the base workflows alone and the shared walker did not exist,
+  and green after. On the changed tree, deleting the `eas-update/eas-update.yml#publish`
+  entry made the checker exit 1 naming that key, `continue-on-error: true` under that job
+  made `workflow-lanes` fail naming the module file, and one module `uses:` moved to `@v7`
+  made `check-ci-preconditions` exit 1 naming the module path and line; on the base the
+  last two edits stayed green (#55).
+  `tests/gates/supabase-cli-pin.test.mjs` was red on this release's base, on the caret range
+  and on the rule's missing PR note, and green after. Copied onto v1.0.3 it was red on the
+  same two and on the case that wants `doctor`'s catalog reader, which this release adds.
+  Its fixture cases red a range, a prerelease, a version below 2.117.0, a missing entry, a
+  missing or non-pin rule and a disabled package on both sides.
+  `renovate-config-validator --strict` (Renovate 44.119.1) passed on the edited
+  `renovate.json`, as a repository config and as a global one, and failed on a copy with a
+  misspelled `prBodyNotes`. In a fresh core scaffold `pnpm install` resolved the CLI to
+  2.118.0; with its stack up `types-drift` passed, `pnpm db:test` passed every pgTAP file,
+  and `pnpm db:types` rewrote the committed types byte for byte. On 2026-09-29
+  supabase/cli#5894, the upstream issue `auth-posture-cli-census` names, was still open with
+  no milestone and no linked pull request, and 2.118.0's `supabase config` offers `diff`,
+  `pull` and `push`, each against a linked project, so the deferral's condition is unmet
+  (#88).
+  The scheduled and dispatched runs issue #10 names (31307386944, 31357713318 and
+  31377698831) stopped at `home-screen` after tapping `sign-in-submit` on an empty form; the
+  1.0.0 dispatch 31937834669 passed the journey, and so did every scheduled run read for #10
+  that reached the emulator. `tests/gates/device-lane.test.mjs` was red on four of its seven
+  cases on this release's base (the two shipped boots, the two `/tmp/server.log` steps, the
+  three evidence uploads and the consumer's prewarm) and is green after; its selector,
+  sign-in and lane cases passed on both sides, and each reds on the defect it guards, the
+  journey 1.0.0 replaced among them. The new cases in `check-e2e-device.test.mjs`,
+  `maestro-flows.test.mjs` and `gate-helpers.test.mjs` were red on the base, where the FIX
+  line printed `--phase journey --file --out-dir --env --env`, and green after. In a core
+  scaffold rendered from this tree, with Supabase CLI 2.118.0 and the stack up, the 1.0.3
+  boot answered 500 on both `/api/trpc/health` and `/api/trpc/system.health`, so
+  `curl -fsS` exited 22. After the new publish step the host answered `system.health` with
+  200 within 9 seconds and `health` with 404, `tools/ci/mint-device-user.mjs` minted the
+  journey's identity from the published env, and the live-api proof passed its four tests
+  under `check-query-budget` as `integration-lane` runs it. The device-lane test reads both
+  of the host's env schemas, and it redded on a `mobile-e2e` publish step that set every
+  name but `SUPABASE_DB_URL`; with exactly that step's names the host still answered 500
+  naming `SUPABASE_DB_URL`, and with the DB URL added it answered `system.health` with 200
+  within 6 seconds, as it did with exactly `integration-lane`'s names. Metro there answered
+  `/index.bundle?platform=android&dev=true` with 404 and the virtual entry with 200. Then,
+  on a core scaffold rendered from the tree that carries the CLI pin (#88), the two jobs'
+  steps were replayed as the rendered `quality-gate.yml` writes them, against one live
+  stack. The base's boot steps exited 1 after their 60 tries, the host answering
+  `/api/trpc/health` with 500 and naming `SUPABASE_DB_URL` and `SUPABASE_SERVICE_ROLE_KEY`;
+  the new publish and boot steps printed `web up`, `integration-lane`'s live proof passed
+  its four tests under `check-query-budget`, and the minter ran on `mobile-e2e`'s published
+  env. No emulator runs here, so the journey, the on-screen line and the hidden-file upload
+  wait for a dispatched `maestro-smoke` (#10).
 
 ## [1.0.3] — 2026-09-23
 

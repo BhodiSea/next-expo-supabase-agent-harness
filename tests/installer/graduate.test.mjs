@@ -65,7 +65,8 @@ test('graduate: a STAMPED gate cannot hide a ramp NOTE — the .ok cache is inva
   // THE 0.10.0 DEFECT, and the worst shape a graduate bug can take: it advanced baseVersion
   // over findings it had been told to check for, which is the exact act that makes those
   // findings turn-fatal. tools/lib/gate.mjs#stampGate short-circuits a gate to
-  // `ok(… inputs unchanged since last green run …)` when its declared inputs are unchanged
+  // `<gate>: STAMPED — inputs unchanged since last green run …` (an OK line through 1.0.3)
+  // when its declared inputs are unchanged
   // and we are not in CI — the gate body never runs, so its rampNote never prints, so
   // graduate's "zero ramp NOTEs" test passes over a withheld finding.
   //
@@ -81,7 +82,7 @@ test('graduate: a STAMPED gate cannot hide a ramp NOTE — the .ok cache is inva
     [
       'import { existsSync } from "node:fs"',
       'if (existsSync(".harness/version-sync.ok")) {',
-      '  console.log("version-sync: OK — inputs unchanged since last green run (.harness/version-sync.ok; CI always re-runs)")',
+      '  console.log("version-sync: STAMPED — inputs unchanged since last green run (.harness/version-sync.ok; CI always re-runs)")',
       '} else {',
       '  console.log("version-sync: NOTE — the arrival of tools/eol.json removalTarget dates (ramp: live from baseVersion 0.10.0; expires in 0.11.0)")',
       '}',

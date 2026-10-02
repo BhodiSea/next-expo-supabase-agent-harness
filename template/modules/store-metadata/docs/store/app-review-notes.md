@@ -20,9 +20,10 @@ account" below).
 
 The app supports in-app account deletion out of the box: **Actions → "Delete
 account…"** (the command palette), behind a native destructive confirm. It
-calls `DELETE /api/me`, which removes every row the signed-in user owns under
-FORCE RLS, then signs the user out. Say so in the notes field — reviewers
-look for the path, and naming it avoids a rejection round-trip.
+calls the `delete-account` Edge Function, which deletes the signed-in user's
+account (and the personal organization only they belong to), then signs the
+user out. Say so in the notes field — reviewers look for the path, and naming
+it avoids a rejection round-trip.
 
 ## Sign-in for review
 

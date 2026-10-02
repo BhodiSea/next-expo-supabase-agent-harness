@@ -76,6 +76,11 @@ import {
   parseLockVersions,
   reviewWindowProblems,
 } from './lib/framework-floor.mjs'
+// A NAMESPACE import (1.0.4) for `noteMissingPrerequisite` alone: it is new, and an install
+// may run this gate over a forked tools/lib/gate.mjs that `update` parked. A named import of
+// an export that file lacks fails at link time; through the namespace it is undefined and the
+// guarded call is a no-op, so the gate still runs and only the --ci-parity record is lost.
+import * as gateLib from './lib/gate.mjs'
 import {
   cmpDotted,
   commandFailureOutput,
@@ -504,6 +509,14 @@ if (eolErrs.length > 0) {
 // harness's own re-affirmation to those installs; this ramp is what makes the arrival a
 // dated NOTE while it does. The upstream discharge condition is stated in the row's reason.
 //
+// EXTENDED A THIRD TIME AT 1.1.0 — to (minVersion 1.1.0, until 1.2.0) — and this time by the
+// standing rule rather than by a lane finding. The 1.1.0 re-review found the uuid discharge
+// condition still unmet (xcode@3.0.1 still declares uuid ^7.0.3, and @expo/config-plugins
+// still depends on that xcode), so the harness moved its own row to 1.2.0. Every 1.0.x
+// install holds a seeded "1.1.0" that arrives at 1.1.0, and an escape opened at 1.0.0 is
+// inert for exactly those installs, so the escape re-opens at 1.1.0. The 1.1.0 record's
+// seededSourceFixes probe on '"removalTarget": "1.1.0"' is the re-date's channel to them.
+//
 // THE DEFECT IT FIXES, found by the upgrade lane on the v0.11.0 tag and not before it.
 // `rampNote` is INERT when baseVersion >= minVersion, so minVersion 0.10.0 meant a
 // 0.10.0-vintage install was never covered. That install is precisely the one holding a
@@ -520,8 +533,8 @@ if (eolErrs.length > 0) {
 // The comment lives HERE and not inside the condition, for the reason the 0.7.0 site records.
 if (arrivalErrs.length > 0) {
   if (
-    rampNote(GATE, '1.0.0', "the arrival of tools/eol.json's removalTarget dates", {
-      until: '1.1.0',
+    rampNote(GATE, '1.1.0', "the arrival of tools/eol.json's removalTarget dates", {
+      until: '1.2.0',
     })
   ) {
     for (const e of arrivalErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)
@@ -628,6 +641,10 @@ try {
   // it matters. Partial local installs may legitimately break `pnpm list`;
   // CI (full install) must never swallow it.
   if (inCI()) {
+    gateLib.noteMissingPrerequisite?.(
+      GATE,
+      'zod single-instance walk: `pnpm list` failed (partial or missing install)',
+    )
     errs.push(
       `pnpm list failed — cannot verify the single-zod-instance invariant: ${commandFailureOutput(e).slice(0, 300)}`,
     )
@@ -684,6 +701,10 @@ try {
   // Same asymmetry as the zod walk: a partial local install may break `pnpm list`, but
   // CI (full install) must never swallow the single-instance assertion.
   if (inCI()) {
+    gateLib.noteMissingPrerequisite?.(
+      GATE,
+      'React single-instance walk: `pnpm list` failed (partial or missing install)',
+    )
     errs.push(
       `pnpm list failed — cannot verify the single-React-instance invariant: ${commandFailureOutput(e).slice(0, 300)}`,
     )

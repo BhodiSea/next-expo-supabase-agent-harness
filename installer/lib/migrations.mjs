@@ -112,21 +112,57 @@ function promoteModule(mod, { files, modules, report }) {
   }
 }
 
-// Apply removed/renamed/promotedModules records. Deletion is sha-guarded:
-// a locally-modified file is never deleted — it is reported and left in place
-// (the human resolves it; doctor keeps naming it until then).
+// Why a file a removed/renamed record names stays on disk, or null when it may go.
+// Deletion is sha-guarded: a locally-modified file is never deleted — it is reported and
+// left in place (the human resolves it; doctor keeps naming it until then).
 //
 // …and since 1.0.2 "matches its recorded sha" is no longer enough to delete: a consumer
-// who forked the file and re-recorded it matches by construction. `isFork` is update's
-// provenance predicate (lib/provenance.mjs), INJECTED rather than imported — provenance
-// imports cmpVersions from this file — and optional, so a caller without the released-sha
-// tables keeps the sha guard alone.
+// who forked the file and re-recorded it matches by construction. …and since 1.0.4 "has
+// no record" is not enough either: a project can hold its own file at a path a release
+// retires (a release started shipping the path over it, `enable` kept it, or a record was
+// dropped), so an unrecorded file goes only when a release shipped its bytes. A record
+// with no sha keeps the pre-1.0.4 reading — locally modified — so nothing kept before is
+// deleted now.
+/**
+ * @param {{ ip: string, recorded: { sha256?: string } | undefined, current: Buffer,
+ *           isFork: (ip: string, recordedSha: string, current: Buffer) => boolean,
+ *           isReleased: (ip: string, current: Buffer) => boolean }} args
+ * @returns {string | null}
+ */
+function keptBecause({ ip, recorded, current, isFork, isReleased }) {
+  if (!recorded) {
+    return isReleased(ip, current)
+      ? null
+      : `${ip} has no manifest record and no release shipped its bytes — left in place; remove it manually`
+  }
+  if (sha256(current) !== recorded.sha256) return `${ip} is locally modified — left in place; remove it manually`
+  if (isFork(ip, recorded.sha256, current)) {
+    return `${ip} matches its recorded sha, but no release shipped those bytes — a local fork, left in place; remove it manually`
+  }
+  return null
+}
+
+// Apply removed/renamed/promotedModules records, deleting only what keptBecause clears.
+// `isFork` and `isReleased` are update's provenance predicates (lib/provenance.mjs),
+// INJECTED rather than imported — provenance imports cmpVersions from this file — and
+// optional: a caller without the released-sha tables keeps the sha guard alone, and an
+// unrecorded file is deleted as it was before 1.0.4.
 /**
  * @param {{ targetDir: string, files: Record<string, any>, modules: Set<string>, report: { notes: string[] },
  *           entries: any[], dryRun?: boolean,
- *           isFork?: (ip: string, recordedSha: string, current: Buffer) => boolean }} args
+ *           isFork?: (ip: string, recordedSha: string, current: Buffer) => boolean,
+ *           isReleased?: (ip: string, current: Buffer) => boolean }} args
  */
-export function applyFileMigrations({ targetDir, files, modules, report, entries, dryRun, isFork = () => false }) {
+export function applyFileMigrations({
+  targetDir,
+  files,
+  modules,
+  report,
+  entries,
+  dryRun,
+  isFork = () => false,
+  isReleased = () => true,
+}) {
   const removeOne = (ip, label) => {
     const recorded = files[ip]
     const dest = join(targetDir, ip)
@@ -134,15 +170,9 @@ export function applyFileMigrations({ targetDir, files, modules, report, entries
       if (recorded) delete files[ip]
       return
     }
-    const current = readFileSync(dest)
-    if (recorded && sha256(current) !== recorded.sha256) {
-      report.notes.push(`${label}: ${ip} is locally modified — left in place; remove it manually`)
-      return
-    }
-    if (recorded && isFork(ip, recorded.sha256, current)) {
-      report.notes.push(
-        `${label}: ${ip} matches its recorded sha, but no release shipped those bytes — a local fork, left in place; remove it manually`,
-      )
+    const kept = keptBecause({ ip, recorded, current: readFileSync(dest), isFork, isReleased })
+    if (kept !== null) {
+      report.notes.push(`${label}: ${kept}`)
       return
     }
     if (!dryRun) rmSync(dest)
@@ -328,6 +358,31 @@ export function requiredConfigSteps(migrations, version) {
 // looks, and satisfied by two commands the consumer runs deliberately.
 export const DEPENDENCY_OBLIGATIONS_PATH = '.harness/pending/dependencies.json'
 
+// Deliberately a text probe rather than a YAML parse: the installer has no YAML
+// dependency (CONTRIBUTING rule 3 — zero runtime dependencies in installer/), and
+// parseSimpleYaml models only the subset it was written for. "Does the catalog mention
+// this key" is the obligation check's question, and a false "already met" is the only
+// dangerous answer — so the probe is anchored to a catalog-entry shape rather than a bare
+// substring. Hoisted out of unmetDependencyObligations in 1.0.4 so `doctor`'s toolchain
+// report reads the Supabase CLI's pin through the same anchor.
+/**
+ * The value of an indented `name:` entry in a pnpm-workspace.yaml text, with a trailing
+ * comment and surrounding quotes removed ('' for a key with no value), or null when no such
+ * entry exists.
+ * @param {string} workspaceYaml
+ * @param {string} name
+ * @returns {string | null}
+ */
+export function catalogEntry(workspaceYaml, name) {
+  const key = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const m = new RegExp(`^\\s{2,}'?${key}'?\\s*:(.*)$`, 'm').exec(workspaceYaml)
+  if (!m) return null
+  return m[1]
+    .replace(/\s+#.*$/, '')
+    .trim()
+    .replace(/^(['"])(.*)\1$/, '$2')
+}
+
 /**
  * Obligations introduced at or before `version`, minus the ones the tree already meets.
  * PURE over its inputs (the two manifest texts) so it is testable without a scaffold.
@@ -348,18 +403,8 @@ export function unmetDependencyObligations(migrations, version, tree) {
     // An unparseable package.json is the consumer's problem and `doctor` says so
     // elsewhere; here it simply means we cannot prove the obligation is met.
   }
-  // Deliberately a text probe rather than a YAML parse: the installer has no YAML
-  // dependency (CONTRIBUTING rule 3 — zero runtime dependencies in installer/), and
-  // parseSimpleYaml models only the subset it was written for. "Does the catalog mention
-  // this key" is the question, and a false "already met" is the only dangerous answer —
-  // so the probe is anchored to a catalog-entry shape rather than a bare substring.
-  const inCatalog = (name) =>
-    new RegExp(`^\\s{2,}'?${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'?\\s*:`, 'm').test(
-      tree.workspaceYaml,
-    )
-
   return all.filter((o) => {
-    const catalogued = inCatalog(o.name)
+    const catalogued = catalogEntry(tree.workspaceYaml, o.name) !== null
     const declared = o.devDependency === false || Object.hasOwn(devDeps, o.name)
     return !(catalogued && declared)
   })

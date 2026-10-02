@@ -27,6 +27,7 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { gzipSync } from 'node:zlib'
 import { update } from '../../installer/commands/update.mjs'
 import {
   readRollbackSnapshot,
@@ -138,6 +139,7 @@ test('snapshot blob: N=1, round-trips, and records absent candidates as absent',
   const missing = first.snapshot.files['tools/new-gate.mjs']
   assert.ok(missing && !missing.existed, 'absent candidate recorded as absent — rollback deletes it')
   assert.ok(first.snapshot.files['.harness/manifest.json']?.existed, 'the manifest itself is a candidate')
+  assert.equal(first.snapshot.v, 2, 'a 1.0.4 snapshot records vacancy, so its blob says v: 2')
 
   // N=1: a second snapshot replaces the first.
   writeRollbackSnapshot({ targetDir: dir, manifest, plan, from: '0.8.0', to: '0.9.1' })
@@ -320,7 +322,9 @@ test('snapshot records a directory and a path under a regular file as absent', (
   mkdirSync(join(dir, 'tools', 'a-dir'))
   const files = snapshotOf(dir, ['tools/a-dir', 'tools/a.mjs/child', 'tools/a.mjs'])
   assert.deepEqual(files['tools/a-dir'], { existed: false })
-  assert.deepEqual(files['tools/a.mjs/child'], { existed: false })
+  // Nothing can be at a path under a regular file (lstat: ENOTDIR), so it is recorded VACANT:
+  // the positive evidence that lets rollback remove a directory the update put there.
+  assert.deepEqual(files['tools/a.mjs/child'], { existed: false, vacant: true })
   assert.equal(Buffer.from(files['tools/a.mjs'].b64, 'base64').toString(), 'export const a = 1\n')
 })
 
@@ -408,6 +412,9 @@ test('an unreadable directory is absent; an unreadable FILE throws before any bl
   chmodSync(lockedDir, 0o000)
   try {
     assert.deepEqual(snapshotOf(dir, ['tools/locked-dir'])['tools/locked-dir'], { existed: false })
+    // A path lstat cannot inspect (EACCES on its parent) is not provably empty: never vacant.
+    const inside = snapshotOf(dir, ['tools/locked-dir/child'])['tools/locked-dir/child']
+    assert.deepEqual(inside, { existed: false })
     chmodSync(lockedFile, 0o000)
     rmSync(rollbackDirFor(dir), { recursive: true, force: true })
     assert.throws(() => snapshotOf(dir, ['tools/locked.mjs']), { code: 'EACCES' })
@@ -416,4 +423,234 @@ test('an unreadable directory is absent; an unreadable FILE throws before any bl
     chmodSync(lockedDir, 0o755)
     chmodSync(lockedFile, 0o644)
   }
+})
+
+// ── a directory where the snapshot recorded no file (#52) ────────────────────
+// writeInstallFile creates every missing parent, so an update that replaces an owned file
+// `P` with files under `P/` (a `removed` record plus new plan paths) leaves a DIRECTORY at a
+// path the snapshot recorded as absent, or as a regular file. Through 1.0.3 rollback called
+// `rmSync(dest, { force: true })` on it (or renamed a staged file onto it), which throws, so
+// every entry sorted after it and the manifest kept their post-update state and a re-run
+// threw at the same path. A directory is now removed only on POSITIVE evidence in the
+// snapshot (`vacant: true`, or `existed: true`), and only inside the install.
+
+/** Run `update --rollback --report json` in process; return the exit code and the report. */
+function rollbackJson(dir) {
+  const out = []
+  const origLog = console.log
+  console.log = (...args) => out.push(args.join(' '))
+  let code
+  try {
+    code = rollbackUpdate({ dir, report: 'json' })
+  } finally {
+    console.log = origLog
+  }
+  return { code, report: JSON.parse(out.join('\n')) }
+}
+
+/** A snapshot blob exactly as 1.0.3 and earlier wrote it: `v: 1`, and no `vacant` field. */
+function writeV1Blob(dir, files) {
+  const snapshot = { v: 1, from: '1.0.2', to: '1.0.3', recordedAt: '2026-09-21T00:00:00.000Z', files }
+  writeInstallFile(join(rollbackDirFor(dir), '1.0.2-1.0.3.json.gz'), gzipSync(JSON.stringify(snapshot)))
+}
+
+const recorded = (text, mode = 0o644) => ({
+  existed: true,
+  mode,
+  b64: Buffer.from(text).toString('base64'),
+})
+
+test('rollback removes a directory the update created at a vacant path', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'tpah-rb-'))
+  writeRollbackSnapshot({
+    targetDir: dir,
+    manifest: { files: {} },
+    plan: [{ installPath: 'tools/new-gate' }],
+    from: '0.8.0',
+    to: '0.9.0',
+  })
+  // What update's writes leave: every missing parent created, so `tools/new-gate` is a tree.
+  writeInstallFile(join(dir, 'tools', 'new-gate', 'nested', 'check.mjs'), 'export {}\n')
+
+  assert.equal(rollbackUpdate({ dir }), 0, 'rollback completes instead of throwing')
+  assert.equal(existsSync(join(dir, 'tools', 'new-gate')), false, 'the created directory is gone')
+  assert.equal(rollbackUpdate({ dir }), 0, 'and a repeated rollback is a no-op')
+  // The evidence that licensed the delete: nothing at all was at the path (lstat: ENOENT).
+  assert.deepEqual(readRollbackSnapshot(dir).snapshot.files['tools/new-gate'], {
+    existed: false,
+    vacant: true,
+  })
+})
+
+test('a file the update replaced with a directory is restored with its bytes', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'tpah-rb-'))
+  const gate = join(dir, 'tools', 'gate.mjs')
+  const manifestPath = join(dir, '.harness', 'manifest.json')
+  const gateBytes = '#!/usr/bin/env node\nexport const gate = 1\n'
+  const manifestBytes = '{"files":{"tools/gate.mjs":{}}}\n'
+  writeInstallFile(gate, gateBytes)
+  writeInstallFile(manifestPath, manifestBytes)
+  writeRollbackSnapshot({
+    targetDir: dir,
+    manifest: { files: { 'tools/gate.mjs': { mode: 'owned', sha256: 'x' } } },
+    plan: [{ installPath: 'tools/gate.mjs/check.mjs' }],
+    from: '0.8.0',
+    to: '0.9.0',
+  })
+  // The update: a `removed` record deletes `tools/gate.mjs`, then the plan writes under it.
+  rmSync(gate)
+  writeInstallFile(join(gate, 'check.mjs'), 'export {}\n')
+  writeFileSync(manifestPath, '{"files":{"tools/gate.mjs/check.mjs":{}}}\n')
+
+  const { code, report } = rollbackJson(dir)
+  assert.equal(code, 0, JSON.stringify(report))
+  // Read first, then stat once: a read of a directory throws, and one stat answers both the
+  // kind and the mode (a stat-then-read on one path is the check-then-use shape CodeQL flags).
+  assert.equal(readFileSync(gate, 'utf8'), gateBytes, 'the file is back with its bytes')
+  const restored = statSync(gate)
+  assert.ok(restored.isFile(), 'the directory is gone')
+  if (POSIX) assert.equal(restored.mode & 0o777, 0o755, 'with its recorded mode')
+  assert.equal(readFileSync(manifestPath, 'utf8'), manifestBytes, 'and the manifest after it')
+  const files = readRollbackSnapshot(dir).snapshot.files
+  assert.equal(files['tools/gate.mjs'].existed, true)
+  assert.deepEqual(files['tools/gate.mjs/check.mjs'], { existed: false, vacant: true })
+})
+
+test('a directory that was already at a candidate path survives, with a note', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'tpah-rb-'))
+  const mine = join(dir, 'tools', 'kept', 'mine.txt')
+  const manifestPath = join(dir, '.harness', 'manifest.json')
+  writeInstallFile(mine, 'mine\n')
+  writeInstallFile(manifestPath, '{"files":{}}\n')
+  writeRollbackSnapshot({
+    targetDir: dir,
+    manifest: { files: {} },
+    plan: [{ installPath: 'tools/kept' }, { installPath: 'tools/later.mjs' }],
+    from: '0.8.0',
+    to: '0.9.0',
+  })
+  assert.deepEqual(readRollbackSnapshot(dir).snapshot.files['tools/kept'], { existed: false })
+  writeInstallFile(join(dir, 'tools', 'later.mjs'), 'export {}\n')
+  writeFileSync(manifestPath, '{"files":{"tools/later.mjs":{}}}\n')
+
+  const { code, report } = rollbackJson(dir)
+  assert.equal(code, 0, JSON.stringify(report))
+  assert.equal(readFileSync(mine, 'utf8'), 'mine\n', "the consumer's directory keeps its contents")
+  assert.deepEqual(report.conflicts, [])
+  assert.ok(
+    report.notes.some((n) => n.includes('tools/kept')),
+    `the report names the directory it left: ${JSON.stringify(report.notes)}`,
+  )
+  assert.equal(existsSync(join(dir, 'tools', 'later.mjs')), false, 'entries after it still roll back')
+  assert.equal(readFileSync(manifestPath, 'utf8'), '{"files":{}}\n', 'and so does the manifest')
+})
+
+test('under a v1 blob a directory at an absent path is a conflict, not a delete', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'tpah-rb-'))
+  const manifestPath = join(dir, '.harness', 'manifest.json')
+  const created = join(dir, 'tools', 'new-gate', 'nested', 'check.mjs')
+  const gate = join(dir, 'tools', 'gate.mjs')
+  writeInstallFile(manifestPath, '{"files":{"tools/new-gate/nested/check.mjs":{}}}\n')
+  writeInstallFile(created, 'export {}\n')
+  writeInstallFile(join(gate, 'check.mjs'), 'export {}\n')
+  writeV1Blob(dir, {
+    '.harness/manifest.json': recorded('{"files":{"tools/gate.mjs":{}}}\n'),
+    'tools/gate.mjs': recorded('export const gate = 1\n'),
+    'tools/new-gate': { existed: false },
+    // A v1 blob never carries `vacant`; one that does was not written by any release, and
+    // the field licenses nothing under v1.
+    'tools/forged': { existed: false, vacant: true },
+  })
+  mkdirSync(join(dir, 'tools', 'forged'))
+
+  const { code, report } = rollbackJson(dir)
+  assert.equal(code, 2, 'a conflict exits 2 through the report')
+  assert.ok(existsSync(created), 'the directory survives: a v1 snapshot cannot say who made it')
+  assert.ok(existsSync(join(dir, 'tools', 'forged')), '`vacant` is not read from a v1 blob')
+  assert.deepEqual(
+    report.conflicts.map((c) => c.path),
+    ['tools/forged', 'tools/new-gate'],
+  )
+  assert.match(report.conflicts[1].detail, /cannot tell whether the update created/)
+  assert.match(report.conflicts[1].detail, /remove it by hand/)
+  // Positive evidence still works under v1: a path recorded as a regular file is restored.
+  assert.equal(readFileSync(gate, 'utf8'), 'export const gate = 1\n')
+  assert.equal(readFileSync(manifestPath, 'utf8'), '{"files":{"tools/gate.mjs":{}}}\n', 'manifest restored')
+})
+
+test('the CLI exits 2 and names the directory a v1 blob cannot account for', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'tpah-rb-'))
+  writeInstallFile(join(dir, '.harness', 'manifest.json'), '{"files":{}}\n')
+  writeInstallFile(join(dir, 'tools', 'new-gate', 'check.mjs'), 'export {}\n')
+  writeV1Blob(dir, {
+    '.harness/manifest.json': recorded('{"files":{}}\n'),
+    'tools/new-gate': { existed: false },
+  })
+  const res = spawnSync('node', [CLI, 'update', '--rollback', '--dir', dir], { encoding: 'utf8' })
+  assert.equal(res.status, 2, `${res.stdout}${res.stderr}`)
+  assert.match(res.stdout, /CONFLICT tools\/new-gate: /)
+  assert.doesNotMatch(res.stderr, /^error:/m)
+})
+
+test('a symlink inside a removed directory is unlinked, never followed', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'tpah-rb-'))
+  const outside = mkdtempSync(join(tmpdir(), 'tpah-rb-outside-'))
+  writeFileSync(join(outside, 'keep.txt'), 'keep\n')
+  writeRollbackSnapshot({
+    targetDir: dir,
+    manifest: { files: {} },
+    plan: [{ installPath: 'tools/new-gate' }],
+    from: '0.8.0',
+    to: '0.9.0',
+  })
+  writeInstallFile(join(dir, 'tools', 'new-gate', 'nested', 'check.mjs'), 'export {}\n')
+  if (!trySymlink(outside, join(dir, 'tools', 'new-gate', 'escape'))) {
+    t.skip('this win32 runner has no symlink privilege')
+    return
+  }
+  trySymlink(join(outside, 'keep.txt'), join(dir, 'tools', 'new-gate', 'nested', 'keep-link.txt'))
+
+  assert.equal(rollbackUpdate({ dir }), 0)
+  assert.equal(existsSync(join(dir, 'tools', 'new-gate')), false)
+  assert.deepEqual(readdirSync(outside), ['keep.txt'], 'the link target directory is untouched')
+  assert.equal(readFileSync(join(outside, 'keep.txt'), 'utf8'), 'keep\n')
+})
+
+test('a symlinked parent that leads outside the install: nothing outside is removed, exit 2', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'tpah-rb-'))
+  const outside = mkdtempSync(join(tmpdir(), 'tpah-rb-outside-'))
+  const manifestPath = join(dir, '.harness', 'manifest.json')
+  writeFileSync(join(outside, 'gate.mjs'), 'export const gate = 1\n')
+  mkdirSync(join(dir, 'tools'))
+  if (!trySymlink(outside, join(dir, 'tools', 'linked'))) {
+    t.skip('this win32 runner has no symlink privilege')
+    return
+  }
+  writeInstallFile(manifestPath, '{"files":{}}\n')
+  writeRollbackSnapshot({
+    targetDir: dir,
+    manifest: { files: { 'tools/linked/gate.mjs': { mode: 'owned', sha256: 'x' } } },
+    plan: [{ installPath: 'tools/linked/new-gate' }],
+    from: '0.8.0',
+    to: '0.9.0',
+  })
+  // The update, through the link: both directories land OUTSIDE the install.
+  rmSync(join(outside, 'gate.mjs'))
+  writeInstallFile(join(dir, 'tools', 'linked', 'gate.mjs', 'check.mjs'), 'export {}\n')
+  writeInstallFile(join(dir, 'tools', 'linked', 'new-gate', 'nested', 'check.mjs'), 'export {}\n')
+  writeFileSync(manifestPath, '{"files":{"x":{}}}\n')
+
+  const { code, report } = rollbackJson(dir)
+  assert.equal(code, 2, JSON.stringify(report))
+  assert.ok(existsSync(join(outside, 'gate.mjs', 'check.mjs')), 'outside the install: left alone')
+  assert.ok(existsSync(join(outside, 'new-gate', 'nested', 'check.mjs')), 'outside the install: left alone')
+  assert.deepEqual(
+    report.conflicts.map((c) => c.path),
+    ['tools/linked/gate.mjs', 'tools/linked/new-gate'],
+  )
+  assert.equal(readFileSync(manifestPath, 'utf8'), '{"files":{}}\n', 'the manifest is still restored')
+  // Refused on containment alone: the snapshot held the evidence that would license both.
+  const files = readRollbackSnapshot(dir).snapshot.files
+  assert.equal(files['tools/linked/gate.mjs'].existed, true)
+  assert.deepEqual(files['tools/linked/new-gate'], { existed: false, vacant: true })
 })

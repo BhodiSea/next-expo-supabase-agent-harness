@@ -554,6 +554,155 @@ jobs:
           env -u GITHUB_BASE_REF node tools/check-wiring.mjs
           env -u GITHUB_BASE_REF node tools/check-secrets.mjs
 
+  # 1.0.4 (#46). DAY 0 WITHOUT THE EXAMPLE'S ANCHORS. The canary job proves the chain on
+  # the scaffold as shipped, where the matrix screen is the one perf subject and the
+  # command palette's registry sits at the path expo-policy reads by default. This lane
+  # runs the same derived Stop-chain union on a scaffold that uses the two reviewed
+  # escapes instead: perf-budget with `subjects: []` beside an `emptySubjects` row (and a
+  # reviewed `exempt` row for `matrix`, whose perfSubject.tsx stays because a test imports
+  # it), and an explicit `accountDeletion.registry`. Both registers are escape lists, so
+  # the three edits land IN the baseline commit: left dirty, gate-integrity reds them.
+  # Removing the whole example would turn red things other items own (the pgTAP proofs
+  # on the notes table, the registers naming the example, the matrix route's startup,
+  # suppression, knip and Maestro rows), so this lane removes nothing. No Supabase stack:
+  # run-stop-chain.mjs prints its declared exclusions, as in the canary job.
+  day0-empty-states:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - name: Scaffold the day-0 fixture (the three reviewed register edits are IN the baseline commit)
+        run: |
+          node installer/cli.mjs init --dir "$RUNNER_TEMP/day0" --tier core --yes
+          cd "$RUNNER_TEMP/day0"
+          # Text-level edits, not a JSON round-trip: the output must stay byte-stable under
+          # the scaffold's own formatter, or the `format` step reds the baseline.
+          node -e '
+            const fs = require("node:fs")
+            const swap = (file, from, to) => {
+              const s = fs.readFileSync(file, "utf8")
+              if (!s.includes(from)) throw new Error(file + ": anchor not found: " + from)
+              fs.writeFileSync(file, s.replace(from, to))
+            }
+            // A literal file, in the formatter shape: no subject, the reviewed empty state,
+            // and a reviewed exempt row for the kept matrix feature.
+            fs.writeFileSync("tools/perf-budget.json", [
+              "{",
+              "  \"runs\": 7,",
+              "  \"subjects\": [],",
+              "  \"emptySubjects\": {",
+              "    \"reason\": \"day-0 lane: this app has no screen dense enough to measure yet\",",
+              "    \"reviewedOn\": \"2026-09-29\"",
+              "  },",
+              "  \"exempt\": [",
+              "    {",
+              "      \"dir\": \"matrix\",",
+              "      \"reason\": \"the example matrix stays for the a11y test that imports its perfSubject.tsx\"",
+              "    }",
+              "  ],",
+              "  \"effectCleanupAllow\": []",
+              "}",
+              "",
+            ].join("\n"))
+            swap(
+              "tools/store-tunables.json",
+              "\"edgeFunction\": \"delete-account\"\n",
+              "\"edgeFunction\": \"delete-account\",\n    \"registry\": \"apps/mobile/src/features/actions/registry.ts\"\n",
+            )
+          '
+          git init -q -b main
+          git add -A
+          git -c user.email=selftest@localhost -c user.name=selftest commit -qm 'day-0 baseline'
+      - name: Install the scaffold (config resolution + jest + export need real deps)
+        working-directory: ${{ runner.temp }}/day0
+        run: |
+          corepack enable
+          corepack prepare --activate
+          node "$GITHUB_WORKSPACE/scripts/ci/pnpm-install-retry.mjs" --no-frozen-lockfile
+      - name: Baseline — the DERIVED Stop-chain union PASSES with no perf subject and an explicit registry key
+        working-directory: ${{ runner.temp }}/day0
+        run: |
+          node "$GITHUB_WORKSPACE/scripts/ci/run-stop-chain.mjs" .
+          # The empty state is ACCEPTED, not skipped: perf-budget says so in its own words.
+          env -u GITHUB_BASE_REF node tools/check-perf-budget.mjs > day0-perf.log 2>&1 || { cat day0-perf.log; exit 1; }
+          if ! grep -q 'reviewed emptySubjects row' day0-perf.log; then
+            cat day0-perf.log
+            echo '::error::DAY0: perf-budget passed without naming the reviewed empty state'; exit 1
+          fi
+      - name: 'Canary 30: blank the emptySubjects reason → perf-budget must FAIL'
+        working-directory: ${{ runner.temp }}/day0
+        run: |
+          node -e '
+            const fs = require("node:fs")
+            const f = "tools/perf-budget.json"
+            const b = JSON.parse(fs.readFileSync(f, "utf8"))
+            b.emptySubjects.reason = ""
+            fs.writeFileSync(f, JSON.stringify(b, null, 2) + "\n")
+          '
+          if env -u GITHUB_BASE_REF node tools/check-perf-budget.mjs > canary30.log 2>&1; then
+            cat canary30.log
+            echo '::error::CANARY: perf-budget PASSED an empty subjects[] whose emptySubjects row has no reason — the empty state is unreviewed'; exit 1
+          fi
+          if ! grep -q 'emptySubjects' canary30.log; then
+            cat canary30.log
+            echo "::error::CANARY: perf-budget reddened WITHOUT naming emptySubjects — wrong failure path (log above)"; exit 1
+          fi
+          git checkout -q -- tools/perf-budget.json
+          echo 'canary OK: perf-budget went red on the blank emptySubjects reason'
+      - name: 'Canary 31: drop the matrix exempt row → perf-budget must FAIL (the closure still runs under the empty state)'
+        working-directory: ${{ runner.temp }}/day0
+        run: |
+          node -e '
+            const fs = require("node:fs")
+            const f = "tools/perf-budget.json"
+            const b = JSON.parse(fs.readFileSync(f, "utf8"))
+            b.exempt = []
+            fs.writeFileSync(f, JSON.stringify(b, null, 2) + "\n")
+          '
+          if env -u GITHUB_BASE_REF node tools/check-perf-budget.mjs > canary31.log 2>&1; then
+            cat canary31.log
+            echo '::error::CANARY: perf-budget PASSED an undeclared, unexempt perfSubject.tsx under the empty state — the row is hiding the closure'; exit 1
+          fi
+          if ! grep -qF 'apps/mobile/src/features/matrix/perfSubject.tsx exists but is not declared' canary31.log; then
+            cat canary31.log
+            echo "::error::CANARY: perf-budget reddened WITHOUT the undeclared-subject message — wrong failure path (log above)"; exit 1
+          fi
+          git checkout -q -- tools/perf-budget.json
+          echo 'canary OK: perf-budget went red on the undeclared matrix perfSubject.tsx'
+      - name: 'Canary 32: point accountDeletion.registry at routes.ts → expo-policy must FAIL naming that file'
+        working-directory: ${{ runner.temp }}/day0
+        run: |
+          node -e '
+            const fs = require("node:fs")
+            const f = "tools/store-tunables.json"
+            const t = JSON.parse(fs.readFileSync(f, "utf8"))
+            t.accountDeletion.registry = "apps/mobile/src/routes.ts"
+            fs.writeFileSync(f, JSON.stringify(t, null, 2) + "\n")
+          '
+          if env -u GITHUB_BASE_REF node tools/check-expo-policy.mjs > canary32.log 2>&1; then
+            cat canary32.log
+            echo '::error::CANARY: expo-policy PASSED a deletion registry key naming a file with no session.deleteAccount command — the key is not read'; exit 1
+          fi
+          if ! grep -qF "apps/mobile/src/routes.ts registers no 'session.deleteAccount' command" canary32.log; then
+            cat canary32.log
+            echo "::error::CANARY: expo-policy reddened WITHOUT naming the file the key points at — wrong failure path (log above)"; exit 1
+          fi
+          git checkout -q -- tools/store-tunables.json
+          echo 'canary OK: expo-policy went red naming apps/mobile/src/routes.ts'
+      - name: Restore sanity — both gates green again after the last restore
+        working-directory: ${{ runner.temp }}/day0
+        run: |
+          env -u GITHUB_BASE_REF node tools/check-perf-budget.mjs
+          env -u GITHUB_BASE_REF node tools/check-expo-policy.mjs
+
   canary-mutation:
     name: 'canary-mutation: an untested branch must red the mutation lane — and nothing else'
     runs-on: ubuntu-latest
@@ -805,8 +954,9 @@ jobs:
         # The cold --min-floor run above recorded the e2e stamp; the warm run must
         # short-circuit the whole jest-expo suite through it. A green warm log
         # WITHOUT this line means the biggest warm-path win silently regressed.
+        # A stamp hit prints its own status, STAMPED, since 1.0.4 (it was an OK line).
         run: |
-          if grep -E '^e2e: OK.*inputs unchanged' warm-validate.log; then
+          if grep -E '^e2e: STAMPED.*inputs unchanged' warm-validate.log; then
             echo 'e2e stamp engaged on the warm run: OK'
           else
             echo '::error::warm validate did not skip e2e via its stamp — the warm-path win regressed'
@@ -880,6 +1030,21 @@ jobs:
           test -f apps/mobile/coverage/coverage-final.json \
             || { echo '::error::jest-expo wrote no coverage map — the mobile-unit step did not actually run'; exit 1; }
           echo 'stop chain OK: the union ran end-to-end via the real hook (rls live, both coverage maps written, reviewer-verdicts executed, ledger green)'
+      # A red Stop chain shows only the head and tail of each failing step. This prints
+      # what types-drift compares, from the stack that is still up, so a generator change
+      # can be read without a local stack.
+      # (1.0.4, #40: Supabase CLI 2.118.0 changed its generator's output on an unchanged
+      # schema, both legs went red here on an unchanged tree, and the log said only "stale".
+      # The catalog floats the CLI until it is pinned, so the next release can do it again;
+      # this step makes one CI run enough to read why. Every command is guarded: the step
+      # only reports, and the job is already red when it runs.)
+      - name: 'On failure: Supabase CLI version and types-drift diff'
+        if: failure()
+        working-directory: .selftest/boot
+        run: |
+          supabase --version || exit 0
+          supabase gen types typescript --local --schema public > "$RUNNER_TEMP/generated.types.ts" || exit 0
+          diff -u packages/platform/supabase/src/database.types.ts "$RUNNER_TEMP/generated.types.ts" || true
       # W7: the Stop chain's COST, captured where the chain can actually run — the stack
       # is live (rls-isolation), stamps are warm (the cold --min-floor run recorded them;
       # CI=false keeps them engaged), so this measures the turn-end latency an agent
@@ -1030,6 +1195,8 @@ jobs:
           # canary that proves nothing while looking rigorous. The env below mirrors what
           # run-rls.mjs hands vitest (tests/rls/run-rls.mjs: RLS_SUITE_READY + the three
           # runtime-read keys), so this is the same invocation, minus the short circuit.
+          # Since 1.0.4 the runner also hands vitest a fourth key, SUPABASE_DB_URL; only
+          # tests/rls/auth-trail.test.ts reads it, and this canary does not run that file.
           eval "$(supabase status -o env)"
           psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'ALTER ROLE anon RESET statement_timeout'
           psql "$DB_URL" -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema'"
@@ -1567,10 +1734,18 @@ jobs:
           # L one release apart, one expiry there and none here. `graduate` REFUSES on
           # NOTEs alone, un-swept, exactly as leg I did at 0.9.9. Verified against
           # `ramp-expectations.mjs 0.11.0 1.0.0`.
+          #
+          # AT 1.1.0 IT BECOMES THE HEADLINE EXPIRY LEG, the leg-H pattern one release on:
+          # the fleet it NOTEd at 1.0.x falls due, so a v0.11.0 install meets exactly the
+          # seven 1.0.0-opened sites that did not re-open (six gates) and NOTHING older —
+          # the cleanest expiry population of this release. version-sync's eol arrival
+          # re-opened at (1.1.0, 1.2.0) and stays a NOTE here, as it does on leg A.
+          # `graduate` now refuses on the red chain rather than on NOTEs alone. Verified
+          # against `ramp-expectations.mjs 0.11.0 1.1.0`.
           - leg: M
             baseline: v0.11.0
             dir: upgrade-0-11-0
-            why: the vintage leg A vacated at 1.0.0 — zero expiries, the whole 1.0.0 NOTE fleet, graduate refuses on NOTEs alone
+            why: the vintage leg A vacated at 1.0.0 — at 1.1.0 the seven 1.0.0-opened expiries and nothing older
     name: "upgrade (leg ${{ matrix.leg }} — ${{ matrix.baseline || 'previous release' }})"
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -1975,11 +2150,17 @@ jobs:
           working-directory: .selftest/app
           script: |
             bash "$GITHUB_WORKSPACE/scripts/ci/device-smoke.sh"
+      # /tmp/web.log is what the boot step writes; through 1.0.3 this printed
+      # /tmp/server.log, which nothing writes (#10).
       - name: Server + Metro logs on failure
         if: failure()
         run: |
-          echo '::group::server.log'; cat /tmp/server.log || true; echo '::endgroup::'
+          echo '::group::web.log'; cat /tmp/web.log || true; echo '::endgroup::'
           echo '::group::metro.log'; cat /tmp/metro.log || true; echo '::endgroup::'
+      # include-hidden-files: Maestro's debug output lives under <flow>/.maestro/, and
+      # upload-artifact drops hidden files by default. Through 1.0.3 every run uploaded
+      # only the runner's own files (5 on a perf-harness red, 11 on a green run) and none
+      # of Maestro's (#10).
       - name: Upload Maestro evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -1988,3 +2169,4 @@ jobs:
           path: .selftest/app/artifacts/maestro/
           retention-days: 7
           if-no-files-found: ignore
+          include-hidden-files: true

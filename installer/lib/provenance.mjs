@@ -119,6 +119,28 @@ function vouchingVersions({ tables, installPath, toVersion }, evidence) {
 }
 
 /**
+ * Did ANY release up to the running installer ship these bytes for this path? The question
+ * for an owned path with NO manifest record (1.0.4): there is no recorded sha to judge, so
+ * the bytes on disk are the whole evidence, and `explains` gets their own sha as the
+ * recorded one — which makes its token-free comparison exact, while a placeholder variant
+ * still goes through `derender`.
+ *
+ * No install version bounds the search from below. A table OLDER than the install counts:
+ * with no record, nobody deliberately pinned the file, so "an older release shipped it" is
+ * as good as "this one did". Nor is a table for the install's own version needed: the
+ * recorded-file rule falls back to the old behaviour when that evidence is missing, and
+ * with no record there is no old behaviour worth falling back on.
+ *
+ * @param {{ tables: Tables, toVersion: string, installPath: string,
+ *           current: Buffer | string | null, answers: Record<string, unknown> }} spec
+ */
+export function releasedAnywhere({ tables, toVersion, installPath, current, answers }) {
+  if (current === null) return false
+  const evidence = { recordedSha: sha256(current), current, answers }
+  return vouchingVersions({ tables, installPath, toVersion }, evidence).vouching.length > 0
+}
+
+/**
  * The verdict on one owned path whose bytes still match its manifest record.
  *
  *   released       a release from the install's version up to the running installer shipped
@@ -207,6 +229,36 @@ export function parkedNote(ip) {
   return `${ip} has local changes — kept; the current template version is parked at ${join('.harness', 'pending', ip)} (merge by hand, or re-run with --force)`
 }
 
+// The park sentence for an owned file with NO manifest record whose bytes no release
+// shipped (1.0.4). parkedNote's shape, and the three ways out.
+/** @param {string} ip */
+function unrecordedNote(ip) {
+  return `${ip} has no manifest record and its bytes match no release of this harness — kept; the incoming version is parked at ${join('.harness', 'pending', ip)} (merge it and record its sha, delete yours and re-run update, or re-run with --force)`
+}
+
+/**
+ * The policy for an `update-clean` over an owned path with NO record (1.0.4). Bytes a
+ * release shipped refresh as they always did; under --force the rest is overwritten (the
+ * caller notes it); otherwise the file is kept and the incoming copy parks, with one note.
+ * Three things the recorded-file policy does that this one must not:
+ *   - no unchanged-upstream skip: with no record nothing shows the project knows the harness
+ *     ships this path, and for a path new in the incoming version that check is usually
+ *     true, so the skip would keep the file at exit 0 and withhold the harness's copy;
+ *   - no DERIVED_AT_INSTALL exemption: it exists for bytes the installer recorded itself;
+ *   - no fallback when the tables are missing: there is nothing to fall back on, so it parks,
+ *     as `enable` and --refresh-seeded already do.
+ * Module-level so createProvenance stays under the complexity ceiling.
+ *
+ * @param {{ ip: string, released: boolean, force: boolean, report: { notes: string[] } }} args
+ * @returns {'update-clean' | 'force-overwrite' | 'park'}
+ */
+function classifyUnrecorded({ ip, released, force, report }) {
+  if (released) return 'update-clean'
+  if (force) return 'force-overwrite'
+  report.notes.push(unrecordedNote(ip))
+  return 'park'
+}
+
 /** @param {string[]} paths */
 function listed(paths) {
   const shown = paths.slice(0, 10).join(', ')
@@ -217,10 +269,12 @@ function listed(paths) {
  * The policy the commands share, bound to one install and one report.
  *
  * `classifyOwned` wraps classifyDrift (unchanged, still pure) and layers the provenance
- * policy on the ONE decision it cannot make alone — `update-clean` over a file that has a
- * record. It pushes its own notes, identically in dry-run and real runs (the parity test
- * holds the two reports deep-equal), so no caller grows a branch: update and enable sit at
- * their complexity ceilings.
+ * policy on the ONE decision it cannot make alone — `update-clean` over an owned file. With
+ * a record it asks whether a release shipped the recorded bytes; with none (1.0.4) it asks
+ * whether any release shipped the bytes on disk, and parks them when none did. It pushes its
+ * own notes, identically in dry-run and real runs (the parity tests hold the two reports
+ * deep-equal), so no caller grows a branch: update and enable sit at their complexity
+ * ceilings.
  *
  * @param {{ tables: Tables, manifest: { harnessVersion: string, answers?: Record<string, unknown> },
  *           report: { notes: string[] }, toVersion?: string }} args
@@ -236,6 +290,9 @@ export function createProvenance({ tables, manifest, report, toVersion = install
   /** @param {string} installPath @param {string} recordedSha @param {Buffer | string | null} current */
   const judge = (installPath, recordedSha, current) =>
     classifyProvenance({ tables, fromVersion, toVersion, installPath, recordedSha, current, answers })
+
+  /** @param {string} installPath @param {Buffer | string | null} current */
+  const released = (installPath, current) => releasedAnywhere({ tables, toVersion, installPath, current, answers })
 
   /** @param {string} ip @param {Verdict} verdict */
   const forkNote = (ip, verdict) => {
@@ -273,7 +330,10 @@ export function createProvenance({ tables, manifest, report, toVersion = install
     classifyOwned({ ip, current, recorded, incoming, force = false, entry, explicit = false, owned = true }) {
       const kind = classifyDrift({ current, recordedSha: recorded?.sha256, incoming, force })
       if (kind === 'park') report.notes.push(parkedNote(ip))
-      if (kind !== 'update-clean' || !owned || typeof recorded?.sha256 !== 'string') return kind
+      if (kind !== 'update-clean' || !owned) return kind
+      // No record (an empty sha included, as classifyDrift reads it): the bytes on disk are
+      // the only evidence. `current` is non-null here — a missing file classified `create`.
+      if (!recorded?.sha256) return classifyUnrecorded({ ip, released: released(ip, current), force, report })
       const verdict = judge(ip, recorded.sha256, current)
       if (verdict.kind === 'released' || verdict.kind === 'derived') return kind
       if (verdict.kind === 'unverifiable') {
@@ -299,6 +359,17 @@ export function createProvenance({ tables, manifest, report, toVersion = install
     isFork(ip, recordedSha, current) {
       const { kind } = judge(ip, recordedSha, current)
       return kind === 'fork' || kind === 'older-release'
+    },
+
+    /**
+     * For the deleting call site with NO record (a removed/renamed migration, 1.0.4): did any
+     * release up to the running installer ship these bytes for this path? The tables list
+     * owned paths only, so an unrecorded seeded path is never released and is always kept.
+     *
+     * @param {string} ip @param {Buffer} current
+     */
+    isReleased(ip, current) {
+      return released(ip, current)
     },
 
     /** The aggregate notes — once per run, after the last classification. */

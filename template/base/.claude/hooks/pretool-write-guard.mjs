@@ -10,7 +10,8 @@
 // this hook keeps the I/O, path-normalization, and path-scoped decision plumbing. Every
 // rule id there has a behavioral canary in tests/hooks/hook-contract.test.mjs.
 // SOURCE: docs/harness/README.md (pretool-write-guard)
-import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { basename, dirname } from 'node:path'
 import { denyTool, pass, readHookInput } from './lib/hookio.mjs'
 
@@ -26,7 +27,7 @@ function readFileSafe(p) {
   }
 }
 
-export const HARNESS_HOOK_VERSION = '1.0.3'
+export const HARNESS_HOOK_VERSION = '1.1.0'
 
 // Dynamic import AFTER hookio installed its fail-closed handlers: a missing, broken, or
 // mis-shaped rules module must BLOCK (exit 2) — a guard that cannot load its rules approves
@@ -60,6 +61,13 @@ if (
 const input = await readHookInput()
 const ti = input?.tool_input ?? {}
 const path = String(ti.file_path ?? ti.path ?? '')
+
+// The telemetry record each deny carries (1.0.4): the rule table's `id` where a table row
+// fired, else a telemetry LABEL naming the inline site. Labels are not rule ids and are not in
+// guard-rules.mjs, where every id owes a behavioural canary. hookio takes only the payload's
+// session_id, prompt_id and tool_name from `input` — never the path or the content.
+/** @param {string} rule */
+const telemetry = (rule) => ({ hook: 'pretool-write-guard', rule, input })
 
 // Resolve to a path RELATIVE to the project root so the protected patterns can be
 // root-anchored (^…) — otherwise a nested node_modules/x/tools/validate.mjs would
@@ -117,6 +125,7 @@ if (
   denyTool(
     'PreToolUse',
     `symlink escape: ${rel} resolves to ${realPath}, outside the project root — writing through a link out of the tree bypasses every path-scoped guard. SOURCE: docs/harness/README.md (tamper evidence)`,
+    telemetry('symlink-escape'),
   )
 }
 
@@ -130,23 +139,123 @@ if (
 // weakening surface (secret-shaped build-profile env names) is asserted by the
 // expo-policy gate instead.
 // SOURCE: docs/harness/README.md (tamper evidence)
-if (
-  process.env.HARNESS_ALLOW_SELF_EDIT !== '1' &&
-  WRITE_PROTECTED.some(({ re }) => rels.some((r) => re.test(r)))
-) {
+// `.find`, not `.some` (1.0.4): the verdict is the same, and the matching row's `id` is what
+// the telemetry record names.
+const protectedRow =
+  process.env.HARNESS_ALLOW_SELF_EDIT === '1'
+    ? undefined
+    : WRITE_PROTECTED.find(({ re }) => rels.some((r) => re.test(r)))
+if (protectedRow !== undefined) {
   denyTool(
     'PreToolUse',
     'harness-protected file: set HARNESS_ALLOW_SELF_EDIT=1 (human-in-the-loop) to modify the gate itself. SOURCE: docs/harness/README.md (tamper evidence)',
+    telemetry(protectedRow.id),
   )
 }
 
 // Migrations are APPEND-ONLY: editing an already-committed migration file rewrites
 // history that may already be applied to a database. New migration files are fine.
-// SOURCE: docs/harness/README.md (append-only migrations)
-if (rels.some((r) => /^supabase\/migrations\/[^/]+\.sql$/.test(r)) && existsSync(path)) {
+//
+// A DRAFT is not history (1.0.4). `supabase migration new` and `supabase db diff -f` leave the
+// file on disk and the shipped authoring path then writes to it, so a migration that exists
+// may be edited when every spelling of it that names a migration is PROVEN to be an untracked
+// draft — never assumed (see readFileSafe above). Three proofs, each of which denies on
+// anything unexpected: `environment` (CLAUDE_PROJECT_DIR is set, and no variable can point
+// git at another repository or index), `manifest` (.harness/manifest.json parses and records
+// no such file: a file `init` planted is the harness's history) and `untracked` (git reports
+// exactly one entry for it, `?? <path>`, and the file has one hard link: git judges a name,
+// so a second name for a committed migration's bytes reads `??` too). A new file costs no
+// git call: existsSync stays the trigger. HARNESS_ALLOW_SELF_EDIT does not open this rule.
+// Residual: "untracked" means absent from the index and HEAD, not from all history, so a
+// migration applied to a shared database by hand and never committed still reads as a draft.
+// SOURCE: docs/harness/README.md (pretool-write-guard; append-only migrations)
+const MIGRATION = /^supabase\/migrations\/[^/]+\.sql$/
+const GIT_REDIRECTS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR']
+
+/** @returns {string | null} why the environment proof fails, or null when it holds */
+function environmentFailure() {
+  if (!process.env.CLAUDE_PROJECT_DIR) return 'CLAUDE_PROJECT_DIR is unset, so nothing says which repository to ask'
+  const set = GIT_REDIRECTS.find((k) => process.env[k] !== undefined)
+  return set ? `${set} is set in the hook's environment, so git could answer for another repository or index` : null
+}
+
+/** @returns {{ files: Record<string, unknown> } | string} the manifest, or why it is unusable */
+function readManifest() {
+  const file = `${process.env.CLAUDE_PROJECT_DIR}/.harness/manifest.json`
+  if (!existsSync(file)) return '.harness/manifest.json is missing, so nothing says which files init planted'
+  let manifest
+  try {
+    manifest = JSON.parse(readFileSync(file, 'utf8'))
+  } catch {
+    return '.harness/manifest.json does not parse'
+  }
+  const files = manifest?.files
+  if (files === null || typeof files !== 'object' || Array.isArray(files)) return '.harness/manifest.json has no files object'
+  return { files }
+}
+
+/** @param {string} spelling @returns {string | null} why the untracked proof fails, or null */
+function untrackedFailure(spelling) {
+  let out
+  try {
+    // An argument array and no shell, like tools/lib/git-diff.mjs, plus a cwd and a timeout:
+    // at most two calls (one per spelling) inside the hook's 10 s budget.
+    out = execFileSync(
+      'git',
+      ['--no-optional-locks', '--literal-pathspecs', 'status', '--porcelain=v1', '-z', '--untracked-files=all', '--', spelling],
+      { cwd: process.env.CLAUDE_PROJECT_DIR, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 3000, windowsHide: true },
+    )
+  } catch (err) {
+    const said = `${err?.stderr ?? ''}`.trim().split('\n')[0] || err?.code || err?.message || 'unknown error'
+    return `git status failed (${said})`
+  }
+  const entries = out.split('\0').filter((e) => e !== '')
+  if (entries.length === 0) return 'git status reports nothing for it, so git tracks it unchanged or ignores it'
+  if (entries.length === 1 && entries[0] === `?? ${spelling}`) return null
+  return `git status reports ${entries.map((e) => JSON.stringify(e)).join(', ')}, not exactly "?? ${spelling}"`
+}
+
+/** @returns {string | null} why the file's link count fails the untracked proof, or null */
+function hardLinkFailure() {
+  let links
+  try {
+    links = statSync(path).nlink
+  } catch (err) {
+    return `its link count could not be read (${err?.code ?? 'unknown error'})`
+  }
+  return links === 1 ? null : `it has ${links} hard links, so its bytes may be a tracked file's, which git status cannot see`
+}
+
+/**
+ * The first proof that fails for these spellings, or null when every spelling is a draft.
+ * @param {string[]} spellings the entries of `rels` that name a migration
+ * @returns {{ spelling: string, proof: string, why: string } | null}
+ */
+function draftProofFailure(spellings) {
+  const env = environmentFailure()
+  if (env) return { spelling: spellings[0], proof: 'environment', why: env }
+  const manifest = readManifest()
+  for (const spelling of spellings) {
+    if (typeof manifest === 'string') return { spelling, proof: 'manifest', why: manifest }
+    if (Object.hasOwn(manifest.files, spelling)) {
+      return { spelling, proof: 'manifest', why: '.harness/manifest.json records it, so init planted it and it is history' }
+    }
+  }
+  for (const spelling of spellings) {
+    const why = untrackedFailure(spelling)
+    if (why) return { spelling, proof: 'untracked', why }
+  }
+  const links = hardLinkFailure()
+  return links ? { spelling: spellings[0], proof: 'untracked', why: links } : null
+}
+
+const migrationRels = rels.filter((r) => MIGRATION.test(r))
+const draftFailure = migrationRels.length > 0 && existsSync(path) ? draftProofFailure(migrationRels) : null
+if (draftFailure !== null) {
   denyTool(
     'PreToolUse',
-    'migrations are append-only: never edit an existing migration — add a new one (supabase migration new) that transforms the schema forward.',
+    `migrations are append-only: ${draftFailure.spelling} is not a proven untracked draft — the ${draftFailure.proof} proof failed: ${draftFailure.why}. Never edit a migration git tracks: add a new one (supabase migration new) that transforms the schema forward. Only a migration git reports as untracked (??) and .harness/manifest.json does not record may be edited. SOURCE: docs/harness/README.md (pretool-write-guard)`,
+    telemetry('migrations-append-only'),
   )
 }
 
@@ -202,13 +311,15 @@ const isWholeFile = typeof ti.content === 'string'
 // The expo-policy gate enforces the full floor tree-wide; these are the weakenings
 // worth stopping at the moment of the edit.
 if (anyRel(/(^|\/)app\.config\.(ts|js|mjs)$/) || anyRel(/(^|\/)app\.json$/)) {
-  /** @type {[RegExp, string][]} */
+  /** @type {[RegExp, string, string][]} */
   const weakenings = [
-    [/usesCleartextTraffic['"]?\s*:\s*true/, 'Android cleartext traffic stays off — the transport is TLS-or-loopback, asserted by the expo-policy gate.'],
-    [/NSAllowsArbitraryLoads['"]?\s*:\s*true/, 'disabling App Transport Security wholesale is banned — pin a per-domain exception with a reviewed reason instead.'],
-    [/newArchEnabled['"]?\s*:\s*false/, 'the New Architecture stays on — it is the runtime the whole template is tested against.'],
+    [/usesCleartextTraffic['"]?\s*:\s*true/, 'Android cleartext traffic stays off — the transport is TLS-or-loopback, asserted by the expo-policy gate.', 'app-config-cleartext'],
+    [/NSAllowsArbitraryLoads['"]?\s*:\s*true/, 'disabling App Transport Security wholesale is banned — pin a per-domain exception with a reviewed reason instead.', 'app-config-arbitrary-loads'],
+    [/newArchEnabled['"]?\s*:\s*false/, 'the New Architecture stays on — it is the runtime the whole template is tested against.', 'app-config-new-arch-off'],
   ]
-  for (const [re, msg] of weakenings) if (re.test(text)) denyTool('PreToolUse', `app config: ${msg}`)
+  for (const [re, msg, label] of weakenings) {
+    if (re.test(text)) denyTool('PreToolUse', `app config: ${msg}`, telemetry(label))
+  }
 }
 
 // ---- SQL (any location): recursion + GUC discipline ----
@@ -216,6 +327,7 @@ if (anyRel(/\.(sql|ts|tsx|mjs)$/) && /WITH\s+RECURSIVE/i.test(text) && !/CYCLE|v
   denyTool(
     'PreToolUse',
     'WITH RECURSIVE without a CYCLE clause / visited guard can loop forever on graph data — add one. SOURCE: docs/harness/README.md (graph queries)',
+    telemetry('with-recursive-no-cycle'),
   )
 }
 
@@ -227,16 +339,16 @@ if (anyRel(/\.(sql|ts|tsx|mjs)$/) && /WITH\s+RECURSIVE/i.test(text) && !/CYCLE|v
 // supabase/tests/** stay writable: a fixture proving `USING (true)` is rejected must
 // be allowed to contain `USING (true)`.
 // SOURCE: docs/harness/README.md (layer 3 prevention beside layer 6 enforcement)
-for (const { pathRe, re, message } of WRITE_SQL_CHECKS) {
-  if (anyRel(pathRe) && re.test(text)) denyTool('PreToolUse', message)
+for (const { id, pathRe, re, message } of WRITE_SQL_CHECKS) {
+  if (anyRel(pathRe) && re.test(text)) denyTool('PreToolUse', message, telemetry(id))
 }
 
 // ---- Non-source CONFIG surface: the weakenings that live in JSON/YAML ----
 // Same placement reasoning as the SQL table above it: the source-extension gate on the
 // next line ends the hook for every .json file, so package.json's npm lifecycle hooks —
 // code that runs on every install, before any gate — reached no content rule at all.
-for (const { pathRe, re, message } of WRITE_CONFIG_CHECKS) {
-  if (anyRel(pathRe) && re.test(text)) denyTool('PreToolUse', message)
+for (const { id, pathRe, re, message } of WRITE_CONFIG_CHECKS) {
+  if (anyRel(pathRe) && re.test(text)) denyTool('PreToolUse', message, telemetry(id))
 }
 
 // Police source code only from here down. Docs/markdown/config legitimately
@@ -248,9 +360,9 @@ if (!anyRel(/\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/)) pass()
 // carrying one is scoped to the surface it is about. Absent, the rule applies to every
 // source file — which is the default precisely because most of these bans are about the
 // shape of the code, not where it lives.
-for (const { pathRe, re, message } of WRITE_GLOBAL_CHECKS) {
+for (const { id, pathRe, re, message } of WRITE_GLOBAL_CHECKS) {
   if (pathRe !== undefined && !anyRel(pathRe)) continue
-  if (re.test(text)) denyTool('PreToolUse', message)
+  if (re.test(text)) denyTool('PreToolUse', message, telemetry(id))
 }
 
 // Mobile-bundle purity: the client never touches server/database modules, and
@@ -260,6 +372,7 @@ if (anyRel(/^apps\/mobile\//)) {
     denyTool(
       'PreToolUse',
       'the mobile client must never import server/database modules — reach data through the tRPC client (@app/api, import type) or the vertical ./client.',
+      telemetry('mobile-server-import'),
     )
   }
   // The seam exemption requires EVERY spelling to sit inside it — a link named
@@ -269,6 +382,7 @@ if (anyRel(/^apps\/mobile\//)) {
     denyTool(
       'PreToolUse',
       'the platform keychain is wrapped: import expo-secure-store only inside src/host/** (the one-door credential seam) — feature code stays storage-agnostic.',
+      telemetry('mobile-secure-store-seam'),
     )
   }
 }
@@ -304,6 +418,7 @@ if (
   denyTool(
     'PreToolUse',
     'the service-role key BYPASSES row-level security — no policy in the repo constrains it and the RLS suite cannot cover it. Its only sanctioned home is an ADR-governed Edge Function (supabase/functions/<name>/index.ts), reached through createServiceRoleClient_BYPASSES_RLS(warrant); never a Server Action, a tRPC procedure, a script or a screen. SOURCE: packages/platform/supabase/src/service-role.ts',
+    telemetry('service-role-outside-home'),
   )
 }
 
@@ -324,6 +439,7 @@ if (anyRel(SERVER_GRAPH) && /\.\s*getSession\s*\(/.test(text)) {
     denyTool(
       'PreToolUse',
       "server-side code must resolve the user with getUser()/getClaims(), NEVER getSession() — getSession decodes an UNVERIFIED token from an attacker-controlled cookie and does not check its signature, so a forged `sub` is accepted. If this is a browser component, mark it 'use client'; if it is the mobile client reading its own stored session, it does not belong in the server graph. SOURCE: apps/web/lib/supabase/server.ts (getUser, never getSession)",
+      telemetry('server-get-session'),
     )
   }
 }

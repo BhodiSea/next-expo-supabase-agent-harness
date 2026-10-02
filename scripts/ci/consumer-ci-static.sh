@@ -92,7 +92,7 @@ echo "  refused (exit $NO_LOCK_CODE), naming the lockfile:"
 grep -E 'ERR_PNPM_NO_LOCKFILE|frozen-lockfile' "$WORK/install-no-lockfile.log" | head -2 | sed 's/^/    /'
 
 # ── 3. the guidance order: init's next-steps note, followed literally ─────────────
-# "next: pnpm install, then git init (if new) and COMMIT — the first commit must include
+# "next: git init (if new), then pnpm install, then COMMIT — … the first commit must include
 # pnpm-lock.yaml". The consumer types a bare `pnpm install` on a laptop with no CI env
 # var, so the replay strips CI here — under CI=true pnpm flips the SAME bare invocation
 # to frozen, which is the ambiguity check-ci-preconditions.mjs refuses in shipped

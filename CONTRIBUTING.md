@@ -62,8 +62,9 @@ node scripts/check-reuse.mjs            # REUSE dual-license structure (offline 
 node scripts/check-claims.mjs           # README/CHANGELOG numbers recomputed from the sources of truth
 node scripts/check-release-lockstep.mjs # one version across package.json, plugin, hooks, CITATION, CHANGELOG
 node scripts/check-plugin-manifest.mjs  # plugin/marketplace fields + every referenced path exists
-node scripts/check-canary-coverage.mjs  # every gate AND every job in all nine shipped base workflows has a registered, RUNNING red-proof
+node scripts/check-canary-coverage.mjs  # every gate AND every job in every shipped workflow, base and modules, has a registered, RUNNING red-proof
 node scripts/generate-floor.mjs --check    # BOTH frozen snapshots (validate.floor.json, stop.floor.json) mirror the config
+node scripts/generate-skill-references.mjs --check  # the slice skill's code blocks match the example's marked spans
 # RUN THE SUITE IN THE CI ENVIRONMENT SHAPE, not your shell's. Gate fixtures build a
 # THROWAWAY git repo with no remote, and on a `pull_request` run GITHUB_BASE_REF names the
 # base branch of the PR against THIS repo — so a gate that resolves a diff base looks for an
@@ -101,9 +102,11 @@ node scripts/check-eol-target.mjs          # no shipped production-scope removal
 node scripts/check-sbom-drift.mjs          # the SBOM as a RELEASE DIFF: no component added since the previous tag without a reviewed row
 node scripts/check-released-shas.mjs --verify-tags  # template/shas lists every owned file this tree ships, covers every vintage, and contains every tag's own bytes — touched an owned template file? run `node scripts/generate-released-shas.mjs --current` first
 
-# The one that matters most — the scaffold must be green with ZERO edits:
+# The one that matters most — the scaffold must be green with ZERO edits.
+# git init FIRST, as init's closing note says: the prepare script (lefthook install)
+# needs a repository, and `wiring` reds a .git/hooks with no lefthook in it.
 node installer/cli.mjs init --dir /tmp/scratch --tier core --yes
-cd /tmp/scratch && pnpm install && git init -q && git add -A \
+cd /tmp/scratch && git init -q && pnpm install && git add -A \
   && git -c user.email=x@y.z -c user.name=x commit -qm "chore: baseline" \
   && node tools/validate.mjs --report-all
 ```

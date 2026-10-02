@@ -18,8 +18,10 @@ import { render, tokenSites } from '../../installer/lib/placeholders.mjs'
 import {
   DERIVED_AT_INSTALL,
   classifyProvenance,
+  createProvenance,
   derender,
   explains,
+  releasedAnywhere,
   upstreamUnchanged,
 } from '../../installer/lib/provenance.mjs'
 
@@ -236,4 +238,89 @@ test('upstreamUnchanged: true only when EVERY variant in range is the incoming s
     upstreamUnchanged({ ...base, installPath: 'tools/never-shipped.mjs', incomingSourceSha: sha('x') }),
     false,
   )
+})
+
+// ── NO RECORD (1.0.4, N21) ────────────────────────────────────────────────────────────────
+//
+// An owned path with no manifest record has no recorded sha to judge, and nobody pinned it,
+// so the only evidence is the bytes on disk: did ANY release up to the running installer
+// ship them for this path? No install version bounds the search from below.
+
+/** @param {Partial<Parameters<typeof releasedAnywhere>[0]>} over */
+const anywhere = (over) =>
+  releasedAnywhere({ tables: TABLES, toVersion: '1.0.2', installPath: 'tools/a.mjs', current: 'a@1.0.1', answers: {}, ...over })
+
+test('releasedAnywhere: every table up to toVersion vouches, one OLDER than any install included; a newer one never does', () => {
+  assert.equal(anywhere({}), true)
+  assert.equal(anywhere({ current: Buffer.from('a@1.0.1 (a later main commit)') }), true)
+  // No record means nobody pinned the file: a table older than the install still counts.
+  assert.equal(anywhere({ current: 'a@1.0.0' }), true)
+  // A table newer than the running installer cannot ship with it.
+  assert.equal(anywhere({ installPath: 'tools/b.mjs', current: 'b@1.0.2' }), true)
+  assert.equal(anywhere({ installPath: 'tools/b.mjs', current: 'b@1.0.2', toVersion: '1.0.1' }), false)
+})
+
+test('releasedAnywhere: the token-free comparison is exact, and vouches for nothing else', () => {
+  assert.equal(anywhere({ current: 'a consumer edit' }), false)
+  assert.equal(anywhere({ current: 'a@1.0.1\n' }), false)
+  // Another path's release bytes, a path no table knows, no tables at all, no file.
+  assert.equal(anywhere({ current: 'gone@1.0.0' }), false)
+  assert.equal(anywhere({ installPath: 'tools/never-shipped.mjs' }), false)
+  assert.equal(anywhere({ tables: {} }), false)
+  assert.equal(anywhere({ current: null }), false)
+})
+
+test('releasedAnywhere: a PLACEHOLDER variant is judged by derendering the bytes on disk', () => {
+  const source = 'owner: {{GITHUB_OWNER}}\nbranch: {{DEFAULT_BRANCH}}\n'
+  const tables = { '1.0.0': { 'ci.yml': [{ sha256: sha(source), sites: tokenSites(source) }] } }
+  const answers = { GITHUB_OWNER: 'acme', DEFAULT_BRANCH: 'main' }
+  /** @param {string | Buffer} current @param {Record<string, unknown>} [given] */
+  const judged = (current, given = answers) =>
+    releasedAnywhere({ tables, toVersion: '1.0.2', installPath: 'ci.yml', current, answers: given })
+  assert.equal(judged(render(source, answers)), true)
+  assert.equal(judged(Buffer.from(render(source, answers))), true)
+  // Rendered before an answer existed: the literal token is on disk.
+  assert.equal(judged(render(source, { GITHUB_OWNER: 'acme' })), true)
+  // Rendered with other answers, or edited outside a site: not what a release shipped.
+  assert.equal(judged(render(source, { ...answers, GITHUB_OWNER: 'someone-else' })), false)
+  assert.equal(judged(`${render(source, answers)}# theirs\n`), false)
+  // An install with no answers at all holds the source itself.
+  assert.equal(judged(source, {}), true)
+  // Without sites the comparison is the exact sha of the bytes on disk, and a rendered
+  // file's sha is not its source's.
+  const siteless = { '1.0.0': { 'ci.yml': [{ sha256: sha(source) }] } }
+  assert.equal(
+    releasedAnywhere({ tables: siteless, toVersion: '1.0.2', installPath: 'ci.yml', current: render(source, answers), answers }),
+    false,
+  )
+})
+
+test('classifyOwned: an owned path with NO record refreshes released bytes, parks the rest with one note, and --force overwrites', () => {
+  /** @type {{ notes: string[] }} */
+  const report = { notes: [] }
+  const policy = createProvenance({ tables: TABLES, manifest: { harnessVersion: '1.0.2', answers: {} }, report, toVersion: '1.0.2' })
+  const spec = { ip: 'tools/a.mjs', incoming: 'a@1.0.3-dev' }
+  assert.equal(policy.classifyOwned({ ...spec, current: Buffer.from('a@1.0.0') }), 'update-clean')
+  assert.equal(policy.classifyOwned({ ...spec, current: Buffer.from('theirs'), force: true }), 'force-overwrite')
+  assert.deepEqual(report.notes, [], 'a refresh and a forced overwrite push no note here')
+  assert.equal(policy.classifyOwned({ ...spec, current: Buffer.from('theirs') }), 'park')
+  assert.equal(report.notes.length, 1)
+  assert.match(report.notes[0], /^tools\/a\.mjs has no manifest record and its bytes match no release of this harness — kept; /)
+  // An empty sha is no record, as classifyDrift reads it.
+  assert.equal(policy.classifyOwned({ ...spec, current: Buffer.from('theirs'), recorded: { sha256: '' } }), 'park')
+  // DERIVED_AT_INSTALL exempts bytes the installer recorded itself, never an unrecorded file.
+  assert.equal(policy.classifyOwned({ ...spec, ip: 'tsconfig.json', current: Buffer.from('{}\n') }), 'park')
+  // A seeded path reached through --refresh-seeded is that command's to judge.
+  assert.equal(policy.classifyOwned({ ...spec, current: Buffer.from('theirs'), owned: false }), 'update-clean')
+  // Bytes equal to the incoming copy are skipped before any policy runs.
+  assert.equal(policy.classifyOwned({ ...spec, current: Buffer.from('a@1.0.3-dev') }), 'skip-same')
+  policy.close()
+  assert.equal(report.notes.length, 3, report.notes.join('\n'))
+})
+
+test('isReleased: the delete side asks releasedAnywhere with the install\'s answers and the running version', () => {
+  const policy = createProvenance({ tables: TABLES, manifest: { harnessVersion: '1.0.1' }, report: { notes: [] }, toVersion: '1.0.1' })
+  assert.equal(policy.isReleased('tools/gone.mjs', Buffer.from('gone@1.0.0')), true)
+  assert.equal(policy.isReleased('tools/gone.mjs', Buffer.from('their own file')), false)
+  assert.equal(policy.isReleased('tools/b.mjs', Buffer.from('b@1.0.2')), false, 'a table newer than the installer')
 })

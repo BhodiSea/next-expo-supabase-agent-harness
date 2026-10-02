@@ -20,14 +20,14 @@ SOURCE: docs/harness/README.md (provenance rule)
   tree-wide; both merge the group extensions in `tools/decision-groups.json`,
   which is how new decision classes join the taxonomy.
 - Cite version-pinned authorities. When the authority is pinned in the corpus
-  (`tools/mcp/corpus/index.json`), append `[corpus: <id>]` and verify it resolves
-  with the `corpus_search` MCP tool. Extend the corpus (id, title, url, version,
-  text) in the same PR that first cites a new id. The citation must JUSTIFY the
-  decision, not merely resolve: cite an entry whose `groups` cover the site's
-  decision class (cross-group escapes are human-reviewed entries in
-  `tools/provenance-overrides.json`), and a bare URL grounds a citation only when
-  its host is on the `tools/lib/citation-domains.mjs` allowlist — pin any other
-  authority in the corpus instead.
+  (`tools/mcp/corpus/index.json`, or the project's `tools/mcp/corpus/project.json`),
+  append `[corpus: <id>]` and verify it resolves with the `corpus_search` MCP tool.
+  Add a new authority to `project.json`, never to the harness-owned `index.json`, in
+  the same PR that first cites it. The citation must JUSTIFY the decision, not merely
+  resolve: cite an entry whose `groups` cover the site's decision class (cross-group
+  escapes are human-reviewed entries in `tools/provenance-overrides.json`), and a bare
+  URL grounds a citation only when its host is on the `tools/lib/citation-domains.mjs`
+  allowlist — pin any other authority in `project.json` instead.
 - Emit one ADR per slice via `/adr <slice>` (records live in `docs/adr/`); the
   ADR's **Sources** section must mirror every inline `// SOURCE:` in the slice.
   Then run `/verify-citations` — the read-only `citation-verifier` subagent

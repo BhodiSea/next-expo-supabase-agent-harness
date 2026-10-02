@@ -27,7 +27,8 @@ function cmpDotted(a, b) {
 }
 
 // THE STAMP CACHE MUST NOT DECIDE A GRADUATION (0.10.0). tools/lib/gate.mjs#stampGate
-// short-circuits a gate to `ok(… inputs unchanged since last green run …)` when its declared
+// short-circuits a gate to `<gate>: STAMPED — inputs unchanged since last green run …` (an OK
+// line through 1.0.3) when its declared
 // inputs are byte-identical to the last GREEN run and we are not in CI — and a gate that does
 // not RUN prints no ramp NOTE. graduate's entire contract is "advance only if zero ramp NOTEs
 // remain", so a cached green reads to it as "nothing outstanding" while findings are in fact

@@ -34,7 +34,8 @@
 // Discipline carried from the source harness's lanes: per-flow hard timeout (a wedged
 // emulator must red the lane, never hang it), evidence on failure (Maestro debug
 // output, a screenshot, the logcat tail — a red must be debuggable from artifacts
-// alone), and anti-vacuity (an invocation that executed ZERO flows exits red; a lane
+// alone — and, since 1.0.4, the ids and text on screen printed to the log itself),
+// and anti-vacuity (an invocation that executed ZERO flows exits red; a lane
 // that ran nothing must never read as device coverage).
 // SOURCE: docs/harness/gates-catalog.md (CI-only lanes — the Maestro device lane) [corpus: harness/doctrine]
 import { spawnSync } from 'node:child_process'
@@ -48,6 +49,7 @@ import {
   buildPerfHarnessYaml,
   buildSweepYaml,
   perfHarnessUrl,
+  summarizeHierarchy,
 } from './lib/maestro-flows.mjs'
 import { parseRoutes, readAppIdentity } from './lib/mobile-app-meta.mjs'
 
@@ -98,8 +100,21 @@ function resolveMaestro() {
   return '' // unreachable: skipOrFail exits
 }
 
+/** One line naming what was on screen when a flow failed (1.0.4, #10). */
+function describeScreen(flowFile, { ids, texts }) {
+  const head = `${GATE}: on screen when ${basename(flowFile)} failed —`
+  if (ids.length === 0 && texts.length === 0) {
+    return `${head} nothing readable (maestro hierarchy printed no JSON)`
+  }
+  const parts = []
+  if (ids.length > 0) parts.push(`ids: ${ids.join(', ')}`)
+  if (texts.length > 0) parts.push(`text: ${texts.map((t) => JSON.stringify(t)).join(' · ')}`)
+  return `${head} ${parts.join('; ')}`
+}
+
 /** Best-effort failure evidence: screenshot + logcat tail + view hierarchy into the artifact dir. */
-function captureEvidence(name) {
+function captureEvidence(name, flowFile) {
+  let tree = ''
   try {
     sh(`adb exec-out screencap -p > ${quoted(join(outDir, `${name}-failure.png`))}`)
     const log = sh('adb logcat -d -t 400')
@@ -110,13 +125,19 @@ function captureEvidence(name) {
     // mis-labeled" — the one question a black screenshot cannot (learned from
     // the first mutation-journey red, where the screenshot was black but the
     // tree showed the tab bar mounted).
-    const tree = sh('maestro hierarchy')
-    if (tree.status === 0) {
-      writeFileSync(join(outDir, `${name}-hierarchy.txt`), tree.stdout ?? '')
+    const hierarchy = sh('maestro hierarchy')
+    if (hierarchy.status === 0) {
+      tree = hierarchy.stdout ?? ''
+      writeFileSync(join(outDir, `${name}-hierarchy.txt`), tree)
     }
   } catch {
     // Evidence is best-effort; the red below is the verdict either way.
   }
+  // The tree's ids and text go to the LOG as well (1.0.4, #10). The artifact is a
+  // download away, and a perf-harness red used to say only "perf-pass is visible...
+  // FAILED": now it says whether the screen showed perf-fail, and which cap, or was still
+  // measuring.
+  console.error(describeScreen(flowFile, summarizeHierarchy(tree)))
 }
 
 function runFlow(maestroBin, flowFile) {
@@ -134,7 +155,7 @@ function runFlow(maestroBin, flowFile) {
     /** @type {NodeJS.ErrnoException} */ (res.error).code === 'ETIMEDOUT'
   ) {
     console.error(tail)
-    captureEvidence(name)
+    captureEvidence(name, flowFile)
     fail(
       GATE,
       `${flowFile} KILLED after ${String(Math.round(FLOW_TIMEOUT_MS / 60000))} minutes — a wedged flow must red the lane, never hang it (evidence in ${outDir}/)`,
@@ -142,7 +163,7 @@ function runFlow(maestroBin, flowFile) {
   }
   if (res.status !== 0) {
     console.error(tail)
-    captureEvidence(name)
+    captureEvidence(name, flowFile)
     fail(
       GATE,
       `${flowFile} FAILED (exit ${String(res.status)}) — last ${String(TAIL_LINES)} lines above; Maestro debug output, screenshot and logcat tail in ${outDir}/`,

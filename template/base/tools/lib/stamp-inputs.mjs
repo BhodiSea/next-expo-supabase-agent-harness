@@ -10,11 +10,29 @@
 //     verdict, so an `update` or a deliberate graduation changes what a gate would
 //     CONCLUDE about unchanged inputs; the manifest is therefore an input to every
 //     stamp, and a warm green must never outlive it.
-//   - the gate's own script, plus the stamp machinery itself (lib/gate.mjs and this
-//     register) — a rewritten check must re-prove the tree, never skip on the stamp
-//     its previous version recorded.
-const MACHINERY = ['.harness/manifest.json', 'tools/lib/gate.mjs', 'tools/lib/stamp-inputs.mjs']
-const withMachinery = (script, inputs) => [...inputs, script, ...MACHINERY]
+//   - the gate's own script, plus the stamp machinery itself (lib/gate.mjs, the
+//     lib/fs-walk.mjs it walks directories with, and this register) — a rewritten
+//     check must re-prove the tree, never skip on the stamp its previous version
+//     recorded.
+//
+// THE IMPORT CLOSURE (1.0.4). A list also names every tools/lib module its script
+// reaches through static imports, followed transitively. Through 1.0.3 none did:
+// `tenancy` hashed its script and not lib/sql-parse.mjs, the parser that reads every
+// policy predicate, so an edit to the parser left a warm green standing. The lists stay
+// reviewed data, not a computed walk; tests/gates/gate-helpers.test.mjs reds any list
+// that misses a module its script imports, here and in every module gate.
+const MACHINERY = [
+  '.harness/manifest.json',
+  'tools/lib/gate.mjs',
+  'tools/lib/stamp-inputs.mjs',
+  'tools/lib/fs-walk.mjs',
+]
+/**
+ * @public exported for the module gates (template/modules/<name>/tools), which declare their
+ * lists beside their own script; a core scaffold ships none of them, so knip sees no caller.
+ * @param {string} script @param {string[]} inputs @returns {string[]}
+ */
+export const withMachinery = (script, inputs) => [...inputs, script, ...MACHINERY]
 
 export const STAMP_INPUTS = {
   // expo export + bundle purity + byte budgets + the gzip ratchet baseline
@@ -37,6 +55,7 @@ export const STAMP_INPUTS = {
     'tools/bundle-budget.json',
     'tools/perf-baseline.json',
     'pnpm-lock.yaml',
+    'tools/lib/bundle-measure.mjs',
   ]),
   // contract inventory regen-diff (action + event inventories) + tsconfig project-
   // references sync + the G18 bounded-wire-string sweep (its reviewed allow list is an
@@ -59,6 +78,8 @@ export const STAMP_INPUTS = {
     'tools/generated/action-inventory.json',
     'tools/generated/event-catalog.json',
     'tools/generated/query-shapes.json',
+    'tools/lib/jsonc.mjs',
+    'tools/lib/source-text.mjs',
   ]),
   // per-role ceilings + per-org quota machinery. The source roots are stamp inputs
   // too, not only the SQL surface: the gate's session-hygiene sweep walks them, so a
@@ -73,6 +94,7 @@ export const STAMP_INPUTS = {
     'supabase/functions',
     'tools',
     'tests',
+    'tools/lib/sql-parse.mjs',
   ]),
   // the whole jest-expo/RNTL fast lane (screens + states + a11y sweeps).
   // Deliberate exclusions: the tRPC/API server graph is mocked at the seam (the
@@ -104,6 +126,18 @@ export const STAMP_INPUTS = {
   // closure's two reads — the actions registry (the surface) and the backing
   // delete-account Edge Function + config.toml declaration (the endpoint). A
   // change to any of them must invalidate a warm expo-policy stamp.
+  // 1.0.4 (#46) adds the reads the list above missed, each of which could pass on
+  // a warm stamp locally: the SEEDED tools/store-tunables.json (the project's half
+  // of the store policy, and the accountDeletion.registry key naming where the
+  // command registry lives); apps/mobile/src and apps/mobile/app (the EXPO_PUBLIC_
+  // name scan walks both, the `route` surface reads src/routes.ts, the auth-surface
+  // probe checks app/sign-in.* and src/auth/providers, and every legal registry
+  // path sits under src/); and supabase/functions (the tunables may name an Edge
+  // Function other than delete-account). Together they cover each of those reads,
+  // including any legal registry path, so the gate needs no new read before it
+  // stamps. The cost: any mobile source or Edge Function edit now re-arms this
+  // stamp, as a mobile source edit already re-arms `build` and `e2e`. The narrower
+  // entries stay: they name the files the closure reads by default.
   'expo-policy': withMachinery('tools/check-expo-policy.mjs', [
     'apps/mobile/app.config.ts',
     'apps/mobile/package.json',
@@ -113,11 +147,17 @@ export const STAMP_INPUTS = {
     'apps/mobile/eas.json',
     'packages/design-tokens/src/generated/native.ts',
     'tools/store-policy.json',
+    'tools/store-tunables.json',
     'apps/mobile/assets',
+    'apps/mobile/src',
+    'apps/mobile/app',
     'apps/mobile/src/features/actions/registry.ts',
     'supabase/functions/delete-account/index.ts',
+    'supabase/functions',
     'supabase/config.toml',
     'pnpm-lock.yaml',
+    'tools/lib/cng-purity.mjs',
+    'tools/lib/png.mjs',
   ]),
   // `expo install --check` version alignment + the config-plugin allowlist +
   // the local config-plugins dir (declared even where absent: the missing-path
@@ -128,6 +168,7 @@ export const STAMP_INPUTS = {
     'tools/expo-plugins.json',
     'plugins',
     'pnpm-lock.yaml',
+    'tools/lib/cng-purity.mjs',
   ]),
   // pnpm license metadata + the exception list
   // + the citeability surface (G25): LICENSE and CITATION.cff are gate inputs now, so a
@@ -148,6 +189,8 @@ export const STAMP_INPUTS = {
     'tools/db-limits.json',
     'supabase/migrations',
     'packages/verticals',
+    'tools/lib/query-shapes.mjs',
+    'tools/lib/sql-parse.mjs',
   ]),
   // reviewed budgets closed over the GENERATED mutation inventory, the by-value
   // module diff, and both wiring reads (the tRPC host + the Server Actions dir).
@@ -163,6 +206,7 @@ export const STAMP_INPUTS = {
   'security-headers': withMachinery('tools/check-security-headers.mjs', [
     'apps/web/lib/security-headers.ts',
     'tools/security-headers.json',
+    'tools/lib/security-txt.mjs',
   ]),
   // org-isolation predicate forms over the applied history. The stamp must cover
   // EVERY input the verdict depends on. The two capture lists are judgment data,
@@ -175,6 +219,7 @@ export const STAMP_INPUTS = {
     'supabase/config.toml',
     'tools/audit-columns.json',
     'tools/pii-columns.json',
+    'tools/lib/sql-parse.mjs',
   ]),
   // root+mobile lockstep + web/api major agreement + node-major agreement + rc-pin +
   // single-zod-instance + single-react-per-surface. Every version the gate reads
@@ -214,5 +259,35 @@ export const STAMP_INPUTS = {
     '.node-version',
     'pnpm-workspace.yaml',
     'pnpm-lock.yaml',
+    // The four judges this gate delegates to (1.0.4): each module decides a verdict over the
+    // files above, so an edit to one must re-judge an unchanged tree.
+    'tools/lib/cc-floor.mjs',
+    'tools/lib/eol.mjs',
+    'tools/lib/framework-floor.mjs',
+    'tools/lib/support-register.mjs',
+  ]),
+  // THE RLS RUNNER (1.0.4): a Stop step, not a validate gate, stamped inside
+  // tests/rls/run-rls.mjs with its command unchanged. Its inputs are what either suite
+  // reads from the tree: the migrations, the pgTAP files, the seed and the stack config,
+  // the supabase-js suite (tests/rls), the reviewed limits resource-limits.test.ts reads,
+  // and the vitest config and dependency graph it runs under. What the tree cannot show,
+  // the runner passes as stampGate's salt: the `supabase --version` output and the running
+  // database's identity (server start time + applied migration versions), so a CLI change,
+  // a reset, a restart or an applied migration re-runs both suites. It honours the stamp
+  // only when CI is empty or unset and HARNESS_REQUIRE_TOOLCHAINS is not 1.
+  // tools/lib/supabase-cli.mjs (#43) decides which CLI both suites run under (the workspace
+  // copy in node_modules/.bin first), so it is in the import closure like any other lib.
+  'rls-isolation': withMachinery('tests/rls/run-rls.mjs', [
+    'supabase/migrations',
+    'supabase/tests',
+    'supabase/seed.sql',
+    'supabase/config.toml',
+    'tests/rls',
+    'tools/db-limits.json',
+    'vitest.config.ts',
+    'package.json',
+    'pnpm-workspace.yaml',
+    'pnpm-lock.yaml',
+    'tools/lib/supabase-cli.mjs',
   ]),
 }

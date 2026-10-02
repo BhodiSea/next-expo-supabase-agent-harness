@@ -94,36 +94,42 @@ REVOKE ALL ON TABLE public.notes FROM anon;
 REVOKE ALL ON TABLE public.notes FROM service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.notes TO authenticated;
 
--- Four per-operation policies, TO authenticated, each with a real predicate and
--- the identity call wrapped in a scalar sub-select so the planner hoists it into
--- an InitPlan and runs it once per statement rather than once per candidate row.
--- SOURCE: RLS performance — wrap the identity call in a scalar sub-select for
--- an initPlan [corpus: postgres/rls-initplan]
+-- The skill-region markers around the four policies below delimit the span the harness
+-- copies, verbatim, into the authoring-vertical-slice skill's references/migration-rls.md.
+-- They are comments and change nothing the database sees.
+-- skill-region:begin org-policies
+-- Four per-operation policies, TO authenticated, each resolving through the uncorrelated
+-- zero-argument helpers so the planner hoists them into one InitPlan per statement (once per
+-- statement, not once per row). Never FOR ALL — each op stays independently auditable.
+-- Reading is MEMBERSHIP; writing is RANK.
+-- Each has a real predicate: none of the four is vacuous.
+-- SOURCE: RLS performance — wrap the identity call in a scalar sub-select for an initPlan
+-- [corpus: postgres/rls-initplan]
 CREATE POLICY notes_select_org ON public.notes
   AS PERMISSIVE FOR SELECT TO authenticated
   USING (org_id = ANY((SELECT private.member_org_ids())::uuid[]));
 
--- SOURCE: PostgreSQL row security — WITH CHECK validates the new row, so a client
--- cannot INSERT into an org it may not write [corpus: postgres/rls-force]
+-- SOURCE: PostgreSQL row security — WITH CHECK validates the new row, so a client cannot
+-- INSERT into an org it may not write [corpus: postgres/rls-force]
 CREATE POLICY notes_insert_org ON public.notes
   AS PERMISSIVE FOR INSERT TO authenticated
   WITH CHECK (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20);
 
--- USING alone would let a member move the row; WITH CHECK keeps the result inside an
--- org they may still write. The freeze trigger is the belt to this braces.
--- SOURCE: PostgreSQL row security — UPDATE evaluates USING then WITH CHECK
--- [corpus: postgres/rls-force]
+-- USING sees the OLD row and WITH CHECK the NEW one. Both carry the rank term so a member
+-- cannot move a row out of reach; the freeze trigger above is what stops org_id changing
+-- at all.
+-- SOURCE: PostgreSQL row security — UPDATE evaluates USING then WITH CHECK [corpus: postgres/rls-force]
 CREATE POLICY notes_update_org ON public.notes
   AS PERMISSIVE FOR UPDATE TO authenticated
   USING (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20)
   WITH CHECK (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20);
 
--- Two independently-scoped arms: an admin cleaning up anything in the org, or an
--- author removing their own note. Each arm carries its own rank term, so neither
--- reads as "or if you wrote it" without a membership — which is exactly the shape
--- that would quietly re-open per-user scope on an org table.
--- SOURCE: PostgreSQL row security — DELETE USING restricts which rows the role may
--- remove [corpus: postgres/rls-force]
+-- Two independently-scoped arms: an admin cleaning up anything in the org, or an author
+-- removing their own row. EVERY arm carries a rank term — the tenancy gate reds a top-level
+-- OR whose arm omits the scope, because such a policy is as open as its weakest arm and
+-- `OR owner_id = (SELECT auth.uid())` quietly restores per-user scope on top of org scope.
+-- SOURCE: PostgreSQL row security — DELETE USING restricts which rows the role may remove
+-- [corpus: postgres/rls-force]
 CREATE POLICY notes_delete_org ON public.notes
   AS PERMISSIVE FOR DELETE TO authenticated
   USING (
@@ -133,6 +139,7 @@ CREATE POLICY notes_delete_org ON public.notes
       AND coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20
     )
   );
+-- skill-region:end org-policies
 
 -- The MFA rail. RESTRICTIVE, so it ANDs onto the four permissive policies above and
 -- can only ever subtract; no `FOR` clause, so it covers every command rather than

@@ -11,9 +11,10 @@ import { isAllowedCitationHost } from './citation-domains.mjs'
 import { toPosix } from './fs-walk.mjs'
 
 // Decision-site keyword groups for THIS stack. Each group's key must be covered by
-// at least one corpus entry's `groups` tag in tools/mcp/corpus/index.json — the gate
-// asserts that lockstep, so the heuristic cannot grow a new decision class without
-// the corpus growing an authority that can ground it.
+// at least one corpus entry's `groups` tag in tools/mcp/corpus/index.json or the
+// project's tools/mcp/corpus/project.json — the gate asserts that lockstep, so the
+// heuristic cannot grow a new decision class without the corpus growing an authority
+// that can ground it. A group a project adds is covered from project.json.
 const BUILTIN_DECISION_GROUPS = [
   {
     key: 'rls-policy',

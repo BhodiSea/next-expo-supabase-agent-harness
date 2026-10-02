@@ -17,6 +17,9 @@ import {
   buildSweepYaml,
   perfHarnessUrl,
 } from '../../template/base/tools/lib/maestro-flows.mjs'
+// A namespace import (1.0.4) for the export #10 adds: a named import of an export the lib
+// lacks would fail this whole file at link time instead of the one test that needs it.
+import * as maestroFlows from '../../template/base/tools/lib/maestro-flows.mjs'
 import {
   deepLink,
   parseRoutes,
@@ -171,6 +174,72 @@ test('perf-harness journey asserts the markers and carries NO openLink — the r
   assert.ok(!/^- openLink:/m.test(yaml), yaml)
   assert.ok(yaml.includes('id: "perf-pass"'), yaml)
   assert.ok(yaml.includes('id: "perf-harness-screen"'), yaml)
+})
+
+test('perf-harness journey waits for the verdict, then asserts perf-pass: a perf-fail reds at once', () => {
+  // 1.0.4 (#10). The journey used to wait 120 s for perf-pass, so a screen showing
+  // perf-fail with its over-budget lines read exactly like a measurement that never
+  // finished: "perf-pass is visible... FAILED" two minutes later, either way. Waiting for
+  // the running marker to go away and THEN asserting the pass marker splits the two: a
+  // stuck probe times out on perf-running, and a breached budget fails the assert at once.
+  const budgets = { tabSwitchMs: 400, actionsOpenMs: 600, frameDropMax: 12, runs: 7 }
+  const yaml = buildPerfHarnessYaml(IDENTITY, budgets)
+  const wait = yaml.indexOf(
+    '- extendedWaitUntil:\n    notVisible:\n        id: "perf-running"\n    timeout: 120000',
+  )
+  const assertPass = yaml.indexOf('- assertVisible:\n    id: "perf-pass"')
+  assert.ok(wait !== -1, yaml)
+  assert.ok(assertPass > wait, yaml)
+  assert.ok(yaml.indexOf('id: "perf-harness-screen"') < wait, yaml)
+  // The pass marker itself is no longer a long wait.
+  assert.ok(!/visible:\n {8}id: "perf-pass"\n {4}timeout:/.test(yaml), yaml)
+})
+
+// ---------------------------------------------------------------------------
+// summarizeHierarchy — what a failed flow left on screen, for the log
+// ---------------------------------------------------------------------------
+
+test('summarizeHierarchy lists the ids and text on screen from `maestro hierarchy` JSON', () => {
+  const { summarizeHierarchy } = maestroFlows
+  assert.equal(typeof summarizeHierarchy, 'function', 'maestro-flows.mjs exports summarizeHierarchy')
+  // The shape `maestro hierarchy` prints: a TreeNode of attributes + children, pretty JSON,
+  // possibly after a line of CLI chatter.
+  const tree = {
+    attributes: { bounds: '[0,0][320,640]' },
+    children: [
+      {
+        attributes: { 'resource-id': 'perf-harness-screen', text: '' },
+        children: [
+          { attributes: { text: 'Perf harness' }, children: [] },
+          { attributes: { 'resource-id': 'perf-fail', text: 'Over budget' }, children: [] },
+          { attributes: { text: 'droppedFrames: 23 (cap 12)' }, children: [] },
+          { attributes: { text: 'Over budget' }, children: [] },
+        ],
+      },
+    ],
+  }
+  const printed = `Running on emulator-5554\n${JSON.stringify(tree, null, 2)}\n`
+  assert.deepEqual(summarizeHierarchy(printed), {
+    ids: ['perf-harness-screen', 'perf-fail'],
+    texts: ['Perf harness', 'Over budget', 'droppedFrames: 23 (cap 12)'],
+  })
+  // Not JSON (a CLI error, an empty capture): nothing, never a throw.
+  assert.deepEqual(summarizeHierarchy(''), { ids: [], texts: [] })
+  assert.deepEqual(summarizeHierarchy('Error: no device'), { ids: [], texts: [] })
+  // Bounded: a long list is cut, and each text is cut, so one red cannot flood the log.
+  const many = {
+    attributes: {},
+    children: Array.from({ length: 80 }, (_, i) => ({
+      attributes: { text: `row ${String(i)} ${'x'.repeat(300)}` },
+      children: [],
+    })),
+  }
+  const cut = summarizeHierarchy(JSON.stringify(many))
+  assert.ok(cut.texts.length <= 40, String(cut.texts.length))
+  assert.ok(
+    cut.texts.every((t) => t.length <= 121),
+    String(Math.max(...cut.texts.map((t) => t.length))),
+  )
 })
 
 test('perfHarnessUrl carries every budget cap as a query param on the app scheme', () => {

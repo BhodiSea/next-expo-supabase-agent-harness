@@ -723,6 +723,15 @@
             "SECURITY_TXT_EXPIRES"
           ]
         ]
+      },
+      {
+        "sha256": "34318f4a74fd8cc10b587a40bcdde7d20854719c3e30676c785db216648dd81e",
+        "sites": [
+          [
+            116445,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
       }
     ],
     "docs/modules/ci-mobile-release/README.md": [
@@ -1402,6 +1411,9 @@
       }
     ],
     "tools/check-types-drift.mjs": [
+      {
+        "sha256": "84787063d85c09bc4b1420678310c68b9c348f706b2bb12869c3c5976fc1d057"
+      },
       {
         "sha256": "8dc30010d90e66837e1b22d80fd0c44fd4d6a0e637b6f4c3ca66058dbbde9d78"
       }

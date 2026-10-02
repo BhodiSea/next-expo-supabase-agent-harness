@@ -8,6 +8,7 @@
 import { execSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import {
+  appendFileSync,
   closeSync,
   existsSync,
   fstatSync,
@@ -23,6 +24,23 @@ import { toPosix, walkFiles } from './fs-walk.mjs'
 export const inCI = () =>
   process.env.CI === 'true' || process.env.HARNESS_REQUIRE_TOOLCHAINS === '1'
 
+// The arguments a FIX line repeats. One that needs no shell quoting (a flag, a word, a
+// relative path) is printed as given. A KEY=VALUE pair prints as `KEY=…`, so a value handed
+// through (a credential passed with `--env`, say) never reaches a log. Anything else is
+// dropped, together with the flag it was the value of, so the printed command still parses.
+// Until 1.0.4 only [a-z0-9-] tokens survived, and a failed device journey printed
+// `--phase journey --file --out-dir`, which the runner rejects (#10).
+function reproduceArgs(argv) {
+  const out = []
+  for (const arg of argv) {
+    const pair = /^([A-Za-z_][A-Za-z0-9_]*)=/.exec(arg)
+    if (pair !== null) out.push(`${pair[1]}=…`)
+    else if (/^[A-Za-z0-9._/-]+$/.test(arg)) out.push(arg)
+    else if (!arg.startsWith('-') && out.at(-1)?.startsWith('--')) out.pop()
+  }
+  return out
+}
+
 // The reproduce command is derived from the running script so it can never drift
 // from reality; gates invoked through a wrapper fall back to the whole chain.
 function fixHint(gate) {
@@ -30,7 +48,7 @@ function fixHint(gate) {
     ?.split('\\')
     .join('/')
     .replace(/^.*?\/(tools\/)/, '$1')
-  const argv = process.argv.slice(2).filter((a) => /^[a-z0-9-]+$/i.test(a))
+  const argv = reproduceArgs(process.argv.slice(2))
   const cmd = script?.startsWith('tools/')
     ? ['node', script, ...argv].join(' ')
     : 'node tools/validate.mjs'
@@ -58,10 +76,32 @@ export function fail(gate, msg) {
   process.exit(1)
 }
 
+// `validate --ci-parity` (1.0.4) hands each step HARNESS_PARITY_REPORT_DIR, one directory
+// per step, and closes the run with one line per missing prerequisite a gate recorded
+// there. noteMissingPrerequisite appends that record: one JSON line, {"gate","reason"}, to
+// <dir>/<pid>.jsonl. It is called on the CI branch of skipOrFail and of every partial leg
+// that fails closed in CI, right before the verdict. With the variable unset (every run
+// but --ci-parity) it does nothing, and it swallows every error and prints nothing:
+// record-keeping never decides a verdict, never adds output, and never writes into the
+// project tree (the runner puts the directory in the OS temp dir).
+// SOURCE: docs/harness/README.md (skip-local / fail-closed-CI asymmetry) [corpus: harness/doctrine]
+/** @param {string} gate @param {string} reason */
+export function noteMissingPrerequisite(gate, reason) {
+  const dir = process.env.HARNESS_PARITY_REPORT_DIR
+  if (!dir) return
+  try {
+    mkdirSync(dir, { recursive: true })
+    appendFileSync(join(dir, `${process.pid}.jsonl`), `${JSON.stringify({ gate, reason })}\n`)
+  } catch {
+    // Deliberately silent: the record is a report, and the verdict is the gate's alone.
+  }
+}
+
 // Prerequisite missing: loud local skip, hard CI failure.
 /** @param {string} gate @param {string} reason @returns {never} */
 export function skipOrFail(gate, reason) {
   if (inCI()) {
+    noteMissingPrerequisite(gate, reason)
     console.error(
       `${gate}: FAIL — ${reason} (skips are not allowed in CI: set up the prerequisite or remove the surface)`,
     )
@@ -126,12 +166,19 @@ export function cmpDotted(a, b) {
   return 0
 }
 
-function readManifest(gate) {
+// The fail-closed read of the install record: null when there is none, the parsed object
+// when it parses, and a FAIL naming the tampering when it does not. Exported (1.1.0) for the
+// surface deferral's CLI, which compares apps/mobile/ against its records. `onCorrupt`, when
+// given, runs before the FAIL: a caller with an output contract (tools/ci/surface-deferral.mjs
+// --mode=pr owes $GITHUB_OUTPUT exactly two lines) writes its fail-safe values first.
+/** @param {string} gate @param {() => void} [onCorrupt] */
+export function readManifest(gate, onCorrupt) {
   const manifestPath = join('.harness', 'manifest.json')
   if (!existsSync(manifestPath)) return null
   try {
     return JSON.parse(readFileSync(manifestPath, 'utf8'))
   } catch (e) {
+    onCorrupt?.()
     fail(
       gate,
       `${manifestPath} is not valid JSON (${e.message}) — it is write-guard-protected, so a corrupt manifest is tampering; restore it from git history`,
@@ -292,21 +339,50 @@ export function hashInputs(paths) {
 }
 
 // stampGate: if every declared input is byte-identical to the last GREEN run
-// (stamp in .harness/<gate>.ok) and we are not in CI, report OK instantly.
+// (stamp in .harness/<gate>.ok) and we are not in CI, report STAMPED instantly.
 // CI always runs the real check — a stamp is a local convenience, never proof.
 // Returns recordGreen(); the gate calls it right before its final ok(). Input
 // completeness is reviewed data in tools/lib/stamp-inputs.mjs — an undeclared
-// input class is a stale-pass bug, so the selftest mutates each class and
-// asserts invalidation.
+// input class is a stale-pass bug, so tests/gates/gate-helpers.test.mjs holds every
+// list to its script's whole import closure.
+//
+// A HIT IS ITS OWN STATUS (1.0.4). Through 1.0.3 it printed through ok(), so a turn that
+// ended on warm stamps read exactly like one that re-proved everything; the Stop hook now
+// lists `<gate>: STAMPED — ` lines beside its skipped layers. The exit stays 0.
+//
+// `salt` (1.0.4) is state no declared file carries, mixed into the digest: the rls runner
+// passes the Supabase CLI version and the running database's identity, because a reset, a
+// restart or an applied migration changes what its suites would conclude and edits no file.
+// Omitted, the digest is hashInputs(inputs) exactly as before. Keep `salt` a plain third
+// parameter (no default value): tests/rls/run-rls.mjs reads `stampGate.length` to tell this
+// signature from 1.0.3's, which would drop the salt.
 // SOURCE: docs/harness/README.md (stamped gates) [corpus: harness/doctrine]
-export function stampGate(gate, inputs) {
+/** @param {string} gate @param {string[]} inputs @param {string} [salt] */
+export function stampGate(gate, inputs, salt) {
   const stampPath = join('.harness', `${gate}.ok`)
-  const digest = hashInputs(inputs)
+  const digest = stampDigest(inputs, salt)
   if (!inCI() && existsSync(stampPath) && readFileSync(stampPath, 'utf8').trim() === digest) {
-    ok(gate, `inputs unchanged since last green run (${stampPath}; CI always re-runs)`)
+    stamped(gate, `inputs unchanged since last green run (${stampPath}; CI always re-runs)`)
   }
   return function recordGreen() {
     mkdirSync('.harness', { recursive: true })
     writeFileSync(stampPath, digest)
   }
+}
+
+/** @param {string[]} inputs @param {string | undefined} salt */
+function stampDigest(inputs, salt) {
+  const inputsDigest = hashInputs(inputs)
+  if (salt === undefined) return inputsDigest
+  return createHash('sha256')
+    .update(`${inputsDigest}\0${String(salt)}`)
+    .digest('hex')
+}
+
+// The phrase after the dash is load-bearing: tests, the selftest's warm-lane control and
+// graduate's comments match on "inputs unchanged since last green run".
+/** @param {string} gate @param {string} msg @returns {never} */
+function stamped(gate, msg) {
+  console.log(`${gate}: STAMPED — ${msg}`)
+  process.exit(0)
 }

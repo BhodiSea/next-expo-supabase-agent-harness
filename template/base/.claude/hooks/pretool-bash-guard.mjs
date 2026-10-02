@@ -33,7 +33,7 @@
 // SOURCE: docs/harness/README.md (pretool-bash-guard)
 import { denyTool, pass, readHookInput } from './lib/hookio.mjs'
 
-export const HARNESS_HOOK_VERSION = '1.0.3'
+export const HARNESS_HOOK_VERSION = '1.1.0'
 
 // Dynamic import AFTER hookio installed its fail-closed handlers: a missing, broken, or
 // mis-shaped rules module must BLOCK (exit 2), not exit 1 as a non-blocking load error — a
@@ -70,7 +70,9 @@ if (cmd) {
         : /** @type {{ re: RegExp }} */ (rule).re.test(cmd)
     if (!hit) continue
     if (rule.allowWhen?.(cmd, { selfEdit })) continue
-    denyTool('PreToolUse', rule.message)
+    // The telemetry record (1.0.4) names the rule's id; hookio copies only the payload's
+    // session_id, prompt_id and tool_name, never the command.
+    denyTool('PreToolUse', rule.message, { hook: 'pretool-bash-guard', rule: rule.id, input })
   }
 }
 pass()

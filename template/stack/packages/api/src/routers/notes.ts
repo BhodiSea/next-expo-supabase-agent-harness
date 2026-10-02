@@ -50,12 +50,17 @@ function writeContext(ctx: OrgContext, orgId: string): NoteWriteContext {
   }
 }
 
+// The skill-region markers around `create` delimit the span the harness copies, verbatim,
+// into the authoring-vertical-slice skill's references/dal-dto.md. They are comments and
+// change nothing at runtime.
 export const notesRouter = router({
+  // skill-region:begin create-procedure
   create: orgProcedure.input(CreateNoteSchema).mutation(({ ctx, input }) => {
     const gate = ctx.org
     if (!gate.ok) return gate
     return createNote(ctx.db, writeContext(ctx, gate.data.id), input)
   }),
+  // skill-region:end create-procedure
 
   get: orgProcedure.input(NoteRefSchema).query(({ ctx, input }) => {
     const gate = ctx.org

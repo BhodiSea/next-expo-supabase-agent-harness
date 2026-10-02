@@ -25,6 +25,17 @@
 // gate exists to close. `exempt: [{ dir, reason }]` is the reviewed escape (the
 // rls-exempt pattern; malformed entries FAIL, never fail open).
 //
+// THE REVIEWED EMPTY STATE (1.0.4). A project with nothing dense to measure used to
+// go green only by keeping a subject it did not have. `subjects: []` is now legal
+// beside an `emptySubjects: { reason, reviewedOn }` row that meets the
+// vertical-anatomy escape's bar (a reason of at least 40 characters after trimming, a
+// reviewedOn shaped YYYY-MM-DD, checked for format only and never against the clock).
+// The gate prints a NOTE and names the reason in its OK line; a row beside a
+// non-empty subjects[] is a stale escape and reds. The leak scan and both directions
+// of the dense-feature closure still run, so the row cannot hide a dense screen or
+// an undeclared perfSubject. perf-budget.json is write-guarded and escape-listed, so
+// the row lands only as a committed human edit.
+//
 // One measurement = one CLI spawn: process.execPath runs
 // tools/lib/perf-subject-cli.mjs, which mounts the subject's real component graph
 // under react-test-renderer with the app's own babel preset (no second transform
@@ -371,6 +382,48 @@ function measureWithRetry({
   return detail
 }
 
+// ---- the reviewed empty state (1.0.4) ---------------------------------------------
+// The bar is the vertical-anatomy escape's, matched exactly (tools/lib/vertical-anatomy.mjs
+// keeps its check private): a reason of at least 40 characters after trimming, and a
+// reviewedOn shaped YYYY-MM-DD. Format only — the date is never compared with the clock,
+// so the verdict stays deterministic.
+const EMPTY_REASON_MIN = 40
+const REVIEWED_ON = /^\d{4}-\d{2}-\d{2}$/
+const EMPTY_ESCAPE_HINT = `A project with nothing dense to measure declares subjects: [] beside the reviewed escape "emptySubjects": { "reason": at least ${EMPTY_REASON_MIN} characters, "reviewedOn": "YYYY-MM-DD" } in a committed human edit`
+
+/** The first reason an emptySubjects row is unusable, or null when it meets the bar. */
+function emptySubjectsProblem(row) {
+  if (row === null || typeof row !== 'object' || Array.isArray(row)) {
+    return `"emptySubjects" must be an object { "reason": string, "reviewedOn": "YYYY-MM-DD" } — got ${JSON.stringify(row)}`
+  }
+  if (typeof row.reason !== 'string' || row.reason.trim().length < EMPTY_REASON_MIN) {
+    return `"emptySubjects" needs a reason of at least ${EMPTY_REASON_MIN} characters after trimming — a one-word escape is not a review`
+  }
+  if (typeof row.reviewedOn !== 'string' || !REVIEWED_ON.test(row.reviewedOn)) {
+    return `"emptySubjects" needs a reviewedOn date (YYYY-MM-DD) — got ${JSON.stringify(row.reviewedOn)}`
+  }
+  return null
+}
+
+/**
+ * The reviewed empty state, or null when the budget does not claim one. A malformed row,
+ * and a row beside a non-empty subjects[] (a stale escape), FAIL here — never open.
+ * @returns {{ reason: string, reviewedOn: string } | null}
+ */
+function reviewedEmptyState(b) {
+  if (b.emptySubjects === undefined) return null
+  const problem = emptySubjectsProblem(b.emptySubjects)
+  if (problem !== null) fail(GATE, `${BUDGET_PATH} ${problem}`)
+  if (!Array.isArray(b.subjects)) return null
+  if (b.subjects.length > 0) {
+    fail(
+      GATE,
+      `${BUDGET_PATH} declares "emptySubjects" beside a non-empty subjects[] — stale escape; remove the row (a reviewed empty state that outlives the empty list is a standing hole nobody reviews)`,
+    )
+  }
+  return { reason: b.emptySubjects.reason.trim(), reviewedOn: b.emptySubjects.reviewedOn }
+}
+
 // ---- shape contract -------------------------------------------------------------
 // ONE shape, checked by key PRESENCE so a malformed value gets the right contract
 // error. A singular "subject" key is the desktop-era legacy spelling — it never
@@ -384,7 +437,7 @@ if (budget.subject !== undefined) {
 if (budget.subjects === undefined) {
   fail(
     GATE,
-    `${BUDGET_PATH} must declare subjects: [{ "subject": path, "cells": n, "medianBudgetMs": n }] — a budget with no measured subject is a vacuous pass (worked pattern: ${WORKED_SUBJECT})`,
+    `${BUDGET_PATH} must declare subjects: [{ "subject": path, "cells": n, "medianBudgetMs": n }] — a budget with no measured subject is a vacuous pass (worked pattern: ${WORKED_SUBJECT}). ${EMPTY_ESCAPE_HINT}`,
   )
 }
 
@@ -397,10 +450,16 @@ if (typeof runs !== 'number' || runs <= 0) {
 }
 const ENTRY_SHAPE =
   '{ "subject": non-empty string, "cells": positive number, "medianBudgetMs": positive number, "medianUpdateBudgetMs"?: positive number, "expect"?: non-empty string }'
-if (!Array.isArray(budget.subjects) || budget.subjects.length === 0) {
+const emptyState = reviewedEmptyState(budget)
+if (emptyState === null && (!Array.isArray(budget.subjects) || budget.subjects.length === 0)) {
   fail(
     GATE,
-    `${BUDGET_PATH} "subjects" must be a NON-EMPTY array of ${ENTRY_SHAPE} — an empty measurement list is a vacuous pass (worked pattern: ${WORKED_SUBJECT})`,
+    `${BUDGET_PATH} "subjects" must be a NON-EMPTY array of ${ENTRY_SHAPE} — an empty measurement list is a vacuous pass (worked pattern: ${WORKED_SUBJECT}). ${EMPTY_ESCAPE_HINT}`,
+  )
+}
+if (emptyState !== null) {
+  console.log(
+    `${GATE}: NOTE — subjects[] is empty by the reviewed emptySubjects row (reviewedOn ${emptyState.reviewedOn}): ${emptyState.reason} — nothing is measured; the leak scan and the dense-feature closure still run`,
   )
 }
 for (const entry of budget.subjects) {
@@ -575,6 +634,15 @@ failures(
   errs,
   `  Dense-feature closure: every ${FEATURES_DIR}/* dir that is data-dense — by importing useKeysetQuery, or by SHAPE (getItemLayout / FlashList / react-native-skia) — ships a measured perfSubject.tsx (see docs/harness/gates-catalog.md "perf-budget").`,
 )
+
+// The reviewed empty state has nothing to measure: the closure above held, so say so
+// and name the reason — in a Stop-hook summary the committed row is the only record.
+if (emptyState !== null) {
+  ok(
+    GATE,
+    `empty state: subjects[] is [] by the reviewed emptySubjects row (reviewedOn ${emptyState.reviewedOn}, reason: ${emptyState.reason}); nothing measured, leak scan and dense-feature closure held`,
+  )
+}
 
 // Closure holds — measure every declared subject sequentially (never in
 // parallel: these are wall-clock medians and CPU contention would flake them).

@@ -26,6 +26,11 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+// A NAMESPACE import (1.0.4) for `noteMissingPrerequisite` alone: it is new, and an install
+// may run this gate over a forked tools/lib/gate.mjs that `update` parked. A named import of
+// an export that file lacks fails at link time; through the namespace it is undefined and the
+// guarded call is a no-op, so the gate still runs and only the --ci-parity record is lost.
+import * as gateLib from './lib/gate.mjs'
 import {
   commandFailureOutput,
   fail,
@@ -109,6 +114,10 @@ function changedAgainst(ref) {
   } catch (e) {
     const reason = commandFailureOutput(e).split('\n')[0]
     if (inCI()) {
+      gateLib.noteMissingPrerequisite?.(
+        GATE,
+        `append-only diff: git diff against ${ref} failed (${reason})`,
+      )
       fail(
         GATE,
         `git diff against ${ref} failed (${reason}) — the append-only check cannot run. In CI this usually means a shallow checkout: set fetch-depth: 0.`,

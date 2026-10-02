@@ -18,9 +18,12 @@
 // SOURCE: docs/harness/README.md (posttool-source-check; provenance)
 import { readFileSync } from 'node:fs'
 import process from 'node:process'
-import { readHookInput } from './lib/hookio.mjs'
+// A NAMESPACE import (1.0.4): `recordHookEvent` is new, and an install may run this hook over
+// a forked lib/hookio.mjs that `update` parked. A named import of an export that file lacks
+// fails at link time; through the namespace it is undefined and the guarded call is a no-op.
+import * as hookio from './lib/hookio.mjs'
 
-export const HARNESS_HOOK_VERSION = '1.0.3'
+export const HARNESS_HOOK_VERSION = '1.1.0'
 
 // Dynamic import AFTER hookio has installed its fail-closed handlers: a missing or
 // broken rules module must BLOCK (exit 2), not exit 1 as a non-blocking load error.
@@ -35,7 +38,7 @@ try {
 }
 const { findUncitedDecisionSites, hookScansFile } = rules
 
-const input = await readHookInput()
+const input = await hookio.readHookInput()
 const file = String(input?.tool_input?.file_path ?? input?.tool_input?.path ?? '')
 if (!hookScansFile(file)) process.exit(0)
 
@@ -48,6 +51,8 @@ try {
 
 const flagged = findUncitedDecisionSites(src).map((f) => `${file}:${f.line}  ${f.excerpt}`)
 if (flagged.length) {
+  // Telemetry (1.0.4): the block, never the file or the flagged lines.
+  hookio.recordHookEvent?.({ hook: 'posttool-source-check', rule: 'provenance', input }, 'block')
   process.stderr.write(
     `Provenance gate: the following decision sites lack an inline \`// SOURCE:\` (\`-- SOURCE:\` in SQL) citation.\nAdd \`SOURCE: <authoritative URL or doc id>\` on/above each, then re-run /verify-citations:\n${flagged.join('\n')}\n`,
   )

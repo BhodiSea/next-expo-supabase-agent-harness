@@ -138,7 +138,7 @@ export const BASH_RULES = [
       'i',
     ),
     message:
-      "Blocked: a recursive force-delete (any flag spelling, any shell — `rm`, `Remove-Item`, `del`, `rd`) is forbidden by the harness. Use the non-force recursive form and let the shell tell you what it cannot remove.",
+      "Blocked: a recursive force-delete (any flag spelling, any shell — `rm`, `Remove-Item`, `del`, `rd`) is forbidden by the harness. Use the non-force recursive form and let the shell tell you what it cannot remove. For ignored build output and tool caches (`apps/web/.next`, `apps/mobile/.expo`, `apps/mobile/dist`, `coverage`, `.stryker-tmp`, `.eslintcache`), run `npx next-expo-supabase-agent-harness doctor --clean`, which deletes each one only after git confirms it is ignored.",
   },
   {
     id: 'shell-write-protected',
@@ -529,6 +529,10 @@ export const WRITE_PROTECTED = [
   // and moving reviewedUntil is the one edit the lapse control cannot distinguish
   // from a real review.
   { id: 'support-register', re: /^tools\/support-register\.json$/ },
+  // The surface register (1.1.0). A live row skips both device lanes on a pull request, so
+  // appending one is the cheapest way past a red Maestro run or a blown startup budget —
+  // the same reason as eol.json above, and the row's reason and date are a human's call.
+  { id: 'surfaces-register', re: /^tools\/surfaces\.json$/ },
   // The backup posture (0.9.9). Its `maxDailyBackupAgeHours` is a recovery-point tolerance
   // and `restorationTesting.lastTestedOn` is an attestation that a human performed a drill —
   // an agent must be able to write neither, because widening the first silences the lane and

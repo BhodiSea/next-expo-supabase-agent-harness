@@ -40,7 +40,8 @@ here deliberately rather than papered over:
   expo-router navigation, the tRPC client and i18n run for real, but Hermes bytecode load,
   native module init, Fabric layout, and the OS keychain do not. The on-device half is
   the Maestro emulator lane plus the startup-budget measurement, and those are CI-ONLY
-  (quality-gate `mobile-e2e` + `perf-lane`, path-filtered + nightly; `mobile-perf
+  (quality-gate `mobile-e2e` + `perf-lane`, path-filtered + nightly, and skipped on a
+  pull request while a live `tools/surfaces.json` row defers the mobile surface; `mobile-perf
   --closure` in the Stop chain is the static half that guarantees every screen HAS a
   flow and a budget row the day it registers). A turn can end green having never booted
   the app on a device. That is a deliberate trade (seconds-fast, laptop-complete agent
@@ -213,9 +214,9 @@ censused, not re-policed (`check-migrations.mjs` owns their reason rule). The
 register's dating is release-clockless by design: the ASD expiring-exception intent is
 carried by the both-ways closure (a suppression cannot outlive its site, and adding
 one is a two-place, write-guard-reviewed act), never by a calendar date a chain step
-must not consult. Findings ramp for pre-1.0.0 installs (NOTE until 1.1.0). Not
-covered: whether a reason is TRUE — that is the reviewer's half, exactly as it is for
-every other reviewed register.
+must not consult. Findings ramped for pre-1.0.0 installs until 1.1.0 (expired — hard
+for every install since 1.1.0). Not covered: whether a reason is TRUE — that is the
+reviewer's half, exactly as it is for every other reviewed register.
 
 ### 8. provenance — `node tools/check-sources.mjs`
 
@@ -227,9 +228,25 @@ Cited corpus entries must carry a `groups` key covering the site's decision clas
 (reviewed cross-group escapes in `tools/provenance-overrides.json`); a bare-URL
 citation grounds only on a `tools/lib/citation-domains.mjs` allowlisted host.
 Consumer-added decision classes live in `tools/decision-groups.json`.
+The corpus is two files, merged by `tools/lib/corpus.mjs`: the harness's
+`tools/mcp/corpus/index.json` (owned, hash-pinned, mandatory) and the project's
+`tools/mcp/corpus/project.json` (seeded, `{ comment, entries }`, absent counts as
+empty; 1.0.4). A project adds an authority to `project.json`, never to the index.
+Both files pass the same per-entry lint (sha256 over `text`, non-empty
+title/url/version, a `groups` array of known keys), a project entry justifies only the
+groups it declares, and a group a project adds may be covered from `project.json`
+alone. The project file must parse as exactly `{ comment, entries }`, and an id the
+index already pins reds naming both files: a project adds authorities and never
+replaces one.
 **Anti-vacuity:** add `const timeoutMs = 5000` with no citation → FAIL with
 file:line; cite a corpus entry whose groups do not cover the flagged class → FAIL
-naming the mismatch.
+naming the mismatch; in `tools/mcp/corpus/project.json`, change an entry's `text`
+without its `sha256`, drop its `groups`, empty its `url`, break the JSON, make
+`entries` an object, add a top-level key, or reuse an id `index.json` pins → FAIL
+naming `project.json` (the last naming both files); cite an id neither file pins →
+FAIL naming both; delete `index.json` beside a `project.json` → FAIL naming
+`index.json` (fixtures: tests/gates/check-sources.test.mjs,
+tests/gates/corpus-lib.test.mjs).
 
 ### 9. boundaries — `node tools/check-exports-walls.mjs && node tools/check-workspace-deps.mjs`
 
@@ -245,8 +262,9 @@ against the OWNED `tools/modules.json` since 1.0.0 — the shipped copy of the
 installer's module list, write-guarded and refreshed by `update`, with a factory
 lockstep test holding the two set-equal — so a typo'd module name can no longer park
 the stale arm permanently dormant; unknown or retired names red (ramped for pre-1.0.0
-installs until 1.1.0, register row `exports-walls-module-closure-ramp-expiry`), and a
-missing or malformed module list fails closed unramped naming `update`.
+installs until 1.1.0, `exports-walls-module-closure-ramp-expiry`, expired — hard for
+every install since 1.1.0), and a missing or malformed module list fails closed unramped
+naming `update`.
 **check-workspace-deps** (the declared-dependency allow-matrix):
 apps/mobile may take a runtime `@app/*` dependency only if it is sanctioned OR
 universally-importable (the error/event kernel, the wire contracts, the RN-only design
@@ -281,8 +299,8 @@ reviewedOn}`), closed BOTH ways — a stale entry reds. Two ramps, partitioned b
 finding's vintage: the directory keying's findings ramped for pre-0.9.5 installs until
 0.10.0 (`boundaries-vertical-anatomy-ramp-expiry`, expired — hard for every real
 install); the behavior keying's WIDENED findings ramped for pre-1.0.0 installs until
-1.1.0 (`boundaries-anatomy-widening-ramp-expiry`). The allow-file shape problems and
-the zero-files-scanned floor are never ramped.
+1.1.0 (`boundaries-anatomy-widening-ramp-expiry`, expired — hard for every install since
+1.1.0). The allow-file shape problems and the zero-files-scanned floor are never ramped.
 **Anti-vacuity:** add a `./client` export to a package with no census entry → FAIL
 naming it; make `@app/api` a runtime mobile dependency → FAIL "import type only"; make one
 vertical depend on another → FAIL "verticals never import each other"; put a `node:fs`
@@ -309,10 +327,10 @@ that shape where it is the reviewed choice (the tRPC client's no-auto-retry stan
 the delete-account function's ordering-not-retries correctness argument), and the one
 non-null posture it ships (the rate limiter's 1s `AbortSignal.timeout`) is the
 register agreeing with the code that already carried it. Posture constants are
-provenance decision sites (`SOURCE:` on the line). Findings ramp for pre-1.0.0
-installs (NOTE until 1.1.0). Not covered: runtime behaviour (the unit/e2e lanes'
-half) and transports reached through a dependency's own internals — stated per the
-Covers / Does NOT cover discipline.
+provenance decision sites (`SOURCE:` on the line). Findings ramped for pre-1.0.0
+installs until 1.1.0 (expired — hard for every install since 1.1.0). Not covered:
+runtime behaviour (the unit/e2e lanes' half) and transports reached through a
+dependency's own internals — stated per the Covers / Does NOT cover discipline.
 
 ### 11. observability — `node tools/check-observability.mjs`
 
@@ -393,18 +411,34 @@ integrity via a zero-dependency PNG parse (`tools/lib/png.mjs`: marketing icon
 solid-color placeholder art NOTEs by default and reds when
 `icons.solidColorPlaceholder` escalates to `"error"` — the pre-submission
 step); and the ACCOUNT-DELETION closure (Apple 5.1.1(v)): an app shipping an
-auth surface must register the deletion action (or route) AND back it with the
-contract-visible `DELETE` operation — the shipped `session.deleteAccount` +
-`DELETE /api/me` slice is the worked pattern, and the deletion's completeness
-is the RLS suite's live sweep case, not this static check. The device lane
-closes the targetSdk half against the GENERATED gradle project after prebuild.
+auth surface must register the deletion action (or route) AND back it with a
+deployed Edge Function (`supabase/functions/<edgeFunction>/index.ts` on disk
+and a `[functions.<edgeFunction>]` block in `supabase/config.toml`) — the
+shipped `session.deleteAccount` action + the `delete-account` Edge Function is
+the worked pattern, and the deletion's completeness is the RLS suite's live
+sweep case, not this static check. The `action` surface reads the command
+registry at `apps/mobile/src/features/actions/registry.ts` unless the optional
+`accountDeletion.registry` (1.0.4) names another: a forward-slash `.ts` or
+`.tsx` path under `apps/mobile/src/` with no `..` segment. The key is legal
+only on the `action` surface, any other value fails the shape check, and a red
+names the file the gate read. It moves where the gate looks, never whether it
+checks. From 1.0.4 the stamp also hashes `tools/store-tunables.json`, both
+mobile source roots and every Edge Function, so none of those reads can ride a
+warm local stamp. The device lane closes the targetSdk half against the
+GENERATED gradle project after prebuild.
 **Anti-vacuity:** add a permission to app.config.ts without a reviewed
 `tools/expo-permissions.json` entry (editor — the write guard also watches this
 surface) → FAIL naming it; change the splash hex one nibble → FAIL the
 lockstep; delete `ITSAppUsesNonExemptEncryption` → FAIL naming the declaration;
 declare a usage string as "TODO" → FAIL; empty the deletion registry entry
-while sign-in ships → FAIL citing 5.1.1(v); swap the marketing icon for a
-512×512 or alpha-carrying PNG → FAIL with the measured dimensions.
+while sign-in ships → FAIL citing 5.1.1(v); point `accountDeletion.registry`
+at `apps/mobile/src/routes.ts` while sign-in ships → FAIL naming that file
+(the factory's `day0-empty-states` lane runs this leg); give the key a `..`
+segment, or set it on a `route` surface → FAIL the shape check; after a green
+local run, set `actionId` to an id the registry lacks, or add a secret-shaped
+`EXPO_PUBLIC_` name under `apps/mobile/src` → the next local run re-checks and
+FAILS instead of honouring the stamp; swap the marketing icon for a 512×512 or
+alpha-carrying PNG → FAIL with the measured dimensions.
 
 ### 13. native-deps — `node tools/check-native-deps.mjs`
 
@@ -466,7 +500,9 @@ reason `pnpm audit` is not in this chain at all. This half is CLOCKLESS and OFFL
 lockfile, same floor, same verdict on any machine on any day. Whether the review is still
 FRESH is the one time-dependent question, and it rides the scheduled `floor-review` job in
 `osv-scan.yml` (`reviewedUntil`, schedule + workflow_dispatch only — never a PR, because a
-lapsed review must not block a contributor's unrelated patch).
+lapsed review must not block a contributor's unrelated patch). The same job reviews the
+surface register since 1.1.0, in a step of its own that a red floor step cannot hide (see
+"Surface deferral" under the CI lanes).
 **The review WINDOW is judged here, though (0.6.0), because it is not a calendar question.**
 `reviewedUntil - reviewedOn` must be at most **31 days** — one calendar month, matching the
 roughly monthly cadence upstream now publishes security releases on. Before this the window
@@ -610,8 +646,11 @@ own promise that projects grow into gates. "In the lock and the hash moved" is U
 every vintage: that is not a vintage gap, it is an edit to instructions somebody already
 reviewed. In practice no install sees the ramp at all, because the installer **writes the
 lock from the install's own current files** — at `init` always, at `update` only when
-there is no lock yet. An update never REWRITES one: doing so would launder every edit made
-since, which is the act the lock exists to make visible.
+there is no lock yet. An update never REGENERATES one: doing so would launder every edit
+made since, which is the act the lock exists to make visible. It re-records only the
+entries of the agent-surface files it wrote itself, hash and model pin together. It does
+not rewrite a copy you edited, so that entry does not move. `update --force` discards your
+edit, and the entry then moves with the file it wrote.
 
 **Three layers, because one env var is not a control.** `tools/gen-agents-lock.mjs`
 refuses `--write` without `HARNESS_ALLOW_SELF_EDIT=1`; the bash-guard denies invoking any
@@ -745,7 +784,10 @@ the policy stands → FAIL; define the helpers with no policy using them → FAI
 table's only `SELECT` policy `RESTRICTIVE` → FAIL "no PERMISSIVE policy FOR SELECT". The
 **executed** twin is the pgTAP suite itself, run against a live stack both ways: green on
 the shipped rail, red on the vendor policy with the two rows an enrolled `aal1` session
-should never have seen.
+should never have seen. Since 1.1.0 the suite runs the rail on a table it builds inside its
+own transaction, `public.pgtap_fixture`, with the example's policy text renamed, so the
+proof survives a project deleting the example; the example's own copy is held by the static
+rules above.
 
 ### 18. tenancy — `node tools/check-tenancy.mjs`
 
@@ -951,7 +993,7 @@ project's posture lives in its `[remotes]` blocks or the Dashboard, and neither 
 here. `auth.email.enable_confirmations` is where that gap is loudest — `false` is correct
 locally and wrong in production — and `tools/auth-posture.json` says so in writing.
 
-**Deferred to 1.1.0: asking the CLI directly** (deferral ledger: `auth-posture-cli-census`).
+**Deferred to 1.2.0: asking the CLI directly** (deferral ledger: `auth-posture-cli-census`).
 A check that read the CLI's own deprecation
 warnings was built, worked, and found a real defect — the harness shipped `[inbucket]` against a
 CLI that renamed it to `[local_smtp]` and warns on every command, with nothing reading the
@@ -980,7 +1022,10 @@ no linked PR and zero comments, so the date moved to 0.11.0. Re-checked again at
 arrival (2026-08-15) against the issue itself: still open, still no milestone, still no
 linked PR, so the standing rule moved it to 0.12.0 — a release that was never cut, so the date
 arrived at the 1.0.0 cut and was re-checked there (2026-08-16): #5894 still open, still zero
-comments, still no milestone, npm latest still 2.114.0, so it moved to 1.1.0.
+comments, still no milestone, npm latest still 2.114.0, so it moved to 1.1.0. At the 1.1.0
+cut (2026-09-29) it arrived again: #5894 still open with no milestone, no linked PR and zero
+comments, the CLI reference still documenting `config push` as the only `config` subcommand,
+and npm latest at 2.118.0, the version the catalog pins exactly, so it moved to 1.2.0.
 The 0.8.0 move licensed itself "once"; the second firing proved the shape recurs, so the rule
 is now standing: each arrival with the upstream condition unmet forces the re-check and a
 one-release move in a reviewed diff — the discharge happens only when the side-effect-free
@@ -1115,18 +1160,26 @@ Reviewed data: `tools/data-flow.json` (write-guard-protected, git-clean-enforced
 ### 21. types-drift — `node tools/check-types-drift.mjs`
 
 Regenerates the Supabase type mirror (`supabase gen types typescript --local`) from the
-running local stack and byte-diffs it against the committed
-`packages/platform/supabase/src/database.types.ts`; a mismatch means a migration landed
-without a `pnpm db:types` regen, so the checked-in types describe a schema no database
-runs. A LIVE-STACK gate: it SKIPS LOUDLY (exit 0) with no supabase CLI/stack — its
-fail-closed enforcement is the CI supabase lane that brings the stack up — and the mirror
-is opt-in (`pnpm db:types` writes it), so until it exists there is nothing to diff. The
-generic is deliberately NOT in the compile graph (`packages/platform/supabase/src/types.ts`):
-rows are re-parsed against zod at the DAL exit, so this is a CI drift assertion, never a
-compile-time licence to skip validation.
+running local stack and compares it with the committed
+`packages/platform/supabase/src/database.types.ts`, normalising only line endings and the
+text's trailing whitespace; a mismatch means a migration landed without a `pnpm db:types`
+regen, so the checked-in types describe a schema no database runs. A new Supabase CLI can
+also change the generator's output on an unchanged schema (2.117.0 and 2.118.0 both did);
+`pnpm db:types` with the install's own CLI clears that red the same way. Since 1.0.4 the
+gate runs that same CLI: the workspace copy in `node_modules/.bin` when one is installed
+(`tools/lib/supabase-cli.mjs`; never on Windows), `PATH` otherwise, so on a machine with no
+global CLI it runs with the stack up where it used to skip. Before its FAIL
+sentence the gate prints each side's line count, the first differing line, and at most
+`DIFF_LINES` lines of each side from there (committed `- `, generated `+ `), so a CI log
+alone tells a layout change from a schema change. A LIVE-STACK gate: it SKIPS LOUDLY
+(exit 0) with no supabase CLI/stack — its fail-closed enforcement is the CI supabase lane
+that brings the stack up — and the mirror is opt-in (`pnpm db:types` writes it), so until
+it exists there is nothing to diff. The generic is deliberately NOT in the compile graph
+(`packages/platform/supabase/src/types.ts`): rows are re-parsed against zod at the DAL
+exit, so this is a CI drift assertion, never a compile-time licence to skip validation.
 **Anti-vacuity:** edit a committed migration's column and re-run without `pnpm db:types` →
-FAIL "stale"; break a migration so `gen types` errors while the stack is up → FAIL "failed
-while the stack is up".
+FAIL "stale", after a diff from the first line that differs; break a migration so
+`gen types` errors while the stack is up → FAIL "failed while the stack is up".
 
 ### 22. migrations — `node tools/check-migrations.mjs`
 
@@ -1479,13 +1532,25 @@ shared `runs` — and it arms the
 DENSE-FEATURE CLOSURE: every `features/*` dir importing `useKeysetQuery` must ship
 a `perfSubject.tsx` declared in `subjects[]`; declared-but-missing and
 present-but-undeclared both red (`features/matrix/perfSubject.tsx` is the worked
-pattern — an island reachable only from tests and this gate). This is the
-RELATIVE, deterministic canary; absolute startup/UX numbers live in the CI device
-lane (mobile-perf), never in the chain.
+pattern — an island reachable only from tests and this gate). THE REVIEWED EMPTY
+STATE (1.0.4): a project with nothing dense to measure declares `subjects: []`
+beside `"emptySubjects": { "reason": …, "reviewedOn": "YYYY-MM-DD" }`, held to
+the vertical-anatomy escape's bar (a reason of at least 40 characters after
+trimming; the date is checked for format only, never against the clock). The
+gate prints a NOTE, measures nothing, and its OK line names the empty state and
+the reason. The row beside a non-empty `subjects[]` is a stale escape and reds;
+`subjects` absent, or `[]` without the row, still reds. The leak scan and both
+closure directions run unchanged, so the row cannot hide a dense screen or an
+undeclared `perfSubject.tsx` (a kept one needs a reviewed `exempt` row). This is
+the RELATIVE, deterministic canary; absolute startup/UX numbers live in the CI
+device lane (mobile-perf), never in the chain.
 **Anti-vacuity:** slow the row render 10× → FAIL twice-measured; slow only the
 UPDATE path → FAIL naming the re-render cost; add a features dir importing
 `useKeysetQuery` with no perfSubject → FAIL with the create-FIX line; declare a
-subject that does not exist → FAIL naming it.
+subject that does not exist → FAIL naming it; with `subjects: []`, blank the
+`emptySubjects` reason → FAIL naming `emptySubjects`, or drop the `exempt` row of
+a dir that still ships `perfSubject.tsx` → FAIL `… exists but is not declared`
+(the factory's `day0-empty-states` lane runs both legs).
 
 ### 33. route-manifest — `node tools/check-route-manifest.mjs && node tools/check-web-routes.mjs`
 
@@ -1681,15 +1746,18 @@ this holds the mechanical slice of content: `## Context` / `## Decision` /
 `## Consequences`-or-`## Honest losses` / `## Sources`, prefix-matched (multi-part
 `## Decision 1 — …` headings are legitimate authorship), each with ≥ 40 characters
 of substance; a `**Status:**` in the closed vocabulary; every `[corpus: <id>]`
-resolving against `tools/mcp/corpus/index.json`; every bare source URL's host on
-the `tools/lib/citation-domains.mjs` allowlist. `## Alternatives Considered` stays
+resolving against `tools/mcp/corpus/index.json` or `tools/mcp/corpus/project.json`
+(skipped while either file is malformed, which `provenance` reds); every bare source
+URL's host on the `tools/lib/citation-domains.mjs` allowlist, whose red says to pin the
+authority in `project.json` instead. `## Alternatives Considered` stays
 advisory on purpose — a shape gate that reds an honest "no alternative existed"
 teaches authors to fabricate alternatives. NO escape file: the remedy is always
 editing the ADR; an allowlist here would be a place to park unshaped ADRs forever.
 **Anti-vacuity:** falsify the budget sentence → FAIL naming both numbers; advertise
 `pnpm ghost` in a rule body → FAIL naming the file; strip `## Sources` from an ADR →
 FAIL naming the section; cite an unknown corpus id or an off-allowlist host → FAIL
-naming it (fixtures: tests/gates/check-docs-sync.test.mjs).
+naming it, and an id in neither corpus file names both (fixtures:
+tests/gates/check-docs-sync.test.mjs).
 
 **The deferral ledger (0.7.0).** The harness's prose makes dated promises —
 "Deferred to x.y.z", "out of scope for x.y.z" — and until this release nothing read
@@ -1854,17 +1922,43 @@ contention would flake red), and any consumer-added custom step — an unknown s
 is never assumed pool-safe. `provenance` and `migrations` share a `git` resource
 key so they never race `.git/index.lock`.
 
+`--ci-parity` (1.0.4) gives a local run CI's posture. It sets
+`HARNESS_REQUIRE_TOOLCHAINS=1` for every step, so a gate whose prerequisite is
+missing fails instead of skipping and no stamp is honoured, and it prints that
+posture as its first line. A runner that predates the flag ignores it silently,
+so a run without that line did not get the posture. Each gate that fails for a
+missing prerequisite records it (`noteMissingPrerequisite` in
+`tools/lib/gate.mjs`: `skipOrFail`, and the CI branches of the partial legs in
+`migrations`, `version-sync` and `styleguide`), and after the summary's total
+the runner prints one `validate --ci-parity: <step>: <gate> — <reason>` line per
+record, in step order, or says that none was reported. `VALIDATE_TIMINGS` stays
+the last line. The records live in a temp directory outside the project and
+never decide the exit code. The flag composes with `--min-floor` and
+`--report-all`: `node tools/validate.mjs --min-floor --ci-parity` is the local
+counterpart of CI's `static` job. With `--list` it changes nothing, and it
+refuses `--stop-chain`, because the Stop chain has no single CI equivalent and
+its `reviewer-verdicts` step needs a live turn. What it does not cover is in
+`docs/harness/README.md` (skip-local / fail-closed-CI asymmetry).
+
 ## Stop-hook runtime suites (`STOP_HOOK_STEPS`)
 
 ### rls-isolation — `node tests/rls/run-rls.mjs`
 
-Live cross-user isolation against local Postgres (fresh-applies all migrations
-first). Seeded positive control (a deny-all database must NOT pass), zero-row
+Live cross-user isolation against the running local stack, as it stands: the runner
+applies no migration (the first `pnpm db:up` and `pnpm db:reset` do). Seeded positive control (a deny-all database must NOT pass), zero-row
 cross-user SELECT/UPDATE/DELETE, SQLSTATE 42501 on INSERT smuggling,
 pooled-connection GUC-leak detector (pool max=1), and the pg_catalog gate (FORCE
 RLS flags, per-op policies, leading-column owner indexes, initPlan-shaped
 predicates, patched pgvector, non-BYPASSRLS role). Unreachable database → loud
-SKIP locally; in CI with migrations present, unreachable = FAIL.
+SKIP locally; in CI with migrations present, unreachable = FAIL. Stamped locally (1.0.4):
+with the stack up and its declared inputs, the `supabase --version` output and the
+database's identity (server start time + applied migration versions) all unchanged since
+the last green run, it prints `rls-isolation: STAMPED` and runs neither suite; any non-empty
+`CI` always runs both (see docs/harness/README.md, Stamped gates). Since 1.0.4 every spawn
+uses the workspace Supabase CLI in `node_modules/.bin` when one is installed
+(`tools/lib/supabase-cli.mjs`; `PATH` otherwise, and always on Windows), the run prints
+which CLI it used, and the supabase-js suite gets `SUPABASE_DB_URL` from
+`supabase status -o env` beside the API URL and keys.
 
 **There is no plan probe in THIS suite, and that is a placement decision, not an
 omission.** A plan is a planner opinion at one statistics snapshot; against the
@@ -2088,10 +2182,19 @@ even when that record cannot be written.
   real server + Postgres — since 1.0.0; the inherited stub-authority tap of an
   empty form had been failing nightly, invisibly, since Supabase Auth replaced
   it), and the perf-harness journey (the dev screen self-measures against
-  `tools/interaction-budget.json` and the flow asserts its `perf-pass` leaf).
-  Path-filtered + nightly (emulator cost); anti-vacuity: a phase that executed
-  zero flows exits red, and evidence (Maestro debug output, screenshot, logcat
-  tail) uploads on every failure.
+  `tools/interaction-budget.json`; the flow waits for its `perf-running` leaf to
+  clear, then asserts `perf-pass`, so a breached budget reds at once and a
+  measurement that never ends reds on the wait). The web app is the mutation
+  flow's backend: the job publishes the env its first request parses (the
+  server-only `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_DB_URL`, then the
+  `NEXT_PUBLIC_` trio) before it boots the host, and waits for
+  `/api/trpc/system.health`. Path-filtered +
+  nightly (emulator cost), and skipped on a pull request while a live surface
+  deferral holds (below); anti-vacuity: a phase that executed zero flows exits
+  red. On every failure the runner prints the ids and text on screen to the log,
+  and the evidence uploads: screenshot, logcat tail, hierarchy, and Maestro's
+  debug output, which sits under a hidden `.maestro/` directory and so needs the
+  upload's `include-hidden-files: true`.
 - **Startup measurement lane** (`perf-lane`) — `tools/measure-startup.mjs`
   cold-starts every ROUTES entry ×3 on its own quiet emulator (`am force-stop`
   + `am start -W` per deep link; `totalTimeMs` is the MEDIAN, every roll
@@ -2104,7 +2207,40 @@ even when that record cannot be written.
   in the managed scaffold (no RN/Expo binding for `reportFullyDrawn()`;
   injecting native source would break CNG purity) — the median + warm split is
   the managed replacement, and the parse stays armed for consumers that add a
-  native binding.
+  native binding. Path-filtered + nightly like the Maestro lane, and skipped on a
+  pull request while a live surface deferral holds (below).
+- **Surface deferral** (`surface-deferral`, run by `changes` for `mobile-e2e` and
+  `perf-lane`, and by `floor-review`; 1.1.0) — a project that
+  builds its web surface first records the mobile surface as not built yet in the seeded
+  `tools/surfaces.json`: `{ "surface": "mobile", "deferredUntil": "YYYY-MM-DD",
+  "reason": "<one line>" }`, one row per surface, and `mobile` is the only surface a row
+  may name. The `changes` job runs `node tools/ci/surface-deferral.mjs --mode=pr`, which
+  prints exactly `mobile-deferred=true|false` and `mobile-deferral=<until>: <reason>` into
+  `$GITHUB_OUTPUT` (everything else goes to the log), and the two device lanes skip on a
+  pull request while the row is live. **Narrow reach:** only the `pull_request` arm of those
+  two jobs reads the output; scheduled and dispatched runs keep both lanes, `native` and
+  every other job ignore it, and `gate-summary` prints the reason beside the two skipped
+  lanes and never counts a skip as a pass. **The content tripwire:** a row is VOID, and the
+  lanes run, as soon as any file `git ls-files` lists under `apps/mobile/` differs from the
+  sha256 the installer recorded in `.harness/manifest.json`, a file is added there or a
+  recorded one is gone, or the manifest is absent. The tree is `apps/mobile/` alone: a
+  web-first project edits the shared packages on every backend change, and a shared change
+  that forces an edit under `apps/mobile/` voids the row through that edit. On a retrofit
+  install with no mobile app, nothing is compared and the row is live, and the output says
+  zero files were compared. **The clock only tightens:** `deferredUntil` is the last
+  deferred day, and after it a pull request runs the lanes again, so no date can turn a
+  run into a skip. A stale row reds on the schedule instead, never on an unrelated pull
+  request: the `floor-review` job runs `--mode=review`, which exits 1 on an expired, void
+  or malformed row. `--mode=pr` exits 1 only on a malformed register or a corrupt
+  manifest, after printing `false`; an absent or empty register reads nothing else.
+  Adding a row is a reviewed human act: the file is write-guarded (`surfaces-register`) and
+  in the escape lists, so an uncommitted edit reds `gate-integrity`, and re-recording an
+  `apps/mobile/` sha to keep a row live means editing the write-guarded,
+  CODEOWNERS-covered `.harness/`. **Anti-vacuity** (`tests/gates/surface-deferral.test.mjs`):
+  with a live row, one byte appended to `apps/mobile/app.config.ts` turns the output to
+  `mobile-deferred=false` and the log names it (`surface-deferral: mobile deferral VOID —
+  apps/mobile/app.config.ts differs from the sha the installer recorded`); `--mode=review`
+  with a `--today` after the row's date exits 1 naming the row, and on its date exits 0.
 - **Web browser lane** (`web-e2e`) — the ONLY browser-side accessibility net in
   the harness (the mobile a11y floor is lint + RNTL; neither renders the DOM).
   `tools/check-web-e2e.mjs` fails closed FIRST on a missing `playwright.config`,
@@ -2190,7 +2326,8 @@ even when that record cannot be written.
   which is what makes a daily cadence honest. The artefact uploads only after it
   passes, so a broken inventory is never the file someone downloads later.
 - **live-api proof** — `__tests__/live-api-proof.test.ts` (jest, self-skipping
-  unless `LIVE_PROOF=1` + a running `AUTH_MODE=stub` server): the one place the
+  unless `LIVE_PROOF=1`; `integration-lane` publishes the Supabase URL, keys and
+  service-role key it requires from the local stack, then boots the web host): the one place the
   mobile client's real tRPC client talks to the real server over real Postgres
   under FORCE RLS. Every other lane mocks the network — which is exactly how the
   desktop original once shipped requests with no Authorization header at all

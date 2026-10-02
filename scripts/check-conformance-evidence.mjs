@@ -108,7 +108,8 @@ const s = summarise(register)
 // The headline is the POSITIVE-CLAIM count — every row that claims a control — beside the
 // negative one, because a closure nobody can see the result of is indistinguishable from
 // one that did not run. Module rows with a null canary are counted separately: they are
-// CONDITIONAL on their module and the registry keys only what the base tree runs.
+// CONDITIONAL on their module: steps ∪ lanes ∪ hookRules key only what the base tree runs,
+// and module jobs sit in moduleLanes, outside that union.
 const positive = register.requirements.filter(
   (r) => r.outcome === 'covered' || r.outcome === 'partial',
 )

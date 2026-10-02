@@ -1,7 +1,17 @@
-// `doctor` — integrity + wiring check for an installed harness. Read-only;
-// CI-friendly exit codes (0 clean, 1 broken, 2 drift/attention). Seeded-surface
-// divergence is reported as info only — project-owned files are EXPECTED to
-// evolve; the advisory exists so template improvements are discoverable.
+// `doctor` — integrity + wiring check for an installed harness. CI-friendly exit codes
+// (0 clean, 1 broken, 2 drift/attention). Seeded-surface divergence is reported as info
+// only — project-owned files are EXPECTED to evolve; the advisory exists so template
+// improvements are discoverable. So is the toolchain report (1.0.4): the node, pnpm,
+// Supabase CLI and psql binaries a local run reaches, their versions and their pins.
+//
+// What it writes: it deletes .harness/pending/dependencies.json and source-fixes.json once
+// the tree meets every entry in them, and with `--clean` (1.0.4) it deletes the ignored
+// residue in installer/lib/toolchain.mjs CLEAN_LIST — .harness/stop-output/,
+// apps/mobile/dist/ and the ignored build output and tool caches (apps/web/.next/,
+// apps/mobile/.expo/, coverage/, .stryker-tmp/, .eslintcache) — after checking each one is
+// inside the install, not reached through a symlink, ignored by git and holds no tracked
+// file. `--clean --dry-run` only lists them.
+// Nothing else is written, and neither changes the exit code.
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
@@ -18,6 +28,7 @@ import {
   unmetDependencyObligations,
 } from '../lib/migrations.mjs'
 import { classifyProvenance, readReleasedShas } from '../lib/provenance.mjs'
+import { cleanResidue, probeCommand, toolchainReport } from '../lib/toolchain.mjs'
 
 
 // One manifest record, classified. Hoisted out of `doctor` so the command stays under the
@@ -204,8 +215,14 @@ function nameLocalForks({ targetDir, manifest, infos, tables }) {
   }
 }
 
+/**
+ * @param {{ dir: string, clean?: boolean, dryRun?: boolean }} opts
+ * @param {{ releasedShas?: import('../lib/provenance.mjs').Tables,
+ *           probe?: import('../lib/toolchain.mjs').Probe }} [deps]
+ *   `probe` runs each toolchain probe; tests inject a fake (1.0.4).
+ */
 // eslint-disable-next-line sonarjs/cognitive-complexity -- ceiling is machine-enforced by scripts/complexity-ratchet.json (G16); this directive only silences the rule, the ratchet is what stops the score growing
-export async function doctor(opts, { releasedShas = readReleasedShas() } = {}) {
+export async function doctor(opts, { releasedShas = readReleasedShas(), probe = probeCommand } = {}) {
   const targetDir = opts.dir
   const manifest = readManifest(targetDir)
   const errors = []
@@ -359,6 +376,10 @@ export async function doctor(opts, { releasedShas = readReleasedShas() } = {}) {
       `seeded-divergence advisory could not run (${err instanceof Error ? err.message : String(err)}) — this is NOT a report of "no divergence". Nothing was compared against the current template on this run.`,
     )
   }
+
+  // Info only, and called unconditionally: the branching lives inside the helpers, because
+  // this function's complexity-ratchet row may only move down.
+  infos.push(...toolchainReport(targetDir, probe), ...cleanResidue(targetDir, opts))
 
   for (const e of errors) console.error(`  ERROR ${e}`)
   for (const w of warnings) console.warn(`  warn  ${w}`)

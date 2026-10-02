@@ -16,7 +16,7 @@ Every mechanism belongs to one of six layers:
 
 | # | Layer | Concrete mechanisms |
 |---|---|---|
-| 1 | **Grounding / context** | AGENTS.md + `.claude/rules/*.md`, the pinned corpus (`tools/mcp/corpus/index.json`), `specs/_template.md` |
+| 1 | **Grounding / context** | AGENTS.md + `.claude/rules/*.md`, the pinned corpus (`tools/mcp/corpus/index.json` + the project's `tools/mcp/corpus/project.json`), `specs/_template.md` |
 | 2 | **Generation** | plan-mode design first; data structures before code (the quality bar in AGENTS.md) |
 | 3 | **In-loop verification** | mid-turn MCP tools (`corpus_search`, `rls_verify`), `posttool-fast-check.mjs` per-edit feedback |
 | 4 | **Provenance capture** | `// SOURCE:` + `[corpus: <id>]` comments, `posttool-source-check.mjs`, `tools/check-sources.mjs`, one ADR per slice (`/adr`) |
@@ -138,6 +138,23 @@ half of them would go quiet on the turns that needed the warning. The file is a 
 not a control: it authorizes nothing, so a corrupt line is tolerated rather than fatal — the
 deliberate opposite of the reviewer ledger, which fails closed because it does authorize.
 
+**The telemetry log (1.0.4).** The ledger above records THAT a turn blocked and keeps only its
+most recent rows; it says nothing about what each step cost or which rule fired, so a red fixed
+inside the same turn left no trace. Every Stop run now also appends to
+`.harness/telemetry.jsonl`: a `stop-step` record per step (`ok`, `fail`, or `stamped` when
+the step's own line was a stamp hit; its duration in whole milliseconds; and how many
+`SKIPPED` and `STAMPED` lines its output carried, a red step's included),
+and a `validate-gate` record per gate named in the LAST `VALIDATE_TIMINGS` line a step
+printed, green or red. The guards, the PostToolUse hooks and `subagent-verdict.mjs` append a
+`hook-event` record for each deny, provenance block, Biome warning and reviewer bounce, naming
+the rule id (or, at an inline deny site, a telemetry label that is not a rule id); an allowed
+call writes nothing. A record holds enumerated values, ids, timestamps and counts, never file
+content, command text, paths or messages. The file is written **only inside an install**,
+when `.harness/manifest.json` exists in the working directory, and it is **never trimmed**.
+To reset it a human deletes it: the write guard and the bash guard deny an agent's edits and
+deletions under `.harness/`. **No gate reads it**, and a test holds that. It is bookkeeping,
+so if it cannot be written, every exit code and every byte on stdout stay what they were.
+
 ### pretool-bash-guard
 
 Deterministic regex denial of the commands permission pattern-matching handles
@@ -167,8 +184,24 @@ naming all three; a project may add a tool, never drop one.
 
 The only reliable place to stop forbidden code being **written**. Three duties:
 (1) tamper protection — denies edits to the PROTECTED list without
-`HARNESS_ALLOW_SELF_EDIT=1`; (2) append-only migrations — editing an existing
-`supabase/migrations/*.sql` is denied outright; (3) content checks on the written
+`HARNESS_ALLOW_SELF_EDIT=1`; (2) append-only migrations — an Edit or Write to a
+`supabase/migrations/*.sql` that already exists is denied unless it is proven to be an
+untracked draft (1.0.4). Three proofs must hold, for the name the tool used and for where
+the bytes land: git reports exactly one entry for it, `?? <path>` (`git status
+--porcelain`, run with no shell from `CLAUDE_PROJECT_DIR`, with a timeout), and the file
+has one hard link, since git judges a name and a second name for a committed migration's
+bytes reads `??` too; `.harness/manifest.json` parses and records no file at that path,
+because a file `init` planted is the harness's history; and nothing is unusual, meaning
+`CLAUDE_PROJECT_DIR` is set and none of `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE` or
+`GIT_COMMON_DIR` is. A tracked, staged, ignored, hard-linked or `git rm --cached`
+migration fails the first proof, any git error or timeout denies, the deny names the proof
+that failed, and `HARNESS_ALLOW_SELF_EDIT=1` does not open this rule. So the draft `supabase migration new`
+or `supabase db diff -f` leaves can be written, and the content checks in (3) still judge
+what it receives. The residual: untracked means absent from the index and `HEAD`, not from
+all history, so a migration someone applied to a shared database by hand without
+committing it still reads as a draft. Committed history stays guarded by the `migrations`
+gate and the CI `append-only` job, which judge it exactly as before, and the bash guard's
+rules on `supabase/migrations/` do not change; (3) content checks on the written
 text: security-surface weakenings in `app.config.ts`/`eas.json` (cleartext/ATS
 exceptions, identity or runtimeVersion drift, secret-shaped `extra` keys),
 EXPO_PUBLIC_-prefixed secret-shaped names, session-scoped GUCs, `WITH RECURSIVE`
@@ -217,6 +250,120 @@ surface not yet created — **SKIPS LOUDLY** locally
 (`CI=true` or `HARNESS_REQUIRE_TOOLCHAINS=1`). A skip must never be mistakable for a
 pass, and CI must never be green because a prerequisite was absent. Shape-awareness
 lives INSIDE each gate script, never in which steps run.
+
+The same predicate turns off every stamp: a gate whose inputs are unchanged since its
+last green run reports that locally and never in CI. To see CI's verdict before you
+push, run `node tools/validate.mjs --ci-parity` (1.0.4). It sets
+`HARNESS_REQUIRE_TOOLCHAINS=1` for the run, so a missing prerequisite fails and no
+stamp is honoured, prints that posture as its first line, and closes with one line per
+missing prerequisite a gate recorded, naming the step, the gate and the reason.
+`node tools/validate.mjs --min-floor --ci-parity` is the local counterpart of CI's
+`static` job. With `--list` the flag changes nothing, and it refuses `--stop-chain`:
+the Stop chain has no single CI equivalent, and its `reviewer-verdicts` step needs a
+live turn's identity, which only the Stop hook sets.
+
+What the flag does not cover:
+
+- **`CI` itself is not set**, so a tool that reads `CI` directly keeps its local
+  behaviour.
+- **Tool caches stay**: ESLint's `--cache` and TypeScript's `*.tsbuildinfo`.
+- **The append-only migrations check diffs against `origin/$GITHUB_BASE_REF`** when that
+  variable is set, as on a pull request in CI, and against `HEAD` otherwise. The flag does
+  not set it, so an edit to a migration already committed on your branch is caught only
+  in CI, or locally with `GITHUB_BASE_REF=<base branch>` exported and that branch fetched.
+- **`types-drift` skips on its own** when no local stack is running, without consulting
+  the predicate. It skips the same way in CI's `static` job, and it records nothing.
+- **`tests/rls/run-rls.mjs` takes its fail-closed posture from `CI` alone** (its stamp is
+  off under either variable). It is a Stop step, and the flag refuses the Stop chain, so
+  the flag never runs it.
+
+## Stamped gates
+
+A stamp is a local shortcut, never proof. A stamped gate hashes its declared inputs; when
+every one is byte-identical to its last GREEN run (the digest in `.harness/<gate>.ok`) and
+this is not CI, it prints
+`<gate>: STAMPED — inputs unchanged since last green run (.harness/<gate>.ok; CI always re-runs)`
+and exits 0 without running its check. `CI=true` or `HARNESS_REQUIRE_TOOLCHAINS=1` (which
+`validate --ci-parity` sets) always runs the real check, and `update` and `graduate` delete
+every stamp, so the first run after either re-proves everything.
+
+- **What is stamped.** The gates that call `stampGate` in `tools/lib/gate.mjs`: `build`,
+  `contracts`, `db-limits`, `e2e`, `expo-policy`, `licenses`, `native-deps`,
+  `query-shapes`, `rate-limits`, `security-headers`, `tenancy` and `version-sync` in the
+  validate chain, the `eas-update` module gate, and (1.0.4) the `rls-isolation` Stop step.
+  Nothing else is: steps are never chosen by classifying the diff.
+- **Inputs are reviewed data.** Each list lives in `tools/lib/stamp-inputs.mjs` (a module
+  gate declares its own through `withMachinery`), and a missing input class is a stale-pass
+  bug. Every list carries `.harness/manifest.json` (an `update` or a graduation changes what
+  a ramped gate concludes), the gate's own script, the machinery (`lib/gate.mjs`,
+  `lib/fs-walk.mjs`, `lib/stamp-inputs.mjs`), and since 1.0.4 every `tools/lib` module the
+  script reaches through static imports: an edit to `lib/sql-parse.mjs` re-runs `tenancy`.
+  The harness repo's test suite reds a list that misses one.
+- **A hit is its own status (1.0.4).** Through 1.0.3 it printed an `OK` line, so a turn that
+  ended on warm stamps read like one that re-proved everything. The Stop hook now lists the
+  `<gate>: STAMPED — ` lines its green steps printed beside its skipped layers, on a green
+  turn and a red one, and its telemetry records count them.
+- **The `rls-isolation` stamp carries two things no file does.** The runner checks it after
+  `supabase status` succeeds and mixes into the digest the `supabase --version` output and
+  the running database's identity: the server's start time, which moves on
+  `pnpm db:reset` and on `pnpm db:down` then `pnpm db:up`, and the applied migration
+  versions, which move when a migration is applied without a restart. So a CLI change, a
+  reset, a restart or an applied migration runs both suites again. It is honoured only when
+  `CI` is empty or unset (this runner treats `CI=false` as CI) and
+  `HARNESS_REQUIRE_TOOLCHAINS` is not `1`, and it is recorded only after `[rls] OK`, never on
+  a skip or a failure. If the identity cannot be read, both suites run and nothing is
+  recorded. It cannot see SQL someone runs by hand against the running database; CI never
+  rides it.
+
+## Post-merge lane reuse
+
+A stamp lets a gate skip locally, and CI never honours one. The merge gate has one CI-side
+shortcut of its own (1.1.0), and it is narrower than a stamp: a lane may reuse a pass only
+from another CI run, and only for an identical tree.
+
+`quality-gate.yml` runs on a pull request and again on the push its merge produces, and the
+two runs never cancel each other. So an up-to-date squash merge used to re-run `static`,
+`unit`, `mutation`, `runtime-rls`, `e2e-fast` and `integration-lane` on the tree the pull
+request run had just proved. The push run was also the weaker judge: without
+`GITHUB_BASE_REF`, diff coverage, the mutation scoper and the append-only migration check
+all compare against `HEAD` and see an empty diff.
+
+- **What is recorded.** On a pull request, each of those lanes ends with a step that prints
+  one marker: the job's name, `git rev-parse HEAD^{tree}` of the checked-out merge commit,
+  and the pull request's head. It is the last step, so it runs only when every step before
+  it passed. `tools/ci/lane-reuse.mjs` builds the marker, so the step's own text never
+  contains it.
+- **What is looked up.** On a push, the first step after checkout asks the same script. It
+  finds the one merged pull request whose merge commit is this commit, that pull request's
+  newest `quality-gate.yml` run at its final head, this job (by name) in that run's latest
+  attempt, and the marker in the job's log. A run belongs to the pull request when its head
+  commit, head branch and head repository are the pull request's. GitHub's own list of a
+  run's pull requests names only open ones, so it is empty once the pull request is merged
+  and is never read. The lookup reports a hit only when the job concluded exactly
+  `success`, the log holds exactly one marker, the marker's tree equals this checkout's
+  tree, and its head equals the run's head.
+- **What a hit does.** Every later step carries `steps.reuse.outputs.hit != 'true'`, so it
+  is skipped. One step names the run the lane relied on, in the log and in the step summary,
+  and `gate-summary` lists the lane as `REUSED` with that run beside its `SKIPPED` list. The
+  job still concludes `success`, because it cites one. `gate-summary`'s verdict does not
+  change.
+- **What misses.** Everything else, and a miss runs every step: any event but `push`
+  (`pull_request`, `schedule` and `workflow_dispatch` always run in full), a direct push, an
+  associated pull request that is not exactly one or was not merged, a pull request from a
+  fork (its run executed workflow text from a repository you do not control), a run of
+  another pull request, any conclusion but `success`, a missing or malformed marker, and a
+  merge that changed anything, such as a branch behind its base or a conflict resolution.
+  An API or parse error is a miss too: the step prints why and exits 0.
+- **What a tree does not pin.** History (`gate-integrity` walks `git log`, and a squash
+  commit's history differs from the merge commit's), the runner image, the network and the
+  clock. The nightly run never reuses, so it stays the net for all four.
+- **Permissions.** The lookup reads this workflow's runs, their jobs and job logs, which
+  GitHub files under Actions, and the pull requests associated with a commit, filed under
+  Pull requests. So each of those lanes requests `actions: read` and `pull-requests: read`
+  beside `contents: read`.
+- **No job-level `if:`.** Every condition is on a step, so `live-controls` still reads these
+  lanes as running on every commit, and the enforcement-tier verdicts `docs-sync` gives do
+  not change. Read a reused lane as "ran on this tree", not "ran on this commit".
 
 ## The security invariants
 
@@ -279,11 +426,16 @@ Doctrine notes for the citations:
 
 The `schema-rls` gate proves policies **exist**; the runtime suite proves they
 **isolate**. `node tests/rls/run-rls.mjs` (the `rls-isolation` Stop-hook step /
-`pnpm test:rls`) orchestrates: resolve `SUPABASE_DB_URL` (env wins; the local
-`supabase start` default otherwise), probe Postgres (unreachable → loud SKIP locally; in
-CI with migrations present, unreachable = FAIL), fresh-apply all migrations, then run the
-suite. Per
-`ISOLATION_TARGETS` entry:
+`pnpm test:rls`) resolves the Supabase CLI (the workspace copy in `node_modules/.bin`
+first, then `PATH`; `PATH` only on Windows) and probes the stack with `supabase status`.
+No CLI or no stack: a loud SKIP on a manual run, a FAIL in CI and under the Stop hook
+once `supabase/migrations` exists. Otherwise it runs the pgTAP suite with
+`supabase test db`, then the supabase-js suite with the API URL, the keys and
+`SUPABASE_DB_URL`, all read from `supabase status -o env`. It runs both against the stack
+as it stands: it applies no migration and restarts nothing, since migrations reach the
+database on the first `pnpm db:up` or on `pnpm db:reset`, and a stopped stack keeps its
+data. When nothing either suite reads has changed since its last green run, it prints
+`rls-isolation: STAMPED` instead (see Stamped gates). Per `ISOLATION_TARGETS` entry:
 
 - **Seeded positive control** — user A sees its OWN row first. Without this, a deny-all
   database would pass every negative assertion vacuously. The same doctrine applies to
@@ -320,9 +472,13 @@ control first — anything preventing a real probe is a SKIP, never a green.
 
 The chain runs **corpus → code → check → ADR → verification → gate**:
 
-1. **Pinned corpus** — `tools/mcp/corpus/index.json` holds version-pinned entries for
-   every external authority the code relies on; `corpus_search` serves it mid-turn —
-   no network, honest `NO_MATCH` over fabricated results.
+1. **Pinned corpus** — `tools/mcp/corpus/index.json` (the harness's, owned) and
+   `tools/mcp/corpus/project.json` (the project's, seeded) hold version-pinned entries
+   for every external authority the code relies on; `corpus_search` serves both
+   mid-turn — no network, honest `NO_MATCH` over fabricated results. A project adds an
+   authority to `project.json`: editing the owned index would fork it. Both files pass
+   the same lint (`tools/lib/corpus.mjs`), and a project id may not reuse an upstream
+   one.
 2. **In-code convention** — every non-trivial decision carries `// SOURCE:` with
    `[corpus: <id>]` when pinned.
 3. **Enforcement** — `posttool-source-check.mjs` per edit; `tools/check-sources.mjs`

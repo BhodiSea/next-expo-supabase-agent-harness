@@ -21,7 +21,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { denyTool, pass, readHookInput } from './lib/hookio.mjs'
 
-export const HARNESS_HOOK_VERSION = '1.0.3'
+export const HARNESS_HOOK_VERSION = '1.1.0'
 
 const REGISTRY = 'tools/approved-tools.json'
 const DOC = 'docs/security/approved-tools.md'
@@ -48,6 +48,12 @@ if (!Array.isArray(MCP_RULES) || MCP_RULES.length === 0) {
 const input = await readHookInput()
 const toolName = String(input?.tool_name ?? '')
 
+// The telemetry record each deny carries (1.0.4). A registry denial has no rule id, so it
+// gets a telemetry LABEL; labels are not rule ids and stay out of guard-rules.mjs, where every
+// id owes a behavioural canary. hookio copies only session_id, prompt_id and tool_name.
+/** @param {string} rule */
+const telemetry = (rule) => ({ hook: 'pretool-mcp-guard', rule, input })
+
 // The matcher is `mcp__.*`, but a hook must never trust its own wiring: if this fires on
 // something that is not an MCP tool call, there is nothing here to judge and no reason to
 // block ordinary work.
@@ -62,6 +68,7 @@ if (sep <= 0 || sep + 2 >= rest.length) {
   denyTool(
     'PreToolUse',
     `unparseable MCP tool name ${JSON.stringify(toolName)} — expected mcp__<server>__<tool>. The guard cannot decide which registry row governs this call, so it blocks: a containment that guesses is not a containment. SOURCE: ${DOC}`,
+    telemetry('mcp-unparseable-name'),
   )
 }
 const server = rest.slice(0, sep)
@@ -95,6 +102,7 @@ if (!existsSync(registryPath)) {
     remedy(
       `${REGISTRY} is missing, so no MCP server is approved on this install and mcp__${server}__${tool} is denied by default. This gate FAILS CLOSED: an absent registry is not an empty policy, it is no policy.`,
     ),
+    telemetry('mcp-registry-missing'),
   )
 }
 
@@ -105,6 +113,7 @@ try {
   denyTool(
     'PreToolUse',
     `${REGISTRY} is not valid JSON (${err?.message ?? err}) — it is write-guard-protected, so an unparseable registry is tampering, not a configuration state. Restore it from git history. SOURCE: ${DOC}`,
+    telemetry('mcp-registry-unparseable'),
   )
 }
 
@@ -113,6 +122,7 @@ if (!Array.isArray(servers)) {
   denyTool(
     'PreToolUse',
     `${REGISTRY} has no \`servers\` array — the registry is mis-shaped and the guard cannot judge any call against it. Restore it from git history. SOURCE: ${DOC}`,
+    telemetry('mcp-registry-malformed'),
   )
 }
 
@@ -123,6 +133,7 @@ if (row === undefined) {
     remedy(
       `MCP server ${JSON.stringify(server)} is not in the approved registry, so mcp__${server}__${tool} is denied (default-deny).`,
     ),
+    telemetry('mcp-server-unregistered'),
   )
 }
 
@@ -135,6 +146,7 @@ if (allowed.length === 0) {
     remedy(
       `${REGISTRY} registers server ${JSON.stringify(server)} but lists no tools for it, so nothing on it is approved.`,
     ),
+    telemetry('mcp-server-no-tools'),
   )
 }
 const wildcard = allowed.includes('*')
@@ -144,6 +156,7 @@ if (!wildcard && !allowed.includes(tool)) {
     remedy(
       `server ${JSON.stringify(server)} is approved, but tool ${JSON.stringify(tool)} is not on its list (${allowed.map((t) => JSON.stringify(t)).join(', ')}).`,
     ),
+    telemetry('mcp-tool-not-listed'),
   )
 }
 
@@ -153,7 +166,11 @@ if (!wildcard && !allowed.includes(tool)) {
 if (row.readOnly !== false) {
   for (const rule of MCP_RULES) {
     if (rule.re.test(tool)) {
-      denyTool('PreToolUse', `mcp__${server}__${tool}: ${rule.message} SOURCE: ${DOC}`)
+      denyTool(
+        'PreToolUse',
+        `mcp__${server}__${tool}: ${rule.message} SOURCE: ${DOC}`,
+        telemetry(rule.id),
+      )
     }
   }
 }

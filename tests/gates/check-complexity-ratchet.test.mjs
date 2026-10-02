@@ -1,14 +1,32 @@
 // Can-fail proofs for the machinery complexity ratchet (G16). The arithmetic lives in
 // scripts/lib/complexity.mjs, so it is tested here as a pure function — measured scores in,
 // problems out — without a 15-second ESLint run (scripts/check-complexity-ratchet.mjs only
-// supplies the measurements by re-linting with --no-inline-config).
+// supplies the measurements by re-linting with --no-inline-config). The script itself runs at
+// the end of this file, over a mirror with a fake `pnpm`, to pin where it reads and writes its
+// record (#53).
 //
 // The gate this backs is the one that stops the harness exempting ITSELF from the
 // cognitive-complexity <= 15 bar it enforces on every consumer: a disable directive
 // suppresses the rule entirely, so `eslint .` stays green while a disabled function grows
 // without limit. These tests pin the comparison.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { spawnSync } from 'node:child_process'
+import {
+  chmodSync,
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
+import { delimiter, join } from 'node:path'
+import process from 'node:process'
+import { after, test } from 'node:test'
+import { fileURLToPath } from 'node:url'
 import { compareComplexity, identify, keyScores, scoreOf } from '../../scripts/lib/complexity.mjs'
 
 const record = { limit: 15, functions: { 'a.mjs::foo': 20, 'b.mjs::bar': 30 } }
@@ -95,4 +113,116 @@ test('keyScores: two OVER-LIMIT functions sharing a name are REFUSED, not guesse
   // The colliding name is NOT in measured (it is reported as a collision, not scored).
   assert.equal(measured.has('a.mjs::handle'), false)
   assert.equal(measured.get('a.mjs::other'), 20)
+})
+
+// ── The script itself, over a mirror (#53) ─────────────────────────────────────────────────
+// The script resolves ROOT from its own location and lints ROOT's tree, so the record it judges
+// against must be ROOT's too, whichever directory it was started from. A MIRROR holds copies of
+// the script and its one repository import, a record, an `a.mjs` whose first line names `foo`,
+// and a canned ESLint report; a fake `pnpm` on PATH prints that report and exits 1, as ESLint
+// does when it reports anything. So these runs need no root node_modules (installer-unit runs
+// them without an install) and never touch the real record. The mirror is built under a
+// realpath: the function key is the report's filePath with ROOT stripped, and ROOT is the
+// script's RESOLVED location, so a symlinked tmpdir (/var on macOS) would turn every key NEW.
+const RATCHET = fileURLToPath(new URL('../../scripts/check-complexity-ratchet.mjs', import.meta.url))
+const COMPLEXITY_LIB = fileURLToPath(new URL('../../scripts/lib/complexity.mjs', import.meta.url))
+const MIRROR_RECORD = 'scripts/complexity-ratchet.json'
+const SHIMLESS =
+  process.platform === 'win32' &&
+  'the ratchet spawns pnpm without a shell, so no test shim can stand in for it on win32'
+if (SHIMLESS) console.log(`# SKIPPED the ratchet runs in check-complexity-ratchet.test.mjs: ${SHIMLESS}`)
+
+// Windows names the variable Path; override THAT key or the child gets two PATHs.
+const PATH_KEY = Object.keys(process.env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH'
+
+/** @param {number} score */
+const recordOf = (score) => `${JSON.stringify({ limit: 15, functions: { 'a.mjs::foo': score } })}\n`
+
+/** @type {string[]} */
+const made = []
+after(() => {
+  for (const dir of made) rmSync(dir, { recursive: true, force: true })
+})
+
+/** @param {string} prefix */
+function scratch(prefix) {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), prefix)))
+  made.push(dir)
+  return dir
+}
+
+/** @param {{ recorded: number, measured: number }} scores */
+function ratchetMirror({ recorded, measured }) {
+  const root = scratch('epah-ratchet-')
+  mkdirSync(join(root, 'scripts/lib'), { recursive: true })
+  copyFileSync(RATCHET, join(root, 'scripts/check-complexity-ratchet.mjs'))
+  copyFileSync(COMPLEXITY_LIB, join(root, 'scripts/lib/complexity.mjs'))
+  writeFileSync(join(root, MIRROR_RECORD), recordOf(recorded))
+  writeFileSync(join(root, 'a.mjs'), 'export function foo() {\n  return 1\n}\n')
+  const message = `Refactor this function to reduce its Cognitive Complexity from ${String(measured)} to the 15 allowed.`
+  const report = [
+    { filePath: join(root, 'a.mjs'), messages: [{ ruleId: 'sonarjs/cognitive-complexity', line: 1, message }] },
+  ]
+  writeFileSync(join(root, 'eslint-report.json'), JSON.stringify(report))
+  // The shim sits OUTSIDE the mirror, so the mirror holds exactly its five files.
+  const bin = join(scratch('epah-ratchet-bin-'), 'bin')
+  mkdirSync(bin)
+  writeFileSync(join(bin, 'pnpm'), `#!/bin/sh\ncat '${join(root, 'eslint-report.json')}'\nexit 1\n`)
+  chmodSync(join(bin, 'pnpm'), 0o755)
+  return { root, bin }
+}
+
+/** @param {{ root: string, bin: string }} mirror @param {string} cwd @param {string[]} [args] */
+function runRatchet({ root, bin }, cwd, args = []) {
+  const env = { ...process.env, [PATH_KEY]: `${bin}${delimiter}${process.env[PATH_KEY] ?? ''}` }
+  const r = spawnSync(process.execPath, [join(root, 'scripts/check-complexity-ratchet.mjs'), ...args], {
+    cwd,
+    encoding: 'utf8',
+    env,
+  })
+  return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` }
+}
+
+test('run from the mirror root: record and measured both 20 is CLEAN (the CI and Stop-hook case)', { skip: SHIMLESS }, () => {
+  const mirror = ratchetMirror({ recorded: 20, measured: 20 })
+  const r = runRatchet(mirror, mirror.root)
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /COMPLEXITY RATCHET: CLEAN \(1 recorded function\(s\), none grew; worst is a\.mjs::foo at 20\)/, r.out)
+})
+
+test('run from a foreign directory with no scripts/: the record still resolves from ROOT, so CLEAN', { skip: SHIMLESS }, () => {
+  const mirror = ratchetMirror({ recorded: 20, measured: 20 })
+  const r = runRatchet(mirror, scratch('epah-ratchet-cwd-'))
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /COMPLEXITY RATCHET: CLEAN \(1 recorded function\(s\), none grew; worst is a\.mjs::foo at 20\)/, r.out)
+  assert.doesNotMatch(r.out, /NEW over-limit function/, r.out)
+})
+
+test("a foreign directory's own, laxer record cannot turn growth into a false CLEAN", { skip: SHIMLESS }, () => {
+  const mirror = ratchetMirror({ recorded: 20, measured: 22 })
+  const cwd = scratch('epah-ratchet-cwd-')
+  mkdirSync(join(cwd, 'scripts'))
+  writeFileSync(join(cwd, MIRROR_RECORD), recordOf(30))
+  const r = runRatchet(mirror, cwd)
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /a\.mjs::foo: GREW to 22 from a recorded 20/, r.out)
+  assert.doesNotMatch(r.out, /CLEAN/, r.out)
+})
+
+test('--write from a foreign directory writes ROOT\'s record and nothing under the working directory', { skip: SHIMLESS }, () => {
+  const mirror = ratchetMirror({ recorded: 20, measured: 18 })
+  const cwd = scratch('epah-ratchet-cwd-')
+  mkdirSync(join(cwd, 'scripts'))
+  const r = runRatchet(mirror, cwd, ['--write'])
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /COMPLEXITY RATCHET: wrote scripts\/complexity-ratchet\.json \(1 function\(s\)\)/, r.out)
+  // One comparison, so a red shows both halves: ROOT's record moved, and the working
+  // directory's empty scripts/ stayed empty.
+  assert.deepEqual(
+    {
+      rootRecord: JSON.parse(readFileSync(join(mirror.root, MIRROR_RECORD), 'utf8')).functions,
+      underCwd: readdirSync(join(cwd, 'scripts')),
+    },
+    { rootRecord: { 'a.mjs::foo': 18 }, underCwd: [] },
+  )
 })

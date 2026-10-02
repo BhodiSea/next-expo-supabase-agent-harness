@@ -1282,6 +1282,24 @@ test('DEFERRAL ARRIVAL: the shipped census target is a live tripwire, derived �
   assert.match(r.out, /has ARRIVED/)
 })
 
+test('DEFERRAL AHEAD: the SHIPPED ledger has not arrived at the version this tree cuts', () => {
+  // The other half of the tripwire above, and the one a release bump meets first. A fresh
+  // scaffold records the package version as its harnessVersion, so a ledger entry whose
+  // target that version has reached reds docs-sync on EVERY install from its first
+  // validate, fresh ones included. At 1.1.0 the census entry still said 1.1.0, and the
+  // zero-edit scaffold at the end of CONTRIBUTING's list was the first place it would have
+  // shown. This test shows it in the factory suite instead: at the bump commit it is red
+  // until the census ships or its date moves in the same reviewed diff.
+  const version = JSON.parse(
+    readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf8'),
+  ).version
+  const r = runGate(
+    deferralFixture({ manifest: { harnessVersion: version, baseVersion: version, files: {} } }),
+  )
+  assert.doesNotMatch(r.out, /has ARRIVED/, r.out)
+  assert.equal(r.code, 0, r.out)
+})
+
 test('DEFERRAL RED: re-freezing the old auth-posture sentence reds both directions of the closure', () => {
   // The anti-regression for the 0.7.0 prose sweep: the shipped catalog says the CLI census
   // is deferred with the LEDGER's target. Rewinding the sentence to the previous release's
@@ -1448,6 +1466,83 @@ test('RED: an unresolvable corpus id and an off-allowlist host both red', () => 
   )
   assert.equal(badHost.code, 1, badHost.out)
   assert.ok(badHost.out.includes('some-random-blog.example'), badHost.out)
+})
+
+test('1.0.4: the off-allowlist host remedy names tools/mcp/corpus/project.json, where a project pins an authority', () => {
+  // Extending the owned index forks it; the project corpus is the place to add one.
+  const r = runGate(
+    fixture({
+      agents: shippedAgents,
+      files: {
+        'docs/adr/29990101-x.md': ADR_OK.replace(
+          'https://www.postgresql.org/docs/current/ddl-rowsecurity.html',
+          'https://some-random-blog.example/post',
+        ),
+      },
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('pin the authority in tools/mcp/corpus/project.json instead'), r.out)
+})
+
+// 1.0.4: an ADR may cite an authority the project pinned in tools/mcp/corpus/project.json.
+// docs-sync takes ids only; the per-entry lint is the provenance gate's subject.
+const ADR_CITING = (id) =>
+  ADR_OK.replace(
+    '- <https://www.postgresql.org/docs/current/ddl-rowsecurity.html> — backs the fixture.',
+    `- \`[corpus: ${id}]\` — backs the fixture decision.`,
+  )
+
+test('GREEN: an ADR citing an id that only tools/mcp/corpus/project.json pins resolves', () => {
+  const r = runGate(
+    fixture({
+      agents: shippedAgents,
+      files: {
+        'tools/mcp/corpus/index.json': JSON.stringify([{ id: 'real/id' }]),
+        'tools/mcp/corpus/project.json': JSON.stringify({
+          comment: 'fixture',
+          entries: [{ id: 'project/adr-authority' }],
+        }),
+        'docs/adr/29990101-x.md': ADR_CITING('project/adr-authority'),
+      },
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED: an ADR citing an id in neither corpus file names both files', () => {
+  const r = runGate(
+    fixture({
+      agents: shippedAgents,
+      files: {
+        'tools/mcp/corpus/index.json': JSON.stringify([{ id: 'real/id' }]),
+        'tools/mcp/corpus/project.json': JSON.stringify({
+          comment: 'fixture',
+          entries: [{ id: 'project/adr-authority' }],
+        }),
+        'docs/adr/29990101-x.md': ADR_CITING('project/ghost'),
+      },
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('[corpus: project/ghost]'), r.out)
+  assert.ok(r.out.includes('tools/mcp/corpus/index.json'), r.out)
+  assert.ok(r.out.includes('tools/mcp/corpus/project.json'), r.out)
+})
+
+test('a malformed project.json skips the ADR corpus-id check, as a malformed index always has', () => {
+  // provenance reds the malformed file; docs-sync must not red every ADR on its behalf.
+  const r = runGate(
+    fixture({
+      agents: shippedAgents,
+      files: {
+        'tools/mcp/corpus/index.json': JSON.stringify([{ id: 'real/id' }]),
+        'tools/mcp/corpus/project.json': 'not json {',
+        'docs/adr/29990101-x.md': ADR_CITING('project/ghost'),
+      },
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
 })
 
 test('NOTE: ADR shape findings are advisory on a pre-0.9.5 install until 0.11.0', () => {

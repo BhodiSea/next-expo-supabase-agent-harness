@@ -27,7 +27,7 @@ The package installs from GitHub. It is not published to the npm registry. Each
 GitHub Release carries the packed tarball with a build provenance attestation;
 see [Verifying a release](SECURITY.md#verifying-a-release).
 
-**Status: stable (1.0.x).** CI proves the scaffold on Linux only. The installer's
+**Status: stable (1.1.x).** CI proves the scaffold on Linux only. The installer's
 unit tests also run on Windows. `pnpm validate` has never run in CI on macOS or
 Windows. See [Limitations](#limitations).
 
@@ -61,7 +61,7 @@ supabase-js 2, tRPC 11, zod 4.
 ## How it works
 
 - **PreToolUse guards.** Hooks check every shell command, file write and MCP
-  call against a data table of 142 guard-rule ids before the agent's tool runs.
+  call against a data table of 143 guard-rule ids before the agent's tool runs.
   Eight hooks are wired: seven guards and a launcher that fails closed if a
   hook cannot load.
 - **Stop hook.** The agent cannot end a turn until `pnpm validate`, the RLS

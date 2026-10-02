@@ -20,6 +20,7 @@ const { values, positionals } = parseArgs({
     consume: { type: 'boolean', default: false },
     set: { type: 'string', multiple: true },
     report: { type: 'string' },
+    clean: { type: 'boolean', default: false },
     help: { type: 'boolean', default: false },
   },
 })
@@ -37,6 +38,7 @@ const opts = {
   consume: values.consume,
   set: values.set,
   report: values.report,
+  clean: values.clean,
 }
 
 const USAGE = `next-expo-supabase-agent-harness
@@ -50,7 +52,10 @@ Usage:
            dir: overwrite when untouched, park on drift)
            [--rollback]  (restore the tree recorded before the last update —
            the recovery path for an interrupted or failed sweep)
-  doctor   [--dir .]
+  doctor   [--dir .] [--clean [--dry-run]]  (--clean deletes ignored residue:
+           .harness/stop-output/, apps/mobile/dist/, apps/web/.next/,
+           apps/mobile/.expo/, coverage/, .stryker-tmp/ and .eslintcache;
+           --dry-run only lists it)
   graduate [--dir .]  (advance baseVersion once ramped checks are clean —
            runs validate, refuses while any ramp NOTE remains)
   enable   <module>   (ci-mobile-release, ci-web-deploy, device-e2e, eas-update,

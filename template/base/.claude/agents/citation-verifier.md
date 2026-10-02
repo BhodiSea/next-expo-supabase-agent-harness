@@ -11,8 +11,9 @@ model: sonnet
 
 <!--
   The mcp__corpus_search server (tools: corpus_search + corpus_resolve, over the
-  version-pinned corpus at tools/mcp/corpus/index.json) IS wired in (see `tools:`
-  above). Use it to resolve `[corpus: <id>]` references and internal doc ids.
+  version-pinned corpus: the harness's tools/mcp/corpus/index.json and the
+  project's tools/mcp/corpus/project.json) IS wired in (see `tools:` above). Use it
+  to resolve `[corpus: <id>]` references and internal doc ids.
   NO WebFetch, since 0.9.0: this agent reads the whole repository and its report
   egresses to the caller, so an external-fetch tool handed it all three
   lethal-trifecta legs in one place (repo read + untrusted web content + a channel
@@ -33,9 +34,10 @@ Pass 2 — EXISTENCE-RESOLVE: resolve every cited source by its kind.
 - **Corpus reference** (`[corpus: <id>]`, e.g. `postgres/rls-initplan`,
   `expo/app-config`, `supabase/verify-user`, `harness/doctrine`): call
   `corpus_resolve` (or `corpus_search`) and confirm the id is pinned in
-  `tools/mcp/corpus/index.json`. An id the corpus does not know is UNRESOLVABLE
-  — new corpus entries must be added deliberately in the same PR that first
-  cites them.
+  `tools/mcp/corpus/index.json` or `tools/mcp/corpus/project.json`. An id the
+  corpus does not know is UNRESOLVABLE — a new authority must be added
+  deliberately to `tools/mcp/corpus/project.json` in the same PR that first
+  cites it.
 - **Internal source** (a repo-relative path such as `docs/harness/README.md §2` or a
   `docs/adr/<id>.md`): do NOT WebFetch it. `Read` the file and confirm the cited
   `§`/anchor heading exists. Mark UNRESOLVABLE only if neither the corpus nor the
@@ -52,7 +54,7 @@ Pass 2 — EXISTENCE-RESOLVE: resolve every cited source by its kind.
   HUMAN-VERIFY — list the exact URL for the human running `/verify-citations` to
   open; it does not fail the verdict on its own. A URL on NO allowlisted host and
   in NO corpus entry is UNRESOLVABLE (the `provenance` gate will fail the bare URL
-  too: pin it in the corpus in the same PR).
+  too: pin it in `tools/mcp/corpus/project.json` in the same PR).
 
 Pass 3 — SUPPORT-CHECK: read the resolved source (corpus `text` for pinned entries)
 and confirm it actually backs the SPECIFIC claim, not merely the general topic. Mark
