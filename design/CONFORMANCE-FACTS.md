@@ -128,6 +128,11 @@ table implies (API 35 from 2025-08-31, API 36 from 2026-08-31). Raising the floo
 `check-expo-policy` judges for an existing install, so it needs a ramp in a minor release, and
 a row that fired on the deadline itself would fire too late to ship one.
 
+**Re-dating accepted 2026-10-02, by the maintainer.** PR #92 (issue #54) re-dated this row
+and left the re-dating pending the maintainer's approval. The maintainer had #92 merged, and
+on 2026-10-02 accepted the re-dating, so 2027-05-31 stands as this row's next
+re-verification. The same decision covers the CRA row in §4.
+
 ---
 
 ## 3. Apple: uploads must build against a minimum SDK — **TARGET 0.7.0 — DISCHARGED 2026-08-08**
@@ -235,9 +240,12 @@ Those pages link two more documents. Their library pages on the same site were r
 - the [Commission FAQ](https://digital-strategy.ec.europa.eu/en/library/cyber-resilience-act-implementation-frequently-asked-questions),
   published 3 December 2025 and last updated 4 September 2026.
 
-Both documents are hosted on ec.europa.eu, which the same session could not reach. Reading
-EUR-Lex itself and those two documents is the maintainer's step before the re-dating below is
-approved.
+Both documents are hosted on ec.europa.eu, which the same session could not reach. PR #92
+left reading EUR-Lex itself and those two documents to the maintainer, as the step before
+approving the re-dating below. The maintainer accepted the re-dating on 2026-10-02 (see the
+decisions at the end of this section). No re-read of those three is recorded here, so the
+article and recital numbers below that wait on the EUR-Lex re-read are still as the
+Commission's pages and the search-index copies give them.
 
 What the pages say:
 
@@ -286,12 +294,13 @@ What the pages say:
 role. As a manufacturer it is out of scope on the reading above, as free and open-source
 software that is not monetised, and a steward's Art. 14 duties do not apply until 2027-12-11.
 So "out of scope entirely" above is true of the manufacturer duties and of today. For
-2027-12-11 it is **not settled**, because whether this repository has a steward depends on
-facts the tree cannot establish.
+2027-12-11 it was **not settled** on 2026-09-29, because whether this repository has a steward
+depends on facts the tree cannot establish.
 `package.json`, `CITATION.cff` and `GOVERNANCE.md` name Cogvera Labs as the author. Whether
 Cogvera Labs is a legal person that systematically supports this harness, as software intended
-for commercial activities, is for the maintainer to determine. This file records the question
-as **open**, and does not answer it.
+for commercial activities, is for the maintainer to determine. This file recorded the question
+as **open** on 2026-09-29, and did not answer it. The maintainer answered it on 2026-10-02
+(see the decisions at the end of this section).
 
 **The two shipped texts still read true,** and neither changes:
 
@@ -302,9 +311,32 @@ as **open**, and does not answer it.
   the consumer's own CRA Article 14 reporting duty from 2026-09-11", and it does.
 
 **Verdict: the row is re-dated, not deleted.** Its next re-verification is **2027-06-11**, six
-months before the steward duties apply on 2027-12-11. If the maintainer's organisation is a
-steward, its Art. 24 policy and a reporting route into the SRP have to be in place on that
-day, and a row that fired on the day itself would fire too late to prepare either.
+months before the steward duties apply on 2027-12-11. The maintainer's organisation is a
+steward (decided 2026-10-02, below), so its Art. 24 policy and a reporting route into the SRP
+have to be in place on that day, and a row that fired on the day itself would fire too late to
+prepare either.
+
+**Decisions recorded 2026-10-02, by the maintainer.**
+
+- **Cogvera Labs is an open-source software steward of this harness, under Art. 3(14).** This
+  closes the question the 2026-09-29 re-read left open. What it means:
+  - Nothing changes today. The manufacturer reading above stands, so no Art. 14 duty reached
+    this repository on 2026-09-11, and none reaches it before 2027-12-11.
+  - From **2027-12-11** (Art. 71(2)), Cogvera Labs has the Art. 24(3) steward duties. It
+    reports actively exploited vulnerabilities, to the extent that it is involved in developing
+    the harness, and severe incidents, to the extent that they affect the network and
+    information systems it provides for that development. Both go through the Single
+    Reporting Platform.
+  - Art. 24 also asks Cogvera Labs for a cybersecurity policy and for cooperation with market
+    surveillance authorities. Art. 64(10) exempts it from administrative fines.
+  - The policy and the reporting route have to be in place on 2027-12-11. The
+    `conformance-cra-art14-application` row fires on 2027-06-11, six months earlier, so there
+    is time to prepare both. When it fires, the re-read checks that they are ready.
+  - The duties are the steward's own, so nothing an install receives changes. The two shipped
+    texts above still read true.
+- **The re-dating of this row and of the Play target-API row (§2) is accepted.** PR #92
+  (issue #54) re-dated both rows and left the re-dating pending the maintainer's approval. The
+  maintainer had #92 merged, and accepted the re-dating on 2026-10-02.
 
 ---
 

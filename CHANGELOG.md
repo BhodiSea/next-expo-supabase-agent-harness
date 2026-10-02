@@ -211,6 +211,16 @@ current session a 1.1.x hook wrote is re-run once after `update` (see Changed) (
   holds the three to each other, every position of the stack to one issue and pull request
   in release order, and the stated tag positions to each release's last one. Factory docs:
   nothing reaches an install (#37).
+- **The open-source software steward question is decided, and the two re-dated calendar rows
+  are accepted.** On 2026-10-02 the maintainer decided that Cogvera Labs is an open-source
+  software steward of this harness under the EU Cyber Resilience Act, Art. 3(14), where
+  `design/CONFORMANCE-FACTS.md` §4 had recorded the question as open. The steward's reporting
+  duties under Art. 24(3) apply from 2027-12-11, and its cybersecurity policy and reporting
+  route have to be in place by then; `conformance-cra-art14-application` falls due on
+  2027-06-11 to prepare them. The maintainer also accepted the re-dating of that row and of
+  `conformance-play-target-api-window` (2027-05-31), which 1.0.4 left pending the
+  maintainer's approval. §2 and §4, both rows' reasons and `ROADMAP.md` record the decisions.
+  Factory docs: nothing reaches an install (#54).
 
 ### Removed
 
