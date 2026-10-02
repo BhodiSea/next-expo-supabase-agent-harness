@@ -91,6 +91,7 @@ The rung split says something real:
   caller with no active org gets a `forbidden(org_context_required)` it can render as
   "pick an organization" instead of an empty page that looks like data loss:
 
+  <!-- skill-region:begin create-procedure source=packages/api/src/routers/notes.ts -->
   ```ts
   create: orgProcedure.input(CreateNoteSchema).mutation(({ ctx, input }) => {
     const gate = ctx.org
@@ -98,6 +99,10 @@ The rung split says something real:
     return createNote(ctx.db, writeContext(ctx, gate.data.id), input)
   }),
   ```
+  <!-- skill-region:end create-procedure -->
+
+  That block is `packages/api/src/routers/notes.ts` verbatim, so it names notes: rename
+  `Note` and `note` to your slice when you copy it.
 
   Assemble the `WriteContext` in a small `writeContext(ctx, orgId)` function so `actorId`
   can only ever come from `ctx.actor.userId` (the verified actor) and `orgId` from the

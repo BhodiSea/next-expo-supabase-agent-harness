@@ -36,6 +36,9 @@
     ".claude/agents/migration-rls-author.md": [
       {
         "sha256": "4292957ffbff64f9dd131f0070791b5ae7ef1a868468b85db7b8449f7183abc0"
+      },
+      {
+        "sha256": "606ee1e329475270d65eda1464bad35cfa8e7273dd90b8626c75f49c3657b058"
       }
     ],
     ".claude/agents/mobile-security-reviewer.md": [
@@ -215,10 +218,16 @@
     ],
     ".claude/skills/authoring-vertical-slice/references/dal-dto.md": [
       {
+        "sha256": "00f290eeca2fff6c16a5764bda9a06de89865eab7c281cd92047f2c4311809ca"
+      },
+      {
         "sha256": "d54d1ace018ae477556df8d878f323fb023fb86b7da41198323b17547fa29b0b"
       }
     ],
     ".claude/skills/authoring-vertical-slice/references/migration-rls.md": [
+      {
+        "sha256": "9366543e5246fc1b47c265b3d5582bd16803ff8b5edd64f0ade6b4d128cd760b"
+      },
       {
         "sha256": "f0bc6b80dbe6ef2085e0a405b3d4d35835a9b00405e5c5f1c1cf09c552a150c5"
       }
@@ -958,6 +967,15 @@
       },
       {
         "sha256": "8caea1bb8500ef01f74cc3ab177804b7dae1d1296d6f428e200719158de92389",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "c9e33c807a8c6d693db2f9a3b3ffa4426dd39f48d2a8854f194f39960c44b770",
         "sites": [
           [
             14115,

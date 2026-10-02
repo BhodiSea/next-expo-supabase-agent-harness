@@ -1039,6 +1039,13 @@
         "note": "covers --check (the floor-sync factory Stop-hook step): a floor snapshot out of lockstep with harness.config.mjs reds"
       }
     ],
+    "generate-skill-references.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/skill-references.test.mjs",
+        "note": "1.1.0 (#59): covers --check, the skill-references factory Stop-hook step. On a mirror of the two regions' four files, --check reds naming the file and the region id on an edited source span, a hand-edited region, an orphan on either side, a source= path that resolves to no file, an unknown id both sides agree on, a duplicate id, unbalanced markers (unclosed on either side, and an end closing the wrong region), a malformed marker, an installer placeholder token inside a span, and zero regions. --write turns the two drift cases green and refuses every structural case without touching a reference; a CRLF checkout compares equal; and the LIVE case runs --check over this checkout and pins its two regions."
+      }
+    ],
     "hygiene.mjs": [
       {
         "kind": "fixture",

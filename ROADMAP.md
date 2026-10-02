@@ -147,9 +147,13 @@ None of these tightens a gate for an existing install. Where one changes what
   own table inside the transaction, so deleting the example does not delete
   them.
   ([N08](design/FIELD-UPGRADES-2026-09.md#n08-behavioural-database-proofs-on-a-fixture-table))
-- **Generated skill references.** The code in the authoring skill's references
-  is extracted from the example's source and drift-checked upstream.
-  ([N09](design/FIELD-UPGRADES-2026-09.md#n09-skill-references-generated-from-the-example))
+- **Generated skill references.** The code blocks in the vertical-slice
+  skill's references are regions cut verbatim from spans the example marks,
+  and a factory check fails on drift in either direction. The table, trigger,
+  index, FORCE and grant half of the RLS skeleton stays hand-written until the
+  example grants what it teaches (the three-role revoke, #74).
+  ([N09](design/FIELD-UPGRADES-2026-09.md#n09-skill-references-generated-from-the-example),
+  issue #59)
 - **A session-start brief and `harness:status`.** Enumerated, length-capped
   install state at the start of a session and on demand.
   ([N10](design/FIELD-UPGRADES-2026-09.md#n10-a-session-start-brief-and-a-status-command))

@@ -25,8 +25,12 @@ Two files move TOGETHER, always (the `@app/notes` slice is the worked example):
   state (`20_notes.sql`). This is what you edit first, and what a reviewer reads
   for rationale.
 - **Applied history** — `supabase/migrations/<timestamp>_<slice>.sql` is the
-  forward step that gets an empty database to that state
-  (`20260101000100_notes.sql`). Append-only, DML-free, replayed not read.
+  forward step that gets the database from its last applied state to that one.
+  For a new table it is one file, shaped like the skeleton in the
+  `authoring-vertical-slice` skill's `references/migration-rls.md`. The notes
+  history is several: `20260101000100_notes.sql` created the table keyed on the
+  owner, and `20260201000100_notes_org_scope.sql` re-scoped it to the org
+  (`org_id`). Append-only, DML-free, replayed not read.
 
 Hard rules (each is gate- or hook-enforced; write SQL that passes on the first run):
 

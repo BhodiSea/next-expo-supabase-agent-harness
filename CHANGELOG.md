@@ -81,6 +81,28 @@ this heading if none does. -->
   `docs-sync`'s tier verdicts do not change. An install with a forked `quality-gate.yml`
   keeps its fork, the new copy is parked under `.harness/pending/`, and `update` exits 2
   while it stays there (#57).
+- **The slice skill's code blocks are generated from the example, and the factory checks
+  them.** `references/dal-dto.md` and `references/migration-rls.md` of the
+  `authoring-vertical-slice` skill say they were copied from the notes example, and nothing
+  held them to it: `prompts` compares each file with its own locked hash, and `docs-sync`
+  reads skill bodies only for commands and retired tokens. Their code is now two regions,
+  each cut verbatim from a span the seeded example marks with `skill-region` comments and
+  rendered between `<!-- skill-region:begin <id> source=<install-relative path> -->` and
+  `<!-- skill-region:end <id> -->` in the owned reference: `create-procedure`, the `create`
+  procedure of `packages/api/src/routers/notes.ts`, and `org-policies`, the four permissive
+  policies of `supabase/schemas/20_notes.sql`. A region shows `notes`, not `<t>`, and a line
+  of prose beside it says to rename. The new `scripts/generate-skill-references.mjs` diffs
+  each region against its span (`--check`, the default) or rewrites it (`--write`). It
+  fails, naming the file and the region id, on drift in either direction, an unknown or
+  duplicate id, unbalanced or malformed markers, an orphan on either side, an installer
+  placeholder inside a span and zero regions. It runs as the factory Stop hook's
+  `skill-references` step and in CONTRIBUTING's Local development list, and its test runs
+  on both selftest operating systems. Before the markers went in, every comment line of the
+  skeleton's policy half moved into `20_notes.sql`, so the reference drops no lesson. The
+  pointers that named `20260101000100_notes.sql` as the pattern, although
+  `20260201000100_notes_org_scope.sql` drops its four policies, are rewritten in
+  `migration-rls.md` and the `migration-rls-author` agent. No consumer gate, chain step, hook
+  or lock semantics change: an install receives markdown (#59).
 
 ### Fixed
 
@@ -147,6 +169,14 @@ this heading if none does. -->
   runs them in full, and a manual dispatch that runs them in full. The lookup runs before
   `setup-node`, on the runner image's own Node, whose version is not pinned here; the script
   uses Node built-ins only (#57).
+- **Half of the RLS skeleton is still hand-written.** The table, trigger, index, FORCE and
+  grant statements of `references/migration-rls.md` stay hand-written `<t>` text. The
+  skeleton teaches `REVOKE ALL … FROM authenticated` and an exact re-grant, which 1.0.2
+  added as documentation only, and the example still revokes from `anon` and `service_role`
+  alone, so generating that half now would either drop the revoke or change what the example
+  grants. This release changes neither; the three-role revoke on the example is #74's to
+  apply, and that half can become a region once the example grants what it teaches. Until
+  then the skeleton reads `<t>` above its generated half and `notes` in it (#59).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -181,7 +211,17 @@ this heading if none does. -->
   run the way GitHub serves it after a merge, with an empty `pull_requests` list: a judge
   that looked for the pull request there missed on every merge. After the change each is
   green, `actionlint` and `zizmor` report nothing on the rendered workflow, and the judge's
-  line and function coverage is complete (#57).
+  line and function coverage is complete (#57). For the skill references, every case of
+  `tests/gates/skill-references.test.mjs` failed while the generator did not exist, and its
+  first `--check` over this tree failed on `zero regions — 0 in the example's source, 0 in
+  the references`. With the markers in, `create-procedure` matched its span byte for byte,
+  and `org-policies` differed only in the policy names and the one comment line the example
+  kept, which `--write` regenerated. Each planted defect now fails `--check` naming its file
+  and region id, `--write` turns only the two drift cases green, and the live case passes.
+  A 1.0.4 install updated by this installer took the three owned files, re-recorded their
+  `tools/agents.lock.json` entries and stayed green on `prompts`, and kept its seeded
+  `20_notes.sql` without markers; one whose `dal-dto.md` was edited kept that copy, got the
+  new one under `.harness/pending/`, and `update` exited 2 (#59).
 
 ## [1.0.4] — 2026-10-01
 
