@@ -394,7 +394,7 @@ this heading if none does. -->
   printed `harness: unavailable`, and with a forked pre-1.1.0 `git-diff.mjs` on a live-v2
   install it printed the 1.0.x set the Stop step does not decide on (#60).
 
-## [1.0.4] — 2026-09-29
+## [1.0.4] — 2026-10-01
 
 **A patch, the local loop release: what a local run says matches what CI will say.** No gate
 is added, the chain length does not change, and no ramp opens or moves. `update` delivers
@@ -424,11 +424,6 @@ unrecorded file whose bytes a release shipped refreshes as before, and an instal
 unrecorded owned file sees no change; `init` and `update` record every owned file they
 write. `update --force` still overwrites. The remedy is in
 `docs/runbooks/harness-upgrade.md`, 1.0.4 section.
-
-### Security
-
-<!-- Entries from the 1.0.4 items that land after the version bump go here. The cut removes
-this heading if none does. -->
 
 ### Added
 
@@ -706,9 +701,6 @@ this heading if none does. -->
   not change (#10).
 
 ### Changed
-
-<!-- Entries from the 1.0.4 items that land after the version bump go here. The cut removes
-this heading if none does. -->
 
 - **The hooks keep a telemetry log, `.harness/telemetry.jsonl`.** It records what the turn
   ledger never did: each Stop step's status, duration and count of `SKIPPED` lines, the gate
