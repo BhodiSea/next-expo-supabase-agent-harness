@@ -235,6 +235,47 @@
       ],
       "reason": "RE-OPENED A THIRD TIME, at 1.1.0, and this time by the standing rule below rather than by a lane finding. The 1.1.0 re-review of tools/eol.json's uuid row (2026-09-29) found the upstream discharge condition unmet: xcode@3.0.1 is still the latest xcode and still declares uuid ^7.0.3, and @expo/config-plugins still depends on xcode ^3.0.1 at its latest and next tags. So the harness moved its own removalTarget from 1.1.0 to 1.2.0, and the rule's two debts were paid in the 1.1.0 record: the seededSourceFixes probe on the old literal ('\"removalTarget\": \"1.1.0\"', which scripts/check-eol-target.mjs demanded), and this ramp re-opened at minVersion 1.1.0 until 1.2.0 (the record's rampExtensions entry). Every 1.0.x install holds the seeded 1.1.0 date, which arrives at 1.1.0, and an escape opened at 1.0.0 is inert for exactly them. The row is therefore RE-TARGETED to 1.2.0, not deleted. THE HISTORY: it was RE-OPENED A SECOND TIME at 1.0.0, and the recurrence is the point of the row. 0.11.1 re-opened this ramp because the escape excluded the one vintage holding the arrived date; 1.0.0 re-opens it because the SAME shape recurred one release on — the 0.11.x vintages hold a seeded tools/eol.json saying 0.12.0, 0.12.0 was never cut, the date arrives at 1.0.0 (>=), and upgrade-lane leg A found it exactly as the 0.11.0 tag's lane found the first. The 1.0.0 record's rampExtensions entry moves (0.11.0, 0.12.0) → (1.0.0, 1.1.0), and the same record's seededSourceFixes probe (contains '\"removalTarget\": \"0.12.0\"') delivers the harness's own re-affirmation as a parked fix. THE STANDING RULE, written so it stops being rediscovered: every release that moves the template's uuid removalTarget owes BOTH the seededSourceFixes probe on the old literal (scripts/check-eol-target.mjs demands it) AND an arrival ramp opened at that release's own minVersion, until the next; the ramp's expiry is owed by the next record. Discharge = the 1.2.0 record's rampExpiry naming this site's population (every vintage below 1.1.0 that meets it), OR, if the uuid row moves again, the next re-open under the same rule, OR the upstream discharge (an xcode major off uuid 7 reached by @expo/config-plugins), which retires the row and the ramp together.",
       "reviewedOn": "2026-09-29"
+    },
+    {
+      "id": "reviewer-verdicts-ledger-v2-ramp-expiry",
+      "kind": "release",
+      "target": "2.1.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-reviewer-verdicts.mjs",
+          "mustContain": "the reviewer ledger v2 judgement (a merge-base owed set with deletions, standing BLOCKs, dispatch-bound verdicts and whole-turn reviewers)"
+        }
+      ],
+      "reason": "OPENED AT 1.1.0 (#70, R01). The reviewer ledger v2 changes what reviewer-verdicts judges on every install: the owed set becomes the merge-base diff with deletions, the ledger is read for the whole session (a BLOCK stands until the same agent_id passes at the current digest; a counted PASS whose digest still matches stands for later prompts), a PASS counts only when its SubagentStart and SubagentStop digests and the tree at Stop agree, and the wholeTurn class (torvalds-reviewer, citation-verifier) is owed on every non-empty diff. On an install whose baseVersion predates 1.1.0 the 1.0.x judgement stays enforcing and v2 prints as NOTEs, through one rampNote call. The deadline is 2.1.0, not the next minor: this lineage cuts 2.0.0 directly after 1.1.0, so a 1.2.0 or 2.0.0 deadline would expire the escape at the very next release with no notice window. Discharge = the 2.1.0 record's rampExpiry naming this site's population (every vintage below 1.1.0), with its sweep in the runbook's 2.1.0 section: re-run the owed reviewers once, take the wholeTurn class into the seeded tools/reviewer-triggers.json, and add the SubagentStart block to a forked .claude/settings.json. The site is Stop-only, so scripts/ci/stop-side-expiries.json names the unit proof that executes its RAMP EXPIRED branch.",
+      "reviewedOn": "2026-09-30"
+    },
+    {
+      "id": "control-plane-facts-agent-id-resume-probe",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        {
+          "file": "design/CONTROL-PLANE-FACTS.md",
+          "mustContain": "documentation-sourced, not probed, no Claude Code version observed"
+        }
+      ],
+      "reason": "The reviewer ledger v2 (1.1.0, #70) keys its standing-BLOCK rule on agent_id and pairs each verdict with the latest SubagentStart record for its (session_id, agent_id). Two facts it relies on are documented and not observed: that a subagent resumed with SendMessage keeps its agent_id (the subagents page says a resume starts a new run under the same ID), and that SubagentStart fires for the resumed run (no page says either way). The session that wrote 1.1.0 could not start a Claude Code session to probe them, so Fact 14 records them as documentation-sourced, names the probe, and states why the rule fails closed on either answer: a changed id leaves the BLOCK standing until a new session, and a missing second SubagentStart makes a resumed PASS on a moved tree uncounted. Discharge = run the Fact 14 probe on a real Claude Code, record the version and the four agent_id values in Fact 14 (which moves this anchor), and delete this row in the same diff; if either answer is no, open an issue against the standing-BLOCK rule first.",
+      "reviewedOn": "2026-09-30",
+      "evidence": "design/CONTROL-PLANE-FACTS.md"
+    },
+    {
+      "id": "control-plane-facts-sessionstart-probe",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        {
+          "file": "design/CONTROL-PLANE-FACTS.md",
+          "mustContain": "the `SessionStart` payload and output contract: documented, NOT yet observed"
+        }
+      ],
+      "reason": "The 1.1.0 SessionStart brief (#60) prints the harness brief on SessionStart and relies on three documented facts nobody here has observed: that plain stdout on exit 0 is added to the context for this event, that exit 2 does not block it, and the payload's shape (source startup|resume|clear|compact|fork). The session that wrote 1.1.0 could not start a Claude Code session to probe them, so Fact 15 records them as documentation-sourced and states why the hook cannot block or leak on any answer: it never reads stdin, never exits 2 and caps its output at 1,200 characters. Discharge = run the Fact 15 probe on a real Claude Code, record the version, the payload keys per source and whether the marker line reached the context in Fact 15 (which moves this anchor), and delete this row in the same diff; if plain stdout does not reach the context, switch the hook to hookSpecificOutput.additionalContext first.",
+      "reviewedOn": "2026-09-30",
+      "evidence": "https://code.claude.com/docs/en/hooks"
     }
   ]
 }

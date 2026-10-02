@@ -115,7 +115,7 @@ request.
 when the hook or one of its imports cannot load. The MCP guard denies any
 server or tool that is not in `tools/approved-tools.json`, and denies
 everything when that registry is missing or unparseable. `tests/hooks/` holds
-a behavioural test for each of the 143 guard rule ids, and
+a behavioural test for each of the 144 guard rule ids, and
 `scripts/check-canary-coverage.mjs` fails if a rule has none.
 
 **R5. Tamper evidence.** The `gate-integrity` step hashes every owned file

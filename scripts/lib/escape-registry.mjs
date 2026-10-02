@@ -23,7 +23,7 @@
 // ── the reviewed classification ────────────────────────────────────────────────────
 // A member of the population is one of these KINDS. The kind decides which layers it
 // owes — deliberately a closed map over reviewed data rather than one rule for
-// everything, because the three exceptions below are genuinely different shapes and
+// everything, because the exceptions below are genuinely different shapes and
 // forcing them into `escape` would produce a confidently wrong consumer message.
 //
 // `escape`   — reviewed data that EXEMPTS code from a gate or RAISES a budget. Owes all
@@ -32,6 +32,11 @@
 //              mode is the pin MOVING, which is not what ESCAPE_LISTS' dirty rule asks.
 // `hash`     — integrity comes from a hash lock the gate re-derives, not from a commit.
 // `generated`— integrity comes from a regen-diff. Hand-editing is never legitimate.
+// `advisory` — reviewed text a gate PRINTS and never judges: it exempts nothing, raises no
+//              budget and cannot change a verdict, so there is no widening for
+//              ESCAPE_LISTS' commit rule to ask about. It still owes the seed (`update`
+//              must never clobber it) and the guard (an agent must not write what it is
+//              about to be told).
 export const KINDS = new Map([
   [
     'tools/identity.lock.json',
@@ -62,6 +67,14 @@ export const KINDS = new Map([
     {
       kind: 'generated',
       why: 'generated from the consumer’s tRPC router by `pnpm gen` and regen-diffed by the `contracts` step (seeded as of 0.7.0 — while it was owned, `update` planted the template router’s census into every upgraded repo). Nothing may hand-edit it, so "commit the widening" is not the applicable rule.',
+      owes: ['seeded', 'guard'],
+    },
+  ],
+  [
+    'tools/field-notes.json',
+    {
+      kind: 'advisory',
+      why: 'per-gate field notes (1.1.0): tools/lib/gate.mjs prints a note as one extra line after a failing gate’s FIX line, only on a run that is already red. The file exempts nothing and raises no budget, so ESCAPE_LISTS (data that EXEMPTS code or RAISES a budget) is the wrong list and its commit rule would ask about a widening that cannot exist. Seeded so `update` never clobbers a project’s notes; write-guarded because the text reaches an agent while it decides how to make a red go away.',
       owes: ['seeded', 'guard'],
     },
   ],

@@ -97,6 +97,179 @@ test('failures() and CI-mode skipOrFail() emit the FIX line; local skip does not
   assert.ok(!localSkip.out.includes('FIX['), localSkip.out)
 })
 
+// ── field notes (1.1.0, #61): the project's own line under a gate's FIX line ────────────
+// tools/field-notes.json maps a gate token (the `<gate>` of `<gate>: FAIL` and `FIX[<gate>]`)
+// to one string, printed as `FIELD-NOTE[<gate>]: <text>` right after the FIX line on the
+// three failure paths, and nowhere else. PRINT-ONLY: the exit code never moves, and the FAIL,
+// bullet and FIX lines are byte-identical with and without the file, so each case below
+// compares against the same script run with no file at all.
+const NOTE_TEXT = 'this gate usually means the fixture in supabase/tests needs a db:reset first'
+const NOTE_LINE = `FIELD-NOTE[fake]: ${NOTE_TEXT}`
+const INVALID_NOTE_LINE = 'FIELD-NOTE[fake]: tools/field-notes.json is not valid JSON; no note printed'
+const FAILING_SCRIPTS = {
+  fail: { script: `fail('fake', 'boom')`, env: {} },
+  failures: { script: `failures('fake', ['a', 'b'], 'hint line')`, env: {} },
+  'CI-mode skipOrFail': { script: `skipOrFail('fake', 'toolchain missing')`, env: { CI: 'true' } },
+}
+
+/** A fresh fixture dir whose tools/field-notes.json holds `content` (a string is written raw). */
+function notesDir(content) {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-fieldnote-'))
+  mkdirSync(join(dir, 'tools'), { recursive: true })
+  writeFileSync(
+    join(dir, 'tools', 'field-notes.json'),
+    typeof content === 'string' ? content : JSON.stringify(content),
+  )
+  return dir
+}
+
+test('fail(), failures() and CI-mode skipOrFail() print the field note right after FIX, and exit 1', () => {
+  for (const [label, { script, env }] of Object.entries(FAILING_SCRIPTS)) {
+    const bare = runInFixture(script, { env })
+    const noted = runInFixture(script, { env, cwd: notesDir({ comment: 'x', notes: { fake: NOTE_TEXT } }) })
+    assert.equal(noted.code, 1, `${label}: ${noted.out}`)
+    const lines = noted.out.split('\n')
+    const fixAt = lines.findIndex((l) => l.startsWith('FIX[fake]: '))
+    assert.ok(fixAt >= 0, `${label}: no FIX line\n${noted.out}`)
+    assert.equal(lines[fixAt + 1], NOTE_LINE, `${label}: the note must be the line after FIX\n${noted.out}`)
+    assert.equal(lines.filter((l) => l.startsWith('FIELD-NOTE[')).length, 1, `${label}: one note\n${noted.out}`)
+    // Byte-identical FAIL, bullet and FIX lines: the note is the ONLY difference.
+    assert.equal(noted.out, `${bare.out}${NOTE_LINE}\n`, `${label}: the note may only append one line`)
+  }
+})
+
+test('a note keyed on another gate prints nothing under this one', () => {
+  const r = runInFixture(`fail('fake', 'boom')`, { cwd: notesDir({ notes: { 'other-gate': NOTE_TEXT } }) })
+  assert.equal(r.code, 1, r.out)
+  assert.ok(!r.out.includes('FIELD-NOTE['), r.out)
+})
+
+test('ok() and a local skipOrFail() print no field note and exit 0', () => {
+  const notes = { notes: { fake: NOTE_TEXT } }
+  const green = runInFixture(`ok('fake', 'fine')`, { cwd: notesDir(notes) })
+  assert.equal(green.code, 0, green.out)
+  assert.ok(!green.out.includes('FIELD-NOTE['), green.out)
+  const localSkip = runInFixture(`skipOrFail('fake', 'toolchain missing')`, { cwd: notesDir(notes) })
+  assert.equal(localSkip.code, 0, localSkip.out)
+  assert.ok(localSkip.out.includes('fake: SKIPPED'), localSkip.out)
+  assert.ok(!localSkip.out.includes('FIELD-NOTE['), localSkip.out)
+})
+
+test('with no notes file, a failing gate ends on its FIX line exactly as before', () => {
+  for (const [label, { script, env }] of Object.entries(FAILING_SCRIPTS)) {
+    const r = runInFixture(script, { env })
+    assert.equal(r.code, 1, `${label}: ${r.out}`)
+    assert.ok(!r.out.includes('FIELD-NOTE'), `${label}: ${r.out}`)
+    assert.match(r.out.trimEnd().split('\n').at(-1) ?? '', /^FIX\[fake\]: reproduce with `node tools\/check-fake\.mjs/, label)
+  }
+})
+
+test('an invalid notes file still exits 1 with FAIL and FIX intact, and prints the one invalid-JSON line', () => {
+  for (const [label, { script, env }] of Object.entries(FAILING_SCRIPTS)) {
+    const bare = runInFixture(script, { env })
+    const r = runInFixture(script, { env, cwd: notesDir('{ "notes": { "fake": "unterminated') })
+    assert.equal(r.code, 1, `${label}: ${r.out}`)
+    assert.equal(r.out, `${bare.out}${INVALID_NOTE_LINE}\n`, `${label}: ${r.out}`)
+  }
+})
+
+test('a notes path that cannot be read (a directory) prints nothing and changes nothing', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-fieldnote-dir-'))
+  mkdirSync(join(dir, 'tools', 'field-notes.json'), { recursive: true })
+  const bare = runInFixture(`fail('fake', 'boom')`)
+  const r = runInFixture(`fail('fake', 'boom')`, { cwd: dir })
+  assert.equal(r.code, 1, r.out)
+  assert.equal(r.out, bare.out)
+})
+
+// In-process, so the tools/lib/** coverage floor counts the renderer. It is pure: the gate
+// token and the file's raw text (null when absent) in, the line to print (or null) out.
+// Reached through the namespace so a lib without it fails these tests, not the whole file.
+/** @param {string} gate @param {string | null} raw @returns {string | null} */
+const render = (gate, raw) => gateLib.renderFieldNote(gate, raw)
+const notesJson = (notes) => JSON.stringify({ comment: 'x', notes })
+const MAX = /** @type {number} */ (gateLib.FIELD_NOTE_MAX_CHARS)
+
+test('renderFieldNote: an absent file, or a present key, render as null or one prefixed line', () => {
+  assert.equal(render('fake', null), null)
+  assert.equal(render('fake', notesJson({ fake: NOTE_TEXT })), NOTE_LINE)
+  assert.equal(render('fake', notesJson({})), null)
+  assert.equal(render('fake', notesJson({ 'fake-two': NOTE_TEXT })), null)
+})
+
+test('renderFieldNote: newlines and other whitespace collapse to single spaces, ends trimmed', () => {
+  const raw = notesJson({ fake: '\n  first line\r\n\tsecond third  \u0085fourth  \n' })
+  assert.equal(render('fake', raw), 'FIELD-NOTE[fake]: first line second third fourth')
+})
+
+test('renderFieldNote: ESC and every other control or format character is removed', () => {
+  const cases = [
+    ['\u001b[31mred\u001b[0m', '[31mred[0m'], // ESC (a terminal colour sequence loses its introducer)
+    ['nul\u0000 del\u007f c1\u009b', 'nul del c1'], // C0, DEL, C1
+    ['\u202eevil\u202c ok', 'evil ok'], // a bidirectional override and its pop
+    ['zero\u200bwidth\u200d join\u2066iso\u2069 \ufeffbom', 'zerowidth joiniso bom'], // Cf, BOM
+    ['a \u200b b', 'a b'], // removing one never leaves a double space
+  ]
+  for (const [input, want] of cases) {
+    assert.equal(render('fake', notesJson({ fake: input })), `FIELD-NOTE[fake]: ${want}`, JSON.stringify(input))
+  }
+  // A note that is nothing but removed characters prints nothing.
+  assert.equal(render('fake', notesJson({ fake: '\u001b\u200b \u0000\n' })), null)
+})
+
+test('renderFieldNote: the text is capped at FIELD_NOTE_MAX_CHARS code points, ending in … when cut', () => {
+  assert.equal(typeof MAX, 'number', 'tools/lib/gate.mjs must export FIELD_NOTE_MAX_CHARS')
+  const text = (line) => (line ?? '').slice('FIELD-NOTE[fake]: '.length)
+  const exact = 'x'.repeat(MAX)
+  assert.equal(text(render('fake', notesJson({ fake: exact }))), exact, 'at the cap: unchanged')
+  const over = text(render('fake', notesJson({ fake: 'x'.repeat(MAX + 1) })))
+  assert.equal([...over].length, MAX)
+  assert.equal(over, `${'x'.repeat(MAX - 1)}…`)
+  // A surrogate pair straddling the cut: a UTF-16 slice would keep its high half alone.
+  const emoji = '\u{1F600}'
+  const straddle = text(render('fake', notesJson({ fake: `${'a'.repeat(MAX - 2)}${emoji}tail` })))
+  assert.equal(straddle, `${'a'.repeat(MAX - 2)}${emoji}…`)
+  // In a u-mode regex only a LONE surrogate matches \p{Cs}; a whole pair is one code point.
+  assert.doesNotMatch(straddle, /\p{Cs}/u, 'no lone surrogate at the cut')
+  const dropped = text(render('fake', notesJson({ fake: `${'a'.repeat(MAX - 1)}${emoji}tail` })))
+  assert.equal(dropped, `${'a'.repeat(MAX - 1)}…`)
+  assert.doesNotMatch(dropped, /\p{Cs}/u)
+})
+
+test('renderFieldNote: foreign keys, non-string values and a non-object `notes` are ignored', () => {
+  // Keys must match ^[a-z0-9-]+$; a near-miss of the token never matches it.
+  assert.equal(render('fake', notesJson({ Fake: 'x', 'fake ': 'x', fa_ke: 'x' })), null)
+  assert.equal(render('Fake', notesJson({ Fake: 'x' })), null, 'a key outside the token shape is ignored')
+  assert.equal(render('constructor', notesJson({})), null, 'never an inherited property')
+  for (const value of [42, true, null, ['x'], { text: 'x' }]) {
+    assert.equal(render('fake', notesJson({ fake: value })), null, JSON.stringify(value))
+  }
+  for (const raw of ['{}', '{"notes": []}', '{"notes": "x"}', '{"notes": null}', '[]', 'null', '"x"', '7']) {
+    assert.equal(render('fake', raw), null, raw)
+  }
+})
+
+test('renderFieldNote: invalid JSON renders the one invalid-JSON line, and never throws', () => {
+  for (const raw of ['{ not json', '', '{"notes": {"fake": "x"},}']) {
+    assert.equal(render('fake', raw), INVALID_NOTE_LINE, JSON.stringify(raw))
+  }
+})
+
+test('the seeded tools/field-notes.json is the empty skeleton, and the catalog names the cap by its constant', () => {
+  const base = fileURLToPath(new URL('../../template/base/', import.meta.url))
+  const seeded = JSON.parse(readFileSync(join(base, 'tools', 'field-notes.json'), 'utf8'))
+  assert.deepEqual(Object.keys(seeded).sort(), ['comment', 'notes'])
+  assert.deepEqual(seeded.notes, {}, 'seeded empty: the harness has no notes about a project it has not seen')
+  assert.match(seeded.comment, /FAIL/, 'the comment says to key on the token printed in the FAIL line')
+  assert.equal(render('fake', JSON.stringify(seeded)), null)
+  const catalog = readFileSync(join(base, 'docs', 'harness', 'gates-catalog.md'), 'utf8')
+  const shared = catalog.slice(catalog.indexOf('Shared behavior'), catalog.indexOf('## Honest losses'))
+  for (const want of ['tools/field-notes.json', 'FIELD-NOTE[<gate>]:', 'FIELD_NOTE_MAX_CHARS']) {
+    assert.ok(shared.includes(want), `the catalog's "Shared behavior" paragraph must name ${want}`)
+  }
+  assert.ok(!shared.includes(String(MAX)), 'the cap is named by its constant, never written as a number')
+})
+
 test('every shipped gate script routes failures through lib/gate.mjs (the FIX contract)', async () => {
   const toolsDir = fileURLToPath(new URL('../../template/base/tools', import.meta.url))
   // build-check.mjs is the one gate whose name does not start with check- here.

@@ -184,6 +184,94 @@ function invalidateStamps(targetDir, report) {
   }
 }
 
+// A NEW HOOK THAT A KEPT SETTINGS FILE DOES NOT WIRE IS PARKED WITH IT (1.1.0, #60).
+//
+// `wiring` requires every top-level hook file on disk to be wired in .claude/settings.json.
+// Since 1.0.2 this sweep keeps a forked or retrofit-merged settings file and parks the
+// incoming copy, so a hook new in this release would land in .claude/hooks/ with nothing
+// wiring it, and `wiring` would red an install nobody touched. The sweep visits
+// .claude/hooks/ BEFORE .claude/settings.json (siblings are sorted, lib/copy.mjs), so the
+// decision cannot be made in the loop; it is made here, in one pass before it.
+//
+// The rule: when the settings file on disk will NOT be replaced by the incoming one (a fork,
+// kept or parked; a retrofit conflict; a path the manifest records as seeded), every
+// top-level hook the plan would CREATE and that file does not name is parked instead, under
+// .harness/pending/.claude/hooks/, beside the parked settings. A hook already on disk is
+// never parked by this rule, and a settings file that already wires the hook (the entry
+// merged by hand) gets it written and recorded as usual, which is how the parked one is
+// adopted: merge the entry, re-record the fork, run `update` again, delete the parked copies.
+// A hook moved out of .harness/pending/ by hand instead would carry no manifest record.
+//
+// The settings verdict is asked of the shared provenance policy against a SCRATCH report, so
+// its notes are pushed once, by the loop, as before. The returned object stands in for the
+// provenance policy at the loop's one classifyOwned call; hoisted for the complexity ratchet,
+// like refuseWhileTurnRuns and invalidateStamps.
+const SETTINGS_PATH = '.claude/settings.json'
+const TOP_LEVEL_HOOK = /^\.claude\/hooks\/([a-z][a-z-]*)\.mjs$/
+const REPLACED = new Set(['create', 'update-clean', 'force-overwrite'])
+
+/** The `hooks` object of a settings file as text, or '' when it does not parse. @param {string | Buffer} bytes */
+function hooksText(bytes) {
+  try {
+    return JSON.stringify(JSON.parse(String(bytes)).hooks ?? {})
+  } catch {
+    return '' // an unparseable file wires nothing; `wiring` and gate-integrity name it
+  }
+}
+
+/**
+ * The settings file on disk, when this sweep will KEEP it: a fork (kept or parked), a
+ * retrofit conflict, or a path the manifest records as seeded. Null when it is absent or
+ * the incoming copy will replace it.
+ * @param {{ targetDir: string, manifest: { harnessVersion: string, files?: Record<string, any>, answers?: Record<string, unknown> },
+ *           entry: { installPath: string, content: string | Buffer, sourcePath?: string } | undefined,
+ *           releasedShas: Record<string, any>, force?: boolean }} args
+ * @returns {Buffer | null}
+ */
+function keptSettings({ targetDir, manifest, entry, releasedShas, force }) {
+  const dest = join(targetDir, SETTINGS_PATH)
+  if (entry === undefined || !existsSync(dest)) return null
+  const current = readFileSync(dest)
+  const recorded = manifest.files?.[SETTINGS_PATH]
+  if (effectiveMode(recorded?.mode, SETTINGS_PATH) !== 'owned') return current
+  const scratch = createProvenance({ tables: releasedShas, manifest, report: { notes: [] } })
+  const kind = scratch.classifyOwned({ ip: SETTINGS_PATH, current, recorded, incoming: entry.content, force, entry })
+  return REPLACED.has(kind) ? null : current
+}
+
+/**
+ * The provenance policy, with the new hooks a kept settings file leaves unwired parked.
+ * @param {{ provenance: ReturnType<typeof createProvenance>, targetDir: string,
+ *           manifest: { harnessVersion: string, files?: Record<string, any>, answers?: Record<string, unknown> },
+ *           plan: Array<{ installPath: string, content: string | Buffer, sourcePath?: string }>,
+ *           releasedShas: Record<string, any>, force?: boolean, report: { notes: string[] } }} args
+ */
+function parkingUnwiredHooks({ provenance, targetDir, manifest, plan, releasedShas, force, report }) {
+  const entry = plan.find((e) => e.installPath === SETTINGS_PATH)
+  const kept = keptSettings({ targetDir, manifest, entry, releasedShas, force })
+  const wired = kept === null ? '' : hooksText(kept)
+  const incoming = kept === null ? {} : JSON.parse(hooksText(entry.content) || '{}')
+  /** @type {Map<string, string>} install path -> the entry, named by the events the INCOMING settings wire it under */
+  const parked = new Map()
+  for (const { installPath: ip } of kept === null ? [] : plan) {
+    const name = TOP_LEVEL_HOOK.exec(ip)?.[1]
+    if (name === undefined || existsSync(join(targetDir, ip)) || wired.includes(name)) continue
+    const events = Object.keys(incoming).filter((ev) => JSON.stringify(incoming[ev]).includes(name))
+    parked.set(ip, events.length > 0 ? `the ${events.join(', ')} entry` : 'the entry')
+  }
+  return {
+    /** @param {Parameters<typeof provenance.classifyOwned>[0]} spec */
+    classifyOwned(spec) {
+      const wiring = parked.get(spec.ip)
+      if (wiring === undefined) return provenance.classifyOwned(spec)
+      report.notes.push(
+        `${spec.ip}: new in this release, and your kept ${SETTINGS_PATH} does not wire it, so it is parked at ${join('.harness', 'pending', spec.ip)} instead of landing unwired (\`wiring\` reds a hook on disk that nothing wires). Merge ${wiring} that wires it from ${join('.harness', 'pending', SETTINGS_PATH)} into yours, re-record your fork, then run \`update\` again: it writes the hook and records it, and the two parked copies can go.`,
+      )
+      return 'park'
+    },
+  }
+}
+
 // eslint-disable-next-line sonarjs/cognitive-complexity -- ceiling is machine-enforced by scripts/complexity-ratchet.json (G16); this directive only silences the rule, the ratchet is what stops the score growing
 export async function update(
   opts,
@@ -258,6 +346,7 @@ export async function update(
     throw new Error('template plan is empty — refusing to record an update over a packaging regression')
   }
   const plan = entries.map((e) => ({ ...e, content: renderEntry(e, answers) }))
+  const sweep = parkingUnwiredHooks({ provenance, targetDir, manifest, plan, releasedShas, force: opts.force, report })
 
   recordRollbackPoint({ targetDir, manifest, plan, report, dryRun: opts.dryRun })
   // Same closure as init: an enabled module's workspace package must be in the root
@@ -385,7 +474,7 @@ export async function update(
     // the file since this install's version — there is nothing new to merge), an owned file
     // with NO record whose bytes no release shipped comes back as `park` (1.0.4; never the
     // skip), and the helper has already pushed the note. No branch is added here on purpose.
-    const kind = provenance.classifyOwned({
+    const kind = sweep.classifyOwned({
       ip,
       current,
       recorded,

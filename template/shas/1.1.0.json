@@ -117,6 +117,9 @@
         "sha256": "24e1f77783202bdd98f304ba8797b4cdf635776addfcdb03cdb50bfadae44ff1"
       },
       {
+        "sha256": "7585e2945d8ade80796b275e627649763b69665688291910f8e7c283b4cd1b7a"
+      },
+      {
         "sha256": "afcf7995fca0b7231a74d94278454e78b67c145f536d35428a61426c107324b1"
       }
     ],
@@ -155,12 +158,20 @@
         "sha256": "a5a820faf3cf5a97cb2768a8b33c24d92340c886e3e2d34555a98840295f7066"
       }
     ],
+    ".claude/hooks/session-brief.mjs": [
+      {
+        "sha256": "2806b8add8ad76976f4b667b1ea8fa52f0ac97dab42c8cfa9fe60cf9aeb0a702"
+      }
+    ],
     ".claude/hooks/stop-validate-gate.mjs": [
       {
         "sha256": "aea878ef2fdfb101061b32a0c465a04dc0da866bf5796874f23ace1fab0e7835"
       }
     ],
     ".claude/hooks/subagent-verdict.mjs": [
+      {
+        "sha256": "d5e4f06af9bccda1df16e32760b43b3562dc3c19db1108d6f7da971f385bae2c"
+      },
       {
         "sha256": "f18858f91c69e267f75a795fd268198e5f1fe4fc202cd4cda8b69c28f4bc731e"
       }
@@ -199,6 +210,12 @@
     ".claude/settings.json": [
       {
         "sha256": "392c72294514fa2d9ff305216551364a448714c3f8d34e5a0c7afa739be329aa"
+      },
+      {
+        "sha256": "750767a407531f76e0b11095b8a51738f3fe95737209fb12497e40fc099bc2df"
+      },
+      {
+        "sha256": "a0c40177ac1e709406edd8be1cf6806134b73e12766eeb5ce66a8071d48f1331"
       }
     ],
     ".claude/settings.local.json.example": [
@@ -755,6 +772,24 @@
             "SECURITY_OWNERS"
           ]
         ]
+      },
+      {
+        "sha256": "3905e81f3fe066a02323ce507e7c82c2dca195b30e12cbdf59129d3021999cd3",
+        "sites": [
+          [
+            18160,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "ec27a01f9e1a043c6e90518222535a860f77aa917e03983744565b82f02ad17d",
+        "sites": [
+          [
+            18784,
+            "SECURITY_OWNERS"
+          ]
+        ]
       }
     ],
     "docs/harness/enforcement-tiers.md": [
@@ -767,10 +802,28 @@
     ],
     "docs/harness/gates-catalog.md": [
       {
+        "sha256": "38d5e752fef25c747bec57de8c23fab1db3f3637a523b70471ad6b8bf6945554",
+        "sites": [
+          [
+            123106,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
         "sha256": "3e8228886c91cfe619936e0eb1b47c08475169057e2eecf06bbcc29d69614c9f",
         "sites": [
           [
             120772,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
+        "sha256": "5a71798b50fc7f936c629053d3975d8aa3bb2dc06c3c27cd1f874da4c8098dac",
+        "sites": [
+          [
+            121286,
             "SECURITY_TXT_EXPIRES"
           ]
         ]
@@ -966,7 +1019,25 @@
     ],
     "docs/runbooks/harness-upgrade.md": [
       {
+        "sha256": "098f792c0a23687fac0815f918dc06a793d0a2eae120c3dffedb758a128479e9",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "43566f1f187a464925d820ec76052f9941e849dd521625da02db11a5b8830859",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "4a3b23444ab8bd4fc0ac815d901be9778644b0826aab7b0550c97042f0493141",
         "sites": [
           [
             14115,
@@ -985,6 +1056,15 @@
       },
       {
         "sha256": "8caea1bb8500ef01f74cc3ab177804b7dae1d1296d6f428e200719158de92389",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "9d8b8ccf6115831be1b00d8e291e4bff8fa37d0286a10a631d5e8bf0b55ca373",
         "sites": [
           [
             14115,
@@ -1047,6 +1127,9 @@
       }
     ],
     "docs/security/threat-model.md": [
+      {
+        "sha256": "22780103cdfe886e7dbd8e1521948e46c2e6a2e61923815160aaa291c526a9d4"
+      },
       {
         "sha256": "4f149346ca506f7cafc5caf5d46d76f4d61a729cb9218926b29d01c297f41acf"
       },
@@ -1452,6 +1535,9 @@
     "tools/check-reviewer-verdicts.mjs": [
       {
         "sha256": "3d209b51a589012f8e0a311809f3ace2bd6021e70283a64b76563295f38d5653"
+      },
+      {
+        "sha256": "bfffa7fdf005f5730204dae219d341ce1b87532e8150f62c02d96a918892114f"
       }
     ],
     "tools/check-rls-manifest.mjs": [
@@ -1720,6 +1806,11 @@
         "sha256": "eddc6a285038410e42b7722937cbb525832a6aa5e74a2602435209efc13d3e15"
       }
     ],
+    "tools/harness-status.mjs": [
+      {
+        "sha256": "661c0857b4de6f1523aebc28b3726951fdef9a69b093ee7a8cce26465dfa3895"
+      }
+    ],
     "tools/lib/agent-roster.mjs": [
       {
         "sha256": "dd31e83c49d539ed9ecae80f4fc937590eeee0e1069bb5422e6e3c17025ccc1c"
@@ -1808,12 +1899,23 @@
         "sha256": "0d37a1bc1987de8098bee68718c1c756853d2a3a0c3a77d8a8fa86fef6157278"
       },
       {
+        "sha256": "b79b3bcc546e9da89fea41a11b70e1d7da59e74f74c4d3e65af83059c5ea9ec1"
+      },
+      {
         "sha256": "e0cd1fb59e4126b6bd2941a4ce30347fe01f09872a1d5ce6a97a320e257575c0"
       }
     ],
     "tools/lib/git-diff.mjs": [
       {
         "sha256": "5b35299c9ed94405b9117e0f6827e5a3c8a0322be9bb545451e019905cdd566e"
+      },
+      {
+        "sha256": "e3d1aef752afc00e2ecb4e63c08c9fef364d2fab4b0b929bba334942f69c6bc6"
+      }
+    ],
+    "tools/lib/harness-brief.mjs": [
+      {
+        "sha256": "b0c972e188ef3f75fa6a6d03205f03683eff6c5320f08ec47f96cc55b51d1154"
       }
     ],
     "tools/lib/inventory.mjs": [
@@ -1882,6 +1984,9 @@
       }
     ],
     "tools/lib/reviewer-verdicts.mjs": [
+      {
+        "sha256": "aab147e205c1456c2888f5929cd69b6e08394d8735835b10330c64ec7ac263e1"
+      },
       {
         "sha256": "ff9774f95092c867b6304eb8f803c3d6dc5e74109fc143646a182893e7ec53f3"
       }

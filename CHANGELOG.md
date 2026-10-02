@@ -28,7 +28,11 @@ The `template/migrations.json` record for 1.1.0 carries `rampExpiry` (fifteen vi
 set, one `rampExtensions` entry and one `seedOnInitOnly` path (`tools/surfaces.json`, see
 Added), and injects no chain step. `scripts/lib/ramp-sites.mjs`
 `VINTAGES` grows by `1.0.4`. The obligations register loses seven release rows and
-re-targets the eighth to 1.2.0.
+re-targets the eighth to 1.2.0. The reviewer ledger v2 (see Changed) is the first item
+behind a ramp of its own: it opens at 1.1.0 with a deadline of 2.1.0, and adds one release
+row and one condition row to the register (#70). One new seeded file is planted
+rather than withheld: `update` writes the empty `tools/field-notes.json` (see Added) where an
+install has none, and it changes no verdict (#61).
 
 ### Security
 
@@ -121,6 +125,59 @@ this heading if none does. -->
   `20260201000100_notes_org_scope.sql` drops its four policies, are rewritten in
   `migration-rls.md` and the `migration-rls-author` agent. No consumer gate, chain step, hook
   or lock semantics change: an install receives markdown (#59).
+- **A length-capped SessionStart brief, and `harness:status` to print it on demand.** An
+  agent that started or resumed a session learned the install's state by running into it:
+  the version, base and tier sat in `.harness/manifest.json`, parked upgrades in
+  `.harness/pending/`, the blocks a turn spent in the turn ledger, and the reviewers the
+  current diff owes only inside Stop step `reviewer-verdicts`. The new
+  `.claude/hooks/session-brief.mjs`, wired under `SessionStart` with `"matcher": ""` and a
+  10-second timeout, prints four fields into context on every start, resume, clear, compact
+  and fork: `harness <version> (base <base>) · tier <tier> · mode <mode>`, `parked: <n>`
+  with up to five paths (the two obligation files `doctor` classifies apart are skipped),
+  `last turn in this directory:` `green`, `none recorded`, `<n> consecutive block(s), cap
+  <cap>` or `ended red at the cap (<gates>)`, and `reviewers owed by the current diff: <n>`
+  with up to five `<agent> (<path>)` entries. `node tools/harness-status.mjs` (`pnpm
+  harness:status` in a fresh scaffold) prints the same bytes. The last turn is read over
+  every session's records, because a new session's id matches none of the earlier ones, and
+  the cap is the one `.claude/settings.json` hands every hook. The owed set comes from the
+  libs the Stop step uses: the reviewer ledger v2's where it is live and the branch has an
+  upstream, the 1.0.x one otherwise, and `unavailable` where v2 is live but a forked
+  `tools/lib/git-diff.mjs` predates it. The hook reads from `$CLAUDE_PROJECT_DIR`, so a
+  resume after the shell moved into a subdirectory still reads the root. Every value
+  passes a closed validator or prints as `(unprintable)`, no file content is printed, the
+  output is capped at 1,200 characters and cut at a line with a marker, and a source that
+  cannot be read prints `<field>: unavailable`. The rules live in the new owned `tools/lib/harness-brief.mjs`, under the
+  write guard; the hook and the CLI are thin. The hook is invoked directly, not through
+  `launch.mjs`, whose load-failure message says an action was blocked, and it imports no
+  `hookio.mjs`, reads no stdin, writes nothing and exits 0 on every path. `update` gains one
+  rule for it: when it keeps a forked or retrofit-merged `.claude/settings.json`, a new hook
+  that file does not wire is parked beside the parked settings rather than written, so
+  `wiring` stays green, and once the entry is merged the next `update` writes and records
+  it. No chain step, gate, guard rule or floor changes, `HOOK_FLOOR` and `doctor`'s hook list
+  stay as they are, and no ramp (#60).
+- **A failing gate can print the project's own note under its FIX line:
+  `tools/field-notes.json`.** What a project learns about a gate in its own tree (the fixture
+  it trips on, the fix that is usually right) had nowhere to live but agent memory or an
+  instructions file that keeps growing. A new seeded file,
+  `{"notes": {"<gate>": "one string"}}`, keyed on the token the gate's FAIL line prints,
+  now adds one `FIELD-NOTE[<gate>]: <text>` line right after that gate's `FIX[<gate>]` line.
+  `tools/lib/gate.mjs` sends the FIX line of `fail`, `failures` and CI-mode `skipOrFail`
+  through one helper that reads the file there and nowhere else, after the FAIL and FIX lines
+  have printed, and prints what the exported, pure `renderFieldNote` returns: whitespace
+  collapsed, control and format characters removed, the text capped at
+  `FIELD_NOTE_MAX_CHARS` code points without splitting a surrogate pair, a foreign key or a
+  non-string value ignored, and one fixed line for a file that is not valid JSON. A note
+  never prints on a pass, a stamp hit or a local skip, is not a stamp input, and cannot
+  change an exit code or hide a finding: the FAIL, bullet and FIX lines are byte-identical
+  with and without it. The file is write-guarded (`field-notes`), because its text reaches
+  an agent while it decides how to make a red go away. The factory's escape registry declares
+  it `advisory` rather than listing it in `ESCAPE_LISTS`, since it exempts nothing and raises
+  no budget. The catalog's shared-behavior paragraph names the prefix, the key, the cap's
+  constant and the steps no note can reach. `update` re-plants the owned
+  `tools/lib/gate.mjs`, `.claude/hooks/lib/guard-rules.mjs`, `docs/harness/gates-catalog.md`,
+  `docs/security/threat-model.md` (generated; it lists the new rule) and the upgrade runbook
+  where they are sha-unmodified, and plants the empty `tools/field-notes.json` where an
+  install has none; absent, the file prints nothing. No chain step and no ramp (#61).
 
 ### Fixed
 
@@ -185,6 +242,40 @@ this heading if none does. -->
   files. The suites are seeded, so the change reaches new scaffolds only: `update` does not
   rewrite them, and the runbook's 1.1.0 section says how to pull them. No gate, chain step,
   hook rule or CI job changes (#58).
+- **`reviewer-verdicts` judges the branch: the reviewer ledger v2, behind a ramp until
+  2.1.0.** Through 1.0.4 the Stop step owed reviewers on the diff against `HEAD` and read
+  one prompt's ledger entries. A migration committed before the turn ended owed nobody (the
+  step printed "no reviewer is owed"), a deleted migration or policy owed nobody, a BLOCK
+  was forgotten when the user next spoke, a reviewer that blocked and then passed could not
+  clear its own BLOCK, a review of a tree that moved underneath it counted, and
+  `torvalds-reviewer` and `citation-verifier`, which the instructions summon before every
+  turn ends, were recorded and never judged. v2 fixes each of these. The owed set is the
+  new `reviewChanges()` in `tools/lib/git-diff.mjs`: the diff from the merge base with the
+  branch's upstream (the PR base in CI) to the working tree, plus untracked files, with
+  deletions and both sides of a rename and without `.harness/`. `changedFiles()` is
+  unchanged, so `diff-coverage` and `mutation-scope` do not move. The ledger is read for the
+  session. A BLOCK stands until the same `agent_id` returns PASS at the current digest, and
+  a PASS from another run is a second opinion that retracts nothing. A counted PASS whose
+  digest still matches stands for later prompts, and another session's PASS still counts
+  for nothing. `subagent-verdict.mjs` is now wired to `SubagentStart` as well, and branches
+  on `hook_event_name`. At dispatch it appends the reviewer's digest to
+  `.harness/reviewer-dispatch.jsonl`, never the ledger, and exits 0. At the verdict it
+  writes `path_state_start` and `path_state_stop` beside `path_state`, which keeps its 1.0.x
+  meaning. A PASS counts only when both equal the digest at Stop, and a verdict with no
+  start record reds with a finding that names the `SubagentStart` block. The new `wholeTurn`
+  class of `tools/reviewer-triggers.json` owes `torvalds-reviewer` and `citation-verifier`
+  on every non-empty diff, with a digest over the whole of it. One `rampNote` in the step
+  holds v2 as NOTEs on an install whose `baseVersion` is below 1.1.0, while the 1.0.x
+  judgement keeps enforcing there, and neither relaxation applies until v2 does. The
+  deadline is 2.1.0 rather than the next minor, because 2.0.0 is the release after this
+  one. With no merge base (no upstream, and not a CI pull-request run) v2 does not judge
+  and the step says so; every clean-scaffold run in this repository's CI takes that path.
+  `tools/reviewer-triggers.json` and `AGENTS.md` are seeded, so the runbook's 1.1.0 section
+  gives their new text, and the `SubagentStart` block for a forked `.claude/settings.json`.
+  The seeded `.gitignore` now also ignores `supabase/.branches/`, which `supabase start`
+  writes beside `supabase/.temp/`: an untracked file is part of the owed set, so without the
+  line a clean tree with the stack up owed both whole-turn reviewers. That line reaches fresh
+  scaffolds only, and the runbook gives it too (#70).
 
 ### What stays open, honestly
 
@@ -227,6 +318,42 @@ this heading if none does. -->
   transaction to build a fixture in, and what stays on the example there is #85's. The
   fixture regions are copies held to the skeleton by the factory test, not generated from
   it, because #59's generator copies spans verbatim and has no renaming step (#58).
+- **The `agent_id` resume probe has not been run.** v2 lets a reviewer clear its own BLOCK
+  when it is resumed and passes. The documentation says a resumed subagent keeps its ID,
+  and says nothing about whether `SubagentStart` fires for the resumed run. The session
+  that wrote 1.1.0 could not start Claude Code, so `design/CONTROL-PLANE-FACTS.md` Fact 14
+  records both points as documented only, and names the probe. The rule fails closed on
+  either answer: the BLOCK stands until a new session. The obligations row
+  `control-plane-facts-agent-id-resume-probe` holds the probe until it runs (#70).
+- **The owed set follows the upstream you set.** On a branch whose upstream is its own
+  remote branch, which is what `git push -u` sets, a push moves the merge base, and the
+  owed set shrinks to what is not pushed yet. With no upstream at all, v2 does not judge,
+  and the 1.0.x judgement, uncommitted changes only, decides. An upstream set to the branch
+  the work will merge into keeps the whole branch owed. No CI lane runs v2 against a real
+  ledger: the Stop-chain runs in this repository take the no-upstream path, so the unit
+  fixtures are its proof (#70).
+- **The SessionStart payload has not been probed.** The brief relies on three documented
+  facts: plain stdout on exit 0 reaches the context for this event, exit 2 does not block
+  it, and the payload's `source` values. The session that wrote this item could not start a
+  Claude Code session, so `design/CONTROL-PLANE-FACTS.md` Fact 15 records them as documented
+  only and names the probe, and the obligations row `control-plane-facts-sessionstart-probe`
+  holds it until it runs. The hook cannot block or leak on any answer: it never exits 2 and
+  never reads stdin (#60).
+- **An existing install gets the hook, not the script or the `AGENTS.md` line.**
+  `package.json` and `AGENTS.md` are seeded, so `update` only notes the new `harness:status`
+  script; the runbook's 1.1.0 section gives both to copy, and every owned text cites
+  `node tools/harness-status.mjs`, which `update` does plant. A hook parked beside a kept
+  settings fork is adopted by merging the `SessionStart` entry and running `update` again; a
+  hook moved out of `.harness/pending/` by hand instead has no manifest record, and `wiring`'s
+  parked NOTE, like `doctor`'s, still says to reconcile the parked copy into its real path
+  (#60).
+- **A field note reaches only the gates that fail through `tools/lib/gate.mjs`.** `format`,
+  `types`, `lint`, `dead-code`, `architecture`, `unit` and `mobile-unit` run third-party
+  tools, and `rls-isolation`'s runner prints its own `[rls]` lines, so none of them prints a
+  note. When a failed Stop step's output is long, the Stop hook keeps its head and tail, so a
+  note from a gate in the middle of a `validate --report-all` run may appear only in
+  `.harness/stop-output/<step>.log`. An agent cannot write a note, and nothing yet lets one
+  propose a note for a human to apply; that is #65's to add (#61).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -283,6 +410,52 @@ this heading if none does. -->
   enrolled: ZERO ROWS", "the write produced an audit row"), and the suites were green again
   after `db:reset`. A 1.0.4 install kept its suites on `update`; `--refresh-seeded` pulled
   an unedited one and parked an edited one, exiting 2 (#58).
+  For the reviewer ledger v2, `tests/gates/check-reviewer-verdicts.test.mjs` was red on 24
+  cases before the change: 23 new ones, and the hook's exact entry shape, which gains the v2
+  fields. The headline, in a clone whose branch tracks origin/main,
+  printed "reviewer-verdicts: OK — no reviewer is owed a verdict by this diff (0 changed
+  file(s))" for a committed migration; the rest could not reach `reviewChanges()` or the
+  v2 helpers, and the hook's entry had no v2 fields. `tests/hooks/hook-contract.test.mjs`
+  was red on a reviewer's `SubagentStart`, which exited 2 as a reviewer without a verdict,
+  and `tests/hooks/subagent-verdict-pathstate.test.mjs` on six cases. After the change each
+  v2 red runs as a NOTE on a 1.0.3 manifest, a plain red on a 1.1.0 one and `RAMP EXPIRED`
+  at harness 2.1.0, the two relaxations are green on 1.1.0 and red on 1.0.3, and the six
+  `ramp-ledger` pins that read the current fleet at older versions name the new site. A
+  zero-edit core scaffold took the no-upstream path in the canary baseline, the real Stop
+  hook with the stack up and the stamped Stop-chain run, each green. The stamped run counted
+  `supabase/.branches/_current_branch`, untracked after `supabase start`, as a changed file;
+  the case that pins the new `.gitignore` line was red on exactly that path before it. A
+  core scaffold rendered after the line, given an upstream and a migration committed before
+  Stop, left a clean tree, redded naming `security-reviewer` and both whole-turn reviewers,
+  and at `baseVersion` 1.0.4 printed the same three as NOTEs and passed (#70).
+  For the session-start brief, `tests/gates/harness-brief.test.mjs` could not load before
+  `tools/lib/harness-brief.mjs` existed, `tests/hooks/session-brief.test.mjs` failed its
+  eight cases on a missing hook, and `check-wiring.test.mjs` read `8 hooks wired`. With the
+  hook and the settings entry in and `update` unchanged, the two new update-provenance cases
+  for a kept settings fork were red: the hook landed in `.claude/hooks/`, and `wiring` on
+  that install printed `.claude/settings.json no longer wires session-brief`. After the
+  change each case is green: each validator refuses a newline, a sentence, a `..` segment
+  and a 161-character path, 1,000 parked files and 50 owed reviewers stay under the cap,
+  another session's cap mark prints `ended red at the cap`, the owed set follows the Stop
+  step's v1, v2 and ramp paths, the hook exits 0 on every damaged tree, prints no parked
+  file's content, writes nothing and prints the CLI's bytes, and a kept fork gets the hook
+  parked with `wiring` green on 8 hooks, while a pristine install gets both files and 9.
+  Two hook cases added in review were red first as well: run from a subdirectory the hook
+  printed `harness: unavailable`, and with a forked pre-1.1.0 `git-diff.mjs` on a live-v2
+  install it printed the 1.0.x set the Stop step does not decide on (#60).
+  For field notes, the new cases of `tests/gates/gate-helpers.test.mjs` were red first (9 of
+  38): the renderer and its cap constant did not exist, a failing gate printed nothing after
+  its FIX line with a note in place, and an invalid file printed no line. The `field-notes`
+  canary let a write to `tools/field-notes.json` through, and the canary closure named a
+  canary with no rule. With only the `SEEDED_FILES` entry in, the shipped-lists registry test
+  and `check-escape-registry` reported the file unguarded and missing from `ESCAPE_LISTS`,
+  and `check-seeded-migrations` reported it neither withheld nor planted; the rule, the
+  `advisory` kind and the plant each cleared its own finding. A 1.0.4 install updated by this
+  installer exited 0 and got the empty file planted, untracked and byte-identical to the
+  template, and `gate-integrity` stayed green over it. With an owned file tampered, a note
+  for `gate-integrity` printed one line after its FIX line, its newline collapsed and its
+  ESC bytes removed, and an invalid file printed the one invalid-JSON line there instead;
+  each run's output was otherwise byte-identical to the run without a file (#61).
 
 ## [1.0.4] — 2026-10-01
 

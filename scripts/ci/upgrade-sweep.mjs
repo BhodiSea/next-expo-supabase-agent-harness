@@ -337,7 +337,12 @@ const SWEEPS = {
   // arrival ramp has nothing to NOTE. The seven 1.0.0-opened sites that expire here need no
   // step of their own: '1.0.0' above is their sweep, and every leg that meets them crosses
   // 1.0.0 too. Empty, and written down, because computeSweepSet asks every version that
-  // withholds a path or parks a seeded-source fix for a reviewed posture.
+  // withholds a path or parks a seeded-source fix for a reviewed posture. The reviewer ledger
+  // v2 ramp (#70) opens here and adds no step either: reviewer-verdicts is a Stop step that
+  // no leg runs (scripts/ci/stop-side-expiries.json names its unit proof), and the three
+  // seeded texts it asks for, the wholeTurn class in tools/reviewer-triggers.json, the
+  // AGENTS.md sentence and the .gitignore line for supabase/.branches/, are copied by hand
+  // from the runbook's 1.1.0 section.
   '1.1.0': {},
 }
 

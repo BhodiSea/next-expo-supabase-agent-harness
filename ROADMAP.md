@@ -158,12 +158,23 @@ None of these tightens a gate for an existing install. Where one changes what
   example grants what it teaches (the three-role revoke, #74).
   ([N09](design/FIELD-UPGRADES-2026-09.md#n09-skill-references-generated-from-the-example),
   issue #59)
-- **A session-start brief and `harness:status`.** Enumerated, length-capped
-  install state at the start of a session and on demand.
-  ([N10](design/FIELD-UPGRADES-2026-09.md#n10-a-session-start-brief-and-a-status-command))
-- **Per-gate field notes.** A seeded, write-guarded file of short notes
-  printed under a gate's FAIL line.
-  ([N11](design/FIELD-UPGRADES-2026-09.md#n11-per-gate-field-notes-in-fail-lines))
+- **A session-start brief and `harness:status`.** A `SessionStart` hook and
+  `node tools/harness-status.mjs` print the same four fields: the version,
+  base and tier, the parked upgrades, how the last turn ended, and the
+  reviewers the current diff owes. Every value passes a closed validator, the
+  brief is capped at 1,200 characters, and the hook exits 0 on every path. An
+  install whose `.claude/settings.json` is a kept fork gets the hook parked
+  beside it until the `SessionStart` entry is merged. The `SessionStart`
+  payload is documented, not yet probed (CONTROL-PLANE-FACTS Fact 15).
+  ([N10](design/FIELD-UPGRADES-2026-09.md#n10-a-session-start-brief-and-a-status-command),
+  issue #60)
+- **Per-gate field notes.** A seeded, write-guarded `tools/field-notes.json`,
+  keyed on the gate token, adds one capped `FIELD-NOTE[<gate>]:` line after a
+  failing gate's FIX line. It never prints on a pass and cannot change a
+  verdict, and `update` plants the empty file. Steps whose scripts print no
+  gate FAIL line get no note.
+  ([N11](design/FIELD-UPGRADES-2026-09.md#n11-per-gate-field-notes-in-fail-lines),
+  issue #61)
 - **A fallback order for reviewer models.** An owed reviewer can still run
   when its pinned model is unavailable, and the ledger records which model
   ran.
@@ -198,11 +209,17 @@ Each of these changes a verdict for an existing install, so each ships as a
 dated note first and becomes enforcing when its ramp expires. Each needs a
 `gate-proposal` issue first.
 
-- **Reviewer ledger v2.** The owed set is keyed on the merge base and includes
-  deletions, a BLOCK persists until the reviewer that raised it passes, a
-  review of a moving tree does not count, and the every-turn reviewers are
-  judged. The tightening and the relaxing ship behind one ramp.
-  ([R01](design/FIELD-UPGRADES-2026-09.md#r01-reviewer-ledger-v2))
+- **Reviewer ledger v2.** `reviewer-verdicts` owes reviewers on the merge-base
+  diff with the branch's upstream, deletions included; a BLOCK stands across
+  the session's prompts until the same `agent_id` passes at the current digest;
+  a PASS counts only when the tree at its `SubagentStart`, at its verdict and
+  at Stop are the same; and `torvalds-reviewer` and `citation-verifier` are
+  owed on every non-empty diff. One ramp opened at 1.1.0 holds it as NOTEs below
+  that `baseVersion` until 2.1.0, with the 1.0.x judgement still enforcing
+  there. With no upstream it does not judge. Whether a resumed reviewer keeps
+  its `agent_id` is documented and not yet probed.
+  ([R01](design/FIELD-UPGRADES-2026-09.md#r01-reviewer-ledger-v2),
+  issue #70)
 - **A severity contract and a round budget.** Reviewer bodies say which
   severities block, and the hook bounds rounds without ever turning a spent
   budget into a pass.

@@ -37,6 +37,10 @@ artifacts/
 # this line. Found by the Stop-chain e2e's first run: the secrets gate redded
 # on docker.env the stack itself had just written.
 supabase/.temp/
+# The CLI's branch marker, also written by `supabase start` (1.1.0). Not a secret, but an
+# untracked file is a change: unignored, it made a clean tree with the stack up owe both
+# whole-turn reviewers under the reviewer ledger v2.
+supabase/.branches/
 # local auth material a developer may stage by hand while working against the
 # Supabase local stack (service-role keys from `supabase status`, minted JWTs).
 # Nothing generates this directory; it is ignored + guarded (guard rule

@@ -1684,15 +1684,26 @@ and re-plants `.github/workflows/quality-gate.yml`, `.github/workflows/osv-scan.
 `docs/security/threat-model.md`; the register itself is withheld (the subsection below).
 Post-merge lane reuse adds `tools/ci/lane-reuse.mjs` and `tools/lib/lane-reuse.mjs`, and
 re-plants `.github/workflows/quality-gate.yml`, `tools/ci/summarize-gate.mjs` and
-`docs/harness/README.md` (the last subsection before RECOVERY). The generated skill
+`docs/harness/README.md` (its subsection below). The generated skill
 references re-plant the vertical-slice skill's
 `.claude/skills/authoring-vertical-slice/references/dal-dto.md` and
 `references/migration-rls.md`, and the `.claude/agents/migration-rls-author.md` agent, and
 `update` re-records their `tools/agents.lock.json` entries. The fixture-table pgTAP suites
 re-plant `tools/conformance-map.json`, `tools/essential-eight.json` and
 `docs/harness/gates-catalog.md`, whose sentences now say where the MFA and audit proofs
-run; the suites themselves are seeded and stay as they are (the last subsection before
-RECOVERY). What you may notice afterwards:
+run; the suites themselves are seeded and stay as they are (their subsection below).
+The reviewer ledger v2 re-plants `tools/check-reviewer-verdicts.mjs`,
+`tools/lib/git-diff.mjs`, `tools/lib/reviewer-verdicts.mjs`,
+`.claude/hooks/subagent-verdict.mjs`, `.claude/settings.json`,
+`docs/harness/gates-catalog.md` and `docs/harness/README.md`; its three seeded texts are
+yours to copy (its subsection below). The session-start brief adds
+`.claude/hooks/session-brief.mjs`, `tools/harness-status.mjs` and
+`tools/lib/harness-brief.mjs`, and re-plants `.claude/settings.json` and
+`docs/harness/README.md`; its two seeded texts are yours to copy, and a forked settings file
+has one entry to merge (its subsection below). Field notes re-plant `tools/lib/gate.mjs`,
+`.claude/hooks/lib/guard-rules.mjs`, `docs/harness/gates-catalog.md` and
+`docs/security/threat-model.md`, and plant the seeded `tools/field-notes.json` when your
+install has none (its subsection below). What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1719,6 +1730,21 @@ RECOVERY). What you may notice afterwards:
   repository, not in your chain. If you edited one of the three owned files above, your copy
   stays, the new one is parked under `.harness/pending/`, and `update` exits 2 while it
   stays there.
+- **`reviewer-verdicts` prints NOTEs from the reviewer ledger v2.** On an install whose
+  `baseVersion` is below 1.1.0 they read `NOTE — the reviewer ledger v2 judgement … expires
+  in 2.1.0`, followed by each withheld finding; the 1.0.x judgement still decides. On a
+  branch with no upstream the step prints `NOTE — no merge base` instead. The subsection
+  on the reviewer ledger v2 below says what v2 judges and what to copy.
+- **Every session starts with a short brief in its context.** Four lines and up to ten
+  entries: the harness version, base and tier, the upgrades parked under
+  `.harness/pending/`, how the last turn in this directory ended, and the reviewers the
+  current diff owes. `node tools/harness-status.mjs` prints the same thing. It changes no
+  verdict. If your `.claude/settings.json` is a kept fork, you get no brief until you merge
+  its entry, and `update` parks the hook instead of writing it: the subsection on the brief
+  below says what to do.
+- **A new `tools/field-notes.json` appears, untracked, with an empty `notes` object.** It
+  changes nothing until you write a note in it: a failing gate then prints your note on the
+  line after its `FIX[<gate>]:` line. Commit it as it is, or with your first note.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -1827,6 +1853,229 @@ project that removes the example still edits those lines, as it did before. What
 suite does any more is write to `public.notes`: the example's own rank floors, MFA policy
 and audit trigger are judged statically, by `schema-rls` and `tenancy`, and the supabase-js
 suite under `tests/rls/` still reads it across tenants.
+
+### `reviewer-verdicts` judges the branch: the reviewer ledger v2 (a NOTE until 2.1.0)
+
+Through 1.0.4 the Stop step owed reviewers on the diff against `HEAD` and judged one
+prompt. A migration committed before the turn ended owed nobody, a deleted policy owed
+nobody, a BLOCK was forgotten when you next spoke, and a reviewer that blocked, read the fix
+and passed could not clear its own BLOCK. From 1.1.0 the step also runs the reviewer ledger
+v2, which judges the branch:
+
+- **The owed set is the diff from the merge base** with the branch's upstream (the PR base
+  in CI) to the working tree, plus untracked files, with deletions and both sides of a
+  rename included and `.harness/` left out. Committing does not clear it. Pushing clears
+  whatever the upstream then holds: on a branch whose upstream is its own remote branch,
+  which is what `git push -u` sets, the owed set after a push is only what is not pushed
+  yet. An upstream set to the branch you will merge into (`git branch
+  --set-upstream-to=origin/main`) keeps the whole branch owed.
+- **The ledger is read for the whole session.** A BLOCK stands until the SAME reviewer run
+  (its `agent_id`) returns PASS at the current tree. To clear one, fix what it named and
+  resume that reviewer with `SendMessage` to its `agent_id`. A fresh run of the same
+  reviewer is a second opinion and retracts nothing. A PASS whose tree has not moved stands
+  for later prompts of the same session; a PASS from another session counts for nothing.
+- **A PASS counts only for the tree it was dispatched on.** The hook now also runs on
+  `SubagentStart` and records the reviewer's digest in `.harness/reviewer-dispatch.jsonl`.
+  At the verdict it records the start and stop digests beside `path_state`, and the step
+  counts the PASS only when both equal the tree at Stop. Let a reviewer finish before you
+  edit the paths it is reading.
+- **`torvalds-reviewer` and `citation-verifier` are owed on every non-empty diff,** through
+  the new `wholeTurn` class of `tools/reviewer-triggers.json`.
+- **With no upstream, v2 does not judge.** A fresh `git init`, or a branch with no
+  upstream configured, prints `NOTE — no merge base` and keeps the 1.0.x judgement. Set
+  one with `git branch --set-upstream-to=<remote>/<branch you will merge into>`.
+
+**The ramp.** If your `baseVersion` is below 1.1.0, the 1.0.x judgement still decides and
+v2's findings print as NOTEs that expire in 2.1.0. Neither relaxation applies to you yet:
+a BLOCK still stands for the rest of its prompt, and a PASS from an earlier prompt still
+does not count. They arrive with the tightening, when you graduate or when the ramp
+expires. A fresh 1.1.0 scaffold is judged by v2 from the start.
+
+**What to do, in this order.**
+
+1. **If `update` parked `.claude/hooks/subagent-verdict.mjs`, merge it first.** A 1.0.x copy
+   of the hook reads a `SubagentStart` payload as a reviewer that ended without a verdict:
+   every reviewer dispatch then exits 2 (which `SubagentStart` does not block), appends a
+   bounce to `.harness/verdict-bounces.jsonl` and records a blocked turn outcome. If
+   `update` re-planted `.claude/settings.json` while it parked your hook, take the hook's
+   `SubagentStart` branch now, or remove the `SubagentStart` block until you do.
+2. **If `update` parked `.claude/settings.json`,** add the `SubagentStart` block beside
+   `SubagentStop`, after step 1. Without it every PASS reds, once v2 is live, with a finding
+   that names this block: `wiring` cannot see it, because the hook is already wired under
+   `SubagentStop`.
+
+   ```json
+   "SubagentStart": [
+     {
+       "hooks": [
+         {
+           "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/launch.mjs\" subagent-verdict.mjs",
+           "timeout": 10,
+           "type": "command"
+         }
+       ],
+       "matcher": "*"
+     }
+   ],
+   ```
+
+3. **Add the `wholeTurn` class to `tools/reviewer-triggers.json`.** The file is seeded, so
+   `update` never rewrites it. Put these two keys before `notTriggered`, and delete the
+   `torvalds-reviewer` and `citation-verifier` rows from `notTriggered`. Until you do, v2
+   owes no whole-turn reviewer on your install.
+
+   ```json
+   "wholeTurnMatching": "A reviewer in `wholeTurn` is OWED whenever the owed diff is non-empty, whatever its paths, and its verdict binds to a digest over the WHOLE diff: any later change anywhere in it sends the PASS stale. The owed diff is the one tools/lib/git-diff.mjs reviewChanges() returns (the merge-base diff with deletions, 1.1.0), and the class is judged by the reviewer ledger v2 in tools/check-reviewer-verdicts.mjs.",
+
+   "wholeTurn": [
+     {
+       "agent": "torvalds-reviewer",
+       "why": "AGENTS.md says it runs 'before finishing', which is EVERY turn. No path pattern expresses that: a path trigger would fire it on everything (noise) or on an arbitrary subset (a rule that reads as coverage and is not). Through 1.0.4 it sat in notTriggered for that reason, and its verdicts were recorded and never judged. The whole-turn class is the different mechanism a whole-turn obligation needed."
+     },
+     {
+       "agent": "citation-verifier",
+       "why": "Its definition says it MUST BE USED before finishing a feature, so it is summoned before a turn ends, like torvalds-reviewer, and until 1.1.0 its verdict was recorded and never judged. The `provenance` chain gate still reds tree-wide on an uncited decision site; this class judges the other half, that the reviewer which checks each citation resolves actually ran on this diff."
+     }
+   ],
+   ```
+
+4. **Update the `reviewer-verdicts` sentence in `AGENTS.md`.** Also seeded. In the Stop-chain
+   bullet, replace the text from "The last one is the only check" to "Triggers are reviewed
+   data in" with this, and keep a period at the end of the line that ends the bullet: a
+   backticked lowercase name before the first `(` would read to `docs-sync` as a Stop step.
+
+   ```
+   The last one is the only check in the
+   harness whose subject is the TURN rather than the tree: every reviewer whose
+   `MUST BE USED` paths this branch's diff touched must have returned
+   `VERDICT: PASS` on the tree it was dispatched on, recorded by the
+   SubagentStart and SubagentStop hooks (the diff runs from the merge base with
+   the branch's upstream and keeps deletions; `torvalds-reviewer` and
+   `citation-verifier` are owed on every non-empty diff; a BLOCK stands until the
+   same reviewer passes). Triggers are reviewed data in
+   ```
+
+5. **Ignore the local stack's branch marker.** `.gitignore` is seeded too. `supabase start`
+   writes `supabase/.branches/_current_branch` beside `supabase/.temp/`, and an untracked
+   file is part of the owed set, so without this line a clean tree with the stack up owes
+   both whole-turn reviewers. Add it under your `supabase/.temp/` line:
+
+   ```
+   supabase/.branches/
+   ```
+
+6. **Before you graduate, run the owed reviewers once more.** Entries a 1.0.x hook wrote
+   carry no v2 digests, so v2 counts none of them. Read what v2 would say off the NOTEs,
+   with an upstream set, and graduate when they are gone.
+
+### The session-start brief: `node tools/harness-status.mjs` and a SessionStart hook
+
+A SessionStart hook, `.claude/hooks/session-brief.mjs`, prints the harness brief into every
+session's context when it starts, resumes, clears, compacts or forks, and
+`node tools/harness-status.mjs` prints the same bytes in a terminal:
+
+```
+harness 1.1.0 (base 1.0.4) · tier standard · mode bootstrap
+parked: 1
+  - .claude/settings.json
+last turn in this directory: green
+reviewers owed by the current diff: 1
+  - security-reviewer (supabase/migrations/20260930000000_x.sql)
+```
+
+The hook blocks nothing, reads no stdin, writes nothing and exits 0 on every path. A value
+that fails its validator prints as `(unprintable)`, and a source that cannot be read prints
+`<field>: unavailable`. The owed reviewers are the set Stop step `reviewer-verdicts` decides
+on, so on a `baseVersion` below 1.1.0 they are the 1.0.x set until you graduate, and with no
+upstream they are the uncommitted changes only. `.claude/settings.json`,
+`tools/harness-status.mjs` and `tools/lib/harness-brief.mjs` are owned and reach you with
+this `update`. Three things do not:
+
+1. **The `harness:status` script.** `package.json` is seeded, so `update` only prints `new
+   template script not installed: "harness:status"`. Add it by hand if you want it; nothing
+   in the harness's own text depends on it, because every owned file cites
+   `node tools/harness-status.mjs`:
+
+   ```json
+   "harness:status": "node tools/harness-status.mjs",
+   ```
+
+2. **The `AGENTS.md` line.** Also seeded. Copy it into the Commands list if you want agents
+   told about the command; it spends one line of the file's `~350` budget:
+
+   ```
+   - `node tools/harness-status.mjs` — install state, parked files, last turn, reviewers owed.
+   ```
+
+   Do not write `pnpm harness:status` there unless you added the script: `docs-sync` reds
+   an `AGENTS.md` that advertises a script `package.json` lacks.
+
+3. **With a kept-fork `.claude/settings.json`, the hook itself.** `wiring` reds a hook file
+   in `.claude/hooks/` that nothing wires, so when `update` keeps your settings fork it parks
+   the new hook at `.harness/pending/.claude/hooks/session-brief.mjs`, beside the parked
+   `.harness/pending/.claude/settings.json`, and says so in a note; `wiring` stays green.
+   To adopt it, merge the `SessionStart` block from the parked settings into yours, beside
+   `PreToolUse` (the settings keep their events in alphabetical order), re-record your fork
+   (the 1.0.2 section, "Forking an owned file"), and run `update` again: with the entry in
+   your settings, `update` writes the hook and records it. Then delete both parked copies.
+   Do not move the parked hook into `.claude/hooks/` by hand: a hook placed there by hand has
+   no manifest record, so `gate-integrity` cannot hash it.
+
+   ```json
+   "SessionStart": [
+     {
+       "hooks": [
+         {
+           "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-brief.mjs\"",
+           "timeout": 10,
+           "type": "command"
+         }
+       ],
+       "matcher": ""
+     }
+   ],
+   ```
+
+   The command runs the hook directly, not through `launch.mjs`: SessionStart cannot block,
+   so the launcher's "failing closed, action blocked" would be false there.
+   `gate-integrity` accepts this form.
+
+### Field notes: `tools/field-notes.json`
+
+A place for what your project has learned about a gate in its own tree: the fixture it
+trips on, the fix that is usually right. `update` plants the empty skeleton when your
+install has none, and never touches one you already have. It stays untracked until you
+commit it. No gate judges its contents, so the planted skeleton cannot turn a validate red;
+the `format` step checks it like any JSON under `tools/`.
+
+```json
+{
+  "comment": "…",
+  "notes": {
+    "tenancy": "one line: what usually causes this red here, and the fix that is usually right"
+  }
+}
+```
+
+When that gate fails, its output ends with the usual `FIX[tenancy]:` line and then
+`FIELD-NOTE[tenancy]: <your text>`. Nothing else changes: the exit code, the finding and
+the FIX line are the same with or without a note, and a note never prints on a pass, a
+stamped run or a local skip.
+
+- **Key on the token the FAIL line prints** (`<gate>: FAIL`), which is not always the chain
+  step's name: the `docs-sync` step's scripts report as `docs-sync`, `essential-eight` and
+  `conformance-map`, and the scheduled floor review reports as `floor-review`. A key outside
+  `[a-z0-9-]`, and a value that is not a string, are ignored.
+- **One line of text.** Whitespace collapses to single spaces, control and format
+  characters are removed, and the text is cut at `FIELD_NOTE_MAX_CHARS` code points
+  (`tools/lib/gate.mjs`). A file that is not valid JSON prints one line saying so under
+  every failing gate, and no note.
+- **A human writes it.** The file is write-guarded (`field-notes`): its text reaches an
+  agent at the moment it decides how to make a red go away, so an agent cannot edit it.
+- **Where no note can print.** `format`, `types`, `lint`, `dead-code`, `architecture`,
+  `unit`, `mobile-unit` and `rls-isolation` print no `<gate>: FAIL` line, and a long failed
+  Stop step may keep a note only in `.harness/stop-output/<step>.log`. The catalog's
+  "Shared behavior" paragraph has the details.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

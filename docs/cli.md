@@ -52,6 +52,13 @@ incoming version is parked, whether or not upstream changed the file. A
 `removed` or `renamed` migration leaves such a file in place in the same case.
 The upgrade runbook's 1.0.4 section describes how to resolve it.
 
+When `update` keeps your `.claude/settings.json` (a fork, or a retrofit merge),
+a hook new in the incoming version that your settings do not wire is parked
+under `.harness/pending/.claude/hooks/` beside the parked settings instead of
+being written, because `wiring` reds a hook on disk that nothing wires. Merge
+its entry into your settings and run `update` again to have it written and
+recorded. The upgrade runbook's 1.1.0 section describes the flow.
+
 | Flag | Meaning |
 |---|---|
 | `--dir <path>` | Install to update. Default `.` |

@@ -188,17 +188,226 @@ const sha256 = (data) => createHash('sha256').update(data).digest('hex')
 export function pathStateDigest(agentType, triggers, files, readFileLike) {
   const reviewer = (triggers?.reviewers ?? []).find((r) => r?.agent === agentType)
   if (reviewer === undefined) return null
-  const owned = [...new Set((files ?? []).map((f) => String(f).split('\\').join('/')))]
-    .filter((f) => matchesAny(f, reviewer.paths) && !matchesAny(f, reviewer.except))
-    .sort()
+  const owned = posixSet(files).filter(
+    (f) => matchesAny(f, reviewer.paths) && !matchesAny(f, reviewer.except),
+  )
+  return digestPaths(owned, readFileLike)
+}
+
+/** @param {readonly string[]} files sorted, deduplicated, POSIX-normalized */
+function posixSet(files) {
+  return [...new Set((files ?? []).map((f) => String(f).split('\\').join('/')))].sort()
+}
+
+/**
+ * The hash both digests share: (path, content-sha256 | DELETED) pairs, NUL-delimited, over
+ * an already sorted list.
+ * @param {readonly string[]} paths @param {(path: string) => string|Uint8Array|null} readFileLike
+ */
+function digestPaths(paths, readFileLike) {
   const h = createHash('sha256')
-  for (const path of owned) {
+  for (const path of paths) {
     const content = readFileLike(path)
     h.update(
       `${path}\u0000${content === null || content === undefined ? 'DELETED' : sha256(content)}\n`,
     )
   }
   return h.digest('hex')
+}
+
+// ── THE REVIEWER LEDGER v2 (1.1.0) ──────────────────────────────────────────────────────
+// Pure helpers for the judgement tools/check-reviewer-verdicts.mjs runs behind its 1.1.0
+// ramp, and for the two records .claude/hooks/subagent-verdict.mjs writes. Both ends reach
+// them through a namespace import, so an install whose copy of this file predates them
+// still loads (the 1.0.2 rule for this lib).
+
+/** @param {{wholeTurn?: Array<{agent?: string}>}|null} triggers @param {string} agentType */
+const isWholeTurn = (triggers, agentType) =>
+  (triggers?.wholeTurn ?? []).some((w) => w?.agent === agentType)
+
+/**
+ * The v2 tree state a verdict binds to: pathStateDigest for a path-triggered reviewer, the
+ * same hash over EVERY path in `files` for a reviewer in the `wholeTurn` class, and null for
+ * an agent the table names nowhere. `files` is reviewChanges()'s list, which is what makes
+ * this digest differ from `path_state` (v1, over changedFiles()): it keeps deletions and
+ * keys on the merge base, so it goes in its own ledger fields and `path_state` keeps its v1
+ * meaning for a pre-1.1.0 judge.
+ * @param {string} agentType
+ * @param {{reviewers?: Array<{agent: string, paths?: string[], except?: string[]}>, wholeTurn?: Array<{agent?: string}>}|null} triggers
+ * @param {readonly string[]} files
+ * @param {(path: string) => string|Uint8Array|null} readFileLike
+ * @returns {string|null}
+ */
+export function reviewStateDigest(agentType, triggers, files, readFileLike) {
+  if (isWholeTurn(triggers, agentType)) return digestPaths(posixSet(files), readFileLike)
+  return pathStateDigest(agentType, triggers, files, readFileLike)
+}
+
+/**
+ * owedBy, plus the `wholeTurn` class: a reviewer in it is owed whenever the owed diff is
+ * non-empty, whatever the paths. An install whose seeded tools/reviewer-triggers.json
+ * predates the class owes none of them, until it adds the class (the 1.1.0 runbook section).
+ * @param {string[]} files
+ * @param {{reviewers?: Array<{agent: string, paths: string[], except?: string[], why?: string}>, wholeTurn?: Array<{agent?: string, why?: string}>}|null} triggers
+ */
+export function owedByTurn(files, triggers) {
+  const owed = owedBy(files, triggers?.reviewers ?? []).map((o) => ({ ...o, wholeTurn: false }))
+  if (files.length === 0) return owed
+  for (const w of triggers?.wholeTurn ?? []) {
+    if (typeof w?.agent !== 'string' || owed.some((o) => o.agent === w.agent)) continue
+    owed.push({ agent: w.agent, because: files[0], why: w.why, wholeTurn: true })
+  }
+  return owed
+}
+
+/** @param {string} line @returns {Record<string, unknown>|null} */
+function parseObject(line) {
+  try {
+    const parsed = JSON.parse(line)
+    return parsed !== null && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The ledger, narrowed to ONE SESSION (v2), in ledger order. Malformed lines keep readLedger's
+ * bounds exactly: a line that does not parse is skipped and named, and a mis-shaped line
+ * that claims THIS turn (session + prompt) fails closed, so a torn line from an earlier
+ * prompt still cannot brick the rest of the session. Session scoping stays because
+ * concurrent sessions share the file; prompt_id stays in each entry.
+ * @param {string} raw @param {string} sessionId @param {string} promptId @param {string} [label]
+ * @returns {{ entries: object[], error: string|null, skipped: string[] }}
+ */
+export function readSessionLedger(
+  raw,
+  sessionId,
+  promptId,
+  label = '.harness/reviewer-ledger.jsonl',
+) {
+  const turn = readLedger(raw, sessionId, promptId, label)
+  if (turn.error !== null) return turn
+  const entries = raw
+    .split('\n')
+    .map(parseObject)
+    .filter(
+      (e) =>
+        e !== null &&
+        e.session_id === sessionId &&
+        typeof e.agent_type === 'string' &&
+        typeof e.verdict === 'string',
+    )
+  return { entries, error: null, skipped: turn.skipped }
+}
+
+/**
+ * The digest the LATEST SubagentStart record for this (session_id, agent_id) holds, or null
+ * when there is no such record, it carries no digest, or the id is not a string. The latest
+ * one, because a resumed reviewer keeps its agent_id (design/CONTROL-PLANE-FACTS.md, Fact 14)
+ * and its new run is the one being judged.
+ * @param {string} raw .harness/reviewer-dispatch.jsonl
+ * @param {unknown} sessionId @param {unknown} agentId
+ * @returns {string|null}
+ */
+export function latestDispatchDigest(raw, sessionId, agentId) {
+  if (typeof agentId !== 'string' || typeof sessionId !== 'string') return null
+  const record = raw
+    .split('\n')
+    .map(parseObject)
+    .filter((r) => r !== null && r.session_id === sessionId && r.agent_id === agentId)
+    .at(-1)
+  return typeof record?.path_state_start === 'string' ? record.path_state_start : null
+}
+
+/**
+ * A PASS the v2 judgement COUNTS: the digest at dispatch, the digest at the verdict and the
+ * digest now are one and the same. Anything else, a verdict outside the vocabulary included,
+ * counts for nothing.
+ * @param {Record<string, unknown>} e @param {string|null} current
+ */
+const isCountedPass = (e, current) =>
+  e.verdict === 'PASS' &&
+  typeof current === 'string' &&
+  e.path_state_stop === current &&
+  e.path_state_start === current
+
+/**
+ * The BLOCKs that still stand: a BLOCK is cleared only by a LATER counted PASS from the
+ * SAME agent_id. A PASS from another run is a second opinion and retracts nothing, and a
+ * BLOCK with no agent_id can never be cleared.
+ * @param {Array<Record<string, unknown>>} mine this reviewer's session entries, in order
+ * @param {string|null} current
+ */
+function standingBlocks(mine, current) {
+  return mine.filter(
+    (e, i) =>
+      e.verdict === 'BLOCK' &&
+      !mine
+        .slice(i + 1)
+        .some(
+          (later) =>
+            typeof e.agent_id === 'string' &&
+            later.agent_id === e.agent_id &&
+            isCountedPass(later, current),
+        ),
+  )
+}
+
+/** @param {{agent: string, because: string, why?: string, wholeTurn?: boolean}} owed */
+function owedClause(owed) {
+  return owed.wholeTurn === true
+    ? `it is a whole-turn reviewer, owed on every non-empty diff (\`${owed.because}\` is one changed path)`
+    : `\`${owed.because}\` is why it is owed`
+}
+
+/**
+ * Why this reviewer's latest PASS does not count, one finding per cause.
+ * @param {{agent: string, because: string, why?: string, wholeTurn?: boolean}} owed
+ * @param {Record<string, unknown>|undefined} pass @param {string|null} current
+ */
+function uncountedFinding(owed, pass, current) {
+  const a = owed.agent
+  if (pass === undefined) {
+    return `${a} has not returned a verdict in this session, and ${owedClause(owed)}. ${owed.why ?? ''} Run it, then end the turn.`
+  }
+  if (typeof pass.path_state_stop !== 'string') {
+    return `${a} returned PASS with no ledger v2 binding: a hook from before 1.1.0 wrote the entry, or the hook could not compute the digest. An unverifiable attestation fails toward re-review: run ${a} again.`
+  }
+  if (typeof pass.path_state_start !== 'string') {
+    return `${a} returned PASS with no dispatch record, so nothing recorded the tree it started on, and a verdict with no start record is not counted. The SubagentStart block in .claude/settings.json must run .claude/hooks/subagent-verdict.mjs, the same command as the SubagentStop block: add it (the 1.1.0 section of docs/runbooks/harness-upgrade.md has the block), then run ${a} again.`
+  }
+  if (pass.path_state_start !== pass.path_state_stop) {
+    return `${a} reviewed a moving tree: the paths it was owed for changed between its dispatch and its verdict, so its PASS is not counted. Run ${a} again, and let it finish before editing those paths.`
+  }
+  if (typeof current !== 'string') {
+    return `${a} is owed a verdict, but the current digest for it cannot be computed from tools/reviewer-triggers.json, so no PASS can be matched to this tree.`
+  }
+  return `${a} returned PASS for a different tree than the one this branch is shipping: the paths that summoned it (\`${owed.because}\` among them) changed after its PASS was recorded. Run ${a} again, then end the turn.`
+}
+
+/**
+ * The v2 verdict for ONE owed reviewer, over this session's entries: null when it is
+ * satisfied, else the finding. A standing BLOCK comes first; then any counted PASS
+ * satisfies it, from this prompt or an earlier one (a SETTLED PASS: its digests still match);
+ * otherwise the latest PASS says why it does not count.
+ * @param {{agent: string, because: string, why?: string, wholeTurn?: boolean}} owed
+ * @param {Array<Record<string, unknown>>} entries readSessionLedger's entries
+ * @param {string|null} current reviewStateDigest for this reviewer, now
+ * @returns {string|null}
+ */
+export function judgeReviewerV2(owed, entries, current) {
+  const mine = entries.filter((e) => e.agent_type === owed.agent)
+  const standing = standingBlocks(mine, current)
+  if (standing.length > 0) {
+    const ids = [
+      ...new Set(
+        standing.map((e) => (typeof e.agent_id === 'string' ? e.agent_id : 'none recorded')),
+      ),
+    ]
+    return `${owed.agent} returned VERDICT: BLOCK (agent_id ${ids.join(', ')}) in this session, and that reviewer has not returned PASS at the current tree since. A BLOCK stands across prompts until the SAME reviewer passes: fix what it named, then resume that reviewer (SendMessage to its agent_id) so it re-reviews. A fresh run of ${owed.agent} is a second opinion and retracts nothing.`
+  }
+  if (mine.some((e) => isCountedPass(e, current))) return null
+  return uncountedFinding(owed, mine.filter((e) => e.verdict === 'PASS').at(-1), current)
 }
 
 /**

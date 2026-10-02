@@ -61,6 +61,7 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
 - `pnpm db:up` (`supabase start`) · `pnpm db:reset` · `pnpm db:test` (pgTAP) ·
   `pnpm db:types` (regenerate the Supabase type mirror) · `pnpm gen` (types + tokens).
 - `pnpm dev:web` · `pnpm dev:mobile` · `pnpm mutation`.
+- `node tools/harness-status.mjs` — install state, parked files, last turn, reviewers owed.
 
 ## The validate contract (YOU MUST)
 
@@ -89,9 +90,13 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   `mobile-unit`, `diff-coverage`, `duplication`, `i18n`, `test-quality`,
   `mobile-perf`, `reviewer-verdicts`. The last one is the only check in the
   harness whose subject is the TURN rather than the tree: every reviewer whose
-  `MUST BE USED` paths this diff touched must have returned `VERDICT: PASS`,
-  recorded by the SubagentStop hook. Triggers are reviewed data in
-  `tools/reviewer-triggers.json`. They are FROZEN in `tools/stop.floor.json`: the Stop hook runs
+  `MUST BE USED` paths this branch's diff touched must have returned
+  `VERDICT: PASS` on the tree it was dispatched on, recorded by the
+  SubagentStart and SubagentStop hooks (the diff runs from the merge base with
+  the branch's upstream and keeps deletions; `torvalds-reviewer` and
+  `citation-verifier` are owed on every non-empty diff; a BLOCK stands until the
+  same reviewer passes). Triggers are reviewed data in
+  `tools/reviewer-triggers.json`. The steps are FROZEN in `tools/stop.floor.json`: the Stop hook runs
   the UNION of the local config and that floor, so a project may APPEND a step
   and may never subtract one.
 - **Toolchain asymmetry:** gates needing a live database, an install, or a

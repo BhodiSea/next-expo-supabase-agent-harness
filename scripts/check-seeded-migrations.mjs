@@ -134,6 +134,11 @@ const DELIBERATE_PLANT = [
       'The vertical-anatomy escape (boundaries part 3, 0.9.5). check-workspace-deps treats an ABSENT allow-file as an EMPTY allowlist — a deliberate absence tolerance, because pre-0.9.5 installs meet the laws as ramped NOTEs and must not red on a missing file the release never delivered. Planted anyway, per the escape-file convention (approved-tools.json, web-route-allowlist.json): the gate’s failure text asks the consumer to add a reviewed {package, law, reason} entry, and a consumer should edit a planted skeleton with its schema in the comment rather than reconstruct one from a failure message. Seeded not owned for the standard reason: sha-pinning a file you are told to edit calls the edit tampering.',
   },
   {
+    file: 'template/base/tools/field-notes.json',
+    reason:
+      'Per-gate field notes (1.1.0). When the file is ABSENT, no note prints and no verdict changes: tools/lib/gate.mjs reads it only on a failure path, after the FAIL and FIX lines, and treats absence as no notes. Planted anyway, on the vertical-anatomy-allow precedent above: the planted skeleton carries its own schema in its comment (the token to key on, the cap, the steps that print no gate FAIL line), which is where a project writing its first note should read it. `update` plants a seeded file only when it is absent, so a project that already has one keeps it. The planted file stays untracked until the consumer commits it, and it is not in ESCAPE_LISTS (a note exempts nothing and raises no budget), so gate-integrity’s uncommitted-escape rule never reads it: planting it cannot red a validate.',
+  },
+  {
     file: 'template/stack/packages/platform/env/src/optional.ts',
     reason:
       'The optional server section of the env register (0.9.5, the env-register-gate discharge). PLANT, because the 0.9.5 seededSourceFixes entry instructs existing installs to route the seeded rate-limit runtime and the tRPC route through @app/env/optional — an instruction that is only applicable if the module it imports exists. The file is a contract (four optional schema lines + the both-or-neither pair invariant), names nothing project-specific, and `update` plants seeded files only when ABSENT, so a consumer who already built their own optional section keeps it untouched.',

@@ -9,13 +9,23 @@
 // that never changes is a timestamp wearing a hash's clothes. The judge half — a PASS whose
 // binding is stale, null, or missing fails toward re-review — lives with the Stop step's
 // suite; this file proves the writer records what that judge reads.
+//
+// 1.1.0 (#70) adds the DISPATCH half of the ledger v2 binding. SubagentStart is wired to the
+// same hook, which appends the reviewer's v2 digest (reviewStateDigest over reviewChanges())
+// to .harness/reviewer-dispatch.jsonl, keyed by session_id and agent_id and never into the
+// ledger. At SubagentStop the hook copies the latest matching record's digest into the entry
+// as `path_state_start`, beside `path_state_stop`, the same digest taken at the verdict. The
+// judge counts a verdict only when the two are equal, so a review of a moving tree does not
+// count, and a verdict with no start record does not either.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import * as gitDiff from '../../template/base/tools/lib/git-diff.mjs'
+import * as verdicts from '../../template/base/tools/lib/reviewer-verdicts.mjs'
 import { pathStateDigest } from '../../template/base/tools/lib/reviewer-verdicts.mjs'
 
 const HOOK = fileURLToPath(
@@ -104,16 +114,21 @@ test('the binding MOVES when the owed file moves — it is a tree state, not a t
 })
 
 test('a reviewer the trigger table does not name records path_state NULL, not a guess', () => {
-  // torvalds-reviewer is on the roster (disallowedTools: Write, Edit) but deliberately
-  // absent from reviewer-triggers.json — a whole-turn obligation no path glob expresses.
-  // Its verdict is still recorded; its binding is null, which the judge reads as
-  // "unverifiable" — and it owes nothing path-triggered, so null never blocks it.
+  // A roster reviewer (disallowedTools: Write, Edit) that reviewer-triggers.json names
+  // nowhere. Through 1.0.4 this case used torvalds-reviewer; 1.1.0 names it in the
+  // wholeTurn class. The verdict is still recorded; both bindings are null, which the judge
+  // reads as "unverifiable", and an agent no table names is never owed.
   const dir = fixture()
-  const r = runHook(dir, payload('torvalds-reviewer'))
+  writeFileSync(
+    join(dir, '.claude/agents/unnamed-reviewer.md'),
+    '---\nname: unnamed-reviewer\ndescription: a reviewer no trigger names\ntools: Read\ndisallowedTools: Write, Edit\n---\n\nEnd with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`.\n',
+  )
+  const r = runHook(dir, payload('unnamed-reviewer'))
   assert.equal(r.code, 0, r.out)
   const [line] = ledgerLines(dir)
-  assert.equal(line.agent_type, 'torvalds-reviewer')
+  assert.equal(line.agent_type, 'unnamed-reviewer')
   assert.equal(line.path_state, null)
+  assert.equal(line.path_state_stop, null)
 })
 
 test('a missing trigger table records NULL rather than crashing the verdict write', () => {
@@ -126,4 +141,108 @@ test('a missing trigger table records NULL rather than crashing the verdict writ
   const [line] = ledgerLines(dir)
   assert.equal(line.verdict, 'PASS')
   assert.equal(line.path_state, null)
+})
+
+// ── the dispatch record (1.1.0, #70) ─────────────────────────────────────────────────
+
+const startPayload = (agent_type, over = {}) => ({
+  hook_event_name: 'SubagentStart',
+  agent_type,
+  agent_id: 'a1',
+  session_id: 's1',
+  prompt_id: 'p1',
+  ...over,
+})
+
+const dispatchLines = (dir) =>
+  readFileSync(join(dir, '.harness/reviewer-dispatch.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((l) => JSON.parse(l))
+
+/** The v2 digest the hook takes, by the same two lib calls, over the tree as it is now. */
+function v2Digest(dir, agent) {
+  const { files } = gitDiff.reviewChanges({ cwd: dir, env: {} })
+  return verdicts.reviewStateDigest(agent, TRIGGERS, files, (p) =>
+    existsSync(join(dir, p)) ? readFileSync(join(dir, p)) : null,
+  )
+}
+
+test('SubagentStart records the dispatch digest, and SubagentStop copies it into path_state_start', () => {
+  const dir = fixture()
+  const start = runHook(dir, startPayload('security-reviewer'))
+  assert.equal(start.code, 0, start.out)
+  assert.equal(existsSync(join(dir, '.harness/reviewer-ledger.jsonl')), false, 'no ledger line at dispatch')
+  const [record] = dispatchLines(dir)
+  const expected = v2Digest(dir, 'security-reviewer')
+  assert.equal(typeof expected, 'string')
+  assert.deepEqual(record, {
+    session_id: 's1',
+    prompt_id: 'p1',
+    agent_type: 'security-reviewer',
+    agent_id: 'a1',
+    path_state_start: expected,
+  })
+  const stop = runHook(dir, payload('security-reviewer'))
+  assert.equal(stop.code, 0, stop.out)
+  const [line] = ledgerLines(dir)
+  assert.equal(line.path_state_start, expected)
+  assert.equal(line.path_state_stop, expected)
+})
+
+test('a tree that moves between dispatch and verdict records two different digests', () => {
+  const dir = fixture()
+  runHook(dir, startPayload('security-reviewer'))
+  writeFileSync(join(dir, CHANGED), '-- a change\n-- edited while the reviewer was reading\n')
+  const r = runHook(dir, payload('security-reviewer'))
+  assert.equal(r.code, 0, r.out)
+  const [line] = ledgerLines(dir)
+  assert.equal(typeof line.path_state_start, 'string')
+  assert.notEqual(line.path_state_start, line.path_state_stop)
+  assert.equal(line.path_state_stop, v2Digest(dir, 'security-reviewer'))
+})
+
+test('no start record: path_state_start is NULL, and the verdict is still recorded', () => {
+  const dir = fixture()
+  // Another session's and another agent's dispatch records must not stand in for this one.
+  runHook(dir, startPayload('security-reviewer', { session_id: 's2' }))
+  runHook(dir, startPayload('security-reviewer', { agent_id: 'a2' }))
+  const r = runHook(dir, payload('security-reviewer'))
+  assert.equal(r.code, 0, r.out)
+  const [line] = ledgerLines(dir)
+  assert.equal(line.verdict, 'PASS')
+  assert.equal(line.path_state_start, null)
+  assert.equal(typeof line.path_state_stop, 'string')
+})
+
+test('the LATEST dispatch record for the session and agent_id is the one copied (a resumed reviewer)', () => {
+  const dir = fixture()
+  runHook(dir, startPayload('security-reviewer'))
+  writeFileSync(join(dir, CHANGED), '-- a change\n-- the fix a BLOCK asked for\n')
+  runHook(dir, startPayload('security-reviewer'))
+  const r = runHook(dir, payload('security-reviewer'))
+  assert.equal(r.code, 0, r.out)
+  const [line] = ledgerLines(dir)
+  assert.equal(line.path_state_start, line.path_state_stop)
+  assert.equal(dispatchLines(dir).length, 2)
+})
+
+test('a whole-turn reviewer records a v2 digest over the whole diff; its v1 path_state stays NULL', () => {
+  const dir = fixture()
+  writeFileSync(join(dir, 'notes.md'), 'a change no path trigger owns\n')
+  runHook(dir, startPayload('torvalds-reviewer'))
+  const r = runHook(dir, payload('torvalds-reviewer'))
+  assert.equal(r.code, 0, r.out)
+  const [line] = ledgerLines(dir)
+  assert.equal(line.path_state, null, 'path_state keeps its v1 meaning')
+  assert.equal(typeof line.path_state_stop, 'string')
+  assert.equal(line.path_state_start, line.path_state_stop)
+  assert.equal(line.path_state_stop, v2Digest(dir, 'torvalds-reviewer'))
+})
+
+test('a non-reviewer SubagentStart is not this hook’s business: no dispatch record', () => {
+  const dir = fixture()
+  const r = runHook(dir, startPayload('dal-author'))
+  assert.equal(r.code, 0, r.out)
+  assert.equal(existsSync(join(dir, '.harness/reviewer-dispatch.jsonl')), false)
 })
