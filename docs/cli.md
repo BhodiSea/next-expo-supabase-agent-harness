@@ -80,7 +80,8 @@ path and the manifest are still restored.
 
 `doctor [--dir .]` reports whether an install is healthy. It lists each
 re-recorded fork of a harness-owned file as `info`, which does not change the
-exit code.
+exit code. It also lists, as `info`, each register proposal waiting in
+`harness-proposals/` for [`apply-proposal`](#apply-proposal-id).
 
 It also prints a toolchain report as `info` lines. For `node`, `pnpm`, the
 Supabase CLI (the workspace copy in `node_modules/.bin` and the one on `PATH`)
@@ -107,6 +108,52 @@ are clean. It runs validate and refuses while any ramp note remains.
 ### `enable <module>` and `disable <module>`
 
 Add or remove one opt-in module in an existing install.
+
+### `apply-proposal [<id>]`
+
+Apply a register edit an agent staged for you. The write guard denies an agent
+every reviewed register under `tools/` (the allowlists, budgets and registers).
+Instead of asking you to type the edit, or to relaunch the session with
+`HARNESS_ALLOW_SELF_EDIT=1`, an agent writes the whole proposed file as one JSON
+document in `harness-proposals/<id>.json`, a committed directory outside every
+path the guards protect:
+
+```json
+{
+  "version": 1,
+  "target": "tools/i18n-allow.json",
+  "reason": "Why the register should change.",
+  "base": "<output of git rev-parse HEAD:tools/i18n-allow.json, or null if the file is not in HEAD>",
+  "content": "<the whole proposed file>"
+}
+```
+
+With no id, `apply-proposal` lists the pending proposals. With an id it
+validates the proposal, prints its reason and a `git diff --no-index` of the
+current file against the proposed one, and asks you to type the target path.
+Only that answer writes the file. It then deletes the proposal and prints
+`commit <target>`. The register is left uncommitted, and `gate-integrity` fails
+on an uncommitted escape list until you commit it.
+
+It refuses, exits 1 and writes nothing when the target is not a register a
+proposal may target, when the id or the target resolves outside `--dir`, when
+`content` is not JSON, when `base` does not equal `git rev-parse HEAD:<target>`
+(a null `base` for a file that is in `HEAD`, or a non-null one for a file that
+is not, included), when the target has uncommitted changes, when stdin or
+stdout is not a terminal, and when the reason, target or content carries a
+control or bidirectional-format character. The base and uncommitted-changes
+checks run again after you answer. A proposal may target the escape lists in
+`tools/lib/enforcement-surface.mjs`, except `tools/perf-baseline.json` and
+`tools/mutation-baseline.json`, which only their generators write, plus
+`tools/field-notes.json`. The bash guard denies an agent this command
+(`apply-proposal-invocation`).
+
+| Flag | Meaning |
+|---|---|
+| `--dir <path>` | The install. Default `.` |
+| `--dry-run` | Print the reason and the diff, ask nothing and write nothing. |
+
+There is no `--yes`, and `--yes` or `--force` is refused.
 
 ## Modules
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // next-expo-supabase-agent-harness installer.
 //   npx --yes github:<owner>/next-expo-supabase-agent-harness#<tag> <command> [flags]
-// Commands: init | update | doctor | graduate | enable <module> | disable <module>
+// Commands: init | update | doctor | graduate | enable <module> | disable <module> |
+//           apply-proposal [<id>]
 // Reference: docs/cli.md (held to this file by tests/gates/cli-docs-sync.test.mjs)
 import { parseArgs } from 'node:util'
 import { resolve } from 'node:path'
@@ -62,6 +63,10 @@ Usage:
            store-metadata, ci-provenance, gate-a11y-deep, crash-reporting,
            push-notifications, eval-live, observability, e2ee)
   disable  <module>
+  apply-proposal [<id>] [--dir .] [--dry-run]  (a human applies a register
+           edit an agent staged in harness-proposals/: shows the reason and
+           the diff, asks you to type the target path, writes it; no id lists
+           them. Needs a terminal. There is no --yes)
 
 Placeholders: PROJECT_NAME PROJECT_SLUG APP_IDENTIFIER APP_SCHEME WEB_ORIGIN
               DESIGN_TOKENS(default|metal) SUPABASE_PROJECT_REF GITHUB_OWNER
@@ -90,6 +95,9 @@ try {
   } else if (command === 'graduate') {
     const { graduate } = await import('./commands/graduate.mjs')
     code = await graduate(opts)
+  } else if (command === 'apply-proposal') {
+    const { applyProposal } = await import('./commands/apply-proposal.mjs')
+    code = await applyProposal(opts, positionals[1])
   } else if (command === 'enable' || command === 'disable') {
     const { enable } = await import('./commands/enable.mjs')
     code = await enable(opts, positionals[1], command === 'enable')

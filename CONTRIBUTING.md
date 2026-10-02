@@ -89,7 +89,7 @@ node scripts/check-rule-integrity.mjs      # the shipped boundary rules cannot b
 # remembered. check-ramp-ledger, check-dependency-channel and check-seeded-migrations
 # need full git history (fetch-depth: 0) and SKIP LOUDLY without a previous release tag
 # rather than passing.
-node scripts/check-escape-registry.mjs     # SEEDED_FILES / ESCAPE_LISTS / WRITE_PROTECTED reconcile
+node scripts/check-escape-registry.mjs     # SEEDED_FILES / ESCAPE_LISTS / WRITE_PROTECTED / PROPOSABLE reconcile
 node scripts/check-tier-coverage.mjs       # every one-surface gate declares its surface
 node scripts/check-ramp-ledger.mjs         # no never-armed ramp; the expiry population is derived
 node scripts/check-dependency-channel.mjs  # every owned-config dependency has a channel to an EXISTING install

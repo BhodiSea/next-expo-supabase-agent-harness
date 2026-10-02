@@ -168,7 +168,9 @@ substring checks; the settings.json deny list and CI are the primary controls. D
 `rm -rf`, force-push, hard reset, `--no-verify` commits, fork bombs, reading `.env*` /
 `.dev-auth/`, `knip --fix`, bulk `pnpm update` (Renovate-owned), destructive
 raw SQL via psql, and any shell contact with store/signing credentials (`EXPO_TOKEN`,
-keystore/keychain material, store API keys — those live in CI secrets only).
+keystore/keychain material, store API keys — those live in CI secrets only). Since 1.1.0 it
+also denies the installer's `apply-proposal` verb, which only a human runs (see
+"Proposing a register edit" under Tamper evidence).
 
 **It matches three tools, not one (0.6.0).** Through 0.5.0 the matcher was the single word
 `Bash`, and both omissions were live bypasses rather than theoretical ones. `Monitor` runs a
@@ -245,6 +247,32 @@ The layers, in order of engagement:
    snapshot, fail-closed. Local bypasses change nothing about what merges.
 5. **CODEOWNERS** — harness-owned paths and auth/data surfaces require sign-off from
    {{SECURITY_OWNERS}}, so even an evident tamper needs a human accomplice to land.
+
+**Proposing a register edit (1.1.0).** Layer 2 denies an agent every reviewed register
+under `tools/`: the allowlists, the budgets and the registers such as
+`tools/i18n-allow.json`, `tools/approved-tools.json` or `tools/mcp/corpus/project.json`.
+When an agent has a reason to change one, it does not describe the edit in prose and it does
+not ask for `HARNESS_ALLOW_SELF_EDIT=1`, which would lift the guard for every protected path
+at once. It writes the whole proposed file as one JSON document,
+`harness-proposals/<id>.json`, with five fields: `version` (1), `target` (the register's
+path), `reason`, `base` (the output of `git rev-parse HEAD:<target>`, or `null` when the
+file is not in `HEAD`) and `content` (the whole proposed file, as a string). It writes it
+the way `JSON.stringify(proposal, null, 2)` prints it, with one trailing newline, because
+`format` checks it. `harness-proposals/` is committed and outside every path the deny list,
+the write guard and the bash guard name, so staging narrows no layer, and a proposal is
+inert: no gate reads it. A human then runs
+`npx next-expo-supabase-agent-harness apply-proposal <id>` in a terminal. It shows the
+reason and a diff of the current file against the proposed one, and writes the file only
+after the human types the target path. `--dry-run` shows the same and writes nothing; with
+no id it lists the pending proposals, which `doctor` also lists as `info`. It refuses a
+target a proposal may not change (a proposal may target the escape lists in
+`tools/lib/enforcement-surface.mjs` and `tools/field-notes.json`, but not
+`tools/perf-baseline.json` or `tools/mutation-baseline.json`, which only their generators
+write), a `base` that is not the committed file's blob, a target with uncommitted changes,
+and a stdin or stdout that is not a terminal. The bash guard's `apply-proposal-invocation`
+rule denies an agent the command itself. The written register is left uncommitted, so
+`gate-integrity` fails until a human commits it, and the commit carries it into the pull
+request under CODEOWNERS.
 
 ## Skip-local / fail-closed-CI asymmetry
 

@@ -381,6 +381,22 @@ const RULE_CANARIES = {
     bashAllow('node tools/gen-action-inventory.mjs'),
     bashAllow('node tools/check-mutation-ratchet.mjs --write', SELF_EDIT),
   ],
+  // 1.1.0 (#65). Applying a staged register edit is the decision the write guard reserves
+  // for a human; the verb's own TTY check is one tripwire and this rule is the second. It
+  // matches `apply-proposal` only as a WHOLE argument, so the verb's own test and lint
+  // commands, which name it inside a path, stay allowed in this repository's sessions too.
+  'apply-proposal-invocation': [
+    bashDeny('npx --yes github:BhodiSea/next-expo-supabase-agent-harness#v1.1.0 apply-proposal --dir .'),
+    bashDeny('node installer/cli.mjs apply-proposal x'),
+    bashDeny('pnpm dlx next-expo-supabase-agent-harness "apply-proposal" x --dry-run'),
+    bashDeny("npx next-expo-supabase-agent-harness 'apply-proposal'"),
+    bashAllow('git commit -m "docs: apply-proposal"'),
+    bashAllow('node --test tests/installer/apply-proposal.test.mjs'),
+    bashAllow('pnpm exec eslint installer/commands/apply-proposal.mjs'),
+    // How an agent reads the `base` a proposal carries: no rule may match it.
+    bashAllow('git rev-parse HEAD:tools/i18n-allow.json'),
+    bashAllow('node installer/cli.mjs apply-proposal x', SELF_EDIT),
+  ],
   'git-hookspath-repoint': [
     bashDeny('git config core.hooksPath /tmp/nohooks'),
     bashDeny('git -c core.hooksPath=/dev/null commit -m x'),
@@ -1070,6 +1086,56 @@ test('every guard rule id has a behavioral canary (per-rule falsifiability closu
   for (const key of Object.keys(RULE_CANARIES)) {
     assert.ok(idSet.has(key), `RULE_CANARIES has '${key}' but no guard rule exports that id`)
   }
+})
+
+// ── the proposal flow (1.1.0, #65): the staging directory is outside every deny layer ──
+// An agent that may not write tools/i18n-allow.json may write the WHOLE proposed file as
+// harness-proposals/<id>.json, read the `base` it needs with `git rev-parse`, and is told
+// so by the deny it gets. `.harness/proposals/`, the path first recorded for this, is
+// denied three times over (settings, the write guard's harness-dir rule, PROT_DIRS) and
+// gitignored, so the flow lives in a committed directory none of them names.
+test('an agent can stage a proposal: the write guard, the bash guard and the settings deny list all leave harness-proposals/ alone (#65)', () => {
+  const proposal = `${JSON.stringify({ version: 1, target: 'tools/i18n-allow.json', reason: 'r', base: null, content: '{}\n' }, null, 2)}\n`
+  const w = runHook('pretool-write-guard.mjs', {
+    tool_input: { file_path: 'harness-proposals/allow-trademark.json', content: proposal },
+  })
+  assert.equal(denied(w), false, w.stdout)
+  // PROT_DIRS names `.harness/`, not `harness-proposals/`: a shell that lists, reads or
+  // makes the directory, or reads the base, is not denied either.
+  for (const command of [
+    'mkdir -p harness-proposals',
+    'ls harness-proposals/',
+    'cat harness-proposals/allow-trademark.json',
+    'git rev-parse HEAD:tools/i18n-allow.json',
+  ]) {
+    const b = runHook('pretool-bash-guard.mjs', { tool_name: 'Bash', tool_input: { command } })
+    assert.equal(denied(b), false, `${command}: ${b.stdout}`)
+  }
+  const settings = JSON.parse(readFileSync(join(TEMPLATE, '.claude/settings.json'), 'utf8'))
+  const writeDenies = (settings.permissions?.deny ?? []).filter((r) => /^(?:Edit|Write|MultiEdit)\(\.\//.test(r))
+  assert.ok(writeDenies.length >= 4, 'fixture precondition: the shipped settings deny writes by path')
+  for (const rule of writeDenies) {
+    const glob = rule.slice(rule.indexOf('(./') + 3, -1)
+    const re = new RegExp(
+      `^${glob
+        .split('**')
+        .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&').split('*').join('[^/]*'))
+        .join('.*')}$`,
+    )
+    assert.equal(re.test('harness-proposals/allow-trademark.json'), false, rule)
+  }
+})
+
+test('the write guard\'s tamper deny points a register edit at the proposal flow (#65)', () => {
+  const r = runHook('pretool-write-guard.mjs', {
+    tool_input: { file_path: 'tools/i18n-allow.json', content: '{}\n' },
+  })
+  assert.ok(denied(r), r.stdout)
+  const reason = JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason
+  assert.match(reason, /^harness-protected file: set HARNESS_ALLOW_SELF_EDIT=1/)
+  assert.match(reason, /harness-proposals\/<id>\.json/)
+  assert.match(reason, /apply-proposal/)
+  assert.match(reason, /SOURCE: docs\/harness\/README\.md \(tamper evidence\)$/)
 })
 
 // ── mcp-guard: the inline denies (no flat rule id, so no RULE_CANARIES entry) ──
