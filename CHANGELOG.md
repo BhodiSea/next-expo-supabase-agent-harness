@@ -11,7 +11,7 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
-## [1.1.0] — 2026-09-30
+## [1.1.0] — 2026-10-02
 
 **A minor, the sharper verdicts release: the notes 1.0.0 opened become verdicts, and the
 checks that land after them judge more precisely.** Six of the eight ramp sites 1.0.0
