@@ -307,7 +307,15 @@
         ]
       }
     ],
+    ".claude/rules/e2ee.md": [
+      {
+        "sha256": "4e23bda478f71ff2b683562a0293c91f7b80b7c1017d9cca8dee931c19c24dc7"
+      }
+    ],
     ".claude/rules/encryption.md": [
+      {
+        "sha256": "277ed6c401fc2ac1474be40ac52a9ca562833bd31421b6d0c0dfcd1bf61c5e82"
+      },
       {
         "sha256": "6759c6ccef89e7c88d4ab4fb8b221189d5a557ccc8e2a73e6729a18d71d96b91"
       }
@@ -344,6 +352,9 @@
       }
     ],
     ".claude/skills/authoring-e2ee-feature/SKILL.md": [
+      {
+        "sha256": "0c668e99da7dafa9daa8fbed01cc67e1b3b3b768515ca8091264e87b28cab6f5"
+      },
       {
         "sha256": "a5a7b0ac4b9868d64735d1a5b8d38f2191c6057f30530051f22b04ded9090e1e"
       }
@@ -930,6 +941,15 @@
         ]
       },
       {
+        "sha256": "80a5ccdaf1d9411b3c0231f6597c8d4da5871f7939c47bd5774448d7e1fa3f63",
+        "sites": [
+          [
+            19406,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "b4bee84fb7e3216858985e6da44c04ca20f04c590870c35e6fe174e54c025cfe",
         "sites": [
           [
@@ -1266,6 +1286,15 @@
       },
       {
         "sha256": "56545256c7dc040cae45a00003e45111061cfcaf47e207c6fcc4f524e6bb6640",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "6aa55def2b3968b5066f2f8a9002f5c2dd80496bd48752dc358e16b28b6e7526",
         "sites": [
           [
             14115,
@@ -2015,6 +2044,19 @@
           ],
           [
             700533,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "c1000daaf6fd33c2bbb4ae8c2dd5f86d568db86a2e0a530c409f8a2376a2ac5a",
+        "sites": [
+          [
+            640927,
+            "APP_SCHEME"
+          ],
+          [
+            700771,
             "SECURITY_OWNERS"
           ]
         ]

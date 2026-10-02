@@ -193,6 +193,17 @@ already open with "best-effort scoped; the gates are the invariant". That framin
 the doctrine's rule — *never rely on conditional loading for invariants* — is satisfied by
 construction rather than by luck.
 
+**2026-09-30 (1.1.0, #67): a third scoped rule ships.** `e2ee.md` holds the full encryption
+rule for the opt-in `e2ee` module, with `paths:` as a YAML list over
+`packages/platform/crypto/**`, `apps/*/src/host/**` and `docs/modules/e2ee/**`, and it opens
+with the same "best-effort scoped; the checks are the invariant" framing. Every bullet in it
+names the check that holds it: the module's API shape and tests, the `data-flow` gate, the
+`tenancy` gate's capture refusal, `expo-policy`, and the lint and write-guard rules.
+`encryption.md` stays always loaded as a stub that keeps each invariant whose check runs
+with the module off, so the doctrine's rule still holds by construction. Its globs do not
+reach migrations, `tools/data-flow.json` or `tools/pii-columns.json`, so the
+`authoring-e2ee-feature` skill tells its reader to read `e2ee.md` first.
+
 `InstructionsLoaded` exposes a `load_reason` of `"compact"` when instruction files are
 re-loaded after a compaction. **Which** file classes emit it is not documented, so a control
 that watched for it and concluded "my scoped rule came back" would be resting on undocumented

@@ -402,7 +402,10 @@ all compare against `HEAD` and see an empty diff.
 
 Enforced as hooks + lint + depcruise + gates (defense-in-depth); the grounding rules
 restate them so the model rarely trips a gate: `security-invariants.md` (always
-loaded), `provenance.md` (always loaded), `mobile-server-split.md` (path-scoped;
+loaded), `encryption.md` (always loaded; the encryption invariants whose checks run
+with the opt-in `e2ee` module off), `provenance.md` (always loaded), `e2ee.md`
+(path-scoped, best effort; the full encryption rule for the module, and the checks
+each bullet names are the invariant), `mobile-server-split.md` (path-scoped;
 never rely on conditional loading for invariants).
 
 Doctrine notes for the citations:

@@ -1735,7 +1735,11 @@ lists the new rule). The verb itself is the installer's, so nothing else lands i
 (its subsection below). The companion tables re-plant the seven reviewer bodies under
 `.claude/agents/` other than `citation-verifier.md` (`update` re-records their
 `tools/agents.lock.json` entries) and `docs/harness/README.md`; a reviewer body you edited
-is kept and the new one parked (its subsection below). What you may notice afterwards:
+is kept and the new one parked (its subsection below). The smaller always-loaded context
+re-plants `.claude/rules/encryption.md` (now a stub), the `authoring-e2ee-feature` skill
+(`update` re-records its `tools/agents.lock.json` entry), `docs/harness/README.md` and
+`tools/conformance-map.json`, and plants the new `.claude/rules/e2ee.md`; the `AGENTS.md`
+change is yours to take or leave (its subsection below). What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1821,6 +1825,15 @@ is kept and the new one parked (its subsection below). What you may notice after
   `page.meta.ts` that the diff never mentions. No gate changes. If you edited a reviewer
   body, your copy stays and the new one is parked under `.harness/pending/`; the subsection
   on companion tables below says how to take the table.
+- **`.claude/rules/encryption.md` is shorter, and `.claude/rules/e2ee.md` is new.** The
+  stub keeps what applies while the `e2ee` module is off, each item with the check that
+  holds it. The full rule loads when a file under `packages/platform/crypto/`,
+  `apps/*/src/host/` or `docs/modules/e2ee/` is read, and the `authoring-e2ee-feature`
+  skill's Step 0 now tells the agent to read it first. No verdict changes. If you edited
+  `encryption.md` or the skill, your copy stays, the new one is parked under
+  `.harness/pending/`, and `update` exits 2 while it stays there; a file of your own already
+  at `.claude/rules/e2ee.md` is kept the same way, as the 1.0.4 section describes for a
+  harness-owned path with no manifest record.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -2482,6 +2495,38 @@ fork without one reds nothing and simply gets no companion questions. To take th
 
 A row of your own is welcome in a fork: keep the five columns, a backticked kebab-case id,
 and a `Stated in` path that exists in your tree.
+### A smaller always-loaded context: `encryption.md` is a stub, and trimming `AGENTS.md` is optional
+
+Every session loads `AGENTS.md` and each rule file without `paths:`. Until 1.1.0
+`encryption.md` was one of them in full, while most of it governs the opt-in `e2ee` module.
+It now keeps what applies with the module off, each item with the check that holds it in a
+base install, and its seven bullets moved word for word to the path-scoped
+`.claude/rules/e2ee.md`. The lint and write-guard messages that cite
+`.claude/rules/encryption.md` still point at text that states their rule.
+
+`update` delivers this to the harness-owned files: both rule files, the
+`authoring-e2ee-feature` skill, `docs/harness/README.md` and `tools/conformance-map.json`.
+**`AGENTS.md` is yours, so `update` does not touch it, and nothing turns red whether you
+trim yours or not.** The shipped copy no longer carries the rules it repeated from
+`.claude/rules/security-invariants.md` that a hook denies with a message naming the fix:
+`WITH RECURSIVE` without a `CYCLE` clause or visited guard, secret-shaped `EXPO_PUBLIC_` and
+`NEXT_PUBLIC_` names, and the shell commands the bash guard refuses outright (`rm -rf`,
+force-push, `git reset --hard`, `git commit --no-verify`, reading `.env*` or `.dev-auth/`,
+`pnpm update`, `knip --fix`). No gate reads those sentences, and the always-loaded
+`security-invariants.md` still states each rule in every session. To take the smaller
+file, delete the `WITH RECURSIVE` bullet under `## Security invariants`, and change the
+secret-name bullet and the shell-hygiene bullet to:
+
+> - **The public config is `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE` /
+>   `EXPO_PUBLIC_*` transport only**; the service-role key and any provider secret stay
+>   server-env.
+>
+> - **Shell hygiene** (bash-guard enforced): no destructive raw SQL outside migrations,
+>   and store/signing credentials (`EXPO_TOKEN`, Android keystores, Apple API keys)
+>   never touch shell or repo.
+
+Leave the gate-list and Stop-chain sentences, the `Keep under ~N lines` sentence and every
+`pnpm` command it advertises as they are: `docs-sync` reads them.
 
 ## RECOVERY — when an `update` is interrupted or fails
 
