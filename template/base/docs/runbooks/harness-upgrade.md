@@ -1811,6 +1811,11 @@ The Edge Function checks add `tools/check-edge-functions.mjs`, and re-plant
 `docs/harness/gates-catalog.md`, `docs/harness/enforcement-tiers.md` and
 `docs/adr/20260720-account-deletion.md`; the split of the delete-account function they
 reach is seeded, and `update` withholds it (its subsection below).
+The planted-list provenance re-plants `tools/check-gate-integrity.mjs` and
+`docs/harness/gates-catalog.md`, and adds two owned files: `tools/lib/derender.mjs` and the
+generated `tools/lib/planted-shas.json`, which lists the escape-list bytes each harness
+release planted. Both arrive in the same run as any escape list `update` plants, and nothing
+of it is seeded (its subsection below).
 What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
@@ -1998,6 +2003,15 @@ What you may notice afterwards:
   `baseVersion` is below 1.1.0, `edge-functions`, `diff-coverage` and the mutation lane print
   `NOTE — (ramp)` lines about `supabase/functions` until 1.2.0. The subsection on Edge
   Functions below gives the sweep.
+- **`gate-integrity`'s plant NOTE reads differently, and an untracked escape list can be a
+  finding.** For an escape list `update` just planted, the NOTE now says its bytes match the
+  manifest record and a harness release planted exactly these bytes
+  (`tools/lib/planted-shas.json`); commit it with the rest of the upgrade, as before. An
+  untracked escape list whose sha matches its manifest record but that no release planted,
+  such as one created by hand with its sha written into `.harness/manifest.json`, now reads
+  `gate-integrity: NOTE — (ramp 1.1.0) … no harness release planted these bytes` on an
+  install whose `baseVersion` is below 1.1.0, until 1.2.0, and fails after. The subsection
+  on planted escape lists below gives the sweep.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -3256,6 +3270,47 @@ the derived pass), and `SWEEPS['1.1.0']` adds no step.
 **If you forked `eslint.config.mjs`, `vitest.config.ts` or `quality-gate.yml`.** `update`
 keeps your copy, parks the new one under `.harness/pending/` and exits 2 while it stays
 there, and your fork does not reach `supabase/functions` until you merge it.
+### An uncommitted escape list must be one a release planted (`gate-integrity`, a NOTE until 1.2.0)
+
+**What changed.** `gate-integrity` reds an escape list (the files in
+`tools/lib/enforcement-surface.mjs` `ESCAPE_LISTS`) that is modified but not committed. Its
+one exemption is a list the harness itself just planted, which `init` and `update` leave
+untracked. Until 1.1.0 that exemption asked two questions: is the file untracked, and does
+its sha256 match its `.harness/manifest.json` record? Since 1.0.2 you may re-record a sha
+yourself to keep a fork (the 1.0.2 section, "Forking an owned file"), and the manifest does
+not have to be committed, so a record alone no longer says who wrote the bytes. The gate
+now asks a third question: did a harness release plant exactly these bytes? The answer is
+in `tools/lib/planted-shas.json`, a new owned file that `update` plants and `gate-integrity`
+hash-pins like every owned `tools/` file. It is generated from the harness's released-sha
+tables, which never reach an install; never edit it. A list that carries a placeholder,
+such as `tools/rls-exempt.json` with your `SECURITY_OWNERS`, is compared after the tokens
+are put back from your manifest's answers (`tools/lib/derender.mjs`, also new and owned).
+
+**What you see.** The escape lists `update` plants on this hop are explained by the file
+the same `update` delivers, so the hop adds no finding: each prints the plant NOTE until
+you commit it. An untracked escape list that matches its record but no release variant
+prints, on an install whose `baseVersion` is below 1.1.0:
+
+```
+gate-integrity: NOTE — (ramp 1.1.0) <path>: escape hatch present but not committed, and no harness release planted these bytes. …
+```
+
+From harness 1.2.0, or once you graduate to 1.1.0, it is a failure. Everything that failed
+before still fails with the same text: a tracked list that is modified, an untracked one
+with no record, and an untracked one whose sha differs from its record.
+
+**What to do.** Review each list the NOTE names. If you meant the entries, commit the file,
+so the change is in a pull request diff under CODEOWNERS; if you did not, delete the file
+(or restore it from git) and remove the record you wrote for it. `graduate` refuses while a
+NOTE stands. With `HARNESS_ALLOW_SELF_EDIT=1` set, the commit rule does not run at all, as
+before.
+
+**What is unchanged.** The threshold-config rule beside it (`vitest.config.ts`,
+`eslint.config.mjs` and the other configs that carry numbers) still treats a dirty config
+whose sha matches its record as a harness refresh. If you forked
+`tools/check-gate-integrity.mjs`, your copy is kept, the new one is parked under
+`.harness/pending/`, and `update` exits 2 while it stays there; your copy never reads
+`tools/lib/planted-shas.json`.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

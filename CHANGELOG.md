@@ -11,7 +11,7 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
-## [1.1.0] — 2026-09-29
+## [1.1.0] — 2026-10-02
 
 **A minor, the sharper verdicts release: the notes 1.0.0 opened become verdicts, and the
 checks that land after them judge more precisely.** Six of the eight ramp sites 1.0.0
@@ -74,16 +74,12 @@ The Edge Function surface (see Added, Changed and Fixed) opens four more at 1.1.
 all four and four `scripts/ci/stop-side-expiries.json` entries. It withholds four new
 seeded files (`seedOnInitOnly`) and parks a second `seededSourceFixes` set, paired with one
 dated `lint` exemption that has a release row of its own (#78).
-
-### Security
-
-<!-- Entries from the 1.1.0 items that land after the version bump go here. The cut removes
-this heading if none does. -->
+`gate-integrity`'s escape-list plant exemption (see Changed) opens one more at 1.1.0, with a
+deadline of 1.2.0, and adds one release row. `update` plants two new owned files with it,
+`tools/lib/planted-shas.json` and `tools/lib/derender.mjs`, and every released-sha table gains
+a `planted` map (#84).
 
 ### Added
-
-<!-- Entries from the 1.1.0 items that land after the version bump go here. The cut removes
-this heading if none does. -->
 
 - **A dated, content-tripwired deferral for the device lanes: `tools/surfaces.json`.** A
   project building its web surface first had no way to say so: the `mobile` paths filter
@@ -454,9 +450,6 @@ this heading if none does. -->
   chain step (#78).
 
 ### Fixed
-
-<!-- Entries from the 1.1.0 items that land after the version bump go here. The cut removes
-this heading if none does. -->
 
 - **The doctrine says what `HARNESS_ALLOW_SELF_EDIT=1` relaxes, and no longer offers it as a
   way to trim the Stop hook.** The flag's reach was spread over the guard hooks, a generator
@@ -975,10 +968,13 @@ this heading if none does. -->
   1.2.0, the move recorded as the "1.1.0" record's second `rampExtensions` entry and the
   obligations row `docs-sync-gate-list-ramp-expiry` back, targeting 1.2.0. Only additive
   drift rides it: a documented step that no longer exists, or a reordering, stays a hard red
-  at every vintage. The README's two `pnpm validate` timings are withdrawn until the 37-step
-  chain is re-measured: `check-claims` refuses a figure whose recorded step count differs
-  from the chain, and `scripts/chain-budget.json` budgets `web-compile` as a toolchain step
-  with no measurement yet (#77).
+  at every vintage. The README withdrew its two `pnpm validate` timings when the chain grew,
+  because `check-claims` refuses a figure whose recorded step count differs from the chain,
+  and `scripts/chain-budget.json` budgets `web-compile` as a toolchain step. They were
+  republished, with the Stop figure, only after the dispatched warm, Stop and cold re-record
+  landed and was committed (selftest run 36958995612 on the release branch, before the tag,
+  stamped from its job log with an explicit `--runner`): measure, commit, then publish, as
+  1.0.0 did (#77).
 - **`unit`, `diff-coverage` and the mutation lane reach `supabase/functions`, behind ramps
   until 1.2.0.** `vitest.config.ts` now derives two lists from the tree: every `*.test.ts`
   under `supabase/functions` that imports from `'vitest'` joins `unit-node` (a `deno test`
@@ -1001,6 +997,36 @@ this heading if none does. -->
   are NOTEs until 1.2.0; a finding anywhere else is judged as before, and a fresh scaffold
   is held at once. The obligations row `edge-functions-surface-ramp-expiry` anchors the
   four sites with the typecheck's (#78).
+- **`gate-integrity` asks whether a harness release planted an uncommitted escape list, behind
+  a ramp until 1.2.0.** Sub-check 3 reds an escape list that is dirty at gate time, and
+  exempted one it called a harness plant: untracked, with a sha256 equal to its
+  `.harness/manifest.json` record. Its NOTE said the bytes were exactly what the installer
+  planted, but the check read one manifest field. Since 1.0.2 a human may re-record a sha to
+  keep a fork, and the manifest need not be committed, so a hand-made
+  `tools/secret-scan-allow.json` given a `files` record, or an untracked
+  `tools/approved-tools.json` with a server appended and its sha re-recorded, passed as a
+  plant. Every `template/shas/<version>.json` now carries a `planted` map beside `files`: per
+  path in `ESCAPE_LISTS`, every variant that version's commits shipped, whatever the path's
+  mode was then. `generate-released-shas.mjs --all` backfilled it from the lineage floor up,
+  and `--prove` now also requires every escape list the commit's own `init` records to be
+  explained by it. The union of the maps is the new owned, generated
+  `tools/lib/planted-shas.json`; `check-released-shas` requires it byte for byte, and
+  `gate-integrity`'s first check hash-pins it. The plant exemption now also asks that file:
+  a variant without sites matches by sha, and one with sites (`tools/rls-exempt.json` and
+  `tools/backup-posture.json` carry `SECURITY_OWNERS`) matches after the file is derendered
+  with the manifest's answers by the new owned `tools/lib/derender.mjs`, a copy of the
+  installer's `derender` that `tests/gates/derender-parity.test.mjs` pins to it. A plant's
+  NOTE now says its bytes match the manifest record and a release planted them. A list that
+  passes the two old conditions and fails only the new one is a finding (`escape hatch
+  present but not committed, and no harness release planted these bytes`) through
+  `rampNote('gate-integrity', '1.1.0', 'release provenance of an uncommitted, planted escape
+  list', { until: '1.2.0' })`, which is called only when such a list exists: NOTE lines below
+  `baseVersion` 1.1.0, a plain red on a fresh scaffold, `RAMP EXPIRED` from harness 1.2.0.
+  Every red from before keeps its outcome and its text, a fresh scaffold before its first
+  commit prints a plant NOTE for each escape list, and the gate's comments no longer say that
+  only `init` and `update` write the manifest. The sweep is the step the NOTE already asks
+  for: review the list and commit it. The obligations row
+  `gate-integrity-planted-escape-list-ramp-expiry` owes the expiry (#84).
 
 ### What stays open, honestly
 
@@ -1359,9 +1385,6 @@ this heading if none does. -->
 - **The browser closure reads text.** It proves a spec names one state test id per route,
   not that the spec asserts that state or that it passes; the `web-e2e` lane runs every
   spec, and is path-filtered. A route needs one named id, not all of them (#77).
-- **The two `pnpm validate` timings are not re-measured yet.** The re-record is a selftest
-  `workflow_dispatch` on the release branch before the tag, as 1.0.0's was; until then the
-  README says so instead of printing a figure (#77).
 - **deno is a prerequisite the job installs, not a dependency.** It is not in the catalog,
   so no install carries its binary and `doctor` asks for nothing, and locally the gate
   SKIPS until you install deno yourself. The binary comes from the SHA-pinned
@@ -1390,6 +1413,24 @@ this heading if none does. -->
   line, beside the other 1.1.0 ramps due at 1.2.0. The `edge-functions` job itself runs only
   in a project's own CI; the factory runs its gate through Canary 38 and the `bootstrap-linux`
   check in `selftest.yml` (#78).
+- **Two records written together still vouch for each other.** Anyone who can rewrite both
+  the manifest and an owned `tools/` file can forge both witnesses of a plant; that is the
+  trust level of `gate-integrity`'s hash check (#84).
+- **A placeholder-bearing list is derendered with the manifest's own answers.** They come
+  from the file the plant check distrusts, the limit 1.0.2 states for `update` (#84).
+- **Any release's variant counts.** An older and wider list that a past release planted is
+  still a plant, and commits below the lineage floor have no table at all (#84).
+- **The threshold-config rule still trusts the record alone.** Sub-check 3b reads a dirty
+  config whose sha matches its manifest record as a harness refresh, so a re-recorded sha
+  over a lowered floor passes it as before (#84).
+- **The newest planted maps hold the trees they were built from.** 1.0.4's comes from the
+  v1.0.4 tag's tree and 1.1.0's from the `--current` run of the change that added the map. An
+  escape list that an earlier commit of either release planted and a later one changed is
+  missing from them until `--all` runs over `main` after these changes merge. Today that is
+  the `tools/reviewer-triggers.json` that #70 shipped and #69 replaced: an install scaffolded
+  between those two merges that never committed the file would read it as unplanted (#84).
+- **The planted-list ramp also ends at 2.0.0 in this lineage.** 1.2.0 is the deadline issue
+  #84 fixes, so the 2.0.0 record owes this expiry beside the other 1.2.0-dated ones (#84).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -1892,6 +1933,19 @@ this heading if none does. -->
   exited 0; at harness 1.2.0 `edge-functions` and `diff-coverage` printed RAMP EXPIRED and
   failed. A zero-edit core scaffold rendered from this tree passed `validate --report-all`
   on all 37 steps (#78).
+  For the planted-list provenance, the tests-only commit was red on injections A and B, each
+  of which exited 0 with the plant NOTE, on the ramp, placeholder and fresh-scaffold cases of
+  `tests/gates/check-gate-integrity.test.mjs`, and on the new `check-released-shas` and
+  `derender-parity` cases, which could not load. After the change every case is green.
+  `generate-released-shas.mjs --all --prove` backfilled every table's `planted` map with each
+  historical `init` explained, a second run left `template/shas/` unchanged, and
+  `check-released-shas --verify-tags` verified every local tag's owned and planted maps. The
+  issue's manual injection A, on a core scaffold rendered from this tree, printed a plant NOTE
+  for each escape list before the first commit and exited 1 naming
+  `tools/secret-scan-allow.json` after it. A scaffold initialised at every upgrade-lane leg's
+  baseline, committed and updated to this tree ran `gate-integrity` green with no planted-list
+  finding and no 1.1.0 ramp line; on the 0.x baselines, every list the update planted printed
+  the release-plant NOTE (#84).
 
 ## [1.0.4] — 2026-10-01
 

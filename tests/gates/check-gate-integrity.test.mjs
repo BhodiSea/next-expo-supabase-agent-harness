@@ -7,10 +7,12 @@
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { appendFileSync, chmodSync, existsSync, readFileSync, renameSync, rmSync, mkdtempSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { ESCAPE_LISTS } from '../../template/base/tools/lib/enforcement-surface.mjs'
 
 const CLI = fileURLToPath(new URL('../../installer/cli.mjs', import.meta.url))
 
@@ -368,6 +370,202 @@ test('a planted escape list is a NOTE; tuning it or hand-creating one is still R
   assert.equal(handMade.code, 1, handMade.out)
   assert.ok(handMade.out.includes('tools/secret-scan-allow.json'), handMade.out)
 })
+
+// ── WHO PLANTED THESE BYTES (1.1.0, #84) ────────────────────────────────────────
+// Until 1.1.0 the plant exemption above read ONE manifest field: untracked and byte-identical
+// to `.harness/manifest.json`'s record. Since 1.0.2 a human re-records a sha to keep a fork,
+// and the manifest need not be committed, so one uncommitted edit to `files` turned any
+// untracked escape list into a "plant". The exemption now also asks tools/lib/planted-shas.json
+// (generated from the released-sha tables' `planted` maps, owned, hash-pinned by sub-check 1)
+// whether a harness release ever planted exactly these bytes.
+//
+// Every case below writes baseVersion AND harnessVersion into the manifest before the
+// baseline commit: sub-check 2 stays quiet, and the ramp window the case exercises does not
+// depend on where the version bump sits on the branch. Every case runs the gate with
+// HARNESS_ALLOW_SELF_EDIT: '', as the plant case above does; with '1' sub-check 3 is off.
+const PLANT_REPOS = []
+after(() => {
+  for (const repo of PLANT_REPOS) rmSync(repo, { recursive: true, force: true })
+})
+
+/**
+ * A scaffold for one plant case: `init` (with SECURITY_OWNERS answered, so two escape lists
+ * carry a rendered placeholder), the versions written into the manifest, `git init`, and a
+ * baseline commit unless `commit` is false.
+ * @param {{ tier?: string, base?: string, harness?: string, commit?: boolean }} [opts]
+ */
+function plantScaffold({ tier = 'core', base, harness, commit = true } = {}) {
+  const repo = mkdtempSync(join(tmpdir(), 'epah-gateint-release-'))
+  PLANT_REPOS.push(repo)
+  const init = spawnSync(
+    'node',
+    [CLI, 'init', '--dir', repo, '--tier', tier, '--yes', '--set', 'PROJECT_NAME=Release App', '--set', 'GITHUB_OWNER=o', '--set', 'SECURITY_OWNERS=@o/sec'],
+    { encoding: 'utf8' },
+  )
+  assert.equal(init.status, 0, `${init.stdout ?? ''}${init.stderr ?? ''}`)
+  const manifestPath = join(repo, '.harness/manifest.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  if (base !== undefined) manifest.baseVersion = base
+  if (harness !== undefined) manifest.harnessVersion = harness
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+  const git = (...args) =>
+    spawnSync('git', args, { cwd: repo, encoding: 'utf8', env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' } })
+  git('init', '-q', '-b', 'main')
+  const commitAll = (message) => git('-c', 'user.email=t@localhost', '-c', 'user.name=t', 'commit', '-qm', message)
+  if (commit) {
+    git('add', '-A')
+    commitAll('baseline')
+  }
+  const run = () => {
+    const res = spawnSync('node', ['tools/check-gate-integrity.mjs'], {
+      cwd: repo,
+      encoding: 'utf8',
+      env: { ...process.env, CI: 'true', HARNESS_REQUIRE_TOOLCHAINS: '', HARNESS_ALLOW_SELF_EDIT: '' },
+    })
+    return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
+  }
+  /** Re-record `rel`'s sha256 in the manifest, the supported way to keep a fork since 1.0.2. */
+  const reRecord = (rel) => {
+    const m = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    const sha = createHash('sha256').update(readFileSync(join(repo, rel))).digest('hex')
+    m.files[rel] = { ...(m.files[rel] ?? { mode: 'seeded' }), sha256: sha }
+    writeFileSync(manifestPath, `${JSON.stringify(m, null, 2)}\n`)
+  }
+  return { repo, git, commitAll, run, reRecord }
+}
+
+/** Injection A: a never-shipped escape list, created by hand and given a manifest record. */
+function injectA(fx) {
+  writeFileSync(join(fx.repo, 'tools/secret-scan-allow.json'), '{ "allow": [] }\n')
+  fx.reRecord('tools/secret-scan-allow.json')
+}
+
+/** Injection B: a shipped escape list, untracked as case (b) does it, widened, re-recorded. */
+function injectB(fx) {
+  const planted = 'tools/approved-tools.json'
+  fx.git('rm', '--cached', '-q', planted)
+  fx.commitAll('an install predating the registry')
+  const abs = join(fx.repo, planted)
+  const tuned = JSON.parse(readFileSync(abs, 'utf8'))
+  tuned.servers = [...(tuned.servers ?? []), { name: 'exfil', tools: ['*'] }]
+  writeFileSync(abs, `${JSON.stringify(tuned, null, 2)}\n`)
+  fx.reRecord(planted)
+}
+
+const NO_RELEASE = 'no harness release planted these bytes'
+const RELEASE_PLANT = 'a harness release planted exactly these bytes'
+
+test('injection A: a hand-made escape list with a re-recorded sha is RED once the record is not the only witness (#84)', () => {
+  const fx = plantScaffold({ base: '1.1.0', harness: '1.1.0' })
+  assert.equal(fx.run().code, 0, 'the committed baseline is green')
+  injectA(fx)
+  const r = fx.run()
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('gate-integrity: FAIL (1)'), r.out)
+  assert.ok(r.out.includes(`- tools/secret-scan-allow.json: escape hatch present but not committed, and ${NO_RELEASE}.`), r.out)
+  assert.ok(r.out.includes('a record can be written by hand'), r.out)
+  assert.ok(!r.out.includes('tools/secret-scan-allow.json is present but not yet committed'), `no plant NOTE for it:\n${r.out}`)
+})
+
+test('injection B: an untracked, widened approved-tools.json with a re-recorded sha is RED (#84)', () => {
+  const fx = plantScaffold({ base: '1.1.0', harness: '1.1.0' })
+  injectB(fx)
+  const r = fx.run()
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes(`- tools/approved-tools.json: escape hatch present but not committed, and ${NO_RELEASE}.`), r.out)
+})
+
+test('the release-provenance rule is ramped: a 1.0.3 install gets a (ramp 1.1.0) NOTE until 1.2.0, then RAMP EXPIRED (#84)', () => {
+  // A clean tree names no 1.1.0 ramp: rampNote is called only when a finding exists, because
+  // an armed call prints a NOTE, and a NOTE about nothing on every green run is noise the
+  // upgrade lane refuses (scripts/ci/upgrade-lane.sh, section 7b).
+  const noting = plantScaffold({ base: '1.0.3', harness: '1.1.0' })
+  const clean = noting.run()
+  assert.equal(clean.code, 0, clean.out)
+  assert.ok(!clean.out.includes('ramp 1.1.0') && !clean.out.includes('live from baseVersion 1.1.0'), clean.out)
+
+  injectA(noting)
+  const noted = noting.run()
+  assert.equal(noted.code, 0, noted.out)
+  assert.ok(noted.out.includes('release provenance of an uncommitted, planted escape list (ramp: live from baseVersion 1.1.0'), noted.out)
+  assert.ok(noted.out.includes(`gate-integrity: NOTE — (ramp 1.1.0) tools/secret-scan-allow.json: escape hatch present but not committed, and ${NO_RELEASE}.`), noted.out)
+  // …and the OK line says the rule was NOTE-only, not `clean`: a withheld finding reported as
+  // clean is the skip read as a pass that #80 removed from this line.
+  const okLine = noted.out.split('\n').find((l) => l.startsWith('gate-integrity: OK')) ?? ''
+  assert.ok(okLine.includes('escape-list commit rule NOTE-only for 1 untracked list(s) no release planted (withheld by the 1.1.0 ramp)'), noted.out)
+  assert.ok(!okLine.includes('escape list(s) clean'), okLine)
+
+  // The same install on harness 1.2.0: the escape is over.
+  const expired = plantScaffold({ base: '1.0.3', harness: '1.2.0' })
+  injectA(expired)
+  const r = expired.run()
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('RAMP EXPIRED — release provenance of an uncommitted, planted escape list'), r.out)
+  assert.ok(r.out.includes(`- tools/secret-scan-allow.json: escape hatch present but not committed, and ${NO_RELEASE}.`), r.out)
+})
+
+test('a placeholder-bearing escape list: the rendered plant is a NOTE, one added exemption with a re-recorded sha is RED (#84)', () => {
+  const fx = plantScaffold({ base: '1.1.0', harness: '1.1.0' })
+  const planted = 'tools/rls-exempt.json'
+  const abs = join(fx.repo, planted)
+  const rendered = readFileSync(abs, 'utf8')
+  assert.ok(rendered.includes('@o/sec') && !rendered.includes('{{SECURITY_OWNERS}}'), 'init rendered the owners token')
+  fx.git('rm', '--cached', '-q', planted)
+  fx.commitAll('an install predating the list')
+
+  const asPlanted = fx.run()
+  assert.equal(asPlanted.code, 0, asPlanted.out)
+  assert.ok(asPlanted.out.includes(`NOTE — ${planted} is present but not yet committed, its bytes match the manifest record, and ${RELEASE_PLANT}`), asPlanted.out)
+  assert.ok(asPlanted.out.includes('harness plant, not a widening'), asPlanted.out)
+
+  const list = JSON.parse(rendered)
+  list.exempt.push({ table: 'public.widened', reason: 'an exemption nobody reviewed' })
+  writeFileSync(abs, `${JSON.stringify(list, null, 2)}\n`)
+  fx.reRecord(planted)
+  const widened = fx.run()
+  assert.equal(widened.code, 1, widened.out)
+  assert.ok(widened.out.includes(`- ${planted}: escape hatch present but not committed, and ${NO_RELEASE}.`), widened.out)
+})
+
+test('unusable evidence explains nothing: a malformed or missing planted-shas.json reads as unplanted, never a crash (#84)', () => {
+  // The evidence file is owned, so an edited copy is already a sub-check 1 red. Re-recording
+  // its sha (the fork route) isolates the plant rule: a `sites` entry that is not an
+  // [offset, token] pair must make the variant explain nothing, and the gate must still report.
+  const fx = plantScaffold({ base: '1.1.0', harness: '1.1.0' })
+  const planted = 'tools/rls-exempt.json'
+  fx.git('rm', '--cached', '-q', planted)
+  fx.commitAll('an install predating the list')
+  const evidencePath = join(fx.repo, 'tools/lib/planted-shas.json')
+  const evidence = JSON.parse(readFileSync(evidencePath, 'utf8'))
+  assert.ok(evidence.files[planted]?.every((v) => Array.isArray(v.sites)), 'rls-exempt.json variants carry sites')
+  evidence.files[planted] = evidence.files[planted].map((v) => ({ ...v, sites: [7, 'SECURITY_OWNERS'] }))
+  writeFileSync(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`)
+  fx.reRecord('tools/lib/planted-shas.json')
+  const malformed = fx.run()
+  assert.equal(malformed.code, 1, malformed.out)
+  assert.ok(!/TypeError|at plantedByRelease/.test(malformed.out), `the gate crashed instead of reporting:\n${malformed.out}`)
+  assert.ok(malformed.out.includes(`- ${planted}: escape hatch present but not committed, and ${NO_RELEASE}.`), malformed.out)
+
+  // Missing: sub-check 1 names it, and the untracked list is unplanted rather than a plant.
+  rmSync(evidencePath)
+  const missing = fx.run()
+  assert.equal(missing.code, 1, missing.out)
+  assert.ok(missing.out.includes('tools/lib/planted-shas.json'), missing.out)
+  assert.ok(missing.out.includes(`- ${planted}: escape hatch present but not committed, and ${NO_RELEASE}.`), missing.out)
+})
+
+for (const tier of ['core', 'strict']) {
+  test(`a fresh ${tier} scaffold before its first commit: every escape list is a release plant, exit 0 (#84)`, () => {
+    const fx = plantScaffold({ tier, commit: false })
+    const r = fx.run()
+    assert.equal(r.code, 0, r.out)
+    const lists = ESCAPE_LISTS.filter((p) => existsSync(join(fx.repo, p)))
+    assert.ok(lists.length >= 30, `only ${String(lists.length)} escape list(s) on disk — the fixture is vacuous`)
+    for (const p of lists) {
+      assert.ok(r.out.includes(`NOTE — ${p} is present but not yet committed, its bytes match the manifest record, and ${RELEASE_PLANT}`), `${p}:\n${r.out}`)
+    }
+  })
+}
 
 test('missing manifest: fails CLOSED in CI, skips LOUDLY locally', () => {
   const manifest = join(scaffold, '.harness/manifest.json')

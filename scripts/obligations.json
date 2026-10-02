@@ -495,6 +495,19 @@
       ],
       "reason": "OPENED AT 1.1.0 (#78). eslint.config.mjs now lints supabase/functions (the TypeScript parser, no project service) with sonarjs/cognitive-complexity at 15 and local/no-suppressed-complexity. The config is harness-OWNED, so `update` arms the rules on every install at once, while the delete-account index.ts every 1.0.x install carries is SEEDED and measures 16 (its readKey): an upgrading consumer would meet a hard-red lint step on a file `update` cannot rewrite and they never touched. A lint rule cannot carry a rampNote, so that one path sits in the complexity block's `ignores` as its ramp, paired with the 1.1.0 seededSourceFixes instruction (gate lint) that `doctor` surfaces: pull the split with `update --refresh-seeded supabase/functions/delete-account/`, which replaces the 1.0.x file with a one-call shell and moves readKey into handler.ts, where it measures under 15. The security rules (no-unverified-session, crypto-primitives-one-door) are NOT exempted: the seeded file passes both. This is the pairing env-through-register-seeded-exemption set at 0.9.5 and 0.10.0 discharged. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, so the 2.0.0 cut owes the removal of the ignore line, once the source fix has had a release to land. Discharge = the exemption line is removed from eslint.config.mjs and this row is deleted in the same diff; OR the row is re-targeted in a reviewed diff that says why the fix has not landed.",
       "reviewedOn": "2026-09-30"
+    },
+    {
+      "id": "gate-integrity-planted-escape-list-ramp-expiry",
+      "kind": "release",
+      "target": "1.2.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-gate-integrity.mjs",
+          "mustContain": "release provenance of an uncommitted, planted escape list"
+        }
+      ],
+      "reason": "OPENED AT 1.1.0 (#84, F16): one site in gate-integrity's escape-list commit rule (sub-check 3). An untracked escape list whose sha256 matches its .harness/manifest.json record used to be a harness plant on that fact alone, and since 1.0.2 a human may re-record a sha to keep a fork, so one uncommitted edit to the manifest's `files` turned any untracked escape list into a plant. The exemption now also asks tools/lib/planted-shas.json (OWNED, hash-pinned by sub-check 1, generated from the `planted` maps of template/shas/*.json) whether a harness release planted exactly these bytes, derendering a placeholder-bearing list with the manifest's answers (tools/lib/derender.mjs, pinned to the installer's derender by tests/gates/derender-parity.test.mjs). A path that passes the two old conditions and fails only the new one goes through rampNote('gate-integrity', '1.1.0', 'release provenance of an uncommitted, planted escape list', { until: '1.2.0' }), called only when such a path exists: NOTE lines below baseVersion 1.1.0, a plain red on a fresh 1.1.0 scaffold, RAMP EXPIRED from harness 1.2.0. Every red that existed before keeps its outcome and its text. The deadline is the one issue #84 fixes (decision 3). THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes this expiry beside the other 1.2.0-dated rows above. gate-integrity is a validate-chain step, so the upgrade lane executes its expiry itself and scripts/ci/stop-side-expiries.json needs no entry. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming this site's population (every vintage below 1.1.0 that holds an untracked escape list no release planted), with its sweep in that release's runbook section (commit each escape list the NOTE names after reviewing it, or delete one nobody meant to create), and this row is deleted in the same diff; OR the ramp is extended by a reviewed rampExtensions entry and this row re-targeted.",
+      "reviewedOn": "2026-09-30"
     }
   ]
 }

@@ -45,7 +45,7 @@
   "wall": {
     "ceilingMs": 120000,
     "warnMs": 90000,
-    "measuredMs": 23030
+    "measuredMs": 26881
   },
   "defaults": {
     "comment": "A step with no row below is judged against its class ceiling. Class is decided by whether the step shells out to a toolchain (pnpm exec / tsc / next) or is pure node over the tree.",
@@ -55,151 +55,151 @@
   "steps": {
     "format": {
       "class": "toolchain",
-      "measuredMs": 3007
+      "measuredMs": 2952
     },
     "gate-integrity": {
       "class": "static",
-      "measuredMs": 336
+      "measuredMs": 377
     },
     "wiring": {
       "class": "static",
-      "measuredMs": 43
+      "measuredMs": 44
     },
     "secrets": {
       "class": "static",
-      "measuredMs": 109
+      "measuredMs": 124
     },
     "types": {
       "class": "toolchain",
-      "measuredMs": 6221
+      "measuredMs": 6070
     },
     "lint": {
       "class": "toolchain",
-      "measuredMs": 2145
+      "measuredMs": 4841
     },
     "suppressions": {
       "class": "static",
-      "measuredMs": 55
+      "measuredMs": 61
     },
     "provenance": {
       "class": "static",
-      "measuredMs": 120
+      "measuredMs": 136
     },
     "boundaries": {
       "class": "static",
-      "measuredMs": 93
+      "measuredMs": 103
     },
     "resilience": {
       "class": "static",
-      "measuredMs": 52
+      "measuredMs": 55
     },
     "observability": {
       "class": "static",
-      "measuredMs": 93
+      "measuredMs": 95
     },
     "expo-policy": {
       "class": "static",
-      "measuredMs": 49
+      "measuredMs": 58
     },
     "native-deps": {
       "class": "toolchain",
-      "measuredMs": 48
+      "measuredMs": 50
     },
     "version-sync": {
       "class": "static",
-      "measuredMs": 44
+      "measuredMs": 47
     },
     "prompts": {
       "class": "static",
-      "measuredMs": 40
+      "measuredMs": 43
     },
     "licenses": {
       "class": "toolchain",
-      "measuredMs": 41
+      "measuredMs": 45
     },
     "schema-rls": {
       "class": "static",
-      "measuredMs": 87
+      "measuredMs": 96
     },
     "tenancy": {
       "class": "static",
-      "measuredMs": 43
+      "measuredMs": 49
     },
     "auth-posture": {
       "class": "static",
-      "measuredMs": 58
+      "measuredMs": 61
     },
     "data-flow": {
       "class": "static",
-      "measuredMs": 75
+      "measuredMs": 81
     },
     "types-drift": {
       "class": "static",
-      "measuredMs": 1523
+      "measuredMs": 1324
     },
     "migrations": {
       "class": "static",
-      "measuredMs": 58
+      "measuredMs": 66
     },
     "db-limits": {
       "class": "static",
-      "measuredMs": 58
+      "measuredMs": 64
     },
     "contracts": {
       "class": "toolchain",
-      "measuredMs": 51
+      "measuredMs": 56
     },
     "query-shapes": {
       "class": "static",
-      "measuredMs": 42
+      "measuredMs": 51
     },
     "rate-limits": {
       "class": "toolchain",
-      "measuredMs": 39
+      "measuredMs": 44
     },
     "parity": {
       "class": "static",
-      "measuredMs": 38
+      "measuredMs": 40
     },
     "dead-code": {
       "class": "toolchain",
-      "measuredMs": 2504
+      "measuredMs": 2570
     },
     "architecture": {
       "class": "toolchain",
-      "measuredMs": 1989
+      "measuredMs": 3269
     },
     "build": {
       "class": "toolchain",
-      "measuredMs": 48
+      "measuredMs": 50
     },
     "web-compile": {
       "class": "toolchain",
-      "measuredMs": null
+      "measuredMs": 52
     },
     "styleguide": {
       "class": "toolchain",
-      "measuredMs": 705
+      "measuredMs": 711
     },
     "perf-budget": {
       "class": "static",
-      "measuredMs": 2802
+      "measuredMs": 2825
     },
     "route-manifest": {
       "class": "static",
-      "measuredMs": 80
+      "measuredMs": 87
     },
     "security-headers": {
       "class": "toolchain",
-      "measuredMs": 39
+      "measuredMs": 42
     },
     "e2e": {
       "class": "toolchain",
-      "measuredMs": 42
+      "measuredMs": 48
     },
     "docs-sync": {
       "class": "static",
-      "measuredMs": 248
+      "measuredMs": 191
     }
   },
   "stopComment": [
@@ -233,63 +233,63 @@
   "stopWall": {
     "ceilingMs": 600000,
     "warnMs": 450000,
-    "measuredMs": 52665
+    "measuredMs": 54815
   },
   "stopSteps": {
     "rls-isolation": {
       "comment": "live Supabase round-trips: db reset + the pgTAP structure suite + the supabase-js cross-tenant suite",
       "ceilingMs": 90000,
-      "measuredMs": 7131
+      "measuredMs": 6639
     },
     "unit": {
       "comment": "coverage-instrumented vitest across the workspace — the first of the two dominant suites",
       "ceilingMs": 180000,
-      "measuredMs": 7634
+      "measuredMs": 7869
     },
     "mobile-unit": {
       "comment": "jest-expo with coverage — the RN transform pipeline is the chain's documented slow tail; the largest single ceiling in this file",
       "ceilingMs": 240000,
-      "measuredMs": 11324
+      "measuredMs": 11284
     },
     "diff-coverage": {
       "comment": "reads the two merged istanbul maps the unit steps just wrote plus a git diff — no toolchain",
       "ceilingMs": 10000,
-      "measuredMs": 65
+      "measuredMs": 74
     },
     "duplication": {
       "comment": "token-clone scan over apps/*/src + packages/*/src — pure node but O(source tokens), so it gets the widest static ceiling",
       "ceilingMs": 15000,
-      "measuredMs": 310
+      "measuredMs": 317
     },
     "i18n": {
-      "comment": "static source scan: hardcoded user-facing strings and out-of-seam Intl/toLocale*/toFixed. Since 1.1.0 (#76) it also loads the project's typescript and parses each scanned file once (the syntax-tree walk beside the regular expressions), the first shipped gate to load the compiler; measuredMs is the last selftest recording and predates the walk until the next one",
+      "comment": "static source scan: hardcoded user-facing strings and out-of-seam Intl/toLocale*/toFixed. Since 1.1.0 (#76) it also loads the project's typescript and parses each scanned file once (the syntax-tree walk beside the regular expressions), the first shipped gate to load the compiler; measuredMs is the 1.1.0 re-record's (selftest run 36958995612), the first recording that includes the walk",
       "ceilingMs": 10000,
-      "measuredMs": 106
+      "measuredMs": 602
     },
     "test-quality": {
       "comment": "static test scan (~50ms today: assertion presence, .only, dead .skip) — room to grow, never to shell out",
       "ceilingMs": 10000,
-      "measuredMs": 76
+      "measuredMs": 88
     },
     "mobile-perf": {
       "comment": "closure half only — reads three files (routes, Maestro flows, startup budget); the measurement half lives in the CI perf lane",
       "ceilingMs": 5000,
-      "measuredMs": 44
+      "measuredMs": 42
     },
     "reviewer-verdicts": {
       "comment": "reads reviewer triggers + the turn ledger tail — the turn-scoped step, never a toolchain",
       "ceilingMs": 5000,
-      "measuredMs": 64
+      "measuredMs": 80
     }
   },
   "measurement": {
-    "recordedOn": "2026-08-16",
+    "recordedOn": "2026-10-02",
     "runner": "Linux/X64 (selftest)",
-    "chainSteps": 36,
-    "stepsMeasured": 36
+    "chainSteps": 37,
+    "stepsMeasured": 37
   },
   "stopMeasurement": {
-    "recordedOn": "2026-08-16",
+    "recordedOn": "2026-10-02",
     "runner": "Linux/X64 (selftest)",
     "chainSteps": 10,
     "stepsMeasured": 10
@@ -305,13 +305,13 @@
     "records one, coldWall.measuredMs is null and check-claims refuses any 'cold ≈ N s' figure."
   ],
   "coldWall": {
-    "measuredMs": 110224
+    "measuredMs": 145363
   },
   "coldMeasurement": {
-    "recordedOn": "2026-08-16",
+    "recordedOn": "2026-10-02",
     "runner": "Linux/X64 (selftest)",
-    "chainSteps": 36,
-    "stepsMeasured": 36,
+    "chainSteps": 37,
+    "stepsMeasured": 37,
     "path": "validate --min-floor under CI=true + HARNESS_REQUIRE_TOOLCHAINS=1 on a fresh clone with cold caches — the first validate of an install"
   }
 }

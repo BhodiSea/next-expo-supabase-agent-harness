@@ -107,8 +107,33 @@ that no escape list or threshold-bearing config is modified but not committed.
 `HARNESS_ALLOW_SELF_EDIT=1` switches off only the last of these, the commit rule (see
 "What `HARNESS_ALLOW_SELF_EDIT=1` relaxes" in [the doctrine](./README.md)).
 
+**The escape-list commit rule (sub-check 3) and its one exemption.** Every file in
+`ESCAPE_LISTS` (`tools/lib/enforcement-surface.mjs`) that `git status --porcelain` reports is
+a finding: exempting code from a gate or raising a budget is a reviewed commit, never a
+working-tree edit. The exemption is the list the harness itself just planted: `init` and
+`update` write escape lists untracked, and accusing the consumer of widening a file on the run
+that delivered it is the wrong verdict. An untracked list is a plant when three facts hold:
+it is untracked, its sha256 matches its `.harness/manifest.json` record, and (since 1.1.0)
+a harness release planted exactly those bytes, according to `tools/lib/planted-shas.json`. That file
+is generated from the released-sha tables' `planted` maps, is owned and hash-pinned by the
+first check above, and arrives through `update` in the same run as any new escape list. A list
+carrying a placeholder (`tools/rls-exempt.json`, `tools/backup-posture.json`) is compared after
+its tokens are put back with the manifest's answers (`tools/lib/derender.mjs`). The record
+alone stopped being enough in 1.0.2, when re-recording a sha became the supported way to keep
+a fork, because the manifest need not be committed. A plant prints a NOTE; an untracked list
+that matches its record but no release variant is a finding behind a ramp (a NOTE for
+installs below `baseVersion` 1.1.0 until harness 1.2.0); tracked-and-modified, untracked with
+no record and untracked with a different sha are red as before. The threshold-config rule
+(3b) still trusts the record alone, a stated limit.
+
 **Anti-vacuity:** `echo '// x' >> tools/check-migrations.mjs` from a plain terminal →
-FAIL naming the file.
+FAIL naming the file. For the plant exemption, on a committed scaffold at `baseVersion`
+1.1.0 or later: (A) `printf '{ "allow": [] }\n' > tools/secret-scan-allow.json`, then add
+`"tools/secret-scan-allow.json": { "mode": "seeded", "sha256": "<its sha256>" }` to the
+manifest's `files` → `gate-integrity: FAIL (1)`, then `- tools/secret-scan-allow.json: escape
+hatch present but not committed, and no harness release planted these bytes. …`; (B) untrack
+`tools/approved-tools.json` in a commit, append a server to it and re-record its sha → FAIL
+naming `tools/approved-tools.json`. Before 1.1.0 both passed as a plant NOTE.
 
 ### 3. wiring — `node tools/check-wiring.mjs`
 
