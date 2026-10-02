@@ -99,3 +99,78 @@ jobs:
           gh release create "$GITHUB_REF_NAME" ./*.tgz ./*.tgz.intoto.jsonl \
             --title "$GITHUB_REF_NAME" \
             --notes-file "$RUNNER_TEMP/notes.md"
+
+  # npm (1.1.0, #161). The registry gets the SAME FILE the GitHub Release carries: the
+  # tarball `release` packed and attested, fetched back from the release, checked against
+  # its own bundle, and published as-is through trusted publishing (OIDC). No npm token
+  # exists for this package, so `id-token: write` is the only credential the job holds,
+  # and npm signs a provenance statement linking the version to this run. Re-packing is
+  # never done here: one artifact, two attestations over the same bytes.
+  #
+  # The npm side is configured by hand, once: the package exists (trusted publishing cannot
+  # create one, so its first version is published manually), its trusted publisher names
+  # this repository, `release.yml` and the `npm` environment, and its publishing access is
+  # "require two-factor authentication and disallow tokens". The `npm` environment admits
+  # only `v*` tags (CONTRIBUTING.md, "Releases").
+  #
+  # The setup-node shape is npm's own documented one: Node 24, whose bundled npm is past
+  # trusted publishing's 11.5.1 floor (no `npm install -g npm`, which Scorecard counts as
+  # unpinned), `registry-url` (how Scorecard's Packaging check recognises a publish), and no
+  # cache in a release build. NODE_AUTH_TOKEN is never set: setup-node then writes a dummy,
+  # so a failed OIDC exchange fails the publish instead of signing in as anyone.
+  #
+  # npm's OIDC exchange does not throw; it falls back to whatever credential is configured.
+  # So `npm publish` exiting 0 proves nothing about how the version was published, and the
+  # last step reads the registry back: the attested bytes, SLSA provenance, and the GitHub
+  # trusted publisher, or the job is red (scripts/ci/npm-publish.mjs, tested by
+  # tests/gates/npm-publish.test.mjs).
+  #
+  # A copy of this repository made for another stack skips the job until it renames the
+  # package and sets up its own trusted publisher (docs/forking.md).
+  publish-npm:
+    needs: release
+    if: github.repository == 'BhodiSea/next-expo-supabase-agent-harness'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: npm
+    permissions:
+      contents: read # the checkout, and `gh release download` of the release's assets
+      id-token: write # the OIDC token npm exchanges to publish, and signs provenance with
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Fetch the release's tarball and its provenance bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/dist"
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/dist" \
+            --pattern '*.tgz' --pattern '*.tgz.intoto.jsonl'
+      - name: The tarball verifies against the release workflow's attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TARBALL="$(ls "$RUNNER_TEMP"/dist/*.tgz)"
+          gh attestation verify "$TARBALL" --bundle "${TARBALL}.intoto.jsonl" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+            --source-ref "$GITHUB_REF" \
+            --deny-self-hosted-runners
+      - name: Publish through the trusted publisher
+        run: |
+          TARBALL="$(ls "$RUNNER_TEMP"/dist/*.tgz)"
+          DIST_TAG="$(node scripts/ci/npm-publish.mjs tag "${GITHUB_REF_NAME#v}")"
+          npm publish "$TARBALL" --tag "$DIST_TAG"
+      - name: The registry holds the attested tarball, with provenance, from the trusted publisher
+        run: |
+          TARBALL="$(ls "$RUNNER_TEMP"/dist/*.tgz)"
+          node scripts/ci/npm-publish.mjs verify "$TARBALL" "${GITHUB_REF_NAME#v}"

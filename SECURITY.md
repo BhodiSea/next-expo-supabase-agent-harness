@@ -29,7 +29,7 @@ register carried as `vuln-response-sla`, and this section is its discharge.
 ## Supported versions
 
 The latest tagged release and `main` are supported. Installed projects should
-run `npx --yes github:BhodiSea/next-expo-supabase-agent-harness update` to pick up
+run `npx --yes next-expo-supabase-agent-harness@latest update` to pick up
 fixes.
 
 Confirmed vulnerabilities are published as GitHub Security Advisories on this
@@ -78,8 +78,36 @@ gh attestation verify <tarball> --bundle <tarball>.intoto.jsonl \
   --signer-workflow BhodiSea/next-expo-supabase-agent-harness/.github/workflows/release.yml
 ```
 
-The attestation covers release assets. `npx github:...` fetches the repository
-at a ref rather than a release asset, so pin a tag (`#<tag>`) when you use it.
+### Verifying the npm package
+
+The registry holds the same file. The `publish-npm` job in `release.yml` fetches
+the release's tarball, verifies it against the bundle above, publishes it unchanged
+through npm trusted publishing, and then fails unless the registry reports those
+bytes, a SLSA provenance statement, and the GitHub trusted publisher
+(`scripts/ci/npm-publish.mjs`). No npm token exists for the package. A version you
+install from the registry can be checked both ways:
+
+```sh
+# npm's provenance and registry signatures, in a project that installed the package
+npm audit signatures
+
+# the GitHub attestation, against the exact tarball the registry serves
+npm pack next-expo-supabase-agent-harness@<version>
+gh attestation verify next-expo-supabase-agent-harness-<version>.tgz \
+  --repo BhodiSea/next-expo-supabase-agent-harness \
+  --signer-workflow BhodiSea/next-expo-supabase-agent-harness/.github/workflows/release.yml
+```
+
+The package page on npmjs.com links each version the workflow published to its
+source commit and workflow run. `npm audit signatures` reports a provenance
+statement that fails to verify, but not one that is missing. The first version on
+the registry was published by hand from its attested release asset, because trusted
+publishing cannot create a package, so it has no npm provenance and only the second
+check applies to it.
+
+The `npx github:...` form fetches the repository at a git ref rather than a
+release asset, so neither attestation covers it. Pin a tag (`#<tag>`) if you use
+it; npm 12 also requires `--allow-git=root` for it.
 
 ## Known Scorecard findings
 

@@ -29,7 +29,7 @@ body:
         gate is calibrated against.
       value: |
         ```sh
-        npx --yes github:BhodiSea/next-expo-supabase-agent-harness init --tier core --yes --dir /tmp/repro
+        npx --yes next-expo-supabase-agent-harness@latest init --tier core --yes --dir /tmp/repro
         cd /tmp/repro && git init -q && pnpm install
         git add -A && git commit -qm "chore: scaffold"
         # then:

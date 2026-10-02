@@ -198,7 +198,8 @@ review. The last two are conventions the maintainer will ask for.
    reading the plan", and this lane is that act's CI successor.
 5. Tag `vx.y.z` and push — `release.yml` re-runs the gates, waits for a green
    selftest matrix on the tagged SHA, verifies the changelog section, packs,
-   attests provenance, and publishes the GitHub Release.
+   attests provenance, publishes the GitHub Release, and then publishes that
+   release's tarball to the npm registry (`publish-npm`).
 
 The mechanics the five releases through 0.9.0 actually used, written down so
 the next one inherits a procedure rather than an archaeology (this list is what
@@ -218,8 +219,19 @@ step 5 compresses):
   SHA** via `scripts/ci/wait-for-workflows.mjs` (90-minute budget). Watch it BY
   RUN ID, not by branch. `hygiene.yml` is deliberately not awaited — it is
   schedule-gated and clockful.
-- **No `npm publish`**: the packed tarball is a provenance-attested GitHub
-  Release asset; the install channel is `npx --yes github:…`.
+- **npm publishing is the `publish-npm` job, never a person.** It fetches the
+  GitHub Release's tarball, verifies it against the release's own attestation
+  bundle, publishes it unchanged through trusted publishing (OIDC) under the
+  dist-tag `scripts/ci/npm-publish.mjs tag` chooses, and then fails unless the
+  registry reports those bytes, a SLSA provenance statement and the GitHub
+  trusted publisher. No npm token exists. A version below `latest` on the same
+  major line has no mechanical dist-tag, so the job stops and says so. The
+  one-time npm setup is the maintainer's: the first version published by hand
+  from its attested release asset (trusted publishing cannot create a package),
+  a trusted publisher naming this repository, `release.yml` and the `npm`
+  environment with **npm publish** allowed, publishing access set to "require
+  two-factor authentication and disallow tokens", and the `npm` environment
+  restricted to `v*` tags in the repository settings.
 - **Post-tag follow-ups are part of the release**, not optional: dispatch the
   schedule-gated lanes once (`obligations-clockful`, `registers-clockful`,
   `floor-advisories`) so their first runs happen while the release context is
