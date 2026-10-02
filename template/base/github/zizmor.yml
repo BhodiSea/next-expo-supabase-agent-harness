@@ -1,8 +1,8 @@
 # zizmor configuration (auto-discovered by zizmorcore/zizmor-action).
-# House rule (checked by the harden-runner-coverage job in actions-lint.yml): every
-# runnable job starts with step-security/harden-runner; on windows-* runners it runs
-# with egress-policy: audit — blocking is Linux-only, and an audited Windows job beats
-# an uninstrumented one.
+# House rule (checked by the workflow-hardening job in actions-lint.yml, since 1.1.0;
+# harden-runner-coverage beside it counts): every runnable job starts with
+# step-security/harden-runner; on windows-* runners it runs with egress-policy: audit —
+# blocking is Linux-only, and an audited Windows job beats an uninstrumented one.
 # SOURCE: docs/harness/README.md (workflow linting / CI-for-the-CI)
 rules:
   cache-poisoning:

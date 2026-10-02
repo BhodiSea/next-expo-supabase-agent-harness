@@ -48,6 +48,9 @@ install carries yet (#69).
 `@vitest/coverage-v8` below 4.1.11 now exits 2 where it exited 0. The record carries the two
 floors as a new kind, `catalogPinFloors`; no gate verdict, chain step or `update` exit code
 changes (#83).
+The CI-only `workflow-hardening` gate (see Added) opens one more ramp at 1.1.0, over a
+project's own workflows, with a deadline of 1.2.0, and adds one release row and one
+`scripts/ci/stop-side-expiries.json` entry (#73).
 
 ### Security
 
@@ -329,6 +332,36 @@ this heading if none does. -->
   `registers-clockful` and adds only the job's read-only `GITHUB_TOKEN`. The check is
   factory-only: nothing under `template/` changes, no consumer gate, chain step or verdict
   moves, and `template/migrations.json` carries nothing for it (#81).
+- **A project's own workflows meet the house rules: a bash default, job ceilings and
+  harden-runner first, behind a ramp until 1.2.0.** Since 1.0.2 every workflow the harness
+  ships selects `shell: bash` at workflow level and bounds every job, and a factory test held
+  that over the template alone. In an install, the one structural workflow check was
+  `actions-lint.yml`'s `harden-runner-coverage` loop, which counts harden-runner lines per
+  `*.yml` file: two steps in one job covered a neighbour with none, a step after `checkout`
+  or a commented-out one passed, and a `.yaml` file, a workflow indented by four spaces and a
+  Windows job's `egress-policy` were never read, although its comment said "first" and its
+  name promises audit mode on Windows. The rules now live in the new owned
+  `tools/lib/workflow-hardening.mjs`, which the factory test imports, so one rule set judges
+  the shipped workflows (under the factory's 240-minute bar) and a project's own. The new
+  CI-only gate `tools/check-workflow-hardening.mjs` reads every `.github/workflows/*.yml`
+  and `*.yaml` and requires a workflow-level `defaults.run.shell: bash` above `jobs:`,
+  spelled exactly so because GitHub adds `pipefail` to no custom command, a
+  whole-number `timeout-minutes` on every job that can take one (1 to 360 on a
+  GitHub-hosted runner and to 7200 on a self-hosted one, the platform's own limits), and
+  `step-security/harden-runner` as the first step of every job that is neither a
+  reusable-workflow call nor self-hosted, with `egress-policy: audit` where `runs-on` or a
+  matrix value it reads names windows. A finding names `<file>` or `<file>#<job>`; CRLF is
+  normalised, the job indentation is read from the first key under `jobs:`, and input the
+  gate cannot read is a finding, never a pass. `actions-lint.yml` runs it in a new
+  `workflow-hardening` job, on the paths the workflow already watched plus the two new files
+  and `.harness/manifest.json`. `harden-runner-coverage` keeps its id, name, loop and
+  verdict; its comment, its canary note and `zizmor.yml` now say that it counts and that
+  `workflow-hardening` checks position. On an install whose `baseVersion` predates 1.1.0 each
+  finding is a NOTE until 1.2.0; a fresh scaffold is held to the rules at once, and every
+  shipped workflow passes in every tier. `update` plants the two files and re-plants
+  `actions-lint.yml`, `zizmor.yml` and the catalog where they are sha-unmodified, and keeps a
+  forked `actions-lint.yml`, parking the new one. Not a chain step: the chain stays at 36
+  (#73).
 
 ### Fixed
 
@@ -925,6 +958,20 @@ this heading if none does. -->
   pin below a floor as it is, and its legs stay within `doctor` exit 0 or 2. A later change
   that makes the lane apply floors must rewrite the existing catalog line, not insert a
   second one as the dependency-obligation applier does (#83).
+- **The workflow rules read YAML's shape, not YAML.** A flow mapping (`jobs: {}`,
+  `steps: []`, an inline `defaults:`), a YAML anchor or alias, or a job key outside
+  `[A-Za-z_][A-Za-z0-9_-]*` is reported as unreadable rather than parsed, so a valid workflow
+  written that way reds until it is written in block style. A runner that comes from an
+  expression other than a literal matrix value (`${{ inputs.os }}`, a `fromJSON` matrix) is
+  not read as Windows, and only Windows is held to audit mode (#73).
+- **`graduate` does not run `workflow-hardening`.** The gate is CI-only, like `web-e2e`, so a
+  project can graduate past 1.1.0 with a workflow finding standing. The job runs when
+  `.harness/manifest.json` changes, so the graduation pull request shows it, and the runbook
+  says to run the gate by hand first (#73).
+- **1.2.0 arrives at 2.0.0 for `workflow-hardening` too.** The deadline is the one #73 fixes,
+  and the 2.0.0 record owes this expiry beside #71's two and #72's. The new job has run
+  under actionlint and zizmor and the gate in rendered scaffolds; no repository has run the
+  job on GitHub yet (#73).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -1271,6 +1318,21 @@ this heading if none does. -->
   obligation key read as unmet; both cases, and the one-home anchor case, were red until
   `catalogEntry` took either quote. A `catalogPinFloors` value that was not a list crashed
   `check-dependency-channel` with a `TypeError` until it was named as a problem (#83).
+  For the project workflow rules, the tests-only commit could not load the missing library;
+  with a stub that exported its names and no rules, 25 of the 35 cases in the two workflow
+  test files failed while both bash controls passed: the shipped `harden-runner-coverage`
+  loop exited 0 on the issue's fixture, with no output, and on each of the seven shapes it
+  misses. After the change the 47 cases of the issue's three test files pass. `init` of each
+  tier followed by `node tools/check-workflow-hardening.mjs` printed OK over 9, 14 and 19
+  workflows (32, 42 and 49 jobs). In the core scaffold, moving harden-runner below
+  `checkout` in `gitleaks.yml`, deleting `quality-gate.yml`'s `defaults:` block, or deleting
+  `adr-guard.yml`'s `timeout-minutes` each exited 1 naming the file or `<file>#<job>`, and
+  actionlint and zizmor report nothing on the rendered `actions-lint.yml`. A v1.0.4 core
+  install updated by this installer exited 0 with both files planted and the new job in
+  place; with the issue's fixture added the gate printed four `NOTE — (ramp)` lines that
+  expire in 1.2.0 and exited 0, and at a simulated harness 1.2.0 it printed `RAMP EXPIRED`
+  and exited 1. One whose `actions-lint.yml` had been edited and its sha re-recorded kept it,
+  parked the new copy and exited 2 (#73).
 
 ## [1.0.4] — 2026-10-01
 

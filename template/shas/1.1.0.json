@@ -633,6 +633,15 @@
             "DEFAULT_BRANCH"
           ]
         ]
+      },
+      {
+        "sha256": "c3a95f925af31230faa20369473219842467b76081f36dd781e791239bc06ca1",
+        "sites": [
+          [
+            937,
+            "DEFAULT_BRANCH"
+          ]
+        ]
       }
     ],
     ".github/workflows/adr-guard.yml": [
@@ -784,6 +793,9 @@
       }
     ],
     ".github/zizmor.yml": [
+      {
+        "sha256": "eee0d5b7effdf66c03679579d22bf46ce04e89334cf76595965150cd8eef4e37"
+      },
       {
         "sha256": "f6ff5e5409be3c965e35863519c8c0b70dcc3c2bbe6768e67f4971597f7d59c0"
       }
@@ -1040,6 +1052,15 @@
       }
     ],
     "docs/harness/gates-catalog.md": [
+      {
+        "sha256": "2abf5bcd35eb06d5899f8037d3addf667b1098a4fa90844706a5c8be61675f85",
+        "sites": [
+          [
+            125469,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
       {
         "sha256": "38d5e752fef25c747bec57de8c23fab1db3f3637a523b70471ad6b8bf6945554",
         "sites": [
@@ -1466,6 +1487,15 @@
       },
       {
         "sha256": "c9e33c807a8c6d693db2f9a3b3ffa4426dd39f48d2a8854f194f39960c44b770",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "d4d0e57cd9b27d5449ad4b22d68b470cc949b78e2041068ae1fe0397e00b1557",
         "sites": [
           [
             14115,
@@ -2072,6 +2102,11 @@
         "sha256": "6df5cfa0d751ff204245fcbce337f6c149fd93c35e376bd1173d4f2bd33ade37"
       }
     ],
+    "tools/check-workflow-hardening.mjs": [
+      {
+        "sha256": "a8ecc4eb9d07d38ac97a1562aa05886c19e0120397dd8516a0f0d768f44e3eed"
+      }
+    ],
     "tools/check-workspace-deps.mjs": [
       {
         "sha256": "9e27d8c00525c601316230bb43f283516fe3e2c6d0588a3c269ed63d1a11bafe"
@@ -2591,6 +2626,11 @@
     "tools/lib/web-routes.mjs": [
       {
         "sha256": "cc2dd43a967f79fd99807db736fd045f1599d627546d42e94bcc20779769b68c"
+      }
+    ],
+    "tools/lib/workflow-hardening.mjs": [
+      {
+        "sha256": "9ab47994e9f7eb4b83c1e528eca715a6e2bfd4224f46a25b2bb488eab6ca9589"
       }
     ],
     "tools/mcp/README.md": [

@@ -2639,6 +2639,42 @@ tests/gates/severity-contract.test.mjs.
   name on it, labelled `documentation` tier rather than borrowing the credibility of the
   checks around it.
 
+- **workflow-hardening** (`actions-lint.yml`, 1.1.0) — `node tools/check-workflow-hardening.mjs`
+  holds every workflow in `.github/workflows/`, `*.yml` and `*.yaml`, to the three house
+  rules every workflow the harness ships already meets, by the pure rules in
+  `tools/lib/workflow-hardening.mjs`: (1) a workflow-level `defaults.run.shell: bash`
+  above `jobs:`, because GitHub runs an un-shelled step as `bash -e` without `pipefail`, so
+  `producer | tee file` reports tee's status; it is spelled exactly `bash`, the one spelling
+  GitHub runs with `-eo pipefail`, so a custom command such as `bash -el {0}` is a finding
+  (the one workflow that publishes OpenSSF Scorecard results must carry no top-level
+  `defaults` or `env` instead); (2) a whole-number
+  `timeout-minutes` on every job that can take one, from 1 to 360 on a GitHub-hosted runner
+  and to 7200 on a self-hosted one (the platform's own limits; a job with none inherits 360),
+  and none on a reusable-workflow call; (3) `step-security/harden-runner` as the FIRST step
+  of every job that is neither a reusable-workflow call nor self-hosted, with
+  `egress-policy: audit` when its `runs-on`, or a matrix value it reads, names windows. A
+  finding names `<file>` or `<file>#<job>`. It is YAML-shaped, not YAML-parsed: CRLF is
+  normalised, the job indentation is read from the first key under `jobs:`, a job id is
+  `[A-Za-z_][A-Za-z0-9_-]*`, and comment lines are skipped. Input it cannot read is a
+  finding, never a pass: no workflow directory or none in it, a file it cannot read, no
+  `jobs:` block or no job in it, a line under `jobs:` that is not a job id, a job with no
+  readable `steps:` list, a first step with neither `uses:` nor `run:` (a YAML alias, a flow
+  mapping), a ceiling that is not a whole number. The job runs on a pull
+  request or push that touches a workflow, `.github/zizmor.yml`, the script, its library or
+  `.harness/manifest.json`, with no install. It is not a chain step, so `graduate` never
+  runs it: run it by hand before graduating. **Ramped:** an install whose `baseVersion`
+  predates 1.1.0 gets each finding as `workflow-hardening: NOTE — (ramp) …` until 1.2.0;
+  a fresh 1.1.0 scaffold is held to the rules at once. **Beside `harden-runner-coverage`,
+  not instead of it:** that job keeps its id, name and loop, which COUNTS harden-runner lines
+  per `*.yml` file, so two steps in one job cover a bare neighbour, a step after `checkout`
+  or a comment passes, and a `.yaml` file or a four-space indent is never read; this gate
+  checks each of those. **The injection** (`tests/gates/check-workflow-hardening.test.mjs`,
+  and by hand in a scaffold): move harden-runner below `checkout` in any job, delete the
+  `defaults:` block of a workflow that has a `run:` step, or delete a job's
+  `timeout-minutes`, and the gate exits 1 with
+  `workflow-hardening: FAIL` and a line naming `.github/workflows/<file>#<job>`; the test
+  also runs the counting loop over the same shapes and shows it passing each one.
+
 ## Opt-in modules
 
 `npx next-expo-supabase-agent-harness enable <module>` copies the module's files and

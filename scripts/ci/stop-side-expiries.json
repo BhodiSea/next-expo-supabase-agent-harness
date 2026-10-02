@@ -45,5 +45,12 @@
       "proof": "tests/gates/check-web-e2e.test.mjs",
       "note": "The 0.10.0 axe-tag ramp, in the same structurally-unexecuted position — and the entry whose 0.11.0 near-miss produced this file's per-detail keying: its canary asserts the RAMP EXPIRED banner names 'the axe tag ladder' specifically, so a proof of the 0.6.0 ramp can no longer excuse it."
     }
+  ],
+  "workflow-hardening": [
+    {
+      "detail": "the workflow hardening rules",
+      "proof": "tests/gates/check-workflow-hardening.test.mjs",
+      "note": "CI-only: not a chain member at all, like web-e2e. Its home is actions-lint.yml's workflow-hardening job in the consumer's own CI, which no upgrade-lane leg runs, and the Stop chain never names it. Its 1.1.0 ramp over a project's own workflows (#73, until 1.2.0) therefore expires where only the unit proof looks: the proof file spawns the real gate on a 1.0.3 manifest at harness 1.2.0 and asserts the RAMP EXPIRED banner names this ramp, beside the NOTE on 1.0.3 at 1.1.0 and the plain red on a 1.1.0 manifest."
+    }
   ]
 }

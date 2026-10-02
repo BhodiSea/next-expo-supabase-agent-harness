@@ -744,10 +744,12 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
   // reviewer-verdicts' per-reviewer round budget. Neither widens the set: both gates already
   // carry ramps at this vintage. TWENTY-NINE since 1.1.0 added docs-sync's reviewer bodies
   // closing on the verdict demand (#72, minVersion 1.1.0, due 1.2.0), which does not widen
-  // it either.
+  // it either. THIRTY since 1.1.0 added workflow-hardening's rules over a project's own
+  // workflows (#73, minVersion 1.1.0, due 1.2.0), which DOES widen it: the CI-only gate
+  // carries no other ramp.
   const fresh = classifyForInstall('0.6.0', '0.7.0', sites)
   assert.equal(fresh.expired.length, 0)
-  assert.equal(fresh.noting.length, 29)
+  assert.equal(fresh.noting.length, 30)
   assert.deepEqual(
     [...new Set(fresh.noting.map((s) => s.gate))].sort(),
     [
@@ -763,8 +765,9 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
       'version-sync',
       'web-e2e',
       'wiring',
+      'workflow-hardening',
     ],
-    'what 0.7.0 opened plus what 0.8.0, 0.9.0, 0.9.5, 0.9.9, 0.10.0, 0.11.0 and 1.0.0 open, all advisory for this vintage at harness 0.7.0',
+    'what 0.7.0 opened plus what 0.8.0, 0.9.0, 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open, all advisory for this vintage at harness 0.7.0 (1.1.0 adds workflow-hardening)',
   )
 
   // The why is a pointer a consumer follows, so its three load-bearing references are pinned
@@ -835,8 +838,9 @@ test('the SHIPPED 0.8.0 rampExpiry record equals what the shipped call sites com
       'version-sync',
       'web-e2e',
       'wiring',
+      'workflow-hardening',
     ],
-    'what 0.8.0 opened (the 0.9.0 record owes those two) plus what 0.9.0, 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open (the later records owe these; 1.1.0 adds reviewer-verdicts, the ledger v2)',
+    'what 0.8.0 opened (the 0.9.0 record owes those two) plus what 0.9.0, 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open (the later records owe these; 1.1.0 adds reviewer-verdicts, the ledger v2, and workflow-hardening)',
   )
 
   // The one deadline this release moves, recorded rather than quiet — the second entry of
@@ -923,8 +927,9 @@ test('the SHIPPED 0.9.0 rampExpiry record equals what the shipped call sites com
       'version-sync',
       'web-e2e',
       'wiring',
+      'workflow-hardening',
     ],
-    'what 0.9.0 OPENS (the 0.10.0 record owes those two) plus what 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open (1.1.0 adds reviewer-verdicts, the ledger v2)',
+    'what 0.9.0 OPENS (the 0.10.0 record owes those two) plus what 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open (1.1.0 adds reviewer-verdicts, the ledger v2, and workflow-hardening)',
   )
   // …and the 0.9.0-opened pair in isolation, which is the assertion that does NOT drift
   // as later releases open their own ramps: filter by the minVersion that names them.
@@ -1007,6 +1012,10 @@ const ROUND_BUDGET = 'the per-reviewer round budget'
 // docs-sync's verdict-demand position (1.1.0, #72): opened at minVersion 1.1.0, due 1.2.0, and
 // later in check-docs-sync.mjs than the severity contract's site, so it sorts right after it.
 const VERDICT_DEMAND = 'reviewer bodies closing on the verdict demand'
+// workflow-hardening's rules over a project's own workflows (1.1.0, #73): opened at minVersion
+// 1.1.0, due 1.2.0, in the CI-only check-workflow-hardening.mjs, which sorts last.
+const WORKFLOW_HARDENING =
+  'the workflow hardening rules over the project workflows (a workflow-level bash default, a ceiling on every job, harden-runner as the first step)'
 /** The 1.1.0-opened sites, in the order the scanner lists them. */
 const OPENED_110 = [
   `'${SEVERITY_CONTRACT}'`,
@@ -1015,6 +1024,7 @@ const OPENED_110 = [
   `'${ROUND_BUDGET}'`,
   `'${LEDGER_V2}'`,
   `"${ARRIVAL}"`,
+  `'${WORKFLOW_HARDENING}'`,
 ]
 
 test('0.11.1 → 1.0.0 → 1.1.0 — the eol ARRIVAL escape reaches the vintages it used to exclude, one release on each time', () => {
@@ -1092,7 +1102,8 @@ test('the SHIPPED 1.0.0 rampExpiry record equals what the shipped call sites com
   // The 0.11.x vintages meet NOTHING expired and the whole six-gate 1.0.0 NOTE fleet — the
   // shape legs A and M share, and the inverse proof that the wave is dated, not blanket.
   // Under the current fleet the reviewer ledger v2 (minVersion 1.1.0, due 2.1.0) reads as
-  // advisory for them too, moved in the diff that opened it.
+  // advisory for them too, moved in the diff that opened it, and so does workflow-hardening
+  // (#73, minVersion 1.1.0, due 1.2.0), a gate of its own.
   for (const base of ['0.11.0', '0.11.1']) {
     const at = classifyForInstall(base, '1.0.0', sites)
     assert.equal(at.expired.length, 0, `${base} must meet no expiry at 1.0.0`)
@@ -1106,8 +1117,9 @@ test('the SHIPPED 1.0.0 rampExpiry record equals what the shipped call sites com
         'reviewer-verdicts',
         'suppressions',
         'version-sync',
+        'workflow-hardening',
       ],
-      `the six-gate 1.0.0 fleet at base ${base}, plus the 1.1.0 ledger v2`,
+      `the six-gate 1.0.0 fleet at base ${base}, plus the 1.1.0 ledger v2 and workflow-hardening`,
     )
   }
   // v0.10.0 meets exactly ONE expiring gate — data-flow — the smallest non-zero wave and
@@ -1151,8 +1163,9 @@ test('the SHIPPED 1.0.1 rampExpiry record equals what the shipped call sites com
         'reviewer-verdicts',
         'suppressions',
         'version-sync',
+        'workflow-hardening',
       ],
-      `the six-gate 1.0.0 fleet at base ${base}, plus the 1.1.0 ledger v2`,
+      `the six-gate 1.0.0 fleet at base ${base}, plus the 1.1.0 ledger v2 and workflow-hardening`,
     )
   }
   const at100 = classifyForInstall('1.0.0', '1.0.1', sites)
@@ -1162,12 +1175,13 @@ test('the SHIPPED 1.0.1 rampExpiry record equals what the shipped call sites com
   // since 1.1.0 re-opened version-sync's eol arrival at minVersion 1.1.0, that one site reads
   // as advisory for a 1.0.0 base at every version below its 1.2.0 deadline, and so do the
   // reviewer ledger v2 and the security-reviewer model check 1.1.0 opened, below their 2.1.0
-  // deadline, and the severity contract's two sites (#71) and docs-sync's verdict-demand
-  // position (#72), below their 1.2.0 deadline; nothing else.
+  // deadline, and the severity contract's two sites (#71), docs-sync's verdict-demand
+  // position (#72) and workflow-hardening's rules (#73), below their 1.2.0 deadline; nothing
+  // else.
   assert.deepEqual(
     at100.noting.map((s) => s.detail),
     OPENED_110,
-    '1.0.0 meets only the six 1.1.0-opened sites under the current fleet',
+    '1.0.0 meets only the seven 1.1.0-opened sites under the current fleet',
   )
   assert.match(record.why, /ramp-expectations\.mjs/)
 })
@@ -1234,15 +1248,17 @@ test('the SHIPPED 1.1.0 rampExpiry record equals what the shipped call sites com
     assert.deepEqual([...new Set(at.expired.map((s) => s.gate))].sort(), SEVEN)
     // …and the re-opened arrival stays a NOTE for them: its fix is parked, not due. So do
     // the reviewer ledger v2, the security-reviewer model check, the severity contract's two
-    // sites and docs-sync's verdict-demand position this release opens.
+    // sites, docs-sync's verdict-demand position and workflow-hardening's rules this release
+    // opens.
     assert.deepEqual(
       at.noting.map((s) => s.detail),
       OPENED_110,
     )
   }
-  // Every 1.0.x vintage meets NOTHING expired and exactly the six 1.1.0-opened NOTEs, the
+  // Every 1.0.x vintage meets NOTHING expired and exactly the seven 1.1.0-opened NOTEs, the
   // re-opened arrival, the reviewer ledger v2, the security-reviewer model check, the
-  // severity contract's two sites and docs-sync's verdict-demand position — the inverse proof
+  // severity contract's two sites, docs-sync's verdict-demand position and
+  // workflow-hardening's rules (#73) — the inverse proof
   // that the wave is dated, not blanket. Filtered by the minVersion that names them first, so
   // a site opened at any other version fails here on its own line, and each later 1.1.0 ramp
   // joins OPENED_110 in the diff that opens it.
@@ -1256,7 +1272,7 @@ test('the SHIPPED 1.1.0 rampExpiry record equals what the shipped call sites com
     assert.deepEqual(
       at.noting.map((s) => s.detail),
       OPENED_110,
-      `${base} meets only the six 1.1.0-opened sites`,
+      `${base} meets only the seven 1.1.0-opened sites`,
     )
   }
   assert.match(record.why, /SWEEPS\['1\.0\.0'\]/)
