@@ -183,9 +183,14 @@ None of these tightens a gate for an existing install. Where one changes what
   checks that a citation resolves: that needs a `gate-proposal` of its own.
   ([N13](design/FIELD-UPGRADES-2026-09.md#n13-a-resolver-for-spec-anchors),
   issue #63)
-- **Review records outside ADRs.** A defined home for round-by-round review
-  records, so ADRs keep decisions.
-  ([N14](design/FIELD-UPGRADES-2026-09.md#n14-review-records-outside-adrs))
+- **Review records outside ADRs.** Each change keeps its review rounds in
+  `docs/reviews/<YYYYMMDD>-<slice>.md`, one table per round (reviewer, verdict,
+  findings, resolution), linked from its ADR's Traceability, so the ADR keeps
+  the decisions. No gate reads the directory, and `update` plants the seeded
+  README only where an install has none. The whole-turn reviewers bind to the
+  whole diff, record included, so the README orders their last run after it.
+  ([N14](design/FIELD-UPGRADES-2026-09.md#n14-review-records-outside-adrs),
+  issue #64)
 - **A proposal flow for register edits.** An agent stages a protected edit for
   a human to apply in one action. The corpus half of this item is in 1.0.4.
   ([N15](design/FIELD-UPGRADES-2026-09.md#n15-a-proposal-flow-for-register-edits-and-a-project-side-corpus),
