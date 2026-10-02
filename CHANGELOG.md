@@ -63,6 +63,24 @@ this heading if none does. -->
   manifest read for the CLI, which reaches it through a namespace import, so a parked fork
   of the lib without it voids a row rather than failing `changes`. No chain step and no
   ramp (#56).
+- **The package is published to the npm registry, through trusted publishing.** npm 12
+  refuses git sources by default, so the documented
+  `npx --yes github:BhodiSea/next-expo-supabase-agent-harness` stopped with `EALLOWGIT`
+  before running anything, and every scaffold already named the registry package in its
+  gate messages, runbooks and module READMEs, each of which failed with `E404`.
+  `release.yml` gains a `publish-npm` job. It fetches the GitHub Release's tarball and
+  bundle, verifies them with `gh attestation verify`, and publishes that file unchanged
+  through trusted publishing: Node 24's bundled npm, the `npm` environment, and no npm
+  token. The dist-tag comes from `scripts/ci/npm-publish.mjs tag`, which refuses a
+  version with no mechanical answer. The job then fails unless the registry reports the
+  attested bytes, a SLSA provenance statement and the GitHub trusted publisher, because
+  npm's OIDC exchange falls back silently to any other credential and `npm publish`
+  exiting 0 proves nothing about how the version was published.
+  `tests/gates/npm-publish.test.mjs` pins both verdicts and runs the CLI against a
+  stand-in registry. The README, `docs/cli.md`, SECURITY.md ("Verifying the npm
+  package"), the assurance case (R7 and residual risk 2), CONTRIBUTING.md and ROADMAP.md,
+  whose non-goal is withdrawn, describe the registry path. The `github:` form still works,
+  with `--allow-git=root` on npm 12. Nothing changes for an existing install (#161).
 - **Post-merge lanes reuse the merged pull request's green result on an identical tree.**
   `quality-gate.yml` runs on the pull request and again on the push its merge produces, so
   an up-to-date squash merge re-ran `static`, `unit`, `mutation`, `runtime-rls`, `e2e-fast`

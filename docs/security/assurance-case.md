@@ -8,18 +8,20 @@ scaffold, chiefly
 
 It states what the harness must guarantee, who it defends against, where the
 trust boundaries are, how each guarantee is met, and what is not covered.
-Reviewed 2026-09-20 against the tree at 1.0.2. It was written by the maintainer
-with an AI assistant and has had no independent review.
+Reviewed 2026-09-20 against the tree at 1.0.2; the install path, R7 and residual
+risk 2 were revised on 2026-10-02 for the npm package (#161). It was written by the
+maintainer with an AI assistant and has had no independent review.
 
 ## What the harness is, in security terms
 
-A user runs `npx github:BhodiSea/next-expo-supabase-agent-harness init`. That
-fetches this repository at a ref and runs `installer/cli.mjs` on their machine
-with their privileges. The installer writes several hundred files into their
-project. Some of those files are hooks that later run inside their AI coding
-agent's session, and some are CI workflows that later run with their
-repository's permissions. `update` repeats this against a project that already
-has code in it.
+A user runs `npx next-expo-supabase-agent-harness@latest init`. That fetches the
+package from the npm registry (or, in the older `npx github:` form, this
+repository at a git ref) and runs `installer/cli.mjs` on their machine with
+their privileges. The installer writes several hundred files into their project.
+Some of those files are hooks that later run inside their AI coding agent's
+session, and some are CI workflows that later run with their repository's
+permissions. `update` repeats this against a project that already has code in
+it.
 
 So the harness is a supply-chain component. A defect or a compromise here is
 delivered into every project that installs or updates.
@@ -34,7 +36,7 @@ delivered into every project that installs or updates.
 | R4 | A guard hook that cannot run blocks the action. It does not fail open. |
 | R5 | Weakening an installed gate is detectable: locally at once, and in CI regardless of what happened locally. |
 | R6 | A change to the enforcement surface of this repository is a deliberate human act, visible in review. |
-| R7 | A release asset can be verified as built by this repository's release workflow from a tagged commit. |
+| R7 | A release asset, and the npm package version published from it, can be verified as built by this repository's release workflow from a tagged commit. |
 | R8 | The CI of this repository gives an untrusted pull request no write access and no secrets. |
 | R9 | Known vulnerabilities in what the scaffold pins are found and fixed within a bounded time. |
 
@@ -56,14 +58,14 @@ delivered into every project that installs or updates.
 ## Trust boundaries
 
 ```
- user's shell ──npx──▶ GitHub (this repo @ ref) ──▶ installer process ──▶ consumer working tree
+ user's shell ──npx──▶ npm registry @ <version> ──▶ installer process ──▶ consumer working tree
                                                                               │
         agent session ──tool call──▶ hook process ──allow/deny──▶ shell, files, MCP
                                                                               │
         consumer CI ◀── workflows and gates from the template ◀───────────────┘
 
  contributor PR ──▶ factory CI (read-only token, no secrets) ──▶ maintainer review ──▶ main
- tag ──▶ release.yml (OIDC identity) ──▶ attested tarball ──▶ GitHub Release
+ tag ──▶ release.yml (OIDC identity) ──▶ attested tarball ──▶ GitHub Release ──▶ npm registry
 ```
 
 1. **The user and this repository.** The user trusts the ref they name.
@@ -139,7 +141,10 @@ green `selftest.yml` and `lint.yml` runs on that exact commit, and signs a
 build provenance attestation for the tarball with an identity issued to that
 workflow run. No long-lived signing key exists. SECURITY.md gives the
 verification commands, which were run against the v1.0.3 assets on
-2026-09-29 and fail for any other repository or workflow.
+2026-09-29 and fail for any other repository or workflow. A later job publishes
+that same tarball to the npm registry through trusted publishing, with no npm
+token, and fails unless the registry reports its bytes, a SLSA provenance
+statement and the GitHub trusted publisher (`scripts/ci/npm-publish.mjs`).
 
 **R8. Untrusted pull requests.** Every factory workflow sets
 `permissions: contents: read` at the top and grants more only per job. No
@@ -182,7 +187,7 @@ SECURITY.md commits to response times for reported vulnerabilities.
 | Path traversal (CWE-22) | Destinations are derived from the packaged template tree. See the residual risk below. |
 | Secrets in source or output (CWE-798) | Hygiene scan of `template/`, two secret scanners in the scaffold, and credential patterns in both `.gitignore` files. |
 | Vulnerable components (CWE-1395) | R9. |
-| Insufficient verification of authenticity (CWE-345) | R7 for release assets. The `npx github:` path relies on GitHub and on the chosen ref. |
+| Insufficient verification of authenticity (CWE-345) | R7 for release assets and the npm package. The `npx github:` path relies on GitHub and on the chosen ref. |
 | Regular expression denial of service | Guard rules are regular expressions over agent-supplied text, run under a 10 second hook timeout. The rules have not been analysed for catastrophic backtracking, and what Claude Code does with a guard that times out has not been verified here. |
 | Code injection in CI | CodeQL's `actions` and `javascript-typescript` analyses run on every pull request as of 1.0.2. |
 
@@ -195,11 +200,16 @@ than they need the mechanisms above.
    shell access that sets out to evade them can. They match command text, so an
    unanticipated spelling can pass, and a quoted denied string can be blocked
    when it is harmless. CI and human review are the actual boundary.
-2. **`npx github:` runs whatever the ref points at.** A branch name moves. Only
-   a tag or a commit SHA pins the code, and the build provenance attestation
-   covers release assets, not the `npx github:` fetch. A compromise of the
-   maintainer's GitHub account or of this repository would reach users who
-   install from an unpinned ref.
+2. **The `npx github:` form, and a version published outside the workflow, are
+   checked less.** The `npx github:` form runs whatever the ref points at: a
+   branch name moves, only a tag or a commit SHA pins the code, and no
+   attestation covers that fetch. A compromise of the maintainer's GitHub
+   account or of this repository would reach users who install from an unpinned
+   ref. On the registry, a version published outside the workflow (by someone
+   holding the maintainer's npm account and its second factor) would carry no
+   provenance, and `npm audit signatures` does not report a missing statement;
+   the package page and `npm view <package>@<version> dist.attestations` show
+   it.
 3. **There is one maintainer.** No change is reviewed by a second person, so R6
    reduces to one person's diligence plus automation.
    [GOVERNANCE.md](../../GOVERNANCE.md) records this.

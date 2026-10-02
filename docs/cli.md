@@ -1,8 +1,12 @@
 # CLI reference
 
 ```sh
-npx --yes github:BhodiSea/next-expo-supabase-agent-harness[#<tag>] <command> [flags]
+npx --yes next-expo-supabase-agent-harness@<latest|version> <command> [flags]
 ```
+
+`@latest` runs the newest release and `@<version>` an exact one. The older
+`github:BhodiSea/next-expo-supabase-agent-harness#<tag>` spelling fetches the
+repository at a git ref instead; npm 12 refuses it unless run with `--allow-git=root`.
 
 `help`, `--help` or no command prints a shorter version of this page.
 `tests/gates/cli-docs-sync.test.mjs` fails if this page stops matching the

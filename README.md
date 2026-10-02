@@ -8,13 +8,12 @@ mobile app on one Supabase backend, plus Claude Code hooks and CI gates that
 block an agent turn or a merge until validation passes.
 
 ```sh
-npx --yes github:BhodiSea/next-expo-supabase-agent-harness init
+npx --yes next-expo-supabase-agent-harness@latest init
 ```
 
-To pin a release, append its tag from the
+To pin a release, replace `latest` with a version number from the
 [Releases](https://github.com/BhodiSea/next-expo-supabase-agent-harness/releases)
-page: `github:BhodiSea/next-expo-supabase-agent-harness#<tag>`. Then, in the new
-directory:
+page (the tag without its `v`). Then, in the new directory:
 
 ```sh
 git init          # first: the prepare script (lefthook install) needs a repository
@@ -23,9 +22,12 @@ git add -A && git commit -m "chore: scaffold"   # the first commit must include 
 pnpm validate
 ```
 
-The package installs from GitHub. It is not published to the npm registry. Each
-GitHub Release carries the packed tarball with a build provenance attestation;
-see [Verifying a release](SECURITY.md#verifying-a-release).
+The npm package is the tarball attached to the matching GitHub Release, published
+by this repository's release workflow through npm trusted publishing, so each
+version it publishes carries npm provenance as well as the release's build
+provenance attestation; see [Verifying a release](SECURITY.md#verifying-a-release). The older
+`npx github:BhodiSea/next-expo-supabase-agent-harness#<tag>` form still works, but
+npm 12 refuses git sources unless it is run with `--allow-git=root`.
 
 **Status: stable (1.1.x).** CI proves the scaffold on Linux only. The installer's
 unit tests also run on Windows. `pnpm validate` has never run in CI on macOS or
