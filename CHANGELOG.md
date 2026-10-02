@@ -68,6 +68,12 @@ The chain grows to 37 steps: `web-compile` compiles the web app (see Added) and 
 at 1.1.0 until 1.2.0, `route-manifest`'s new per-route browser closure opens another with the
 same window, and `docs-sync`'s gate-list escape re-opens for the step itself; each adds one
 release row (#77).
+The Edge Function surface (see Added, Changed and Fixed) opens four more at 1.1.0, in
+`diff-coverage`, the mutation lane's scoper and ratchet, and the new CI-only
+`edge-functions` gate, each with a deadline of 1.2.0, and adds one release row that anchors
+all four and four `scripts/ci/stop-side-expiries.json` entries. It withholds four new
+seeded files (`seedOnInitOnly`) and parks a second `seededSourceFixes` set, paired with one
+dated `lint` exemption that has a release row of its own (#78).
 
 ### Security
 
@@ -418,6 +424,34 @@ this heading if none does. -->
   `orgs` state test id from the specs, where `route-manifest` must red naming `orgs`; the
   bootstrap job's warm run must print `web-compile: STAMPED` and leave `apps/web` clean
   (#77).
+- **Edge Functions typecheck in a CI lane of their own, and the seeded function is split so
+  what it decides can be tested.** The scaffold's one Edge Function holds the key that
+  bypasses row security, and its header says one misordering cannot be recovered from:
+  verify the personal-org sweep, then call `deleteUser`. No check compiled, ran or mutated
+  it. `tsc -b` never reaches `supabase/`, and vitest, coverage and Stryker cannot import a
+  file that imports a `jsr:` specifier and starts a server as it loads, so a type error in
+  service-role code, or `deleteUser` moved ahead of the verified sweep, passed `validate`,
+  the Stop chain and CI alike. The seeded function is split: `handler.ts` holds `readKey`
+  and the four steps, takes its clients (`connect`) and environment (`env`) as parameters,
+  and names no `Deno` global and no runtime import (its one import is type-only);
+  `handler.test.ts`, a 30-case vitest suite, proves the order, the key names, the caller's
+  token and the HTTP surface, and goes red on a handler with steps 3 and 4 swapped;
+  `index.ts` becomes a one-call `Deno.serve` shell; `deno.json` pins
+  `jsr:@supabase/supabase-js@2.117.2` and `deno.lock` freezes it. The new owned CI-only gate
+  `tools/check-edge-functions.mjs` requires each `supabase/functions/<fn>/index.ts` to have
+  a `deno.json` whose `jsr:`/`npm:` imports name exact releases and a `deno.lock`, and runs
+  `deno check --frozen` against the two, so a type error anywhere in the shell's import
+  graph, or a lock that no longer matches, is a finding with deno's own output. No function
+  at all is OK with the count; a missing deno skips loudly locally and fails closed in CI.
+  `quality-gate.yml` runs it in a new `edge-functions` job, with its own `changes` output
+  and filter, the nightly schedule and a place in `gate-summary`'s `needs`; the job installs
+  deno 2.9.6 through a SHA-pinned `denoland/setup-deno`, which Renovate bumps, and caches its
+  modules on the lockfiles. The ADR's "Only the caller's account dies" row names its tests.
+  On an install whose `baseVersion` predates 1.1.0 every finding, and a missing deno,
+  `deno.json` or `deno.lock`, is a NOTE until 1.2.0. The four new files are
+  `seedOnInitOnly`, and a `seededSourceFixes` entry (gate `lint`) tells an existing install
+  to pull the split with `update --refresh-seeded supabase/functions/delete-account/`. Not a
+  chain step (#78).
 
 ### Fixed
 
@@ -522,6 +556,23 @@ this heading if none does. -->
   Each now runs `pnpm exec tsc -b apps/web` first, and a factory test holds every shipped
   base job that builds the web app to it. The `ci-web-deploy` module's `attest-web` job has
   the same gap and is left alone (see What stays open) (#77).
+- **The lint rules that named `supabase/functions` now reach it.** `eslint.config.mjs`
+  ignored `supabase/**`, and a later block cannot reach anything a global ignore lists, so
+  `no-unverified-session`, `service-role-edge-functions-only` and
+  `crypto-primitives-one-door` all named Edge Functions and reached none: a `getSession()`
+  in the delete-account function passed lint, although the `getSession` block's own comment
+  cites an Edge Function as a case that "passed every layer" and the conformance map says
+  the rule covers `supabase/functions/**`. The ignore now lets `supabase/functions/` back
+  in, the type-aware block skips it (no tsconfig covers Deno code), and a new block gives it
+  the TypeScript parser with no project service, so the security rules reach it unedited
+  and unramped; `service-role-edge-functions-only` stays off, since the functions are its
+  sanctioned home. A second block holds the functions to cognitive complexity 15 and
+  `no-suppressed-complexity`, and exempts one path until 1.2.0: the delete-account
+  `index.ts` every 1.0.x install carries is seeded and measures 16, so the block would red
+  every upgraded install over a file `update` cannot rewrite (register row
+  `edge-functions-complexity-seeded-exemption`). Selftest Canary 37 appends a `getSession()`
+  to that file in a rendered scaffold and requires `lint` to red; against the 1.0.3 config
+  it stays green (#78).
 
 ### Changed
 
@@ -928,6 +979,28 @@ this heading if none does. -->
   chain is re-measured: `check-claims` refuses a figure whose recorded step count differs
   from the chain, and `scripts/chain-budget.json` budgets `web-compile` as a toolchain step
   with no measurement yet (#77).
+- **`unit`, `diff-coverage` and the mutation lane reach `supabase/functions`, behind ramps
+  until 1.2.0.** `vitest.config.ts` now derives two lists from the tree: every `*.test.ts`
+  under `supabase/functions` that imports from `'vitest'` joins `unit-node` (a `deno test`
+  file is never collected, where a glob would red the whole step on one), and each
+  top-level directory there that holds one is measured. Vitest has no ramp and reports an
+  included file no test loads as 0%, so a glob would have put every untested helper an
+  install already has on the aggregate floor; an unmeasured directory stays off it. Each
+  function's `index.ts` joins `COVERAGE_EXCLUDE`. `diff-coverage`'s `SRC_RE` gains
+  `supabase/functions/`, and a changed file in a directory with no vitest suite is named as
+  absent from the map, with the one green path. The mutation floor gains the starred root
+  `supabase/functions/*/` (a tree with no functions stays green: starred roots skip the
+  zero-match alarm), with `index.ts` carved out of `MUTATE_GLOBS` and `isCritical`, which
+  now matches every root with `rootMatches`. StrykerJS's vitest runner stops with "No tests
+  were executed" and writes no report when no test relates to the files it mutates, so
+  `tools/mutation-scope.mjs` judges a changed function file whose directory holds no vitest
+  suite: a FAIL naming the suite it needs. `rampNote` takes an optional `log` for its NOTE
+  line, which the scoper points at stderr, since its stdout is Stryker's `--mutate` list. On
+  an install whose `baseVersion` predates 1.1.0, `diff-coverage`'s findings under
+  `supabase/functions`, the scoper's withheld files and the ratchet's new survivors there
+  are NOTEs until 1.2.0; a finding anywhere else is judged as before, and a fresh scaffold
+  is held at once. The obligations row `edge-functions-surface-ramp-expiry` anchors the
+  four sites with the typecheck's (#78).
 
 ### What stays open, honestly
 
@@ -1289,6 +1362,34 @@ this heading if none does. -->
 - **The two `pnpm validate` timings are not re-measured yet.** The re-record is a selftest
   `workflow_dispatch` on the release branch before the tag, as 1.0.0's was; until then the
   README says so instead of printing a figure (#77).
+- **deno is a prerequisite the job installs, not a dependency.** It is not in the catalog,
+  so no install carries its binary and `doctor` asks for nothing, and locally the gate
+  SKIPS until you install deno yourself. The binary comes from the SHA-pinned
+  `denoland/setup-deno` action, not from a lockfile hash, and its version lives in
+  `quality-gate.yml` (and, for the factory's own lanes, in `selftest.yml`, which a test
+  holds equal) (#78).
+- **A handler's test file is typechecked by nothing.** `deno check` follows `index.ts`'s
+  graph, which reaches the handler and not its suite, `tsc -b` does not reach
+  `supabase/`, and vitest strips types (#78).
+- **Your own Edge Functions meet the new lint rules at once.** The dated exemption covers
+  only the seeded delete-account `index.ts`. A function you wrote that calls
+  `getSession()`, reaches `crypto.subtle`, or has a function over complexity 15 reds `lint`
+  on the first run after `update`. The first two are the rules working; for a webhook that
+  verifies an HMAC signature, `crypto-primitives-one-door` has no sanctioned home in
+  `supabase/functions` yet, so such a function reds with no escape but an inline
+  suppression the census must accept (#78).
+- **Only `deno.json` is held to exact versions.** An inline `jsr:`/`npm:` specifier with a
+  range in a function's source, like the 1.0.x `jsr:@supabase/supabase-js@2`, is pinned
+  only by the frozen lock (#78).
+- **A function directory is measured only once it holds a vitest suite.** A helper tested
+  only through a handler in another directory (a `_shared/` file with no suite of its own)
+  is named by `diff-coverage` and refused by the mutation scoper until `_shared/` has a
+  suite (#78).
+- **The four new ramps and the lint exemption end at 2.0.0 too.** The deadline is the one
+  issue #78 fixes; the 2.0.0 record owes the four expiries and the removal of the exemption
+  line, beside the other 1.1.0 ramps due at 1.2.0. The `edge-functions` job itself runs only
+  in a project's own CI; the factory runs its gate through Canary 38 and the `bootstrap-linux`
+  check in `selftest.yml` (#78).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -1767,6 +1868,30 @@ this heading if none does. -->
   (naming `notes` and `security`) and the gate list as NOTEs that expire in 1.2.0, so
   `graduate` refused. Leg E, from v0.3.0, compiled the old web app, adopted the two specs in
   its sweep and graduated to 1.1.0 (#77).
+  For the Edge Functions, the tests-only commit, on the tree #77 left, was red on 29 of 90
+  cases in six files: `check-edge-functions.test.mjs` on 13 of 14 (the gate absent; the
+  real-deno case skips without deno), `diff-coverage` on seven, the ratchet on its three ramp
+  cases and the Edge Function drift case, `workflow-lanes` on three, and
+  `tests/gates/mutation-scope.test.mjs` and `tests/gates/edge-function-split.test.mjs` would
+  not load (`edgeSuiteDirs` did not exist). In a rendered core scaffold, with `deleteUser`
+  moved ahead of the verified sweep (steps 3 and 4 swapped), 7 of the handler suite's 30
+  cases went red, among them "returns 500 and never calls deleteUser when the swept count
+  does not match the lookup"; with `readKey` taking the first of several keys, 2 went red,
+  among them "refuses to pick when there are several and none is named 'default'"; the
+  shipped handler passes all 30, and Stryker over `handler.ts` killed all 174 mutants, with
+  the ratchet OK. With deno 2.9.6 the real-deno case typechecks the shipped function and
+  reds on `const n: number = 'x'`; the binary is a 42 MB download, a cold check fills a 13 MB
+  module cache in 2 to 2.5 s, and a warm one takes under 0.2 s. In the same scaffold the
+  gate printed OK over the seeded function, Canary 38's edit redded it with `TS2322`, and
+  Canary 37's `getSession()` redded `eslint` on `local/no-unverified-session`, where both
+  the 1.0.3 config and the config before this change exited 0 on the same edit. Set to a
+  1.0.3 `baseVersion` with the v1.0.3 `index.ts`, no handler, `deno.json` or `deno.lock`,
+  and an untested `supabase/functions/_shared/cors.ts`, the scaffold stayed green on
+  `eslint .` and on vitest with coverage, and `diff-coverage`, the mutation scoper and
+  `edge-functions` (with deno and without, under `CI=true`) each printed their NOTEs and
+  exited 0; at harness 1.2.0 `edge-functions` and `diff-coverage` printed RAMP EXPIRED and
+  failed. A zero-edit core scaffold rendered from this tree passed `validate --report-all`
+  on all 37 steps (#78).
 
 ## [1.0.4] — 2026-10-01
 

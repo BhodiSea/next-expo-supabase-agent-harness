@@ -210,13 +210,29 @@ was the suppression comment — the directive itself is now the lint error, a
 directive naming this rule reds too (line-level stacking never terminates), and
 the rule's header states the honest file-level residual plus the controls that
 cover it (the factory's pinned config text, the torvalds rubric).
+**1.1.0 reaches the Edge Functions.** Until 1.1.0 the global ignore read `supabase/**`,
+and a later block cannot reach anything a global ignore lists, so the three blocks that
+name `supabase/functions` (`no-unverified-session`, `service-role-edge-functions-only`,
+`crypto-primitives-one-door`) reached nothing there. The ignore now lets
+`supabase/functions/` back in; a block gives `supabase/functions/**/*.ts` the TypeScript
+parser with no project service (no tsconfig covers Deno code, so type-aware rules stay
+off; `deno check` in the `edge-functions` lane is the type half), and the security blocks
+reach the functions unedited and unramped — a `getSession()` there is an authentication
+bypass, not a debt. `service-role-edge-functions-only` stays off them: they are its
+sanctioned home. A second block holds them to cognitive complexity ≤ 15 and
+`no-suppressed-complexity`, with ONE dated exemption: the delete-account `index.ts` every
+1.0.x install carries is seeded and measures 16, so it is exempt from that block until
+1.2.0, paired with the 1.1.0 `seededSourceFixes` instruction to pull the split
+(`update --refresh-seeded supabase/functions/delete-account/`).
 **Anti-vacuity:** `import * as SecureStore from 'expo-secure-store'` in a random
 feature → FAIL no-restricted-imports; call `fetch()` in a screen → FAIL
 no-restricted-globals (depcruise walls the same seams at the module-graph level —
 defense in depth); read `process.env['UPSTASH_REDIS_REST_TOKEN']` in a web lib →
 FAIL env-through-register; add `// eslint-disable-next-line
 sonarjs/cognitive-complexity` above a fat function → FAIL no-suppressed-complexity
-(RuleTester red-proofs: tests/gates/eslint-custom-rules.test.mjs).
+(RuleTester red-proofs: tests/gates/eslint-custom-rules.test.mjs); append a
+`getSession()` call to `supabase/functions/delete-account/index.ts` → FAIL
+no-unverified-session (selftest Canary 37; against the 1.0.3 config lint stays green).
 **Papercut:** `--cache` keys on file content + eslint config, NOT on tsconfig —
 after a tsconfig change fixes a typed-lint error, the stale `.eslintcache` can
 keep reporting it (observed live: a `jest.setup.ts` include fix stayed red until
@@ -2310,7 +2326,12 @@ production+stub boot-fatal, skew middleware, csrf), packages (contracts
 drift, importer property tests, eval fixture scorer), and the PURE mobile modules
 (i18n incl. the pseudo-locale derivation and RTL direction table, routes closure,
 kv, the fuzzy scorer, recents) — pure meaning zero react-native in
-the import closure, so Node's runner is honest for them. `--coverage` enforces the
+the import closure, so Node's runner is honest for them — and, since 1.1.0, the Edge
+Function handlers: `vitest.config.ts` derives from the tree every `*.test.ts` under
+`supabase/functions` that imports from `'vitest'` (a `deno test` file is never collected)
+and measures each top-level directory there that holds one, so an existing untested
+helper never weighs on the aggregate. Each function's `index.ts` shell is excluded; it
+cannot load under Node. `--coverage` enforces the
 aggregate thresholds in `vitest.config.ts` and writes the istanbul map the
 diff-coverage step reads.
 **Anti-vacuity:** drop a large untested module → the aggregate threshold reds the
@@ -2329,8 +2350,8 @@ assertion from a suite → test-quality reds it below.
 
 ### diff-coverage — `node tools/check-diff-coverage.mjs`
 
-Per-file coverage floors on every CHANGED source file under `apps/*/src` or
-`packages/*/src` (merge-base diff in CI;
+Per-file coverage floors on every CHANGED source file under `apps/*/src`,
+`packages/*/src` or, since 1.1.0, `supabase/functions` (merge-base diff in CI;
 worktree + staged + untracked locally — the brand-new uncommitted feature file is
 exactly the case that must not slip), read from the TWO maps the unit steps just
 wrote: the vitest map for server/packages/pure-mobile files, the jest map for
@@ -2338,6 +2359,9 @@ wrote: the vitest map for server/packages/pure-mobile files, the jest map for
 (absent = no test imports it) and clear the per-file floors declared next to that
 runner's config. A missing map FAILS CLOSED (the chain was reordered or the
 artifact deleted); an empty diff passes with a note.
+A changed Edge Function file in a directory with no vitest suite is named as absent,
+with the one green path (add the suite); on an install whose `baseVersion` predates
+1.1.0 those findings are `diff-coverage: NOTE — (ramp) …` lines until 1.2.0.
 **Anti-vacuity:** add an untracked `apps/web/src/` file with an exported
 function and no test → FAIL naming the file as absent from the coverage map.
 
@@ -2783,6 +2807,16 @@ tests/gates/severity-contract.test.mjs.
   files is a hard red (anti-vacuity, never ramped) — a tree whose structure
   diverged from the exemplar paths used to silently mutate less than the lane
   claimed. Never in the Stop chain — minutes vs the chain's seconds budget.
+  **1.1.0 adds the Edge Functions** as the STARRED floor root `supabase/functions/*/`
+  (a tree with no functions stays green: starred roots are exempt from the zero-match
+  alarm), with each function's `index.ts` carved out of both encodings — a Deno.serve
+  shell the vitest runner cannot import. Stryker's vitest runner cannot mutate a file no test
+  relates to (with only such files it stops with "No tests were executed" and writes no
+  report), so the scoper judges a changed function file whose directory holds no vitest
+  suite: a FAIL naming the suite it needs. On an install whose `baseVersion` predates 1.1.0
+  that file is withheld with `mutation-scope: NOTE — (ramp) …` on stderr, and a new survivor
+  under `supabase/functions/` is `mutation-ratchet: NOTE — (ramp) …`, until 1.2.0; a
+  survivor anywhere else is judged as before.
 - **osv-scan** (`osv-scan.yml`, its own workflow) — known-vulnerability SCA over
   every discovered `pnpm-lock.yaml` against the OSV database. The PR job is
   DIFF-AWARE (only newly introduced vulns red a PR — the deterministic form of a
@@ -2905,6 +2939,37 @@ tests/gates/severity-contract.test.mjs.
   `timeout-minutes`, and the gate exits 1 with
   `workflow-hardening: FAIL` and a line naming `.github/workflows/<file>#<job>`; the test
   also runs the counting loop over the same shapes and shows it passing each one.
+
+- **edge-functions** (`quality-gate.yml`, 1.1.0) — `node tools/check-edge-functions.mjs`
+  typechecks every Supabase Edge Function against the exact dependency versions it deploys
+  with. A function is a directory under `supabase/functions` holding an `index.ts`
+  (`_`-prefixed shared directories excluded). Each needs a `deno.json` whose `jsr:`/`npm:`
+  imports name exact releases — Supabase deploys each function with its own `deno.json`, so
+  that is where its versions live — and the `deno.lock` deno writes from it; the gate runs
+  `deno check --frozen --config <fn>/deno.json --lock=<fn>/deno.lock <fn>/index.ts`, so a
+  type error anywhere in the shell's import graph (its handler and shared code included) or
+  a lock that no longer matches `deno.json` is a finding with deno's own output. No
+  function at all is OK with the count. Nothing Node-side could check this: `tsc -b` never
+  reaches `supabase/`, and a file that imports a `jsr:` specifier and starts a server as it
+  loads cannot be imported by vitest, coverage or Stryker. **deno is a prerequisite, not a
+  dependency:** the job installs it with `denoland/setup-deno` at an exact version (Renovate
+  proposes bumps; its deno manager bumps each function's `deno.json` and `deno.lock`
+  together), with the module cache keyed on the lockfiles. Locally a missing deno SKIPS
+  loudly; in CI it fails closed. **The job:** path-filtered on `supabase/functions/**`, the
+  gate and the `tools/lib` modules it imports, `.harness/manifest.json` and the workflow, plus the nightly
+  schedule and manual dispatch; gate-summary waits for it. A job and not a chain step,
+  because deno is not a workspace dependency and the chain has a wall-clock budget, so
+  `graduate` never runs it: run it by hand before graduating. **Measured** (2026-09-30,
+  deno 2.9.6, the seeded function): the binary is a 42 MB download (96 MB unpacked), once per
+  run; a cold check fills a 13 MB module cache (supabase-js, its five `@supabase` npm packages
+  and what they import) in 2 to 2.5 s; a warm one takes under 0.2 s. **Ramped:** on an
+  install whose `baseVersion` predates 1.1.0, every finding, and a missing deno, `deno.json` or `deno.lock`,
+  is `edge-functions: NOTE — (ramp) …` until 1.2.0, because `update` delivers the gate and the
+  job but not the seeded split. **The injection** (`tests/gates/check-edge-functions.test.mjs`,
+  and Canary 38 on a rendered scaffold): append `const n: number = 'x'` to
+  `supabase/functions/delete-account/index.ts` and the gate exits 1 with
+  `edge-functions: FAIL` and deno's `TS2322` line; delete that function's `deno.json` and it
+  exits 1 naming it.
 
 ## Opt-in modules
 

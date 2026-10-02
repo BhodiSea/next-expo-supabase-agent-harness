@@ -88,6 +88,6 @@ one-sentence blast radius rather than in the web process).
 | Requirement | Migration / function / UI files | Test ids |
 | ----------- | ------------------------------- | -------- |
 | In-app deletion initiation (5.1.1(v)) | `apps/mobile/src/features/actions/registry.ts` (`session.deleteAccount`), `apps/mobile/app/actions.tsx` (confirm + choreography) | `actions-modal.test.tsx` account-deletion cases |
-| Elevated deletion of the identity row | `supabase/functions/delete-account/index.ts`, `supabase/config.toml` (`[functions.delete-account]`) | expo-policy account-deletion closure |
+| Elevated deletion of the identity row | `supabase/functions/delete-account/handler.ts` (the decisions), `supabase/functions/delete-account/index.ts` (the Deno.serve shell), `supabase/config.toml` (`[functions.delete-account]`) | expo-policy account-deletion closure; `handler.test.ts > deletes the caller only after the lookup, the sweep and the recheck, in that order`, `> returns 500 and never calls deleteUser when the swept count does not match the lookup`; edge-functions (`deno check --frozen` of the shell) |
 | Owned data dies with the account | `supabase/schemas/10_account.sql`, `supabase/schemas/20_notes.sql` (`ON DELETE CASCADE`) | `supabase/tests/` cascade coverage |
-| Only the caller's account dies | `supabase/functions/delete-account/index.ts` (`getUser()`-derived id, never a parameter) | — |
+| Only the caller's account dies | `supabase/functions/delete-account/handler.ts` (`getUser()`-derived id, never a parameter) | `handler.test.ts > resolves the caller with the publishable key and their own token, and sweeps with the secret key`, `> answers 401 when the token does not verify, and never builds the elevated client` |

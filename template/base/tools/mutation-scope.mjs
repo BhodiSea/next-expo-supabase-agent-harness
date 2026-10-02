@@ -20,9 +20,15 @@
 import { existsSync } from 'node:fs'
 import process from 'node:process'
 import { walkFiles } from './lib/fs-walk.mjs'
-import { fail } from './lib/gate.mjs'
+import { fail, rampNote } from './lib/gate.mjs'
 import { changedFiles, firstLine } from './lib/git-diff.mjs'
-import { FLOOR_ROOTS, isCritical, loadExtraRoots, rootMatches } from './lib/mutation-critical.mjs'
+import {
+  edgeSuiteDirs,
+  FLOOR_ROOTS,
+  isCritical,
+  loadExtraRoots,
+  rootMatches,
+} from './lib/mutation-critical.mjs'
 
 const GATE = 'mutation-scope'
 
@@ -82,5 +88,38 @@ try {
   )
 }
 
-const critical = changed.filter((f) => isCritical(f, extraRoots)).sort()
+let critical = changed.filter((f) => isCritical(f, extraRoots)).sort()
+
+// THE EDGE FUNCTIONS (1.1.0). supabase/functions/*/ is on the floor, and Stryker's vitest runner
+// cannot mutate a file no test relates to: when every file handed to --mutate is one no suite
+// imports, it stops with "No tests were executed" and writes no report, so the ratchet never
+// speaks. An Edge Function directory reaches the unit surface when it holds a vitest suite
+// (vitest.config.ts measures exactly those), so a changed file in one that holds none is judged
+// HERE: withheld with a NOTE on an install whose baseVersion predates 1.1.0 (until 1.2.0), and a
+// FAIL naming the one green path otherwise. Everything this prints goes to STDERR: stdout is the
+// --mutate list.
+const withSuite = edgeSuiteDirs()
+const dirOf = (f) => f.split('/').slice(0, 3).join('/')
+const unsuited = critical.filter(
+  (f) => f.startsWith('supabase/functions/') && !withSuite.has(dirOf(f)),
+)
+if (unsuited.length > 0) {
+  const ramped = rampNote(
+    GATE,
+    '1.1.0',
+    `${String(unsuited.length)} changed file(s) on the Edge Function surface with no vitest suite in their directory (supabase/functions/*/, on the mutated floor since 1.1.0)`,
+    { until: '1.2.0', log: console.error },
+  )
+  const why = (f) => `no vitest suite in ${dirOf(f)}/, so no test could kill one of its mutants`
+  if (!ramped) {
+    fail(
+      GATE,
+      `${unsuited.map((f) => `${f}: ${why(f)}`).join('\n  ')}\n  An Edge Function directory reaches the unit and mutation surface once it holds a vitest suite: add a *.test.ts importing from 'vitest' beside the code (the seeded delete-account/handler.test.ts is the pattern).`,
+    )
+  }
+  for (const f of unsuited)
+    console.error(`${GATE}: NOTE — (ramp) ${f}: withheld from this run — ${why(f)}`)
+  critical = critical.filter((f) => !unsuited.includes(f))
+}
+
 if (critical.length > 0) process.stdout.write(critical.join(','))

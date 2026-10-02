@@ -322,7 +322,10 @@ export function rampNote(gate, minVersion, detail, opts) {
     )
     return false
   }
-  console.log(
+  // `log` (1.1.0) prints the NOTE line elsewhere than stdout, for the one caller whose stdout
+  // is data: tools/mutation-scope.mjs, whose stdout is Stryker's --mutate list.
+  const log = typeof opts?.log === 'function' ? opts.log : console.log
+  log(
     `${gate}: NOTE — ${detail} (ramp: live from baseVersion ${minVersion}; this install's baseVersion is ${base}; expires in ${until}). Sweep the findings, then graduate deliberately by bumping baseVersion in .harness/manifest.json — a human edit; see docs/runbooks/harness-upgrade.md`,
   )
   return true

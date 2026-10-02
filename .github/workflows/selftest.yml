@@ -141,6 +141,12 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 22
+      # deno for the Edge Function typecheck (1.1.0, #78): the SAME exact release the template's
+      # quality-gate.yml pins in its edge-functions job — tests/gates/workflow-lanes.test.mjs
+      # holds the two equal, so the factory proves the version consumers run.
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: 2.9.6
       - name: Scaffold canary fixture (committed git baseline for the diff-based gates)
         run: |
           node installer/cli.mjs init --dir "$RUNNER_TEMP/canary" --tier core --yes
@@ -523,6 +529,46 @@ jobs:
           grep -oE 'jsx-a11y/[a-z-]+' a11y.log | sort -u
           rm apps/web/lib/canary-a11y.tsx a11y.log
           echo 'canary OK: jsx-a11y is resolved AND enforcing on apps/web'
+      - name: 'Canary 37: getSession() in an Edge Function → the lint step must FAIL (no-unverified-session reaches supabase/functions)'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          # Until 1.1.0 eslint.config.mjs ignored `supabase/**`, and a later block cannot reach
+          # anything a global ignore lists — so the three blocks that NAME supabase/functions
+          # (no-unverified-session, the service-role confinement, crypto-primitives-one-door)
+          # reached nothing, and a getSession() in the one function that holds the service-role
+          # key passed lint. Against the 1.0.3 config this canary FAILS: lint stays green.
+          # --no-warn-ignored so an explicitly named file that is ignored exits 0 as it does
+          # in `eslint .`, instead of redding on the "file ignored" warning and proving nothing.
+          cp supabase/functions/delete-account/index.ts index.ts.bak
+          printf '\nexport async function canaryLeak(client: { auth: { getSession(): Promise<unknown> } }) {\n  return client.auth.getSession()\n}\n' >> supabase/functions/delete-account/index.ts
+          if pnpm exec eslint --no-warn-ignored --max-warnings 0 supabase/functions/delete-account/index.ts > session.log 2>&1; then
+            cat session.log
+            echo '::error::CANARY: eslint PASSED a getSession() inside an Edge Function — supabase/functions is outside the lint (a global ignore, or no parser block for it)'; exit 1
+          fi
+          grep -q 'local/no-unverified-session' session.log \
+            || { cat session.log; echo '::error::CANARY: eslint reddened, but not on no-unverified-session — some other rule stood in for the one being proven'; exit 1; }
+          mv index.ts.bak supabase/functions/delete-account/index.ts
+          rm session.log
+          echo 'canary OK: no-unverified-session reaches supabase/functions'
+      - name: 'Canary 38: a type error in the delete-account shell → edge-functions must FAIL (deno check, frozen lock)'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          # index.ts is a Deno.serve shell nothing Node-side can load, so `deno check` is the one
+          # layer that types it. The control first: the untouched function typechecks (and the
+          # frozen lock matches its deno.json). Then one type error must red the gate, with
+          # deno's own diagnostic in the output.
+          env -u GITHUB_BASE_REF node tools/check-edge-functions.mjs
+          cp supabase/functions/delete-account/index.ts index.ts.bak
+          printf "\nconst canaryN: number = 'x'\n" >> supabase/functions/delete-account/index.ts
+          if env -u GITHUB_BASE_REF node tools/check-edge-functions.mjs > edge.log 2>&1; then
+            cat edge.log
+            echo '::error::CANARY: edge-functions PASSED a type error in index.ts — deno check is not running over the shell'; exit 1
+          fi
+          grep -q 'TS2322' edge.log \
+            || { cat edge.log; echo '::error::CANARY: edge-functions reddened, but not on the injected type error'; exit 1; }
+          mv index.ts.bak supabase/functions/delete-account/index.ts
+          rm edge.log
+          echo 'canary OK: edge-functions reds a type error in the Deno shell'
       - name: 'Canary 15: a committed .only → test-quality must FAIL'
         working-directory: ${{ runner.temp }}/canary
         run: |
@@ -987,6 +1033,12 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: ${{ matrix.node }}
+      # deno for the Edge Function typecheck (1.1.0, #78): the SAME exact release the template's
+      # quality-gate.yml pins in its edge-functions job — tests/gates/workflow-lanes.test.mjs
+      # holds the two equal, so the factory proves the version consumers run.
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: 2.9.6
       - name: Bootstrap a fresh project from the template
         run: node installer/cli.mjs init --dir "$GITHUB_WORKSPACE/.selftest/boot" --tier core --yes
       - name: Git baseline + corepack (lefthook prepare and the diff-based gates need a repo)
@@ -1050,6 +1102,15 @@ jobs:
         # validate of an install — and until now nothing kept its log, so the README had
         # to say "the cold path is unmeasured". The record step below reads it on dispatch.
         run: env -u GITHUB_BASE_REF node tools/validate.mjs --min-floor | tee cold-validate.log
+      # 1.1.0 (#78): the Edge Function typecheck is a CI-only lane, so THE GATE above never runs
+      # it. With deno present it must print OK over the seeded function: SKIPPED here would
+      # mean the consumer's edge-functions lane checks nothing on a fresh scaffold.
+      - name: Edge Functions typecheck — OK with deno present, never SKIPPED
+        working-directory: .selftest/boot
+        run: |
+          env -u GITHUB_BASE_REF node tools/check-edge-functions.mjs | tee edge-functions.log
+          grep -q '^edge-functions: OK — 1 Edge Function(s) typecheck' edge-functions.log \
+            || { echo '::error::edge-functions did not typecheck the seeded delete-account function'; exit 1; }
       - name: Warm validate wall-time budget (stamped local experience — fail >120s, warn >90s)
         working-directory: .selftest/boot
         env:

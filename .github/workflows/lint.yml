@@ -263,5 +263,13 @@ jobs:
           --test-coverage-include='template/base/tools/lib/i18n-tree.mjs'
           --test-coverage-lines=94 --test-coverage-branches=90 --test-coverage-functions=94
           tests/gates/i18n-tree.test.mjs tests/gates/check-i18n.test.mjs
+      # The Edge Function split's static proofs (1.1.0, #78) read handler.ts, index.ts and the
+      # evaluated vitest.config.ts through the root's own `typescript`, which installer-unit
+      # never installs: there those cases SKIP loudly by name. This job has the root toolchain,
+      # and HARNESS_TEST_REQUIRE_TYPESCRIPT=1 turns a compiler that cannot load into a failure.
+      - name: machinery-edge-function-split (the Edge Function split's proofs, with the compiler installed)
+        env:
+          HARNESS_TEST_REQUIRE_TYPESCRIPT: '1'
+        run: node --test tests/gates/edge-function-split.test.mjs
       - name: machinery-knip (dead exports/files/deps across installer, scripts, tools)
         run: pnpm exec knip
