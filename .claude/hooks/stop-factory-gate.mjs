@@ -14,9 +14,10 @@
 // selftest matrix where they belong.
 //
 // WHAT IS DELIBERATELY ABSENT (0.7.0 — the honest residual, each with its reason):
-//   - check-corpus-fidelity: its own header bans agent-time runs — it reaches the
-//     network, and network flake must never red a turn. The hygiene.yml nightly is its
-//     home.
+//   - check-corpus-fidelity and check-floor-advisories (1.1.0): their own headers ban
+//     agent-time runs — they reach the network, and network flake must never red a turn.
+//     The hygiene.yml nightly is their home; the floor lane's judgement is proven offline
+//     by tests/gates/floor-advisories.test.mjs, which the `tests` step below runs.
 //   - check-chain-budget: it judges a validate timing log that no factory turn produces —
 //     the log exists where the chain runs, so the selftest lane is where it is judged.
 //   - tests/installer: the scaffold-lifecycle suite is the slow tail (minutes), and its

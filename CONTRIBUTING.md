@@ -221,10 +221,11 @@ step 5 compresses):
 - **No `npm publish`**: the packed tarball is a provenance-attested GitHub
   Release asset; the install channel is `npx --yes github:…`.
 - **Post-tag follow-ups are part of the release**, not optional: dispatch the
-  schedule-gated lanes once (`obligations-clockful`, `registers-clockful`) so
-  their first runs happen while the release context is warm, and re-record the
-  chain-budget measurement only through the reviewed `workflow_dispatch` path
-  (the 0.7.0/0.8.0 pattern — measure, commit, then publish, in that order).
+  schedule-gated lanes once (`obligations-clockful`, `registers-clockful`,
+  `floor-advisories`) so their first runs happen while the release context is
+  warm, and re-record the chain-budget measurement only through the reviewed
+  `workflow_dispatch` path (the 0.7.0/0.8.0 pattern — measure, commit, then
+  publish, in that order).
 - **A release that GROWS the chain re-records BEFORE the tag** (1.0.0: 34 → 36).
   `check-claims` refuses every wall-clock figure while the committed measurement's
   step count differs from the live chain, so the figures are scrubbed in the

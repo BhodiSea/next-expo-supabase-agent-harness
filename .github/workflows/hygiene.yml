@@ -114,6 +114,36 @@ jobs:
       - name: Shipped review-dated registers have not lapsed (schedule/dispatch only)
         run: node scripts/check-register-freshness.mjs
 
+  # The SEEDS' floor and catalog pin against the published ADVISORIES (1.1.0, #81).
+  # registers-clockful above reads only the review dates, version-sync compares the pin
+  # with the floor rather than the floor with a feed, and factory-sca's lockfile resolves no
+  # `next` — so the vendor's 2026-08-25 security release sat inside a live review window and
+  # was noticed only when the window lapsed. This job asks OSV and the upstream repository's
+  # published advisories about every minPatchByMajor version and the exact pin, and reds on
+  # any advisory that affects one and is not a row in the floor. OSV decides what it lists;
+  # the vendor's free-text range is read only for an advisory OSV does not list yet. A copy of
+  # registers-clockful, schedule/dispatch-only because the verdict changes with the feeds and
+  # not with the commit; its one addition is the job's read-only token, which lifts the
+  # upstream listing off the unauthenticated REST limit.
+  floor-advisories:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - name: The shipped floor and catalog pin carry no unrecorded advisory (schedule/dispatch only)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/check-floor-advisories.mjs
+
   # The factory's OWN SCA lane (0.9.5, the SCA half of the retired
   # vuln-sla-and-factory-sca row): an OSV scan over THIS repo's pnpm-lock.yaml — the
   # toolchain that builds the harness, not the consumer surface (consumers get the

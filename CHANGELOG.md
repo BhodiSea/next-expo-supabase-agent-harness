@@ -296,6 +296,35 @@ this heading if none does. -->
   `design/CONTROL-PLANE-FACTS.md` Fact 17 probed. The eval exits 0 whatever the score, and
   it is not a chain step, a hook, a workflow or a CI check; a score threshold needs a
   `gate-proposal` of its own. No chain step, gate, guard rule, seeded file or ramp (#66).
+- **A scheduled factory lane compares the shipped framework floor with the published
+  advisories: `floor-advisories`.** Nothing compared the floor in
+  `template/base/tools/framework-floor.json`, or the catalog pin in
+  `template/base/pnpm-workspace.yaml`, with an advisory feed: `registers-clockful` reads
+  only the review dates, `version-sync` compares the pin with the floor, and `factory-sca`
+  scans a lockfile that resolves no `next`. So the vendor's security release of 2026-08-25
+  sat inside a live review window and was noticed only when the window lapsed (see 1.0.2).
+  The new `hygiene.yml` job runs `scripts/check-floor-advisories.mjs` on `schedule` and
+  `workflow_dispatch` only, never on a pull request or a push. For each floored package it
+  probes every `minPatchByMajor` version and the exact catalog pin, because a range can
+  include the pin without including the floor, on two feeds: OSV, and the upstream
+  repository's published advisories, which listed GHSA-2xp9-vwfh-vxw4 on the release day
+  while OSV's record of it is dated after the review had lapsed. OSV decides every
+  advisory it lists, by matching the probe's version itself; an upstream advisory OSV does
+  not list yet is judged on its own `vulnerable_version_range`, cleared for a probe only by
+  a patched version on the probe's own line. The job fails on each advisory that affects a
+  probe, is not withdrawn and matches no row of the floor by its id or an alias, and the
+  line names the advisory and its aliases, the feed, the published date against
+  `reviewedOn`, the probe and the remedy: re-read it, then raise the floor and the pin or
+  record the row, and move both review dates in the same commit. An advisory the floor
+  records prints a NOTE. It fails closed on a feed that does not answer or answers in the
+  wrong shape, on a next page left unread at the page cap, on an OSV lookup that is neither
+  a record nor "not found", on a range syntax no test covers in an advisory OSV does not
+  list, on a missing or ranged pin and on an empty floor; and each floored package needs a
+  canary version on which OSV returns an advisory, and an upstream listing that holds one
+  of its recorded rows, so a wrong query cannot read as clean. The job copies
+  `registers-clockful` and adds only the job's read-only `GITHUB_TOKEN`. The check is
+  factory-only: nothing under `template/` changes, no consumer gate, chain step or verdict
+  moves, and `template/migrations.json` carries nothing for it (#81).
 
 ### Fixed
 
@@ -779,6 +808,31 @@ this heading if none does. -->
   it auditable. `gate-integrity`'s OK line names the commit rules the flag skipped, but a
   green Stop hook does not show that line, so the skip is visible only in `pnpm validate`
   output. The committed diff, reviewed under CODEOWNERS, stays the record (#80).
+- **The lane's first run is red on a real advisory, and this release does not answer it.**
+  GHSA-vcvr-r3jv-pc5j (CVE-2026-94545, Critical, published upstream on 2026-09-22) is
+  remote code execution in the Node.js `ImageResponse` of `next/og` when attacker-controlled
+  data reaches the SVG. It affects `>= 16.2.0 < 16.3.6`, is patched in 16.3.6, and so covers
+  the 16.x floor, 16.3.3, and the catalog pin, 16.3.5; OSV did not list it on 2026-09-30.
+  The template imports nothing from `next/og`, but a consumer may. Raising the floor and the
+  pin, or recording the row with its decision, changes an owned and a seeded template file,
+  and that decision is the maintainer's. Until it is made, every scheduled run of the lane
+  is red on this advisory (#81).
+- **The vendor's upstream range is read only until OSV lists the advisory.** Its
+  `vulnerable_version_range` is free text: comparators joined by spaces, commas that mean
+  "or", x-ranges, `=>`, and an open lower bound whose upper bound sits in
+  `patched_versions`. The lane reads the documented pair, space-joined comparators and
+  comma or `||` alternatives, and a bare exact version; any other shape, in an advisory OSV
+  does not list yet, reds until a person reads the advisory. Once OSV lists it, OSV's
+  normalised ranges decide, and the vendor's text is not read again. An advisory OSV holds
+  only under another id is looked up by its GHSA id, so it is judged on its own range until
+  OSV lists it under that id (#81).
+- **A red lands in the factory, not in an install.** The lane judges the seeds. An
+  existing install learns of a new floor through a harness release, where `update`
+  re-plants the owned `framework-floor.json` and a runbook note carries the seeded pin,
+  and its own `osv-scan` lane covers only its own lockfile (#81).
+- **Each floored package needs a canary and an upstream repository in the lane's map.**
+  `next` has both. A package added to the floor reds the lane until both are added to
+  `scripts/lib/floor-advisories.mjs` (#81).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -1058,6 +1112,20 @@ this heading if none does. -->
   and its OK line read `41 escape list(s) clean` without the flag and named both rules
   `not run` with it; one whose `docs/harness/README.md` had been edited kept it, parked the
   new copy and exited 2 (#80).
+  For the advisory lane, `tests/gates/floor-advisories.test.mjs` could not load before
+  `scripts/lib/floor-advisories.mjs` existed. With the script and the lib in, its one
+  remaining red was the job-shape case, until `hygiene.yml` had the job. The first
+  dispatched run of the job on the branch (hygiene run 36711735348) then read the vendor's
+  listing and failed on every advisory whose range was free text, on those whose open lower
+  bound read as covering patched probes, and on GHSA-vcvr-r3jv-pc5j. OSV listed every one
+  of them except the last, and matched none of them to a probe. The cases for letting OSV
+  decide what it lists were red before that change. After it every case passes, and
+  `check-canary-coverage` runs the file for both registry entries. Against live OSV and
+  the listing rebuilt from that run's log, the one failure left was GHSA-vcvr-r3jv-pc5j on
+  16.3.3 and 16.3.5, and the second dispatched run (hygiene run 36713025908) failed on that
+  advisory alone, naming its CVE alias, its date after `reviewedOn`, the floor and the pin,
+  while every other job of the workflow passed. The third (hygiene run 36714772895), after
+  one listing's OSV lookups were sent together, printed the same single failure (#81).
 
 ## [1.0.4] — 2026-10-01
 
