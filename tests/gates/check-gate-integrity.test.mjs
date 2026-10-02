@@ -4,12 +4,12 @@
 // install is green, a raw shell tamper on any harness-owned enforcement file reds
 // the gate naming the file, human tuning of the mode-'config' gate config does NOT
 // trip it, and a missing manifest fails CLOSED in CI (skipOrFail asymmetry).
-import { test, before } from 'node:test'
+import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { appendFileSync, chmodSync, existsSync, readFileSync, renameSync, rmSync, mkdtempSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const CLI = fileURLToPath(new URL('../../installer/cli.mjs', import.meta.url))
@@ -443,4 +443,136 @@ test('a config the INSTALLER rewrote is a NOTE; the same file hand-tuned is stil
   const tuned = run()
   assert.equal(tuned.code, 1, tuned.out)
   assert.ok(tuned.out.includes('NOT COMMITTED'), tuned.out)
+})
+
+// ── WHAT HARNESS_ALLOW_SELF_EDIT=1 RELAXES HERE (1.1.0, #80) ──────────────────────
+// The flag lifts exactly one of this gate's checks: the commit rule over the escape lists
+// and the threshold-bearing configs. The hash, retrofit-conflict, hook-command, Stop-floor and
+// baseVersion checks ignore it. The doctrine's "What `HARNESS_ALLOW_SELF_EDIT=1` relaxes"
+// section says so, and the first case below pins that behaviour (green on 1.0.3 and after).
+// The second pins the OK line's honesty: until 1.1.0 it printed `escape list(s) clean` and
+// `threshold config(s) committed` when the flag had skipped both rules, and `never regressed`
+// with no git work tree for the history check to read. A skip read as a pass.
+//
+// One git-backed scaffold, created on first use and removed after the file. Only these two
+// cases pass '1'; every other git-backed case above keeps HARNESS_ALLOW_SELF_EDIT: ''.
+let selfEditRepo = null
+function selfEditScaffold() {
+  if (selfEditRepo !== null) return selfEditRepo
+  const repo = mkdtempSync(join(tmpdir(), 'epah-gateint-selfedit-'))
+  selfEditRepo = repo
+  const init = spawnSync(
+    'node',
+    [CLI, 'init', '--dir', repo, '--yes', '--set', 'PROJECT_NAME=Self Edit App', '--set', 'GITHUB_OWNER=o', '--set', 'SECURITY_OWNERS=@o/sec'],
+    { encoding: 'utf8' },
+  )
+  assert.equal(init.status, 0, `${init.stdout ?? ''}${init.stderr ?? ''}`)
+  const git = (...args) =>
+    spawnSync('git', args, { cwd: repo, encoding: 'utf8', env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' } })
+  git('init', '-q', '-b', 'main')
+  git('add', '-A')
+  git('-c', 'user.email=t@localhost', '-c', 'user.name=t', 'commit', '-qm', 'baseline')
+  return repo
+}
+after(() => {
+  if (selfEditRepo !== null) rmSync(selfEditRepo, { recursive: true, force: true })
+})
+
+/** @param {string} repo @param {string} flag */
+function runIn(repo, flag) {
+  const res = spawnSync('node', ['tools/check-gate-integrity.mjs'], {
+    cwd: repo,
+    encoding: 'utf8',
+    env: { ...process.env, CI: 'true', HARNESS_REQUIRE_TOOLCHAINS: '', HARNESS_ALLOW_SELF_EDIT: flag },
+  })
+  return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
+}
+
+/** @param {string} out @returns {string} the gate's OK line, or '' when it printed none */
+const okLine = (out) => out.split(/\r?\n/).find((l) => l.startsWith('gate-integrity: OK')) ?? ''
+
+test('HARNESS_ALLOW_SELF_EDIT=1 lifts only the commit rule: hash and Stop-floor checks still red', () => {
+  const repo = selfEditScaffold()
+  const edit = (rel, mutate) => {
+    const file = join(repo, rel)
+    const original = readFileSync(file, 'utf8')
+    writeFileSync(file, mutate(original))
+    return () => writeFileSync(file, original)
+  }
+
+  // (1) An uncommitted escape list and an uncommitted threshold config: the commit rule is
+  // the one check the flag lifts, so both pass. Without the flag each reds (cases above).
+  const restoreExempt = edit('tools/rls-exempt.json', (s) => {
+    const list = JSON.parse(s)
+    list.exempt.push({ table: 'public.widened', reason: 'an exemption added under the flag' })
+    return `${JSON.stringify(list, null, 2)}\n`
+  })
+  const restoreVitest = edit('vitest.config.ts', (s) => `${s}\n// a deliberate local edit under the flag\n`)
+  try {
+    const lifted = runIn(repo, '1')
+    assert.equal(lifted.code, 0, lifted.out)
+    // …and it is the flag doing it, not a fixture that never dirtied anything.
+    const unflagged = runIn(repo, '')
+    assert.equal(unflagged.code, 1, unflagged.out)
+    assert.ok(unflagged.out.includes('tools/rls-exempt.json'), unflagged.out)
+    assert.ok(unflagged.out.includes('vitest.config.ts'), unflagged.out)
+  } finally {
+    restoreExempt()
+    restoreVitest()
+  }
+
+  // (2) The hash check ignores the flag.
+  const restoreGate = edit('tools/check-migrations.mjs', (s) => `${s}\n// tampered under the flag\n`)
+  try {
+    const hashed = runIn(repo, '1')
+    assert.equal(hashed.code, 1, hashed.out)
+    assert.ok(hashed.out.includes('tools/check-migrations.mjs'), hashed.out)
+  } finally {
+    restoreGate()
+  }
+
+  // (3) The Stop-floor check ignores the flag.
+  const restoreCfg = edit('tools/harness.config.mjs', (s) => s.replace(/\s*\['test-quality',[^\]]*\],/, ''))
+  try {
+    const floored = runIn(repo, '1')
+    assert.equal(floored.code, 1, floored.out)
+    assert.ok(floored.out.includes("missing the floored step 'test-quality'"), floored.out)
+  } finally {
+    restoreCfg()
+  }
+
+  const restored = runIn(repo, '1')
+  assert.equal(restored.code, 0, `every file restored, the flagged run is green again:\n${restored.out}`)
+})
+
+test('the OK line names each check the flag skipped instead of reporting it clean (1.1.0, #80)', () => {
+  const repo = selfEditScaffold()
+  const flagged = okLine(runIn(repo, '1').out)
+  assert.ok(flagged !== '', 'the flagged run on a clean tree must print an OK line')
+  assert.ok(!flagged.includes('escape list(s) clean'), flagged)
+  assert.ok(!flagged.includes('threshold config(s) committed'), flagged)
+  assert.ok(flagged.includes('escape-list commit rule not run'), flagged)
+  assert.ok(flagged.includes('threshold-config commit rule not run'), flagged)
+  assert.ok(flagged.includes('HARNESS_ALLOW_SELF_EDIT=1'), flagged)
+  // A git-backed tree reads its history, so that half still reports the check.
+  assert.ok(flagged.includes('never regressed'), flagged)
+
+  // Without the flag the same tree reports all three as before.
+  const plain = okLine(runIn(repo, '').out)
+  assert.ok(plain.includes('escape list(s) clean'), plain)
+  assert.ok(plain.includes('threshold config(s) committed'), plain)
+  assert.ok(!plain.includes('not run'), plain)
+})
+
+test('with no git work tree the OK line says the history and commit checks did not run (1.1.0, #80)', () => {
+  // The shared fixture has no repository. GIT_CEILING_DIRECTORIES stops git discovering one
+  // above the tmpdir, so this holds wherever the runner's tmpdir lives.
+  const r = runGate({ HARNESS_ALLOW_SELF_EDIT: '', GIT_CEILING_DIRECTORIES: dirname(scaffold) })
+  assert.equal(r.code, 0, r.out)
+  const line = okLine(r.out)
+  assert.ok(line !== '', r.out)
+  assert.ok(!line.includes('never regressed'), line)
+  assert.ok(line.includes('history check not run (no git work tree)'), line)
+  assert.ok(!line.includes('escape list(s) clean'), line)
+  assert.ok(line.includes('escape-list commit rule not run (no git work tree)'), line)
 })

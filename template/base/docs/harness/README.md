@@ -241,7 +241,8 @@ The layers, in order of engagement:
    (`identity.lock.json`, `prompts.lock.json`, `rls-exempt.json`, the budget/manifest
    data files), the Stop-hook runners, `lefthook.yml`, `.github/workflows/`, and the
    lint/architecture config surface. A human who genuinely needs to change the harness
-   sets `HARNESS_ALLOW_SELF_EDIT=1` for that session — an explicit, auditable act.
+   sets `HARNESS_ALLOW_SELF_EDIT=1` in the environment the session starts from. Nothing
+   records the variable; the committed diff is the record (see below).
 3. **The `.harness` manifest** — the installer records a SHA-256 for every
    harness-owned file; `npx next-expo-supabase-agent-harness doctor` re-hashes the tree so
    silent in-place edits are evident as drift, and the `gate-integrity` gate re-checks
@@ -276,6 +277,31 @@ and a stdin or stdout that is not a terminal. The bash guard's `apply-proposal-i
 rule denies an agent the command itself. The written register is left uncommitted, so
 `gate-integrity` fails until a human commits it, and the commit carries it into the pull
 request under CODEOWNERS.
+
+### What `HARNESS_ALLOW_SELF_EDIT=1` relaxes
+
+Each check below looks for the exact string `1`. The guards read the environment the
+session was started from, so putting the variable in front of one shell command does not
+lift them. The scripts read the environment of the command that runs them. The flag
+relaxes these checks and no others:
+
+- `.claude/hooks/pretool-write-guard.mjs`: the protected-path deny (layer 2) and the
+  symlink-escape deny. The append-only migrations deny and the content checks still apply.
+- `.claude/hooks/pretool-bash-guard.mjs`: the rules `shell-write-protected`,
+  `interpreter-write-protected`, `gen-lock-writer`, `chmod-protected`, `rm-protected`,
+  `truncate-protected`, `move-protected-away`, `git-restore-old-revision`,
+  `self-rebaseline-writer` and `apply-proposal-invocation`. Every other rule still denies.
+- `tools/gen-agents-lock.mjs`: `--write` refuses to run without it.
+- `tools/check-gate-integrity.mjs`: the commit rule, which reds an escape list or a
+  threshold-bearing config that is modified but not committed. Its hash, retrofit-conflict,
+  hook-command, Stop-floor and `baseVersion` checks still run. When the flag skips the
+  commit rule, the gate's OK line names the rule as not run instead of reporting it clean.
+
+It does not lift the permission denies in `.claude/settings.json` (layer 1). The Edit and
+Write tools stay denied on `.claude/hooks/**`, the settings files, `.mcp.json` and
+`.harness/**`, so edit those files outside the session. No other hook or gate reads the
+flag, and nothing records that it was set. The shipped workflows never set it, so a change
+made under it reaches CI only as a committed diff, which CODEOWNERS reviews (layer 5).
 
 ## Skip-local / fail-closed-CI asymmetry
 
@@ -637,15 +663,14 @@ model off the list, or `null`, does not count, and the step reds (a NOTE until 2
 an install whose `baseVersion` predates 1.1.0). `docs-sync` reds a list that names
 nothing or repeats an entry.
 
-## Stop-hook cost (and how to trim it)
+## Stop-hook cost
 
 `STOP_HOOK_STEPS` ends with the runtime suites; the expensive validate steps are
-`build` (the export + bundle grep; stamped) and `e2e` (the jest-expo suite). To trade
-turn-end latency for CI-time discovery, a HUMAN can comment steps out of
-`tools/harness.config.mjs` (harness-protected — `HARNESS_ALLOW_SELF_EDIT=1`); CI still
-enforces the frozen floor via `--min-floor`, so nothing is lost on the PR, only
-discovered later. Keep `e2e` in while doing screen-heavy work; the feedback loop is
-worth the seconds.
+`build` (the export + bundle grep; stamped) and `e2e` (the jest-expo suite). Neither can
+be dropped locally: `wiring` reds a `VALIDATE_STEPS` that lacks any step named in
+`tools/validate.floor.json`. The Stop hook runs every step of `tools/stop.floor.json`
+whether or not `STOP_HOOK_STEPS` lists it, and `gate-integrity` reds a floored step that
+is missing or rewritten. `HARNESS_ALLOW_SELF_EDIT=1` relaxes none of these checks.
 
 ## The lethal-trifecta posture
 

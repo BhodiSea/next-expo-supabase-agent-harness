@@ -1748,8 +1748,11 @@ nothing of it is seeded. The provenance advisory split re-plants
 `.claude/rules/provenance.md`, `.claude/agents/citation-verifier.md` (`update` re-records
 its `tools/agents.lock.json` entry), `docs/harness/gates-catalog.md` and
 `docs/harness/README.md`; the comments of your seeded `tools/decision-groups.json` and
-`tools/reviewer-triggers.json` stay as they are (its subsection below). What you may notice
-afterwards:
+`tools/reviewer-triggers.json` stay as they are (its subsection below). The self-edit
+documentation re-plants `docs/harness/README.md` (a section, "What
+`HARNESS_ALLOW_SELF_EDIT=1` relaxes", under Tamper evidence),
+`docs/harness/gates-catalog.md` and `tools/check-gate-integrity.mjs` (its OK line); no
+verdict changes. What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1859,6 +1862,13 @@ afterwards:
   `provenance: ADVISORY (n) — file:line [class]` and passes, and the hook hands the agent
   a note instead of exiting 2. Nothing that was green turns red. The subsection on
   advisory classes below says how to keep a class mandatory.
+- **`gate-integrity`'s OK line can say a check did not run.** With
+  `HARNESS_ALLOW_SELF_EDIT=1` set, it reads `escape-list commit rule not run` and
+  `threshold-config commit rule not run` where it printed a count of clean files, and with
+  no git work tree it also reads `history check not run`. It exits as it did before. The
+  doctrine's new section lists everything the flag relaxes, and its Stop-hook cost section
+  no longer suggests commenting `build` or `e2e` out, which the floors and `gate-integrity`
+  refuse.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 

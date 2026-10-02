@@ -98,6 +98,15 @@ runners) and fails on any mismatch or missing file — a raw write that slipped 
 write-guard hook (shell redirection, `sed -i`, an external editor) reds the very next
 validate run. `config` and `seeded` entries are human-tunable and skipped. Deliberately
 the first gate after format: tampered gates must not get to run.
+
+It also checks, by value, that every hook command in `.claude/settings.json` runs `node` on
+a file that exists; that `STOP_HOOK_STEPS` keeps every step of `tools/stop.floor.json` with
+its command unchanged; that every retrofit conflict is merged or accepted in
+`tools/retrofit-accept.json`; that `baseVersion` never went backwards in git history; and
+that no escape list or threshold-bearing config is modified but not committed.
+`HARNESS_ALLOW_SELF_EDIT=1` switches off only the last of these, the commit rule (see
+"What `HARNESS_ALLOW_SELF_EDIT=1` relaxes" in [the doctrine](./README.md)).
+
 **Anti-vacuity:** `echo '// x' >> tools/check-migrations.mjs` from a plain terminal →
 FAIL naming the file.
 

@@ -302,6 +302,26 @@ this heading if none does. -->
 <!-- Entries from the 1.1.0 items that land after the version bump go here. The cut removes
 this heading if none does. -->
 
+- **The doctrine says what `HARNESS_ALLOW_SELF_EDIT=1` relaxes, and no longer offers it as a
+  way to trim the Stop hook.** The flag's reach was spread over the guard hooks, a generator
+  and a gate, and no document stated it. `docs/harness/README.md` gains a section, "What
+  `HARNESS_ALLOW_SELF_EDIT=1` relaxes", that lists all of it: the write guard's
+  protected-path and symlink-escape denies, the bash-guard rules that carry an escape,
+  `tools/gen-agents-lock.mjs --write`, and `gate-integrity`'s commit rule for the escape lists
+  and the threshold configs. The permission denies, the append-only migrations deny and every
+  other check still apply, and nothing records that the flag was set, so layer 2 no longer
+  calls setting it "auditable". The Stop-hook cost section told a human the flag let them
+  comment `build` or `e2e` out of the chain, which `wiring`, the Stop hook's floor union and
+  `gate-integrity` each refuse; that advice is gone. The catalog's `gate-integrity` entry
+  lists the gate's other checks, and `docs/cli.md`, `SECURITY.md` and `CONTRIBUTING.md` point
+  to the section. A factory test holds the section to the code: the rule ids it names must be
+  exactly the `BASH_RULES` entries with an `allowWhen`, and every shipped script that reads
+  the flag must be named. `gate-integrity`'s OK line printed `escape list(s) clean` and
+  `threshold config(s) committed` when the flag had skipped both rules, and `never regressed`
+  with no git work tree for the history check to read. Each clause now says the check did
+  not run, and why. Exit codes are unchanged. No chain step, gate, guard rule, seeded file or
+  ramp (#80).
+
 ### Changed
 
 - **The NOTE fleet 1.0.0 opened is now enforcing for installs below 1.0.0.** The seven
@@ -755,6 +775,10 @@ this heading if none does. -->
   Run in a copy of the layout, an uncited `jwtVerify` under `template/stack/` passed at
   exit 0 while the same file under `template/base/` exited 2. Out of this item's scope,
   and left for its own issue (#69).
+- **The flag still leaves no trace of its own.** The doctrine now says so instead of calling
+  it auditable. `gate-integrity`'s OK line names the commit rules the flag skipped, but a
+  green Stop hook does not show that line, so the skip is visible only in `pnpm validate`
+  output. The committed diff, reviewed under CODEOWNERS, stays the record (#80).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -1016,6 +1040,24 @@ this heading if none does. -->
   `tools/lib/provenance-rules.mjs` had been edited kept it, parked the new copy and exited 2,
   and there the same `timeoutMs` still failed the gate and made the hook exit 2: under a
   parked fork every class stays mandatory (#69).
+  For the self-edit flag, the tests-only commit was red on 8 cases. The four
+  section cases of `tests/gates/self-edit-docs.test.mjs` found no section, the Stop-hook
+  cost case found no heading of that name, and the pointer case found no pointer in the
+  catalog. On a git-backed scaffold with the flag set, the OK line read `baseVersion 1.1.0
+  never regressed; 42 escape list(s) clean; 25 threshold config(s) committed`, and the
+  shared fixture, with no git work tree, printed the same three clauses. The case that pins
+  today's behaviour was green before and after: under the flag an uncommitted
+  `tools/rls-exempt.json` widening and `vitest.config.ts` edit pass, while an appended line
+  in `tools/check-migrations.mjs` and a floored step deleted from `STOP_HOOK_STEPS` each
+  exit 1. With v1.0.3's `tools/check-gate-integrity.mjs` swapped in, that case was green
+  too, and the two OK-line cases red. After the change the 23 cases of the two files pass,
+  and dropping `apply-proposal-invocation` from the section, or adding a reader of the flag
+  to a shipped gate, turns the docs test red. A zero-edit core scaffold validated green, and
+  run from a session that had the flag set, its OK line named both commit rules `not run`.
+  A v1.0.4 core install updated by this installer exited 0 with the four files re-planted,
+  and its OK line read `41 escape list(s) clean` without the flag and named both rules
+  `not run` with it; one whose `docs/harness/README.md` had been edited kept it, parked the
+  new copy and exited 2 (#80).
 
 ## [1.0.4] — 2026-10-01
 

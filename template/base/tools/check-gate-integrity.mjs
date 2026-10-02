@@ -8,11 +8,18 @@
 // the RLS and migration runners). 'config' entries are skipped — they are
 // human-tunable, and `update` re-records their hashes on sanctioned changes.
 //
-// Three sub-checks, because the manifest cannot be its own root of trust:
-//   1. owned-file hashes      — the surface matches what the installer wrote
-//   2. baseVersion monotonic  — the version-ramp bar can never be rolled BACK
-//   3. escape lists undirty   — widening a security/budget escape is a reviewed commit
-// Static and fast: sha256 recompute + two cheap git reads.
+// The checks, because the manifest cannot be its own root of trust:
+//   1.  owned-file hashes     — the surface matches what the installer wrote
+//   1a. retrofit conflicts    — a target config the install kept is merged or accepted
+//   1b. hook commands         — every hook command runs `node` on a file that exists
+//   1c. the Stop floor        — STOP_HOOK_STEPS keeps every floored step, command unchanged
+//   2.  baseVersion monotonic — the version-ramp bar can never be rolled BACK (git history)
+//   3.  escape lists undirty  — widening a security/budget escape is a reviewed commit
+//   3b. threshold configs     — the same commit rule for the configs that carry the numbers
+// HARNESS_ALLOW_SELF_EDIT=1 lifts 3 and 3b and nothing else; with no git work tree, 2, 3 and
+// 3b cannot run. The OK line names each check that did not run and why (1.1.0, #80), because
+// a skip that prints a clean count reads as a pass.
+// Static and fast: sha256 recompute + a few cheap git reads.
 // SOURCE: docs/harness/README.md (tamper evidence) [corpus: harness/doctrine]
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
@@ -397,6 +404,10 @@ function git(cmd) {
   }
 }
 const hasGit = git('rev-parse --is-inside-work-tree') === 'true'
+// The exact string '1', like every other reader of the flag. It lifts the two commit rules
+// (3 and 3b) and nothing else; docs/harness/README.md, "What `HARNESS_ALLOW_SELF_EDIT=1`
+// relaxes", lists every check it lifts across the harness.
+const selfEdit = process.env.HARNESS_ALLOW_SELF_EDIT === '1'
 
 // ── 2. the version-ramp bar can never be rolled BACK ─────────────────────────────
 // rampNote() downgrades a not-yet-graduated check to a NOTE — including in CI. It reads
@@ -486,7 +497,7 @@ if (hasGit) {
 // means nobody has tuned it yet. A hand-created escape list has no manifest entry and a
 // tuned one no longer matches, so both keep the hard red they had before.
 const present = ESCAPE_LISTS.filter((p) => existsSync(p))
-if (hasGit && present.length > 0 && process.env.HARNESS_ALLOW_SELF_EDIT !== '1') {
+if (hasGit && present.length > 0 && !selfEdit) {
   // Ask per path rather than parsing porcelain status columns — the path is then the one
   // we already hold, so no slicing can mangle it and a path with spaces cannot confuse us.
   for (const p of present) {
@@ -547,7 +558,7 @@ function matchesRecordedHash(p) {
 // release to adopt the habit rather than a red on the update that shipped it.
 const configCommitPaths = [...CONFIG_COMMIT, ...tsconfigPaths()].filter((p) => existsSync(p))
 let configCommitSummary = `${String(configCommitPaths.length)} threshold config(s) committed`
-if (hasGit && configCommitPaths.length > 0 && process.env.HARNESS_ALLOW_SELF_EDIT !== '1') {
+if (hasGit && configCommitPaths.length > 0 && !selfEdit) {
   const dirty = []
   for (const p of configCommitPaths) {
     if (!git(`status --porcelain -- ${p}`)) continue
@@ -578,12 +589,43 @@ if (hasGit && configCommitPaths.length > 0 && process.env.HARNESS_ALLOW_SELF_EDI
   }
 }
 
+// ── what did NOT run (1.1.0, #80) ────────────────────────────────────────────────
+// Until 1.1.0 the OK line printed `escape list(s) clean` and `threshold config(s) committed`
+// when the flag had skipped both commit rules, and `never regressed` when there was no git
+// work tree for the history check to read. A skip read as a pass. Each clause below now
+// names a check that did not run and says why. Exit codes are unchanged: these skips were
+// never reds, and they do not become reds here.
+/**
+ * Why a git-reading check did not run, or null when it ran.
+ * @param {boolean} liftedByFlag the check is one HARNESS_ALLOW_SELF_EDIT=1 lifts
+ * @returns {string | null}
+ */
+function notRunBecause(liftedByFlag) {
+  const why = []
+  if (!hasGit) why.push('no git work tree')
+  if (liftedByFlag && selfEdit) why.push('HARNESS_ALLOW_SELF_EDIT=1 is set')
+  return why.length > 0 ? why.join('; ') : null
+}
+
+/** @returns {string} the OK line's summary, one clause per check */
+function okSummary() {
+  const history = notRunBecause(false)
+  const commit = notRunBecause(true)
+  return [
+    `${checked} harness-owned enforcement file(s) match their recorded hashes`,
+    history === null
+      ? `baseVersion ${currentBase} never regressed`
+      : `baseVersion ${currentBase}: history check not run (${history})`,
+    commit === null
+      ? `${present.length} escape list(s) clean`
+      : `escape-list commit rule not run (${commit})`,
+    commit === null ? configCommitSummary : `threshold-config commit rule not run (${commit})`,
+  ].join('; ')
+}
+
 failures(
   GATE,
   errs,
   'Restore the file(s) from git; if the change came from a sanctioned harness upgrade, re-run `npx next-expo-supabase-agent-harness update` (it re-records the hashes). A DELIBERATE fork of a harness-owned file is supported too: a human re-records its sha256 in .harness/manifest.json in a reviewed commit, this gate goes green, and from harness 1.0.2 `update` sees a recorded sha no release shipped, keeps your file and parks the incoming version under .harness/pending/ instead of overwriting it (docs/runbooks/harness-upgrade.md, "Forking an owned file").',
 )
-ok(
-  GATE,
-  `${checked} harness-owned enforcement file(s) match their recorded hashes; baseVersion ${currentBase} never regressed; ${present.length} escape list(s) clean; ${configCommitSummary}`,
-)
+ok(GATE, okSummary())
