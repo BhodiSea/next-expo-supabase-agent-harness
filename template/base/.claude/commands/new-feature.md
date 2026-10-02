@@ -49,7 +49,10 @@ missing any of these arrives pre-red):
   ADR-governed Edge Function needs a per-table grant.
 - **RLS tests** — the table joins the `rls_targets` list and the pgTAP suites under
   `supabase/tests/*.sql` (structure + cross-user isolation) AND the live isolation matrix
-  in `tests/rls/`. `pnpm db:reset` then `pnpm db:test` must pass before the slice is done.
+  in `tests/rls/`; `node tools/gen-grant-assertions.mjs` (`pnpm gen` runs it) regenerates
+  `supabase/tests/rls_grants.generated.test.sql`, the exact privileges of every table, and
+  nobody edits its rows or its `plan()` by hand. `pnpm db:reset` then `pnpm db:test` must
+  pass before the slice is done.
 - **./client data fn** — a read lands on the vertical's Metro-safe `./client` barrel; a
   write (sets an ownership column, emits an event) lands on the `.` server barrel. It
   TAKES an RLS-scoped client, never constructs one; returns `ActionOutcome<T>` from
@@ -83,7 +86,10 @@ surface, the API contract), write `specs/$1.md` first and get sign-off before im
 
 Before you finish (provenance is REQUIRED — the turn is not done without it):
 
-- run the `torvalds-reviewer` subagent and require `VERDICT: PASS`;
+- run the `torvalds-reviewer` subagent and require `VERDICT: PASS`. When `specs/$1.md`
+  exists, first run `node tools/spec-anchor.mjs specs/$1.md#<id>` for each section this
+  slice implements (with no `#<id>` it lists the ids), and put each id and its output in
+  the reviewer's brief, so it judges the slice against the sections it claims;
 - run the `security-reviewer` if migrations / RLS / a data function / auth changed (or run
   `/rls-check`);
 - run the `web-security-reviewer` if `apps/web/app/actions/**`, `apps/web/lib/supabase/**`,
@@ -95,7 +101,9 @@ Before you finish (provenance is REQUIRED — the turn is not done without it):
 - run the `accessibility-reviewer` AND the `design-reviewer` if mobile UI changed (require
   `PASS`);
 - emit and verify the ADR — run `/adr $1` FIRST (so the ADR Sources list is itself verified),
-  THEN `/verify-citations` and require `CITATIONS: CLEAN`.
+  THEN `/verify-citations` and require `CITATIONS: CLEAN`;
+- record every round above, `/verify-citations` included, in `docs/reviews/<YYYYMMDD>-$1.md`
+  under the ADR's date (shape and order: `docs/reviews/README.md`).
 
 Every non-trivial decision carries `// SOURCE:` (`-- SOURCE:` in SQL), ideally with a
 `[corpus: <id>]` reference. The turn ends ONLY when `pnpm validate` is green and

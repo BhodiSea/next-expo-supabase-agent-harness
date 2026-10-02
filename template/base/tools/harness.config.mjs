@@ -120,6 +120,15 @@ export const VALIDATE_STEPS = [
   ['dead-code', 'pnpm exec knip --strict'],
   ['architecture', 'pnpm exec depcruise apps packages --config .dependency-cruiser.cjs'],
   ['build', 'node tools/build-check.mjs'],
+  // The WEB compile (1.1.0): `next build --webpack` over apps/web on a stamp miss. `types`
+  // typechecks and `build` exports the mobile app, so until this step a web app that did not
+  // compile (a Client Component importing a server-only module, an unresolvable import) passed
+  // the whole chain. It sits beside `build`, late in the chain, for the same reason: it is the
+  // expensive half, and costs nothing on a stamp hit. It must stay after `types`, whose tsc -b
+  // writes the declarations Next's own type check reads. Not PARALLEL_SAFE: a Next build is a
+  // multi-worker job of its own. template/migrations.json "1.1.0" configSteps anchors on
+  // `build` to reach existing installs.
+  ['web-compile', 'node tools/check-web-build.mjs'],
   ['styleguide', 'node tools/check-styleguide-manifest.mjs'],
   ['perf-budget', 'node tools/check-perf-budget.mjs'],
   // TWO SCRIPTS, ONE STEP — the same shape `boundaries` uses above. The routers do not agree

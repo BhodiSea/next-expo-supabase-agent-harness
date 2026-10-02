@@ -1,7 +1,7 @@
 # Gates catalog
 
 Companion to [the harness doctrine](./README.md). One section per default-on gate (the
-36-step `VALIDATE_STEPS` chain in `tools/harness.config.mjs`), the Stop-hook runtime
+37-step `VALIDATE_STEPS` chain in `tools/harness.config.mjs`), the Stop-hook runtime
 suites, the CI-only lanes, every opt-in module, and the gates we considered and rejected.
 
 Every section carries an **anti-vacuity proof**: how to inject a violation and watch the
@@ -98,8 +98,42 @@ runners) and fails on any mismatch or missing file — a raw write that slipped 
 write-guard hook (shell redirection, `sed -i`, an external editor) reds the very next
 validate run. `config` and `seeded` entries are human-tunable and skipped. Deliberately
 the first gate after format: tampered gates must not get to run.
+
+It also checks, by value, that every hook command in `.claude/settings.json` runs `node` on
+a file that exists; that `STOP_HOOK_STEPS` keeps every step of `tools/stop.floor.json` with
+its command unchanged; that every retrofit conflict is merged or accepted in
+`tools/retrofit-accept.json`; that `baseVersion` never went backwards in git history; and
+that no escape list or threshold-bearing config is modified but not committed.
+`HARNESS_ALLOW_SELF_EDIT=1` switches off only the last of these, the commit rule (see
+"What `HARNESS_ALLOW_SELF_EDIT=1` relaxes" in [the doctrine](./README.md)).
+
+**The escape-list commit rule (sub-check 3) and its one exemption.** Every file in
+`ESCAPE_LISTS` (`tools/lib/enforcement-surface.mjs`) that `git status --porcelain` reports is
+a finding: exempting code from a gate or raising a budget is a reviewed commit, never a
+working-tree edit. The exemption is the list the harness itself just planted: `init` and
+`update` write escape lists untracked, and accusing the consumer of widening a file on the run
+that delivered it is the wrong verdict. An untracked list is a plant when three facts hold:
+it is untracked, its sha256 matches its `.harness/manifest.json` record, and (since 1.1.0)
+a harness release planted exactly those bytes, according to `tools/lib/planted-shas.json`. That file
+is generated from the released-sha tables' `planted` maps, is owned and hash-pinned by the
+first check above, and arrives through `update` in the same run as any new escape list. A list
+carrying a placeholder (`tools/rls-exempt.json`, `tools/backup-posture.json`) is compared after
+its tokens are put back with the manifest's answers (`tools/lib/derender.mjs`). The record
+alone stopped being enough in 1.0.2, when re-recording a sha became the supported way to keep
+a fork, because the manifest need not be committed. A plant prints a NOTE; an untracked list
+that matches its record but no release variant is a finding behind a ramp (a NOTE for
+installs below `baseVersion` 1.1.0 until harness 1.2.0); tracked-and-modified, untracked with
+no record and untracked with a different sha are red as before. The threshold-config rule
+(3b) still trusts the record alone, a stated limit.
+
 **Anti-vacuity:** `echo '// x' >> tools/check-migrations.mjs` from a plain terminal →
-FAIL naming the file.
+FAIL naming the file. For the plant exemption, on a committed scaffold at `baseVersion`
+1.1.0 or later: (A) `printf '{ "allow": [] }\n' > tools/secret-scan-allow.json`, then add
+`"tools/secret-scan-allow.json": { "mode": "seeded", "sha256": "<its sha256>" }` to the
+manifest's `files` → `gate-integrity: FAIL (1)`, then `- tools/secret-scan-allow.json: escape
+hatch present but not committed, and no harness release planted these bytes. …`; (B) untrack
+`tools/approved-tools.json` in a commit, append a server to it and re-record its sha → FAIL
+naming `tools/approved-tools.json`. Before 1.1.0 both passed as a plant NOTE.
 
 ### 3. wiring — `node tools/check-wiring.mjs`
 
@@ -201,13 +235,29 @@ was the suppression comment — the directive itself is now the lint error, a
 directive naming this rule reds too (line-level stacking never terminates), and
 the rule's header states the honest file-level residual plus the controls that
 cover it (the factory's pinned config text, the torvalds rubric).
+**1.1.0 reaches the Edge Functions.** Until 1.1.0 the global ignore read `supabase/**`,
+and a later block cannot reach anything a global ignore lists, so the three blocks that
+name `supabase/functions` (`no-unverified-session`, `service-role-edge-functions-only`,
+`crypto-primitives-one-door`) reached nothing there. The ignore now lets
+`supabase/functions/` back in; a block gives `supabase/functions/**/*.ts` the TypeScript
+parser with no project service (no tsconfig covers Deno code, so type-aware rules stay
+off; `deno check` in the `edge-functions` lane is the type half), and the security blocks
+reach the functions unedited and unramped — a `getSession()` there is an authentication
+bypass, not a debt. `service-role-edge-functions-only` stays off them: they are its
+sanctioned home. A second block holds them to cognitive complexity ≤ 15 and
+`no-suppressed-complexity`, with ONE dated exemption: the delete-account `index.ts` every
+1.0.x install carries is seeded and measures 16, so it is exempt from that block until
+1.2.0, paired with the 1.1.0 `seededSourceFixes` instruction to pull the split
+(`update --refresh-seeded supabase/functions/delete-account/`).
 **Anti-vacuity:** `import * as SecureStore from 'expo-secure-store'` in a random
 feature → FAIL no-restricted-imports; call `fetch()` in a screen → FAIL
 no-restricted-globals (depcruise walls the same seams at the module-graph level —
 defense in depth); read `process.env['UPSTASH_REDIS_REST_TOKEN']` in a web lib →
 FAIL env-through-register; add `// eslint-disable-next-line
 sonarjs/cognitive-complexity` above a fat function → FAIL no-suppressed-complexity
-(RuleTester red-proofs: tests/gates/eslint-custom-rules.test.mjs).
+(RuleTester red-proofs: tests/gates/eslint-custom-rules.test.mjs); append a
+`getSession()` call to `supabase/functions/delete-account/index.ts` → FAIL
+no-unverified-session (selftest Canary 37; against the 1.0.3 config lint stays green).
 **Papercut:** `--cache` keys on file content + eslint config, NOT on tsconfig —
 after a tsconfig change fixes a typed-lint error, the stale `.eslintcache` can
 keep reporting it (observed live: a `jest.setup.ts` include fix stayed red until
@@ -250,6 +300,19 @@ Cited corpus entries must carry a `groups` key covering the site's decision clas
 (reviewed cross-group escapes in `tools/provenance-overrides.json`); a bare-URL
 citation grounds only on a `tools/lib/citation-domains.mjs` allowlisted host.
 Consumer-added decision classes live in `tools/decision-groups.json`.
+**Mandatory and advisory classes (1.1.0).** Three built-in classes are advisory:
+`vector-index`, `llm-sampling` and `tuning-constants` (the owned
+`ADVISORY_DECISION_GROUPS` in `tools/lib/provenance-rules.mjs`). An uncited site, or a
+group-match miss, whose classes are all advisory prints
+`provenance: ADVISORY (n) — file:line [class]` on every run and is not a red; the hook
+answers it with `additionalContext` at exit 0 instead of blocking. Every other class is
+mandatory: `rls-policy`, `guc-identity`, `token-verification`, `cryptography`, the seeded
+`mobile-security`, any group a project adds and any built-in a later release adds. A site
+that matches any mandatory class is judged whole, as before. A top-level
+`"mandatory": ["<key>"]` in `tools/decision-groups.json` promotes an advisory class, and
+nothing in that file can demote one; a `mandatory` that is not an array, or names a key
+that is not a group, fails closed. Resolvability, the host allowlist, corpus integrity
+and the coverage lockstep stay hard for every class.
 The corpus is two files, merged by `tools/lib/corpus.mjs`: the harness's
 `tools/mcp/corpus/index.json` (owned, hash-pinned, mandatory) and the project's
 `tools/mcp/corpus/project.json` (seeded, `{ comment, entries }`, absent counts as
@@ -260,12 +323,14 @@ groups it declares, and a group a project adds may be covered from `project.json
 alone. The project file must parse as exactly `{ comment, entries }`, and an id the
 index already pins reds naming both files: a project adds authorities and never
 replaces one.
-**Anti-vacuity:** add `const timeoutMs = 5000` with no citation → FAIL with
-file:line; cite a corpus entry whose groups do not cover the flagged class → FAIL
-naming the mismatch; in `tools/mcp/corpus/project.json`, change an entry's `text`
-without its `sha256`, drop its `groups`, empty its `url`, break the JSON, make
-`entries` an object, add a top-level key, or reuse an id `index.json` pins → FAIL
-naming `project.json` (the last naming both files); cite an id neither file pins →
+**Anti-vacuity:** add `await jwtVerify(token, jwks)` with no citation → FAIL with
+file:line (an uncited `const timeoutMs = 5000` prints an ADVISORY line naming
+`tuning-constants` and passes, and FAILs once `"mandatory": ["tuning-constants"]` promotes
+it; `"mandatory": ["x"]` → FAIL); cite a corpus entry whose groups do not cover a
+mandatory site's class → FAIL naming the mismatch; in `tools/mcp/corpus/project.json`,
+change an entry's `text` without its `sha256`, drop its `groups`, empty its `url`, break
+the JSON, make `entries` an object, add a top-level key, or reuse an id `index.json` pins
+→ FAIL naming `project.json` (the last naming both files); cite an id neither file pins →
 FAIL naming both; delete `index.json` beside a `project.json` → FAIL naming
 `index.json` (fixtures: tests/gates/check-sources.test.mjs,
 tests/gates/corpus-lib.test.mjs).
@@ -655,12 +720,17 @@ deliberately updating the lock (write-guard-protected — a human act).
 prose in the repository: which reviewers exist, what they may touch, what a slash command
 does, what the skills prescribe. Before the lock, **nothing in the chain noticed it
 changing** — the `docs-sync` roster check reads reviewer FRONTMATTER (name, model, tools)
-and never the body, which is where the instructions actually are. An agent could soften
-`security-reviewer.md`, widen a skill or repoint a command and stay green.
+and, of a reviewer's body, only whether it demands the verdict line and (since 1.1.0)
+whether it closes on that demand and states its `Severities:` and `Blocking:` lines. It
+never judges the rest of the body, which is where the instructions actually are. An agent could soften `security-reviewer.md`, widen a skill or
+repoint a command and stay green.
 
 The model id is recorded beside the hash because they answer different questions: a hash
 proves the file did not change, and a roster silently repointed from a frontier model to a
-cheap one leaves every byte identical.
+cheap one leaves every byte identical. An agent's `harnessFallbackModels` list (1.1.0) is
+covered by the file hash, and `models` keeps the pin alone. Neither says which model a
+verdict actually RAN on: that is recorded in the reviewer ledger and judged by
+`reviewer-verdicts`.
 
 **The asymmetry is the design.** "Not in the lock" is RAMPED — an install predating the
 lock has files nobody has covered, and ambushing it on upgrade would break the harness's
@@ -747,9 +817,10 @@ must leave that role holding that privilege. Three carve-outs, each load-bearing
 predicate that is literally `false` needs no grant (that is how the tenancy spine says
 "never"), a `RESTRICTIVE` policy only subtracts rows and so carries no reachability
 claim, and a policy with no `TO` clause names no role to close over. **The reverse
-direction is not asserted:** `GRANT SELECT, DELETE ON TABLE public.orgs TO
+direction is not asserted for `service_role`:** `GRANT SELECT, DELETE ON TABLE public.orgs TO
 service_role` is a legitimate ADR'd grant with no policy behind it, because
-`service_role` bypasses row security. Ramped `0.6.0` → `0.7.0`, unlike the negation set:
+`service_role` bypasses row security. (For `anon` and `authenticated` it is, from 1.1.0:
+the grant bound below.) Ramped `0.6.0` → `0.7.0`, unlike the negation set:
 here there IS a legacy population, because on a pre-flip project the missing grant
 genuinely works.
 SOURCE: https://supabase.com/docs/guides/api (Data API grants and exposed schemas)
@@ -759,7 +830,8 @@ policies); `USING (true)` → FAIL naming the vacuous predicate; a per-row `auth
 FAIL "per row"; drop the owner index → FAIL naming the missing leading column; add a table
 to one registry but not the other → FAIL naming the gap; append a `DISABLE ROW LEVEL
 SECURITY` to a fresh migration → FAIL naming the file (selftest Canary 22); delete the
-one `GRANT` line from the **shipped** `notes` migration → FAIL naming the policy, the
+notes `GRANT` line from the **shipped** tree (since 1.1.0 the one in the three-role revoke
+migration, which re-grants after its `REVOKE ALL`) → FAIL naming the policy, the
 date and the exact statement that discharges it (which is what makes the shipped-tree
 green non-vacuous, as opposed to a fixture merely shaped like it).
 
@@ -810,6 +882,80 @@ should never have seen. Since 1.1.0 the suite runs the rail on a table it builds
 own transaction, `public.pgtap_fixture`, with the example's policy text renamed, so the
 proof survives a project deleting the example; the example's own copy is held by the static
 rules above.
+
+**The history fold (1.1.0).** The shared parser (`tools/lib/sql-parse.mjs`) read neither
+`DROP TABLE` nor `ALTER POLICY`, and this gate parsed `DROP POLICY` and threw the list
+away. So a policy rewritten by `ALTER POLICY … USING (true)` was judged on its CREATE text
+and passed; a dropped policy still covered its operation; and a table dropped and
+re-created kept its old policies, grant and owner index, while one created and dropped
+still redded as undeclared. The gate now reads the parser's one live-policy fold,
+`parseLivePolicies()` — `ALTER POLICY` replaces the `TO`, `USING` and `WITH CHECK` clauses
+it names, `RENAME TO` renames, `DROP POLICY` removes — and views in which `DROP TABLE`
+removes the table with everything on it, its created set included (`parseCreatedTables()`,
+in place of its own regex). A `DROP TABLE` without `IF EXISTS`, or an `ALTER POLICY`, whose
+target no earlier migration left in place is a finding; `DROP TABLE IF EXISTS` on an
+unknown table is a no-op, and a table made outside the migrations and dropped by an
+applied one is acknowledged in `tools/rls-exempt.json`. A finding only the folded history
+produces is a dated NOTE below `baseVersion` 1.1.0, through
+`rampNote('schema-rls', '1.1.0', 'the SQL history fold (DROP TABLE, ALTER POLICY and DROP POLICY)', { until: '1.2.0' })`;
+`tools/lib/sql-fold-ramp.mjs` tells it apart by replaying the gate over the pre-fold history,
+so a finding both readings produce stays hard at every vintage. **Anti-vacuity:**
+`ALTER POLICY thing_select_own ON public.thing USING (true)` → FAIL "has a vacuous USING
+(true)"; `DROP TABLE public.thing` and a bare re-create with ENABLE and FORCE → FAIL on all
+four operations and the owner index; `DROP TABLE public.ghost` → FAIL unresolved; and a
+table created then dropped → GREEN.
+
+**The grant bound, the three-role revoke doctrine and the generated grant assertions
+(1.1.0).** The closure above folds explicit statements only and starts empty, so it never
+saw what Supabase's default privileges hand a role on a new `public` table — ALL, for
+`anon`, `authenticated` and `service_role` — and the 1.0.2 escape was exactly a grant wider
+than its policies, found by a runtime assertion after the local CLI moved, never by this
+gate. `tools/lib/table-grants.mjs` now walks the history a second time in two halves: a
+**default-seeded** fold that starts each `public` table with every table privilege of the
+configured major for the three roles (eight on PostgreSQL 17, `MAINTAIN` among them; seven
+below it, read from `[db].major_version`), and an **explicit** fold that starts it with
+none. Three findings come of it, one ramp for all three:
+
+- **The bound.** Every privilege `anon` or `authenticated` holds in the default-seeded fold,
+  directly, through `PUBLIC` or on columns, must be admitted by a PERMISSIVE policy for that
+  operation (or `ALL`) naming the role, `public` or no role, whose predicate is not literally
+  `false`. `TRUNCATE`, `REFERENCES`, `TRIGGER` and `MAINTAIN` are never admitted — row
+  security does not apply to them — so they are revoked, or listed with a reason in the
+  tolerated-absent `tools/grant-bound-allow.json` as `{table, role, privilege, reason}`. A row
+  naming a privilege the role does not hold, or one a policy already admits, is a finding.
+- **The doctrine** (`docs/adr/20260930-three-role-revoke.md`). For each of the three roles,
+  the default-seeded fold holds nothing the explicit fold does not: the table revoked the
+  default from every role, and whatever a role keeps was granted explicitly. That keeps
+  `service_role` to ADR'd grants without judging them against policies, and it is what makes
+  a committed expectation independent of whether the platform applied its default.
+- **The generated file.** `supabase/tests/rls_grants.generated.test.sql` must equal what
+  `tools/gen-grant-assertions.mjs` renders from the explicit fold — one `is_empty` over
+  `has_table_privilege(…) IS DISTINCT FROM expected` for every table a migration creates,
+  each of the three roles and every table privilege, with its own `plan()`, rows sorted by
+  code unit. Checked while the doctrine holds; until then the generator refuses, naming the
+  tables and printing the statements that clear them.
+
+Every finding prints the exact `REVOKE` and `GRANT` that clear it. The parse is normalised
+where an upper bound would fail OPEN: `… TO authenticated WITH GRANT OPTION` is a grant to
+`authenticated` (not to a role of that name), `GRANTED BY`, `CASCADE` and `GROUP` are read
+off, `REVOKE GRANT OPTION FOR` leaves the privilege, a column list and several tables in one
+statement are read, a schema-wide statement reaches only the tables that exist at that
+point, and a `GRANT` or `REVOKE` the fold cannot read is itself a finding. Out of scope:
+sequences, custom roles, views and `ALTER DEFAULT PRIVILEGES` (the bound keeps assuming the
+platform default). The hand-written assertions in `rls_structure.test.sql` stay: the
+`service_role` allowlist and the seat and quota shapes state intent. Ramped through
+`rampNote('schema-rls', '1.1.0', 'the grant bound, the three-role revoke doctrine and the generated grant assertions', { until: '1.2.0' })`:
+an install seeded before 1.1.0 has tables that predate the doctrine (profiles and notes on
+every vintage), and `update` withholds the migration and the generated file.
+SOURCE: https://www.postgresql.org/docs/17/ddl-priv.html
+**Anti-vacuity:** the shipped tree without
+`supabase/migrations/20260920000000_authenticated_write_revoke.sql` → FAIL on all seven
+read-only tables (it printed OK before), and without
+`supabase/migrations/20260930000000_three_role_revoke.sql` → FAIL on `profiles` and `notes`
+only; `GRANT ALL`, a grant behind a deny-all policy, `WITH GRANT OPTION`, a schema-wide
+`REVOKE` before a later `CREATE TABLE`, a table that never revokes from `service_role`, a
+stale allow row and a stale or missing generated file → FAIL; the generated file passes on a
+live stack and fails on an injected `GRANT TRUNCATE ON public.notes TO authenticated`.
 
 ### 18. tenancy — `node tools/check-tenancy.mjs`
 
@@ -978,6 +1124,20 @@ grant in place. The refusal is therefore *not* uniformly over-determined: readin
 forging are held by the grant alone. "Just grant the Edge Function read access to the audit
 table" is a reasonable-sounding request, it is the single likeliest edit to this design,
 and those two assertions are the only thing in the suite that catches it.
+
+**The history fold (1.1.0).** The gate's live-policy state is now the parser's
+`parseLivePolicies()`, which `schema-rls` reads too: besides CREATE and DROP POLICY it folds
+`ALTER POLICY` (the clauses it names replace the policy's; `RENAME TO` renames) and
+`DROP TABLE`, which removes the table's columns, indexes, triggers, grants and policies from
+every view and clears the foreign keys into it. A predicate rewritten by `ALTER POLICY` is
+therefore judged on the text the database runs, and a dropped table named in
+`untenantedTables` is a stale entry. The header's rule stands for every finding the 1.0.x
+reading also produces: a wrong predicate on an adopted surface is a hard red whatever the
+manifest says. Only a finding the fold alone produces is a dated NOTE below `baseVersion`
+1.1.0, through `rampNote('tenancy', '1.1.0', 'the SQL history fold (DROP TABLE and ALTER POLICY)', { until: '1.2.0' })`.
+**Anti-vacuity:** `ALTER POLICY notes_select_org ON public.notes USING (org_id = (SELECT
+auth.uid()))` → FAIL "matches NO reviewed predicate form", exactly as the same predicate from
+a CREATE does.
 
 ### 19. auth-posture — `node tools/check-auth-posture.mjs`
 
@@ -1179,6 +1339,14 @@ about whether a note dies with its author.
 Reviewed data: `tools/data-flow.json` (write-guard-protected, git-clean-enforced). Procedure:
 `docs/runbooks/data-subject-requests.md`. Ramped at `minVersion 0.6.0`, expiring **0.7.0**.
 
+**The history fold (1.1.0).** The column facts are folded through `DROP TABLE`: a dropped
+table's columns leave them and every foreign key into it is cleared, so its links stop
+deciding what an erasure does and a reviewed entry that names it goes stale. A finding only
+the folded facts produce is a dated NOTE below `baseVersion` 1.1.0, through
+`rampNote('data-flow', '1.1.0', 'the SQL history fold (DROP TABLE and ALTER POLICY)', { until: '1.2.0' })`;
+one both readings produce stays hard. **Anti-vacuity:** `DROP TABLE public.invitations
+CASCADE` → FAIL on the stale `severed[]` and `retained[]` entries for it.
+
 ### 21. types-drift — `node tools/check-types-drift.mjs`
 
 Regenerates the Supabase type mirror (`supabase gen types typescript --local`) from the
@@ -1225,6 +1393,17 @@ Three bounds keep it from becoming a hole: it exempts a **(file, rule) pair**, n
 file; the migration **must already exist at the diff base**, so one written today cannot
 be exempted at all; and a **stale entry reds**. Absent by default — creating it is a
 widening, so it is in `ESCAPE_LISTS` and must be committed.
+
+**`ALTER POLICY` is an authorization change (1.1.0).** It replaces the `USING`,
+`WITH CHECK` or `TO` clause a reviewer approved, and the database never runs the old one
+again, so it needs `-- adr:` naming an existing ADR, as `DROP POLICY` does. It is judged per
+statement: a migration whose only `ALTER POLICY` statements are `RENAME TO` needs none, and
+one rename does not excuse a rewrite beside it. Its findings ride their own ramp, not the
+0.2.0 bucket, through `rampNote('migrations', '1.1.0', 'ALTER POLICY as an authorization change', { until: '1.2.0' })`,
+and an applied migration uses the existing `authz-adr` entry in
+`tools/migrations-allow.json`. **Anti-vacuity:** a new migration with
+`ALTER POLICY notes_select_own ON public.notes USING (true);` and no ADR line → FAIL
+"removes an authorization control"; the same with `RENAME TO` → GREEN.
 
 ### 23. db-limits — `node tools/check-db-limits.mjs`
 
@@ -1299,21 +1478,31 @@ without `LOCAL`, or take a `pg_advisory_lock` → FAIL, with `SET LOCAL`, `ALTER
 SET`, `pg_advisory_xact_lock` and a `postgres(?:ql)?://` URL regex all proven to stay
 green; malformed JSON, an empty role matrix, a knob with no declared ceiling, or an
 `unavailable` entry with a thin reason → FAIL closed.
-`tests/gates/check-db-limits.test.mjs` carries 31 cases; the runtime twins are the
+`tests/gates/check-db-limits.test.mjs` carries these cases; the runtime twins are the
 pg_db_role_setting + quota block in `supabase/tests/rls_structure.test.sql` and
 `tests/rls/resource-limits.test.ts`, which proves the ceilings are in FORCE through
 PostgREST rather than merely present in the catalog.
+
+**The history fold (1.1.0).** The migration views are folded through `DROP TABLE` (a
+dropped table takes its triggers, columns, grants and policies with it) and `ALTER POLICY`,
+and the RESTRICTIVE counting rule reads the live policies. A metered table dropped and
+re-created without its triggers is unenforced; a finding only the fold produces is a dated
+NOTE below `baseVersion` 1.1.0, through
+`rampNote('db-limits', '1.1.0', 'the SQL history fold (DROP TABLE and ALTER POLICY)', { until: '1.2.0' })`,
+and one both readings produce stays hard.
 
 ### 24. contracts — `node tools/check-contract-drift.mjs`
 
 (1) Contract-inventory regen-diff: regenerate the three committed inventories —
 `tools/generated/action-inventory.json` (every tRPC procedure `appRouter` exposes),
-`tools/generated/event-catalog.json` (every event the platform + vertical
-catalogs declare) and `tools/generated/query-shapes.json` (every statement the DALs
-issue, recorded by driving them through the harness-owned recording port) — from the
-LIVE values and diff against the committed copies, so adding OR removing an action,
-event or query without `pnpm gen` reds. Needs an install (tsx, to walk the runtime
-router/catalogs/DALs); skips loudly without one, fails closed in CI.
+`tools/generated/event-catalog.json` (every event the platform + vertical catalogs
+declare; a vertical is catalogued when its `./client` entry exports its catalog as
+`EVENT_CATALOG`, from 1.1.0) and `tools/generated/query-shapes.json` (every
+statement the DALs issue, recorded by driving them through the harness-owned
+recording port) — from the LIVE values and diff against the committed copies, so
+adding OR removing an action, event or query without `pnpm gen` reds. Needs an
+install (tsx, to walk the runtime router/catalogs/DALs); skips loudly without one,
+fails closed in CI.
 (2) tsconfig project references mirror the pnpm workspace dependency graph —
 parallel topologies desynchronize into confusing type errors otherwise. (3) Bounded
 wire strings (G18): every `z.string()` in `@app/contracts` carries `.max(N)`, or a
@@ -1354,6 +1543,35 @@ but without the leading column it filters by SCANNING); and **ceiling** (no LIMI
 `[api].max_rows`, which PostgREST truncates to silently, so the sentinel row a keyset
 page uses to detect "has more" never arrives).
 
+**`rpc()` and `upsert()` (1.1.0).** The recording port has `db.rpc(name, args)`, and an rpc
+row is `op: "rpc"` with `table: null` and one more key, `rpc: { name, args }`, where `args`
+is the sorted argument names and never a value. `upsert` is in the reviewed method set, and
+an upsert row is `op: "upsert"` with the payload's keys and one more key, `onConflict`: the
+option split on commas and sorted, or `null` when absent. A row that uses neither gains no
+key, so a manifest that has no such call regenerates byte-identical. Through 1.0.4 a probed
+DAL that called `.rpc()` threw inside `pnpm gen`, and an upsert recorded as a `select` whose
+`extra` named it, so it failed with OFFSET advice. Four rules judge the two ops, which skip
+**served** and **tenant-led** (an rpc has no table, and an upsert's lookup is its conflict
+arbiter); **bounded** never reds a write, and the unreviewed-method and **ceiling** rules
+still apply. **rpc resolves**: a migration creates `public.<name>`, the one schema
+`supabase/config.toml` exposes, or PostgREST answers PGRST202. **rpc arguments**: the call
+names every input parameter (IN, INOUT or VARIADIC) that has no DEFAULT, and no parameter
+the function lacks, or PostgREST finds no function with that argument list (PGRST202).
+**upsert arbiter**: the conflict columns equal, as a set, the columns of a UNIQUE index or
+primary key that still exists; with no `onConflict` they are the primary key's, which is
+what PostgREST targets, and PostgreSQL raises an error when ON CONFLICT inference finds no
+such index. Its finding lists the arbiters the table holds, and on a tenant table the target
+or index it proposes carries the tenant column, which `tenancy` requires of every UNIQUE
+there. **upsert tenant**: on a tenant table the payload carries the tenant column, as
+an insert's does. The limits, stated in the gate's header too: the parser does not model
+`DROP FUNCTION`, so a dropped function still resolves; `resolveFunction` matches on the name
+alone, so overloads collapse to the last definition; index parsing drops the predicate of a
+partial index, so a partial UNIQUE index, which ON CONFLICT cannot infer without an index
+predicate, still reads as an arbiter; and a function with an unnamed input parameter
+resolves, but its arguments are not judged. The function body an rpc runs is judged by no
+rule here. A committed manifest is seeded, so `update` never rewrites it: a DAL that calls
+either method runs `pnpm gen` again and commits the result.
+
 This is the static half. It cannot prove the planner CHOOSES the index it found — that
 is `tools/check-db-perf.mjs` in the path-filtered `db-scale` CI lane, against 2M seeded
 rows. Neither subsumes the other: this one is decidable from migration text in ~60ms,
@@ -1364,7 +1582,20 @@ printing the exact `CREATE INDEX` that would serve it; swap the index's sort tai
 stay green (both only see the leading column); drop the `.limit()` from a list DAL →
 FAIL unbounded; add `.range(0, 20)` → FAIL naming `.range()`; add a DAL function with
 no probe → `pnpm gen` FAILS and `contracts` reds; empty the manifest → FAIL (an empty
-manifest passes every rule above without judging anything).
+manifest passes every rule above without judging anything); rename the function an rpc
+calls in its migration → FAIL naming `public.<name>` and PGRST202; call it with a wrong or
+missing argument name → FAIL naming the parameter; drop the UNIQUE index an upsert's
+`onConflict` names → FAIL naming the conflict columns; drop the tenant column from a tenant
+upsert's payload → FAIL; strip `rpc` from an rpc row or `onConflict` from an upsert row →
+FAIL (the manifest is malformed, not judged).
+
+**The history fold (1.1.0).** The index lookup is folded through `DROP TABLE`: a dropped
+table takes its indexes with it, so a re-created table is served only by indexes created
+after it. A finding only the fold produces is a dated NOTE below `baseVersion` 1.1.0,
+through `rampNote('query-shapes', '1.1.0', 'the SQL history fold (DROP TABLE and ALTER POLICY)', { until: '1.2.0' })`,
+and one both readings produce stays hard. `db-perf`'s static index lookup reads the same
+fold, with no ramp: it runs only against a live, scale-seeded database, where a dropped
+table's indexes are already gone.
 
 ### 26. rate-limits — `node tools/check-rate-limits.mjs`
 
@@ -1496,7 +1727,39 @@ stamp, so a warm validate re-runs the real export.
 export succeeds, gate FAILs on bundle purity; halve `gzip.total` in the baseline →
 FAIL naming measured vs baseline × ratioCap and the re-baseline ceremony.
 
-### 31. styleguide — `node tools/check-styleguide-manifest.mjs`
+### 31. web-compile — `node tools/check-web-build.mjs`
+
+The web app must COMPILE: `pnpm --filter web exec next build --webpack` over `apps/web`,
+since 1.1.0. `types` typechecks and does not bundle, so a Client Component that imports a
+server-only module, an import only the bundler fails to resolve, or an RSC boundary
+violation all pass it, and `build` is the mobile export. Until this step a web app that did
+not compile passed the whole chain and the `static` job; only the path-filtered `web-build`
+lane ran `next build`. It compiles only: the client-bundle purity scan stays in that lane
+(`build-check.mjs --web`), which reads a real build's `.next/static`.
+
+Stamped, which is what makes a full Next build affordable in a chain every turn ends on.
+The inputs are `apps/web`, `packages`, `tsconfig.base.json`, `pnpm-workspace.yaml` and
+`pnpm-lock.yaml` plus the machinery; `.next` and `dist` are never hashed; CI never honours
+a stamp, so `static` builds on every pull request. The binary runs through `exec`, never a
+`package.json` script an agent could redefine, and `--webpack` matches the seeded script.
+It runs after `types`, whose `tsc -b` emits the declarations Next's own type check reads:
+run alone on a fresh clone it reds with TS6305 and names that command. For each Supabase key
+the build needs that neither the caller nor an `apps/web/.env*` file sets, it supplies the
+`web-build` job's placeholder, byte for byte, and prints which keys it filled (the stamp
+hashes files, not the environment). The build rewrites the committed
+`apps/web/next-env.d.ts`, and the step restores it, so the tree stays clean and a second run
+stamp-hits. Skips loudly without `apps/web` or `node_modules`; fails closed in CI.
+
+Shipped **ramped** (`minVersion 1.1.0`, `until 1.2.0`): `update` injects the step into an
+existing chain, so below that baseVersion a failed build is a NOTE carrying the output. A
+ramped failure records no stamp, so the NOTE repeats, and `graduate` stays refused, until
+the app compiles. The ramp is consulted only once the build has failed.
+**Anti-vacuity:** add `import '../lib/auth/session'` (it opens with `import 'server-only'`)
+under the `'use client'` directive of `app/providers.tsx` → `types` stays green and
+`web-compile: FAIL` carries Next's `You're importing a module that depends on
+"server-only"` error (selftest Canary 35).
+
+### 32. styleguide — `node tools/check-styleguide-manifest.mjs`
 
 The design system is DATA, and the token VALUES are owned by `@app/design-tokens`
 (the TypeScript modules in `packages/design-tokens/src`, OKLCH). This gate does two
@@ -1535,7 +1798,7 @@ naming the literal; call `Animated.timing` from a screen → FAIL pointing at th
 spell `shadowOpacity:` outside src/theme → FAIL; style a raw `<Pressable>` in a second
 home file → FAIL naming the base; name a non-existent token in `accentTokens` → FAIL.
 
-### 32. perf-budget — `node tools/check-perf-budget.mjs`
+### 33. perf-budget — `node tools/check-perf-budget.mjs`
 
 Median-of-N full react-test-renderer mount time over REAL feature subjects,
 asserted against `tools/perf-budget.json` (write-guard-protected; raising a budget
@@ -1574,7 +1837,7 @@ subject that does not exist → FAIL naming it; with `subjects: []`, blank the
 a dir that still ships `perfSubject.tsx` → FAIL `… exists but is not declared`
 (the factory's `day0-empty-states` lane runs both legs).
 
-### 33. route-manifest — `node tools/check-route-manifest.mjs && node tools/check-web-routes.mjs`
+### 34. route-manifest — `node tools/check-route-manifest.mjs && node tools/check-web-routes.mjs`
 
 Every screen and every page is REGISTERED. Two scripts, one step — the shape
 `boundaries` has used since 0.1.x — because the two routers share no rule: expo-router
@@ -1586,7 +1849,7 @@ every line, which is two parsers with worse names.
 **The mobile half** (`check-route-manifest.mjs`) — a hand-authored manifest, re-derived.
 **The web half** (`check-web-routes.mjs`, 0.6.0) — a generated registry.
 
-#### 28a. the mobile half — `apps/mobile/src/routes.ts`
+#### 34a. the mobile half — `apps/mobile/src/routes.ts`
 
 `apps/mobile/src/routes.ts` ROUTES must be non-empty;
 every entry carries id / titleKey (a catalog KEY, so route names are translatable)
@@ -1603,7 +1866,7 @@ the router serves. Static, <100ms.
 orphan; empty the ROUTES array → FAIL ("vacuous pass"); drop `states.error` → FAIL
 naming the entry and key.
 
-#### 28b. the web half — `apps/web/lib/routes.generated.ts` (0.6.0)
+#### 34b. the web half — `apps/web/lib/routes.generated.ts` (0.6.0)
 
 The commitment `docs/harness/enforcement-tiers.md` dated to 0.6.0, in its own words:
 *"the App Router has no equivalent registry, so a web page can land with no id, no
@@ -1645,13 +1908,29 @@ Shipped **ramped** (`minVersion 0.6.0`, `until 0.7.0`): an install created befor
 pages and no `page.meta.ts` anywhere, and projects grow into gates rather than being
 ambushed by them.
 
+**And a browser test per route (1.1.0).** Mobile closes every route through a Maestro flow
+to a startup budget; the web lane was judged on aggregates only, and the seeded suite
+rendered one of its three routes (`notes` was visited only as an anonymous redirect,
+`security` never). Now, for every registered route, some `*.spec.*` under `apps/web/e2e`
+must name one of its non-null declared state test ids as a quoted literal, read with
+comments blanked. State test ids are globally unique, so a literal names exactly one route.
+A `null` state is never demanded; a route whose every state is null has no id a spec could
+name, and is chrome to allowlist. The check reads text: it proves a spec names the state,
+and the web-e2e lane proves the spec passes. Its findings are a list of their own behind a
+ramp of their own (`minVersion 1.1.0`, `until 1.2.0`), consulted only once findings exist:
+the seeded `notes.spec.ts` and `security.spec.ts` are `seedOnInitOnly`, so an install
+created earlier carries a spec for `orgs` only.
+
 **Anti-vacuity:** add `app/(protected)/o/[orgSlug]/settings/page.tsx` with no
 `page.meta.ts` → FAIL naming the page and the URL it would be served at; declare a state
 test id nothing in the segment renders → FAIL; delete `app/not-found.tsx` → FAIL; change a
 meta's `id` without regenerating → FAIL ("stale"); allowlist a page that no longer exists
-→ FAIL; declare `error: null` with no reviewed reason → FAIL.
+→ FAIL; declare `error: null` with no reviewed reason → FAIL; remove every literal of an
+`orgs` state test id from `apps/web/e2e` (today the three `'orgs-empty'` lines in
+`authenticated.spec.ts`) → FAIL naming `orgs (/o)` and both of its non-null ids (selftest
+Canary 36).
 
-### 34. security-headers — `node tools/check-security-headers.mjs`
+### 35. security-headers — `node tools/check-security-headers.mjs`
 
 The web response posture, asserted BY VALUE. The gate EVALUATES
 `apps/web/lib/security-headers.ts` under `node --experimental-strip-types` (no
@@ -1715,7 +1994,7 @@ shorten the HSTS `max-age` → FAIL; drop `camera=()` → FAIL; drop `x-org-id` 
 missing a section FAILS rather than silently skipping the checks that section governed,
 and a `decisions.coep` reason shorter than 20 characters FAILS.
 
-### 35. e2e — `node tools/check-e2e.mjs`
+### 36. e2e — `node tools/check-e2e.mjs`
 
 The agent-time fast lane: the WHOLE react-native suite in `apps/mobile` (jest-expo
 + React Native Testing Library) — the states sweep over every ROUTES entry
@@ -1734,7 +2013,7 @@ both runners. The ON-DEVICE proof is the CI Maestro lane, deliberately not here
 **Anti-vacuity:** break a state testID in a screen → the states sweep (and thus
 the gate) reds; empty the jest suite → FAIL vacuous-pass.
 
-### 36. docs-sync — `node tools/check-docs-sync.mjs && node tools/check-essential-eight.mjs && node tools/check-conformance-map.mjs`
+### 37. docs-sync — `node tools/check-docs-sync.mjs && node tools/check-essential-eight.mjs && node tools/check-conformance-map.mjs`
 
 The agent-facing documentation cannot lie about the gate: CLAUDE.md stays a pure
 `@AGENTS.md` include; the AGENTS.md "The N gates, in order: ..." sentence must
@@ -1750,7 +2029,49 @@ a skip) and the reviewers (`security-reviewer`, `web-security-reviewer`,
 `architecture-reviewer`, `torvalds-reviewer`, `citation-verifier` — the roster is
 `REVIEWER_AGENTS` in `tools/lib/agent-roster.mjs`) may hold ONLY
 the read-only allowlist and must disallow `Write` + `Edit` — the README's
-"read-only by construction" claim, machine-asserted.
+"read-only by construction" claim, machine-asserted. Since 1.1.0 an agent file
+may carry a `harnessFallbackModels: a, b` list, which Claude Code ignores and
+`reviewer-verdicts` judges a security reviewer's recorded model against: where
+present it must name at least one model and each one once, the pin counting as
+an entry, or `docs-sync` reds naming the file (`fallbackListProblems`; the
+harness repository's `check-plugin-manifest` applies the same rule to the
+shipped roster). A file without a list is fine: only its pin counts.
+
+**The reviewer severity contract (1.1.0, ramped until 1.2.0).** Each reviewer body
+states, on lines of their own before its closing verdict paragraph, the severities it
+ranks findings at and the ones that make its verdict BLOCK:
+`Severities: CRITICAL, HIGH, MEDIUM, LOW` and `Blocking: CRITICAL, HIGH`. The gate
+reds a body with either line missing or stated twice, a `Blocking:` line that names a
+severity `Severities:` does not list, and a `Blocking:` line without the floor,
+`CRITICAL` and `HIGH`: a narrower line would let a HIGH finding ride a PASS. The lines
+are read from the body only, anchored to the start of a line, by
+`severityContractProblems` in `tools/lib/agent-roster.mjs`, which the gate reaches through
+a namespace import: a parked fork of that lib without the judge is one finding naming
+it. The SubagentStop hook reads the same `Blocking:` line (the `reviewer-verdicts`
+section below). Ramped, like the verdict demand's position below and unlike the rest of
+the roster check, because since 1.0.2
+`update` parks a locally modified owned body instead of overwriting it, so a body forked
+before 1.1.0 gets dated NOTEs until 1.2.0; a fresh scaffold is live from day one.
+
+**Reviewer bodies close on the verdict demand (1.1.0, ramped until 1.2.0).** Each
+reviewer body must ask for `VERDICT: PASS` or `VERDICT: BLOCK`, a hard red on every
+vintage as it has been since 0.2.0, and that demand must now be its closing instruction.
+The body is trimmed, split into paragraphs on blank lines and whitespace-collapsed, and
+its last paragraph must be exactly "End with exactly one final line: `VERDICT: PASS` or
+`VERDICT: BLOCK`.", optionally followed by the rationale sentence every shipped body
+carries after it. The rule is `verdictDemandProblem()` in `tools/lib/agent-roster.mjs`,
+the one definition the harness's own tests also hold the shipped bodies to. It exists
+because the SubagentStop hook reads a PASS only as the reply's last line: v1.0.1 shipped
+two bodies whose closing paragraph asked for the top 3 fixes after the verdict, the hook
+bounced every review that obeyed them, and this gate, which then checked presence only,
+passed both. The position rule rides a ramp because `update` keeps a re-recorded fork of
+an owned body (1.0.2) that no earlier release judged for position: below `baseVersion`
+1.1.0 each finding prints as a dated NOTE, the NOTE expires in 1.2.0, and a fresh scaffold
+is live from the start. A fork of `tools/lib/agent-roster.mjs` that lacks the helper still
+loads the gate; presence is judged with the 1.0.x test and one finding, through the same
+ramp, names the stale lib. **Honest limit:** only the last paragraph is judged. An EARLIER
+paragraph that asks for text after the verdict line is not caught here, and the hook
+still bounces a PASS reply that obeys it.
 
 **Agent-surface truth (0.9.5, one ramp until 0.10.0).** AGENTS.md's own line-budget
 sentence ("Keep under ~N lines") is checked for TRUTH — a claims-check, not a size
@@ -1812,6 +2133,14 @@ release of dated NOTEs to ledger or re-word it.
 printing documented-vs-actual chains; advertise `pnpm ghost` → FAIL naming it;
 delete a numbered section here → FAIL naming the undocumented gate; grant
 `security-reviewer` Bash → FAIL naming the agent, the grant, and the doctrine;
+empty a `harnessFallbackModels` list, or make it repeat an entry or the pin → FAIL
+naming the file and the key;
+drop `Blocking:` from `security-reviewer.md`, or narrow it to `Blocking: HIGH` → FAIL
+naming the file (a NOTE with its deadline on a pre-1.1.0 install);
+append ` Follow it with the top 3 fixes.` to the closing paragraph of
+`.claude/agents/torvalds-reviewer.md` → FAIL naming that file (a dated NOTE below
+`baseVersion` 1.1.0, `RAMP EXPIRED` from harness 1.2.0); delete a reviewer's verdict
+demand → FAIL naming the file on every vintage;
 write "Deferred to x.y.z" (a real release number) in any scanned surface with no
 ledger entry → FAIL naming file, line and target; delete the sentence an entry
 ledgers → FAIL naming the stale entry; plant a manifest at or past an entry's
@@ -1930,6 +2259,28 @@ document → FAIL naming the drifted file; empty `requirements[]` → FAIL, beca
 conformance map is not a clean bill of health but a missing one
 (`tests/gates/check-conformance-map.test.mjs`).
 
+**Both register scripts are stamped (1.1.0).** A warm run over unchanged inputs prints
+`essential-eight: STAMPED — inputs unchanged since last green run` (or the
+`conformance-map` line) and exits 0 without judging; see docs/harness/README.md, Stamped
+gates. Each stamp is keyed on what its verdict reads, listed in `tools/lib/stamp-inputs.mjs`
+beside the manifest, the script and the stamp machinery: `essential-eight` on its register,
+`tools/harness.config.mjs`, `.github/workflows` and the libraries it imports;
+`conformance-map` on its register, `tools/harness.config.mjs`, `.github/workflows`,
+`.claude/hooks/lib/guard-rules.mjs`, `tools/modules.json`, the `docs/modules` tree (the
+module markers), `tools/gen-conformance-docs.mjs` and the two documents it compares, and the
+libraries both import. Neither is keyed on the evidence paths a row's `proof` names: neither
+script opens them, because that field is judged as text. `essential-eight`'s negative proof
+reads `supabase/config.toml` and the upload-scan roots, which are not stamp inputs. It runs
+on every run, before the stamp is consulted, and the script stamps only when the proof finds
+nothing, so a storage flip or an upload surface reds the turn it lands, warm stamp or not.
+CI always runs both scripts in full: `CI=true` or `HARNESS_REQUIRE_TOOLCHAINS=1` (which the
+shipped merge gate and `validate --ci-parity` set) ignores a stamp, and `update` and
+`graduate` delete every stamp. The step's first script, `check-docs-sync.mjs`, is not stamped.
+**Anti-vacuity:** with a stamp in place, edit any one input → the script judges again;
+set `[storage] enabled = true`, or import `expo-document-picker` under `apps/mobile/src` →
+FAIL on the warm run; `CI=true` → the full judgement
+(`tests/gates/check-essential-eight.test.mjs`, `tests/gates/check-conformance-map.test.mjs`).
+
 ### the validate runner — serial by default, pooled under `--report-all`
 
 `node tools/validate.mjs` runs the chain strictly serially with streamed output,
@@ -2000,7 +2351,12 @@ production+stub boot-fatal, skew middleware, csrf), packages (contracts
 drift, importer property tests, eval fixture scorer), and the PURE mobile modules
 (i18n incl. the pseudo-locale derivation and RTL direction table, routes closure,
 kv, the fuzzy scorer, recents) — pure meaning zero react-native in
-the import closure, so Node's runner is honest for them. `--coverage` enforces the
+the import closure, so Node's runner is honest for them — and, since 1.1.0, the Edge
+Function handlers: `vitest.config.ts` derives from the tree every `*.test.ts` under
+`supabase/functions` that imports from `'vitest'` (a `deno test` file is never collected)
+and measures each top-level directory there that holds one, so an existing untested
+helper never weighs on the aggregate. Each function's `index.ts` shell is excluded; it
+cannot load under Node. `--coverage` enforces the
 aggregate thresholds in `vitest.config.ts` and writes the istanbul map the
 diff-coverage step reads.
 **Anti-vacuity:** drop a large untested module → the aggregate threshold reds the
@@ -2019,8 +2375,8 @@ assertion from a suite → test-quality reds it below.
 
 ### diff-coverage — `node tools/check-diff-coverage.mjs`
 
-Per-file coverage floors on every CHANGED source file under `apps/*/src` or
-`packages/*/src` (merge-base diff in CI;
+Per-file coverage floors on every CHANGED source file under `apps/*/src`,
+`packages/*/src` or, since 1.1.0, `supabase/functions` (merge-base diff in CI;
 worktree + staged + untracked locally — the brand-new uncommitted feature file is
 exactly the case that must not slip), read from the TWO maps the unit steps just
 wrote: the vitest map for server/packages/pure-mobile files, the jest map for
@@ -2028,6 +2384,9 @@ wrote: the vitest map for server/packages/pure-mobile files, the jest map for
 (absent = no test imports it) and clear the per-file floors declared next to that
 runner's config. A missing map FAILS CLOSED (the chain was reordered or the
 artifact deleted); an empty diff passes with a note.
+A changed Edge Function file in a directory with no vitest suite is named as absent,
+with the one green path (add the suite); on an install whose `baseVersion` predates
+1.1.0 those findings are `diff-coverage: NOTE — (ramp) …` lines until 1.2.0.
 **Anti-vacuity:** add an untracked `apps/web/src/` file with an exported
 function and no test → FAIL naming the file as absent from the coverage map.
 
@@ -2051,14 +2410,38 @@ string — JSX text under AppText, user-facing props (`accessibilityLabel`,
 that hold copy (route titles, action command titles, matrix column headers) all
 resolve through catalog keys; (2) `Intl` / `toLocale*` / `.toFixed(` only inside
 `src/i18n/` — `.toFixed(2)` hardcodes the `.` decimal mark; (3) no dead catalog
-key. A text scan, not a compiler: a string assembled at runtime is invisible BY
+key. A static scan, not a type checker: a string assembled at runtime is invisible BY
 CONSTRUCTION — the pseudo-locale sweep in the RNTL lane (every `en` source string
 must come back mangled under `en-XA`; `ar-XB` is the RTL pass) is the behavioral
-other half. `tools/i18n-allow.json` is the reviewed escape (malformed or stale
-entries FAIL).
-**Anti-vacuity:** hardcode "Add a note" in a screen → the scan reds it; assemble
-it from fragments → the scan stays green and the pseudo-locale sweep reds it —
-run both before trusting either.
+other half.
+
+**Two scans (1.1.0).** Checks 1 and 2 were regular expressions over comment-blanked
+text through 1.0.x, one quote form each, with JSX text that could not hold `=`, `;`,
+a backtick or `$`. The gate now also walks the TypeScript syntax tree
+(`tools/lib/i18n-tree.mjs`, one parse per file with the project's own `typescript`
+devDependency) and judges the union: JSX text, a listed attribute or
+`label`/`title`/`subtitle`/`description` property whose value is a string or a
+template literal with no substitutions, bare or inside `{…}`, and `Intl` /
+`toLocale*` / `toFixed`. A finding both scans see, or only the expressions see, is
+hard; one only the expressions see is tagged as retiring with them in 1.2.0. A
+finding only the tree walk sees is hard on a fresh install and a NOTE on an install
+whose baseVersion predates 1.1.0, until 1.2.0. When `typescript` cannot load, the
+expressions judge alone and the output says the walk did not run: a loud NOTE
+locally, a failure in CI.
+
+**The escape is keyed on content.** `tools/i18n-allow.json` entries are
+`{"key": "<12 hex characters>", "reason": "…"}`. The key is a sha256 over the file's
+path, the finding kind, the attribute or property name and the text with its
+whitespace collapsed; every FAIL line prints the entry ready to paste, both scans
+compute the same key, and inserting a line above the string does not move it. A
+malformed entry, or a key that matches no finding, FAILS. A 1.0.x
+`{"site": "file:line"}` entry still mutes its line below baseVersion 1.1.0 and prints
+the key that replaces it, until 1.2.0; on a fresh install it is malformed.
+**Anti-vacuity:** hardcode "Add a note" in a screen → the scan reds it; put
+`<Text accessibilityLabel={'Close dialog'} />` under `apps/mobile/src` → only the
+tree walk reports it, and the FAIL names `"Close dialog" (accessibilityLabel
+attribute)`; assemble the string from fragments → the scan stays green and the
+pseudo-locale sweep reds it — run both before trusting either.
 
 ### test-quality — `node tools/check-test-quality.mjs`
 
@@ -2095,7 +2478,7 @@ have returned `VERDICT: PASS`, recorded by the SubagentStop hook
 (`.claude/hooks/subagent-verdict.mjs`) into the session-scoped ledger at
 `.harness/reviewer-ledger.jsonl`. The Stop hook passes the turn's identity down
 (`HARNESS_SESSION_ID`/`HARNESS_PROMPT_ID`) and the step narrows the ledger to
-THIS turn, so last turn's PASS satisfies nothing. Four failure modes: an owed
+THIS turn, so last turn's PASS satisfies nothing. Five failure modes: an owed
 reviewer that never ran BLOCKS, naming the trigger path that summoned it; a
 reviewer that ran and returned `VERDICT: BLOCK` blocks loudly — that is the
 finding it exists to produce, and a turn does not end on a BLOCK (it stands for
@@ -2110,7 +2493,11 @@ hash as `DELETED`), the step recomputes it, and a mismatched binding — or a
 null/missing one, as every pre-0.7.0 hook entry is — fails toward re-review,
 because "a reviewer ran" and "a reviewer reviewed THIS" are different claims
 (this class alone rides a fresh 0.7.0 ramp, until 0.8.0: a mid-session upgrade
-delivers the new gate into a turn whose earlier PASSes lack the binding); and
+delivers the new gate into a turn whose earlier PASSes lack the binding); a
+security reviewer's PASS on a model that is neither the pin in its agent file
+nor on that file's `harnessFallbackModels` list, or whose model the hook could
+not read, reds, while every other verdict off its pin is named (1.1.0, the
+model record below); and
 on an install whose baseVersion predates 0.6.0 running harness >= 0.7.0, the
 formerly NOTE-withheld findings land as hard reds under a `RAMP EXPIRED`
 banner (the 0.6.0 ramp's deadline arrived — sweep the findings, then
@@ -2121,7 +2508,9 @@ is inert, not expired. Fail closed in every direction that matters: a missing
 identity skips loudly outside the Stop hook and FAILS in CI, where the hook
 that supplies it must have changed. What it deliberately does NOT judge is the
 CONTENT of a review: a PASS is an attestation by a read-only agent whose
-tools, model, and body are locked in `tools/agents.lock.json` — whether it was
+tools, pinned model, fallback list and body are hashed in
+`tools/agents.lock.json` (its `models` map records the pin alone; the model a
+verdict RAN on is recorded in the ledger and judged, below) — whether it was
 a GOOD review is not a property any file can hold.
 **The reviewer ledger v2 (1.1.0, behind a ramp until 2.1.0).** Everything
 above is the 1.0.x judgement. On an install whose `baseVersion` predates 1.1.0
@@ -2150,6 +2539,39 @@ merge base (a fresh `git init`, or a branch with no upstream) v2 does not
 judge: the step prints a NOTE saying so and the 1.0.x judgement decides. Every
 clean-scaffold run in the harness's own CI takes that path. `path_state` keeps
 its 1.0.x meaning, and `prompt_id` stays in each entry and in the turn key.
+**The model a verdict ran on (1.1.0; the security finding behind a ramp until
+2.1.0).** A reviewer can run off the model its agent file pins: a per-invocation
+`model`, `CLAUDE_CODE_SUBAGENT_MODEL` (and `_FORCE`), an `availableModels`
+substitution, a `fallbackModel` chain (`design/CONTROL-PLANE-FACTS.md` Fact 16
+in the harness repository). The SubagentStop hook records `model`, read from the
+last assistant line of the subagent's own transcript at `agent_transcript_path`,
+and `pinned` in each ledger entry; what it cannot read is `null`, and neither the
+verdict nor the exit code depends on it. The step judges the model of the entry
+each owed reviewer's verdict rests on: the latest entry of the turn under the
+1.0.x judgement (the one the stale class judges), the latest counted PASS under
+v2. A model counts when it matches the agent file's `model` pin or an entry of
+its `harnessFallbackModels` list; an alias matches every model ID of its family
+(`opus` any Opus ID, `[1m]` suffix and provider prefix included), and a full ID
+matches only itself (`modelMatches` in `tools/lib/reviewer-verdicts.mjs`, data,
+never looked up live). Every verdict on another model is NAMED on a
+`reviewer-verdicts: FALLBACK MODEL — …` line, which the Stop hook shows the user
+on a green turn too, as a JSON `systemMessage` (stderr from a hook that exits 0
+reaches only the debug log). For `security-reviewer`, `web-security-reviewer`
+and `mobile-security-reviewer` (`SECURITY_REVIEWERS` in
+`tools/lib/agent-roster.mjs`) a model off the list, or `null`, is also a finding:
+that PASS does not count, and the finding names both remedies, running on the pin
+or a listed model, or adding the model to the list in a reviewed diff, because a
+configuration that forces a model lands a re-run on the same one. An entry with
+no `model` field, as every pre-1.1.0 entry is, is judged exactly as before. On an
+install whose `baseVersion` predates 1.1.0 the finding prints as a NOTE until
+2.1.0. A reviewer whose pin cannot run ends before SubagentStop and writes no
+entry, so its "did not run" finding, under both judgements, says it may be
+dispatched with the Agent tool's `model` set to a listed model. Where the
+transcript holds the model was probed at Claude Code 2.1.285 (Fact 16). Honest
+limit: the transcript lives outside the project, so the record catches a
+configuration that moves a reviewer, not a session that forges its own
+transcript; a value not spelled like a model ID is recorded as `null`, so a
+forged one cannot write lines into the Stop output.
 **Anti-vacuity:** tests/gates/check-reviewer-verdicts.test.mjs — the owed
 reviewer that never ran, last turn's PASS refused, the cross-session PASS
 refused, the BLOCK that blocks, the unparseable ledger failing closed, the
@@ -2167,7 +2589,10 @@ FAIL), both forms in one message bounced — so a hedge can never read as a
 pass; the bounce record (`.harness/verdict-bounces.jsonl`: agent, shape, last
 line) and "every roster body ENDS with the verdict demand" are pinned there
 too, and tests/hooks/hook-contract.test.mjs holds the refusal at exactly exit 2
-even when that record cannot be written. The ledger v2 cases (1.1.0) run in a
+even when that record cannot be written. That last pin reads the shipped bodies
+only; since 1.1.0 `docs-sync` holds every install's reviewer bodies to the same
+position, through the same `verdictDemandProblem()` (its section above). The
+ledger v2 cases (1.1.0) run in a
 clone whose branch tracks origin/main: commit-then-Stop still owing
 `security-reviewer` (the headline), a deleted migration, a BLOCK from an
 earlier prompt that another `agent_id` cannot clear and the same one can, the
@@ -2180,6 +2605,55 @@ no-upstream path and `reviewChanges()` are pinned too, with the seeded
 `path_state_start` are proved in tests/hooks/subagent-verdict-pathstate.test.mjs,
 and tests/hooks/hook-contract.test.mjs holds a reviewer's `SubagentStart` to
 exit 0 with one dispatch record, no ledger line and no blocked turn outcome.
+The model record (1.1.0): a transcript fixture in the observed shape on the pin
+records `pinned: true`, one off it, a mid-run fallback (the verdict's model wins),
+a failover whose model attachment still names the pin, and a synthetic or torn
+last line are pinned, and no readable transcript, or a value not spelled like a
+model ID, records `model: null` at exit 0;
+a security reviewer's PASS off its list, and one with `model: null`, red under
+both judgements as a plain red on a fresh or 1.1.0 manifest, a NOTE on 1.0.3 and
+`RAMP EXPIRED` at harness 2.1.0; a PASS on the full ID the pinned alias resolves
+to is green and silent, a listed fallback is green and named, another reviewer
+off its list is green and named, a re-run on the pin clears an off-list PASS,
+and an entry with no `model` field is judged as before; a reviewer that never
+ran is told, under both judgements, that it may run on a listed model. The alias
+rule and the other helpers run in-process there, and tests/hooks/hook-contract.test.mjs holds
+a green Stop to exit 0 with each `FALLBACK MODEL` line in a JSON
+`systemMessage` on stdout, and nothing on stdout when there is none.
+**The severity contract and the round budget (1.1.0).** Every reviewer body states
+`Blocking: CRITICAL, HIGH` (`docs-sync` holds the line's shape), and the SubagentStop
+hook reads it from the body of the reviewer that stopped. A PASS whose reply lists a
+finding at a blocking severity, a line starting `- [HIGH] …` or `- [CRITICAL] …`, is
+bounced with exit 2 and the shape `pass-with-blocking-finding`: the reply contradicts
+itself, so the reviewer re-states. A sentence that only mentions a severity is not a
+finding, a BLOCK is never bounced on this ground, and neither is a body with no
+`Blocking:` line (a fork, a project's own reviewer), so those keep the 1.0.x behaviour.
+Each ledger entry also records `blocking`, the finding lines at a blocking severity
+(each capped at 200 characters, null with no contract), and `round`, the verdict's
+round in its reviewer's review loop in this session, with `overBudget` past the budget,
+where the hook still exits 0. The step judges the budget, behind its own ramp until
+1.2.0 (a hook has no NOTE channel to carry one). A BLOCK opens a review loop; every
+later verdict of that reviewer in the session is its next round, whichever run returns
+it; the loop closes when each BLOCK in it is cleared by a PASS from the same run over a
+tree that did not move under it. A loop still open after `ROUND_BUDGET` rounds (3, in
+`tools/lib/reviewer-verdicts.mjs`, the BLOCK's own round included) is spent: a verdict
+past the budget never clears it, and the step reds with every recorded blocking
+finding and says to stop and hand them to the human. That finding replaces the
+reviewer's other findings (its v1 or v2 finding and its model finding), which would say
+to run it again. A new session starts every budget afresh, and that is a human's act. An
+entry an earlier or parked hook wrote counts as one round, with no recorded findings. The
+budget is judged over v2's owed set, the change set. With no merge base there is none, so
+the budget does not judge, and the no-merge-base NOTE says so: it closes a loop only on
+the same run's PASS, while the 1.0.x judgement that decides there clears a BLOCK with any
+run's PASS on a later prompt.
+**Anti-vacuity (1.1.0):** drop `Blocking:` from `security-reviewer.md` → `docs-sync`
+FAIL naming the file; send a PASS containing `- [HIGH] supabase/migrations/x.sql:3 — …`
+→ the hook exits 2 with the shape `pass-with-blocking-finding`
+(tests/hooks/hook-contract.test.mjs, beside its exit-0 controls); record three BLOCKs
+from one run and then its PASS → `reviewer-verdicts` FAIL naming the budget and the
+findings, as a NOTE on a 1.0.3 manifest and `RAMP EXPIRED` at harness 1.2.0
+(tests/gates/check-reviewer-verdicts.test.mjs). The pure helpers are table-tested in
+tests/gates/severity-contract.test.mjs.
 
 ## CI-only lanes (outside the chain and the Stop hook)
 
@@ -2358,6 +2832,16 @@ exit 0 with one dispatch record, no ledger line and no blocked turn outcome.
   files is a hard red (anti-vacuity, never ramped) — a tree whose structure
   diverged from the exemplar paths used to silently mutate less than the lane
   claimed. Never in the Stop chain — minutes vs the chain's seconds budget.
+  **1.1.0 adds the Edge Functions** as the STARRED floor root `supabase/functions/*/`
+  (a tree with no functions stays green: starred roots are exempt from the zero-match
+  alarm), with each function's `index.ts` carved out of both encodings — a Deno.serve
+  shell the vitest runner cannot import. Stryker's vitest runner cannot mutate a file no test
+  relates to (with only such files it stops with "No tests were executed" and writes no
+  report), so the scoper judges a changed function file whose directory holds no vitest
+  suite: a FAIL naming the suite it needs. On an install whose `baseVersion` predates 1.1.0
+  that file is withheld with `mutation-scope: NOTE — (ramp) …` on stderr, and a new survivor
+  under `supabase/functions/` is `mutation-ratchet: NOTE — (ramp) …`, until 1.2.0; a
+  survivor anywhere else is judged as before.
 - **osv-scan** (`osv-scan.yml`, its own workflow) — known-vulnerability SCA over
   every discovered `pnpm-lock.yaml` against the OSV database. The PR job is
   DIFF-AWARE (only newly introduced vulns red a PR — the deterministic form of a
@@ -2444,6 +2928,73 @@ exit 0 with one dispatch record, no ledger line and no blocked turn outcome.
   restoration testing is a written, dated record in `tools/backup-posture.json` with a human's
   name on it, labelled `documentation` tier rather than borrowing the credibility of the
   checks around it.
+
+- **workflow-hardening** (`actions-lint.yml`, 1.1.0) — `node tools/check-workflow-hardening.mjs`
+  holds every workflow in `.github/workflows/`, `*.yml` and `*.yaml`, to the three house
+  rules every workflow the harness ships already meets, by the pure rules in
+  `tools/lib/workflow-hardening.mjs`: (1) a workflow-level `defaults.run.shell: bash`
+  above `jobs:`, because GitHub runs an un-shelled step as `bash -e` without `pipefail`, so
+  `producer | tee file` reports tee's status; it is spelled exactly `bash`, the one spelling
+  GitHub runs with `-eo pipefail`, so a custom command such as `bash -el {0}` is a finding
+  (the one workflow that publishes OpenSSF Scorecard results must carry no top-level
+  `defaults` or `env` instead); (2) a whole-number
+  `timeout-minutes` on every job that can take one, from 1 to 360 on a GitHub-hosted runner
+  and to 7200 on a self-hosted one (the platform's own limits; a job with none inherits 360),
+  and none on a reusable-workflow call; (3) `step-security/harden-runner` as the FIRST step
+  of every job that is neither a reusable-workflow call nor self-hosted, with
+  `egress-policy: audit` when its `runs-on`, or a matrix value it reads, names windows. A
+  finding names `<file>` or `<file>#<job>`. It is YAML-shaped, not YAML-parsed: CRLF is
+  normalised, the job indentation is read from the first key under `jobs:`, a job id is
+  `[A-Za-z_][A-Za-z0-9_-]*`, and comment lines are skipped. Input it cannot read is a
+  finding, never a pass: no workflow directory or none in it, a file it cannot read, no
+  `jobs:` block or no job in it, a line under `jobs:` that is not a job id, a job with no
+  readable `steps:` list, a first step with neither `uses:` nor `run:` (a YAML alias, a flow
+  mapping), a ceiling that is not a whole number. The job runs on a pull
+  request or push that touches a workflow, `.github/zizmor.yml`, the script, its library or
+  `.harness/manifest.json`, with no install. It is not a chain step, so `graduate` never
+  runs it: run it by hand before graduating. **Ramped:** an install whose `baseVersion`
+  predates 1.1.0 gets each finding as `workflow-hardening: NOTE — (ramp) …` until 1.2.0;
+  a fresh 1.1.0 scaffold is held to the rules at once. **Beside `harden-runner-coverage`,
+  not instead of it:** that job keeps its id, name and loop, which COUNTS harden-runner lines
+  per `*.yml` file, so two steps in one job cover a bare neighbour, a step after `checkout`
+  or a comment passes, and a `.yaml` file or a four-space indent is never read; this gate
+  checks each of those. **The injection** (`tests/gates/check-workflow-hardening.test.mjs`,
+  and by hand in a scaffold): move harden-runner below `checkout` in any job, delete the
+  `defaults:` block of a workflow that has a `run:` step, or delete a job's
+  `timeout-minutes`, and the gate exits 1 with
+  `workflow-hardening: FAIL` and a line naming `.github/workflows/<file>#<job>`; the test
+  also runs the counting loop over the same shapes and shows it passing each one.
+
+- **edge-functions** (`quality-gate.yml`, 1.1.0) — `node tools/check-edge-functions.mjs`
+  typechecks every Supabase Edge Function against the exact dependency versions it deploys
+  with. A function is a directory under `supabase/functions` holding an `index.ts`
+  (`_`-prefixed shared directories excluded). Each needs a `deno.json` whose `jsr:`/`npm:`
+  imports name exact releases — Supabase deploys each function with its own `deno.json`, so
+  that is where its versions live — and the `deno.lock` deno writes from it; the gate runs
+  `deno check --frozen --config <fn>/deno.json --lock=<fn>/deno.lock <fn>/index.ts`, so a
+  type error anywhere in the shell's import graph (its handler and shared code included) or
+  a lock that no longer matches `deno.json` is a finding with deno's own output. No
+  function at all is OK with the count. Nothing Node-side could check this: `tsc -b` never
+  reaches `supabase/`, and a file that imports a `jsr:` specifier and starts a server as it
+  loads cannot be imported by vitest, coverage or Stryker. **deno is a prerequisite, not a
+  dependency:** the job installs it with `denoland/setup-deno` at an exact version (Renovate
+  proposes bumps; its deno manager bumps each function's `deno.json` and `deno.lock`
+  together), with the module cache keyed on the lockfiles. Locally a missing deno SKIPS
+  loudly; in CI it fails closed. **The job:** path-filtered on `supabase/functions/**`, the
+  gate and the `tools/lib` modules it imports, `.harness/manifest.json` and the workflow, plus the nightly
+  schedule and manual dispatch; gate-summary waits for it. A job and not a chain step,
+  because deno is not a workspace dependency and the chain has a wall-clock budget, so
+  `graduate` never runs it: run it by hand before graduating. **Measured** (2026-09-30,
+  deno 2.9.6, the seeded function): the binary is a 42 MB download (96 MB unpacked), once per
+  run; a cold check fills a 13 MB module cache (supabase-js, its five `@supabase` npm packages
+  and what they import) in 2 to 2.5 s; a warm one takes under 0.2 s. **Ramped:** on an
+  install whose `baseVersion` predates 1.1.0, every finding, and a missing deno, `deno.json` or `deno.lock`,
+  is `edge-functions: NOTE — (ramp) …` until 1.2.0, because `update` delivers the gate and the
+  job but not the seeded split. **The injection** (`tests/gates/check-edge-functions.test.mjs`,
+  and Canary 38 on a rendered scaffold): append `const n: number = 'x'` to
+  `supabase/functions/delete-account/index.ts` and the gate exits 1 with
+  `edge-functions: FAIL` and deno's `TS2322` line; delete that function's `deno.json` and it
+  exits 1 naming it.
 
 ## Opt-in modules
 

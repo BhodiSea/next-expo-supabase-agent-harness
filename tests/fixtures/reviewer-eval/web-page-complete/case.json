@@ -1,0 +1,57 @@
+{
+  "reviewer": "torvalds-reviewer",
+  "kind": "web-page",
+  "expect": "PASS",
+  "mustName": [],
+  "twin": "web-page-meta-absent",
+  "why": "The control twin: the same page reading its title and state ids from a page.meta.ts, with its regenerated registry entry and the reviewed unreachableStates row for its null error state.",
+  "edits": [
+    {
+      "path": "apps/web/lib/i18n/catalog.ts",
+      "after": "  'route.security': 'Security',",
+      "lines": [
+        "  'route.workspaces': 'Your workspaces',"
+      ]
+    },
+    {
+      "path": "apps/web/lib/i18n/catalog.ts",
+      "after": "  'orgs.loading': 'Loading your organizations',",
+      "lines": [
+        "  'workspaces.loading': 'Loading your workspaces',",
+        "  'workspaces.empty.title': 'You hold no seat in any workspace yet.',",
+        "  'workspaces.empty.description':",
+        "    'Open an invitation link someone sent you, or create your own workspace from the organizations page.',",
+        "  'workspaces.empty.action': 'Go to organizations',"
+      ]
+    },
+    {
+      "path": "apps/web/lib/routes.generated.ts",
+      "after": "import { meta as securityMeta } from '../app/(protected)/security/page.meta'",
+      "lines": [
+        "import { meta as workspacesMeta } from '../app/(protected)/workspaces/page.meta'"
+      ]
+    },
+    {
+      "path": "apps/web/lib/routes.generated.ts",
+      "before": "] as const satisfies readonly WebRouteEntry[]",
+      "lines": [
+        "  {",
+        "    ...workspacesMeta,",
+        "    file: '(protected)/workspaces/page',",
+        "    path: '/workspaces',",
+        "  },"
+      ]
+    },
+    {
+      "path": "tools/web-route-allowlist.json",
+      "after": "  \"unreachableStates\": [",
+      "lines": [
+        "    {",
+        "      \"route\": \"workspaces\",",
+        "      \"state\": \"error\",",
+        "      \"reason\": \"resolveOrgs() returns an EMPTY list on a failed seat lookup rather than throwing (apps/web/lib/auth/session.ts), so this page renders its empty surface where another would render an error one: the same reason the orgs route carries\"",
+        "    },"
+      ]
+    }
+  ]
+}

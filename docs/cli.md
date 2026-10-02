@@ -59,6 +59,13 @@ being written, because `wiring` reds a hook on disk that nothing wires. Merge
 its entry into your settings and run `update` again to have it written and
 recorded. The upgrade runbook's 1.1.0 section describes the flow.
 
+`update` never edits `pnpm-workspace.yaml` or `package.json`. When a release
+recorded a security floor for a catalog pin (`catalogPinFloors` in
+`template/migrations.json`) and your catalog does not provably meet it, `update`
+prints a `CATALOG PIN FLOOR` note naming the package, the pin and the floor,
+and parks the list at `.harness/pending/pin-floors.json`. The exit code does not
+change, and the file is deleted once every floor is met.
+
 | Flag | Meaning |
 |---|---|
 | `--dir <path>` | Install to update. Default `.` |
@@ -84,7 +91,14 @@ path and the manifest are still restored.
 
 `doctor [--dir .]` reports whether an install is healthy. It lists each
 re-recorded fork of a harness-owned file as `info`, which does not change the
-exit code.
+exit code. It also lists, as `info`, each register proposal waiting in
+`harness-proposals/` for [`apply-proposal`](#apply-proposal-id).
+
+It warns once for each catalog pin below a security floor a release recorded,
+which makes the exit code 2; a floor never makes it 1. The pin is judged by the
+lower bound of its catalog value, and a value that is not a version is treated
+as below the floor. Once every floor is met, `doctor` deletes
+`.harness/pending/pin-floors.json` and says so as `info`.
 
 It also prints a toolchain report as `info` lines. For `node`, `pnpm`, the
 Supabase CLI (the workspace copy in `node_modules/.bin` and the one on `PATH`)
@@ -111,6 +125,52 @@ are clean. It runs validate and refuses while any ramp note remains.
 ### `enable <module>` and `disable <module>`
 
 Add or remove one opt-in module in an existing install.
+
+### `apply-proposal [<id>]`
+
+Apply a register edit an agent staged for you. The write guard denies an agent
+every reviewed register under `tools/` (the allowlists, budgets and registers).
+Instead of asking you to type the edit, or to relaunch the session with
+`HARNESS_ALLOW_SELF_EDIT=1`, an agent writes the whole proposed file as one JSON
+document in `harness-proposals/<id>.json`, a committed directory outside every
+path the guards protect:
+
+```json
+{
+  "version": 1,
+  "target": "tools/i18n-allow.json",
+  "reason": "Why the register should change.",
+  "base": "<output of git rev-parse HEAD:tools/i18n-allow.json, or null if the file is not in HEAD>",
+  "content": "<the whole proposed file>"
+}
+```
+
+With no id, `apply-proposal` lists the pending proposals. With an id it
+validates the proposal, prints its reason and a `git diff --no-index` of the
+current file against the proposed one, and asks you to type the target path.
+Only that answer writes the file. It then deletes the proposal and prints
+`commit <target>`. The register is left uncommitted, and `gate-integrity` fails
+on an uncommitted escape list until you commit it.
+
+It refuses, exits 1 and writes nothing when the target is not a register a
+proposal may target, when the id or the target resolves outside `--dir`, when
+`content` is not JSON, when `base` does not equal `git rev-parse HEAD:<target>`
+(a null `base` for a file that is in `HEAD`, or a non-null one for a file that
+is not, included), when the target has uncommitted changes, when stdin or
+stdout is not a terminal, and when the reason, target or content carries a
+control or bidirectional-format character. The base and uncommitted-changes
+checks run again after you answer. A proposal may target the escape lists in
+`tools/lib/enforcement-surface.mjs`, except `tools/perf-baseline.json` and
+`tools/mutation-baseline.json`, which only their generators write, plus
+`tools/field-notes.json`. The bash guard denies an agent this command
+(`apply-proposal-invocation`).
+
+| Flag | Meaning |
+|---|---|
+| `--dir <path>` | The install. Default `.` |
+| `--dry-run` | Print the reason and the diff, ask nothing and write nothing. |
+
+There is no `--yes`, and `--yes` or `--force` is refused.
 
 ## Modules
 
@@ -163,4 +223,4 @@ These are read by the installed gates and hooks, not by this CLI.
 | Variable | Meaning |
 |---|---|
 | `HARNESS_REQUIRE_TOOLCHAINS=1` | Gates that would skip because a database or toolchain is missing fail instead, and no gate honours a stamp from its last green run. `CI=true` has the same effect. `node tools/validate.mjs --ci-parity` sets it for one run and closes by naming each missing prerequisite. |
-| `HARNESS_ALLOW_SELF_EDIT=1` | Lets a human deliberately edit a guard-protected harness file. Not for routine use. |
+| `HARNESS_ALLOW_SELF_EDIT=1` | Lets a human deliberately edit a guard-protected harness file. Not for routine use. What it relaxes: [the doctrine](../template/base/docs/harness/README.md), section "What `HARNESS_ALLOW_SELF_EDIT=1` relaxes". |

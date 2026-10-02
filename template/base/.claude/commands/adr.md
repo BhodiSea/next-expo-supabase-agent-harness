@@ -19,9 +19,11 @@ from the template at `docs/adr/0000-adr-template.md`. Fill in every section:
   entries, ADR ids) behind the non-trivial choices in this slice.
 - **Traceability** — the RTM fragment: requirement -> migration / DAL / route /
   mobile-screen files -> vitest + jest test ids + the `tests/rls/db-context.ts`
-  isolation target.
+  isolation target. Each requirement cites the spec section it comes from as
+  `specs/<slice>.md#<id>` (`node tools/spec-anchor.mjs specs/<slice>.md` lists the ids);
+  cite the whole file only for a spec with no headings.
 
-Then cross-check two couplings:
+Then cross-check three couplings:
 
 1. Every inline `// SOURCE:` (`-- SOURCE:` in SQL) in the slice MUST appear in the
    ADR **Sources** list. Grep the changed files for `SOURCE:` and reconcile.
@@ -29,3 +31,6 @@ Then cross-check two couplings:
    MUST reference this ADR via `-- adr: docs/adr/<YYYYMMDD>-$1.md` — the `migrations`
    gate fails otherwise, and the referenced file must exist BEFORE the migration is
    written (append-only: the migration cannot be edited afterwards to add it).
+3. Review rounds stay out of this ADR. They go in `docs/reviews/<YYYYMMDD>-$1.md` (same
+   date as this ADR), which the **Traceability** section links, and no `-- adr:` marker
+   ever names that file.

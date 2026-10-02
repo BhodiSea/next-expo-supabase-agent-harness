@@ -30,7 +30,7 @@ gate could enforce deterministically.
 ## One gate config, three enforcement layers
 
 `tools/harness.config.mjs` is the single source of truth for what "done" means:
-`VALIDATE_STEPS` (the 36-step chain `pnpm validate` runs) and `STOP_HOOK_STEPS` (what the
+`VALIDATE_STEPS` (the 37-step chain `pnpm validate` runs) and `STOP_HOOK_STEPS` (what the
 Stop hook runs — validate plus the runtime suites). Three enforcement layers consume it
 and can therefore never disagree:
 
@@ -42,7 +42,7 @@ and can therefore never disagree:
    `validate` to `true` in package.json (an auto-accepted, unguarded edit) and pass a
    hollow gate. **The Stop gate defines done** locally.
 3. **CI** → re-runs `node tools/validate.mjs --min-floor`, which reads the FROZEN
-   snapshot `tools/validate.floor.json` — a verbatim copy of all 36 canonical steps that
+   snapshot `tools/validate.floor.json` — a verbatim copy of all 37 canonical steps that
    the runner trusts OVER the local config, and **FAILS CLOSED** (missing/corrupt
    snapshot → exit 1) rather than degrade to a possibly-weakened config. **The CI floor**
    means editing the config can ADD steps but can never weaken the non-negotiable ones
@@ -64,7 +64,9 @@ Exit-code semantics (the crux of the design):
 - **any other non-zero** — non-blocking error; the action proceeds. Security hooks must
   therefore always use exit 2 (or the structured deny), never exit 1.
 - `PostToolUse` cannot un-run a tool; its exit 2 surfaces stderr so the model fixes what
-  just landed.
+  just landed. At exit 0, a `hookSpecificOutput.additionalContext` string in a JSON object
+  on stdout is added to the model's context beside the tool result without blocking it:
+  the source check's answer to an advisory-class site (1.1.0).
 
 | Event | Matcher | Script | Enforces |
 |---|---|---|---|
@@ -72,10 +74,10 @@ Exit-code semantics (the crux of the design):
 | PreToolUse | `Edit\|Write\|MultiEdit\|NotebookEdit` | `.claude/hooks/pretool-write-guard.mjs` | blocks invariant-violating file **content** before it lands; denies edits to harness-owned paths |
 | PreToolUse | `mcp__.*` | `.claude/hooks/pretool-mcp-guard.mjs` | default-deny over `tools/approved-tools.json`: unregistered servers, tools outside a server's list, and write-shaped tool names on a `readOnly` server |
 | PostToolUse | `Edit\|Write\|MultiEdit` | `.claude/hooks/posttool-fast-check.mjs` | fast per-file feedback (Biome), non-blocking |
-| PostToolUse | `Edit\|Write\|MultiEdit` | `.claude/hooks/posttool-source-check.mjs` | flags decision sites lacking `// SOURCE:` (exit 2) |
-| Stop | — | `.claude/hooks/stop-validate-gate.mjs` | runs the UNION of `STOP_HOOK_STEPS` and the frozen `tools/stop.floor.json`; exits 2 with failures on stderr until green |
+| PostToolUse | `Edit\|Write\|MultiEdit` | `.claude/hooks/posttool-source-check.mjs` | flags decision sites lacking `// SOURCE:`: exits 2 when a site in a mandatory class is uncited (its stderr also lists the file's advisory-class sites, marked advisory); for advisory-class sites alone (`vector-index`, `llm-sampling`, `tuning-constants`, 1.1.0) exits 0 with a `hookSpecificOutput.additionalContext` note on stdout |
+| Stop | — | `.claude/hooks/stop-validate-gate.mjs` | runs the UNION of `STOP_HOOK_STEPS` and the frozen `tools/stop.floor.json`; exits 2 with failures on stderr until green; on a green turn shows the user any `FALLBACK MODEL` lines as a JSON `systemMessage` (1.1.0), because stderr from a hook that exits 0 reaches only the debug log |
 | SubagentStart | `*` | `.claude/hooks/subagent-verdict.mjs` | (1.1.0) records the tree each reviewer is dispatched on in `.harness/reviewer-dispatch.jsonl`, never in the ledger; exits 0, because SubagentStart cannot block, and a missing record surfaces at Stop |
-| SubagentStop | `*` | `.claude/hooks/subagent-verdict.mjs` | reads each reviewer's terminal `VERDICT:` line from the payload's `last_assistant_message`, blocks a reviewer that gave none, and records the rest for Stop step `reviewer-verdicts`, with the tree digests at dispatch and at the verdict (1.1.0) |
+| SubagentStop | `*` | `.claude/hooks/subagent-verdict.mjs` | reads each reviewer's terminal `VERDICT:` line from the payload's `last_assistant_message`, blocks a reviewer that gave none, and records the rest for Stop step `reviewer-verdicts`, with the tree digests at dispatch and at the verdict, and the `model` it ran on, read from the subagent's own transcript, beside `pinned` (1.1.0); it also blocks a PASS that lists a finding at a severity the body's `Blocking:` line names, and records each verdict's blocking findings and its round in the reviewer's review loop, which the Stop step holds to a budget (1.1.0) |
 | SessionStart | `""` (all five sources) | `.claude/hooks/session-brief.mjs` | (1.1.0) prints the harness brief into context: version, base, tier and mode; parked upgrades; how the last turn in this directory ended; the reviewers the current diff owes. Enumerated fields, closed validators, capped at 1,200 characters; exits 0 on every path and writes nothing |
 
 Seven guard hooks, each invoked through the fail-closed launcher (1.0.0:
@@ -153,7 +155,8 @@ and a `validate-gate` record per gate named in the LAST `VALIDATE_TIMINGS` line 
 printed, green or red. The guards, the PostToolUse hooks and `subagent-verdict.mjs` append a
 `hook-event` record for each deny, provenance block, Biome warning and reviewer bounce, naming
 the rule id (or, at an inline deny site, a telemetry label that is not a rule id); an allowed
-call writes nothing. A record holds enumerated values, ids, timestamps and counts, never file
+call writes nothing. Since 1.1.0 the source check also appends one `advisory` record per
+class of each uncited advisory-class site, with the rule `provenance/<class>`. A record holds enumerated values, ids, timestamps and counts, never file
 content, command text, paths or messages. The file is written **only inside an install**,
 when `.harness/manifest.json` exists in the working directory, and it is **never trimmed**.
 To reset it a human deletes it: the write guard and the bash guard deny an agent's edits and
@@ -168,7 +171,9 @@ substring checks; the settings.json deny list and CI are the primary controls. D
 `rm -rf`, force-push, hard reset, `--no-verify` commits, fork bombs, reading `.env*` /
 `.dev-auth/`, `knip --fix`, bulk `pnpm update` (Renovate-owned), destructive
 raw SQL via psql, and any shell contact with store/signing credentials (`EXPO_TOKEN`,
-keystore/keychain material, store API keys — those live in CI secrets only).
+keystore/keychain material, store API keys — those live in CI secrets only). Since 1.1.0 it
+also denies the installer's `apply-proposal` verb, which only a human runs (see
+"Proposing a register edit" under Tamper evidence).
 
 **It matches three tools, not one (0.6.0).** Through 0.5.0 the matcher was the single word
 `Bash`, and both omissions were live bypasses rather than theoretical ones. `Monitor` runs a
@@ -236,7 +241,8 @@ The layers, in order of engagement:
    (`identity.lock.json`, `prompts.lock.json`, `rls-exempt.json`, the budget/manifest
    data files), the Stop-hook runners, `lefthook.yml`, `.github/workflows/`, and the
    lint/architecture config surface. A human who genuinely needs to change the harness
-   sets `HARNESS_ALLOW_SELF_EDIT=1` for that session — an explicit, auditable act.
+   sets `HARNESS_ALLOW_SELF_EDIT=1` in the environment the session starts from. Nothing
+   records the variable; the committed diff is the record (see below).
 3. **The `.harness` manifest** — the installer records a SHA-256 for every
    harness-owned file; `npx next-expo-supabase-agent-harness doctor` re-hashes the tree so
    silent in-place edits are evident as drift, and the `gate-integrity` gate re-checks
@@ -245,6 +251,57 @@ The layers, in order of engagement:
    snapshot, fail-closed. Local bypasses change nothing about what merges.
 5. **CODEOWNERS** — harness-owned paths and auth/data surfaces require sign-off from
    {{SECURITY_OWNERS}}, so even an evident tamper needs a human accomplice to land.
+
+**Proposing a register edit (1.1.0).** Layer 2 denies an agent every reviewed register
+under `tools/`: the allowlists, the budgets and the registers such as
+`tools/i18n-allow.json`, `tools/approved-tools.json` or `tools/mcp/corpus/project.json`.
+When an agent has a reason to change one, it does not describe the edit in prose and it does
+not ask for `HARNESS_ALLOW_SELF_EDIT=1`, which would lift the guard for every protected path
+at once. It writes the whole proposed file as one JSON document,
+`harness-proposals/<id>.json`, with five fields: `version` (1), `target` (the register's
+path), `reason`, `base` (the output of `git rev-parse HEAD:<target>`, or `null` when the
+file is not in `HEAD`) and `content` (the whole proposed file, as a string). It writes it
+the way `JSON.stringify(proposal, null, 2)` prints it, with one trailing newline, because
+`format` checks it. `harness-proposals/` is committed and outside every path the deny list,
+the write guard and the bash guard name, so staging narrows no layer, and a proposal is
+inert: no gate reads it. A human then runs
+`npx next-expo-supabase-agent-harness apply-proposal <id>` in a terminal. It shows the
+reason and a diff of the current file against the proposed one, and writes the file only
+after the human types the target path. `--dry-run` shows the same and writes nothing; with
+no id it lists the pending proposals, which `doctor` also lists as `info`. It refuses a
+target a proposal may not change (a proposal may target the escape lists in
+`tools/lib/enforcement-surface.mjs` and `tools/field-notes.json`, but not
+`tools/perf-baseline.json` or `tools/mutation-baseline.json`, which only their generators
+write), a `base` that is not the committed file's blob, a target with uncommitted changes,
+and a stdin or stdout that is not a terminal. The bash guard's `apply-proposal-invocation`
+rule denies an agent the command itself. The written register is left uncommitted, so
+`gate-integrity` fails until a human commits it, and the commit carries it into the pull
+request under CODEOWNERS.
+
+### What `HARNESS_ALLOW_SELF_EDIT=1` relaxes
+
+Each check below looks for the exact string `1`. The guards read the environment the
+session was started from, so putting the variable in front of one shell command does not
+lift them. The scripts read the environment of the command that runs them. The flag
+relaxes these checks and no others:
+
+- `.claude/hooks/pretool-write-guard.mjs`: the protected-path deny (layer 2) and the
+  symlink-escape deny. The append-only migrations deny and the content checks still apply.
+- `.claude/hooks/pretool-bash-guard.mjs`: the rules `shell-write-protected`,
+  `interpreter-write-protected`, `gen-lock-writer`, `chmod-protected`, `rm-protected`,
+  `truncate-protected`, `move-protected-away`, `git-restore-old-revision`,
+  `self-rebaseline-writer` and `apply-proposal-invocation`. Every other rule still denies.
+- `tools/gen-agents-lock.mjs`: `--write` refuses to run without it.
+- `tools/check-gate-integrity.mjs`: the commit rule, which reds an escape list or a
+  threshold-bearing config that is modified but not committed. Its hash, retrofit-conflict,
+  hook-command, Stop-floor and `baseVersion` checks still run. When the flag skips the
+  commit rule, the gate's OK line names the rule as not run instead of reporting it clean.
+
+It does not lift the permission denies in `.claude/settings.json` (layer 1). The Edit and
+Write tools stay denied on `.claude/hooks/**`, the settings files, `.mcp.json` and
+`.harness/**`, so edit those files outside the session. No other hook or gate reads the
+flag, and nothing records that it was set. The shipped workflows never set it, so a change
+made under it reaches CI only as a committed diff, which CODEOWNERS reviews (layer 5).
 
 ## Skip-local / fail-closed-CI asymmetry
 
@@ -294,9 +351,12 @@ every stamp, so the first run after either re-proves everything.
 
 - **What is stamped.** The gates that call `stampGate` in `tools/lib/gate.mjs`: `build`,
   `contracts`, `db-limits`, `e2e`, `expo-policy`, `licenses`, `native-deps`,
-  `query-shapes`, `rate-limits`, `security-headers`, `tenancy` and `version-sync` in the
-  validate chain, the `eas-update` module gate, and (1.0.4) the `rls-isolation` Stop step.
-  Nothing else is: steps are never chosen by classifying the diff.
+  `query-shapes`, `rate-limits`, `security-headers`, `tenancy`, `version-sync` and (1.1.0)
+  `web-compile` in the validate chain, (1.1.0) `essential-eight` and `conformance-map`, the
+  second and third scripts of the `docs-sync` step, the `eas-update` module gate, and (1.0.4) the
+  `rls-isolation` Stop step. Nothing else is: steps are never chosen by classifying the
+  diff. `essential-eight` runs its negative proof before it consults its stamp, and stamps
+  only when the proof finds nothing (docs/harness/gates-catalog.md, the `docs-sync` section).
 - **Inputs are reviewed data.** Each list lives in `tools/lib/stamp-inputs.mjs` (a module
   gate declares its own through `withMachinery`), and a missing input class is a stale-pass
   bug. Every list carries `.harness/manifest.json` (an `update` or a graduation changes what
@@ -374,7 +434,10 @@ all compare against `HEAD` and see an empty diff.
 
 Enforced as hooks + lint + depcruise + gates (defense-in-depth); the grounding rules
 restate them so the model rarely trips a gate: `security-invariants.md` (always
-loaded), `provenance.md` (always loaded), `mobile-server-split.md` (path-scoped;
+loaded), `encryption.md` (always loaded; the encryption invariants whose checks run
+with the opt-in `e2ee` module off), `provenance.md` (always loaded), `e2ee.md`
+(path-scoped, best effort; the full encryption rule for the module, and the checks
+each bullet names are the invariant), `mobile-server-split.md` (path-scoped;
 never rely on conditional loading for invariants).
 
 Doctrine notes for the citations:
@@ -487,7 +550,11 @@ The chain runs **corpus → code → check → ADR → verification → gate**:
 2. **In-code convention** — every non-trivial decision carries `// SOURCE:` with
    `[corpus: <id>]` when pinned.
 3. **Enforcement** — `posttool-source-check.mjs` per edit; `tools/check-sources.mjs`
-   tree-wide in validate/CI (identical heuristic, so the two can never disagree).
+   tree-wide in validate/CI (identical heuristic, so the two can never disagree). A
+   site in a mandatory class blocks the edit and reds the gate; a site whose classes are
+   all advisory (`vector-index`, `llm-sampling`, `tuning-constants`, unless
+   `tools/decision-groups.json` promotes one with `"mandatory"`) is reported and
+   blocks nothing (1.1.0).
 4. **`/adr`** — one ADR per slice into `docs/adr/`, its Sources section reconciled
    against every inline `// SOURCE:` in the slice.
 5. **`/verify-citations`** — the read-only `citation-verifier` subagent resolves each
@@ -508,6 +575,10 @@ For any change touching auth, RLS, migrations, the native config surface
 (`app.config.ts` / `eas.json` / config plugins / permissions), or the API contract:
 write `specs/<feature>.md` (from `specs/_template.md`), get human sign-off, **then**
 implement. The spec is necessary but not sufficient; the gate holds the line either way.
+Each `##` heading of the template is an addressable section, so a reviewer brief or an
+ADR's Traceability cites `specs/<feature>.md#<id>` rather than the whole file:
+`node tools/spec-anchor.mjs specs/<feature>.md#<id>` prints that section, and with no
+`#<id>` it lists the ids.
 
 ## Adversarial review (the agent roster)
 
@@ -520,7 +591,8 @@ reviewers the read-only `rls_verify` probe — never a write or shell tool. The 
 machine-asserted: the `docs-sync` gate parses every `.claude/agents/*.md` frontmatter
 (pinned grammar in `tools/lib/agent-roster.mjs`; unparseable frontmatter fails closed)
 and reds a reviewer holding anything outside the read-only allowlist or missing
-`disallowedTools: Write, Edit`.
+`disallowedTools: Write, Edit`, or an agent whose `harnessFallbackModels` list names
+nothing or repeats an entry.
 
 - `security-reviewer` — MUST run on any change to RLS SQL, migrations, the
   server-only data layer (tRPC procedures / Server Actions / a vertical's
@@ -547,15 +619,58 @@ and reds a reviewer holding anything outside the read-only allowlist or missing
 Author agents (`dal-author`, `migration-rls-author`, `test-author`) keep their write
 tools; only the universal frontmatter fields apply to them.
 
-## Stop-hook cost (and how to trim it)
+**What a change must bring (1.1.0).** A reviewer body's rubric asks about the lines a diff
+contains, and a missing companion is on no line of it. So every reviewer body except
+`citation-verifier`'s carries a `## WHAT MUST ACCOMPANY IT` table before its closing
+paragraphs, with one row per companion that a rule the harness already states requires:
+`id | The diff introduces | It must also bring | Stated in | Enforced by`. A new table must
+bring its three revokes, its isolation-register rows and its audit trigger. A definer
+function must bring its `REVOKE … FROM PUBLIC` and `FROM anon`, and an Edge Function its
+ADR. A tRPC mutation or a Server Action must bring its rate-limit bucket, a screen its
+`src/routes.ts` entry, and a web page its `page.meta.ts`. A permission or a config plugin
+must bring its register row, and a new interface its second consumer. The reviewer reports
+each row that applies as `<id>: present (file:line)` or `<id>: absent`, and an absence is a
+finding at the severity the body already gives that rule. `Stated in` names the file that
+states the rule. `Enforced by` names the chain step that reds the absence, or says
+`review only`. A row that a step enforces stays in the table, because the database-backed
+proofs skip when no local stack is running. The web-page rows of `accessibility-reviewer`
+and `design-reviewer` widen those two bodies past the mobile UI, because
+`tools/reviewer-triggers.json` summons both on `apps/web/app/**/page.tsx`. No gate reads the
+tables. The harness repository's own tests hold the shipped bodies to them, and its
+maintainers score the reviewers with a factory eval when a body or a model pin changes:
+seeded changes, one absence case and one complete twin for each kind of change, so a
+reviewer that always answers the same verdict scores at most half.
+
+**Which model a verdict ran on (1.1.0).** Each agent file pins one `model:`, and a
+reviewer can still run on another: a per-invocation `model` parameter,
+`CLAUDE_CODE_SUBAGENT_MODEL` (with `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`), an
+`availableModels` allowlist that substitutes for a blocked model, or a `fallbackModel`
+chain. So the SubagentStop hook records, in each ledger entry, the `model` that wrote the
+verdict (read from the subagent's own transcript; `null` when it cannot be read) and
+`pinned`, whether that model matches the pin. Each reviewer file also carries a
+`harnessFallbackModels: a, b` list, the models the harness accepts in place of the pin;
+a security reviewer's list never names a weaker family than its pin. Claude Code ignores
+the key, so it chooses nothing:
+to run a reviewer on a listed model, pass it as the per-invocation `model`. A reviewer
+whose pin cannot run ends before SubagentStop and writes no entry, so the step's "did not
+run" red names the list. The file hash
+in `tools/agents.lock.json` covers the list, and the lock's `models` map keeps the pin.
+`reviewer-verdicts` judges the recorded model: the pin counts, and so does any model ID of
+the pin's family when the pin is an alias; a listed model counts and is named; any other
+model is named on a `FALLBACK MODEL` line, which the Stop hook shows you on a green turn
+too. For `security-reviewer`, `web-security-reviewer` and `mobile-security-reviewer` a
+model off the list, or `null`, does not count, and the step reds (a NOTE until 2.1.0 on
+an install whose `baseVersion` predates 1.1.0). `docs-sync` reds a list that names
+nothing or repeats an entry.
+
+## Stop-hook cost
 
 `STOP_HOOK_STEPS` ends with the runtime suites; the expensive validate steps are
-`build` (the export + bundle grep; stamped) and `e2e` (the jest-expo suite). To trade
-turn-end latency for CI-time discovery, a HUMAN can comment steps out of
-`tools/harness.config.mjs` (harness-protected — `HARNESS_ALLOW_SELF_EDIT=1`); CI still
-enforces the frozen floor via `--min-floor`, so nothing is lost on the PR, only
-discovered later. Keep `e2e` in while doing screen-heavy work; the feedback loop is
-worth the seconds.
+`build` (the export + bundle grep; stamped) and `e2e` (the jest-expo suite). Neither can
+be dropped locally: `wiring` reds a `VALIDATE_STEPS` that lacks any step named in
+`tools/validate.floor.json`. The Stop hook runs every step of `tools/stop.floor.json`
+whether or not `STOP_HOOK_STEPS` lists it, and `gate-integrity` reds a floored step that
+is missing or rewritten. `HARNESS_ALLOW_SELF_EDIT=1` relaxes none of these checks.
 
 ## The lethal-trifecta posture
 

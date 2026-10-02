@@ -38,9 +38,17 @@ import { existsSync, readFileSync } from 'node:fs'
 import { walkFiles } from './lib/fs-walk.mjs'
 import { fail, failures, ok, rampNote, skipOrFail, stampGate } from './lib/gate.mjs'
 import {
+  foldOnlyFindings,
+  foldTouches,
+  historyFor,
+  isTwin,
+  withhold,
+} from './lib/sql-fold-ramp.mjs'
+import {
   parseColumnFacts,
   parseFunctions,
   parseGrants,
+  parseLivePolicies,
   parseTriggers,
   qualify,
   readSqlDir,
@@ -185,10 +193,35 @@ for (const [role, knobs] of Object.entries(cfg.roles)) {
 
 const recordGreen = stampGate(GATE, STAMP_INPUTS[GATE])
 
+/**
+ * Every RESTRICTIVE policy as [{ table, text }], `text` being what the counting rule reads: the
+ * live policy's USING and WITH CHECK, or — in the fold ramp's twin, which replays the 1.0.x
+ * reading — every RESTRICTIVE CREATE POLICY statement as written.
+ * @param {string[]} statements
+ */
+function restrictivePolicies(statements) {
+  if (isTwin()) {
+    return statements
+      .filter((s) => /^CREATE POLICY/i.test(s) && /\bAS RESTRICTIVE\b/i.test(s))
+      .map((s) => ({
+        table: stripSchema(s.match(/^CREATE POLICY [a-z0-9_]+ ON ([a-z0-9_.]+)/i)?.[1] ?? ''),
+        text: s,
+      }))
+      .filter((p) => p.table !== '')
+  }
+  return [...parseLivePolicies(statements).live].flatMap(([table, byName]) =>
+    [...byName.values()]
+      .filter((p) => p.permissive === 'RESTRICTIVE')
+      .map((p) => ({ table, text: `${p.using ?? ''} ${p.check ?? ''}` })),
+  )
+}
+
 if (!existsSync(MIGRATIONS_DIR))
   skipOrFail(GATE, `${MIGRATIONS_DIR} not found (no migration surface yet)`)
 
-const statements = splitStatements(readSqlDir(MIGRATIONS_DIR))
+// Folded (1.1.0): a DROP TABLE takes the table's triggers, columns, grants and policies with it,
+// and a later CREATE starts it fresh (tools/lib/sql-parse.mjs).
+const statements = historyFor(splitStatements(readSqlDir(MIGRATIONS_DIR)))
 const errs = []
 
 // ---------------------------------------------------------------------------
@@ -414,17 +447,16 @@ if (!quotaAdopted) {
     }
   }
 
-  // A RESTRICTIVE policy over a STABLE function is the alternative that fails OPEN.
-  for (const stmt of statements) {
-    if (!/^CREATE POLICY/i.test(stmt) || !/\bAS RESTRICTIVE\b/i.test(stmt)) continue
-    const target = stmt.match(/^CREATE POLICY [a-z0-9_]+ ON ([a-z0-9_.]+)/i)?.[1]
-    if (target === undefined) continue
+  // A RESTRICTIVE policy over a STABLE function is the alternative that fails OPEN. Judged on
+  // the LIVE policies since 1.1.0 (a dropped one no longer counts, an ALTER POLICY that adds the
+  // count does); the fold ramp's twin replays the 1.0.x reading, which was every CREATE as written.
+  for (const { table, text } of restrictivePolicies(statements)) {
     if (
-      cfg.quota.meteredTables.some((m) => stripSchema(m.table) === stripSchema(target)) &&
-      /count\s*\(/i.test(stmt)
+      cfg.quota.meteredTables.some((m) => stripSchema(m.table) === table) &&
+      /count\s*\(/i.test(text)
     ) {
       errs.push(
-        `${stripSchema(target)}: a RESTRICTIVE policy counting rows — the planner hoists a STABLE call to ONE evaluation per statement against the PRE-statement count, so a single multi-row INSERT of any size passes wholesale. This is the alternative that fails OPEN and looks correct; enforcement belongs in the statement-level trigger`,
+        `${table}: a RESTRICTIVE policy counting rows — the planner hoists a STABLE call to ONE evaluation per statement against the PRE-statement count, so a single multi-row INSERT of any size passes wholesale. This is the alternative that fails OPEN and looks correct; enforcement belongs in the statement-level trigger`,
       )
     }
   }
@@ -482,6 +514,31 @@ if (!quotaAdopted) {
         `${g.target}: GRANT ${writes.join(', ')} TO ${clients.join(', ')} — a tenant that can write its own usage counter or raise its own limit has no quota. Writes go only through ${cfg.quota.writerRole}, which is reachable solely as the owner of ${cfg.quota.enforceFunction} (statement: ${g.stmt})`,
       )
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The 1.1.0 history fold ramp (#75).
+// ---------------------------------------------------------------------------
+// Everything above that reads the migration views can move when the history holds a DROP TABLE
+// or an ALTER POLICY: a metered table dropped and re-created without its triggers, a usage
+// table that no longer exists. What only the folded views produce is new judgement of applied
+// history the old parser could not read, so on an install whose baseVersion predates 1.1.0 it
+// is a dated NOTE until 1.2.0; what both readings produce stays hard. The replay stops here, so
+// the source-tree walks below run once. tools/lib/sql-fold-ramp.mjs tells the two apart.
+const fold = await foldOnlyFindings(import.meta.url, [errs], foldTouches(statements))
+if (!fold.replayed) {
+  console.log(
+    `${GATE}: the 1.0.x replay of the migration history did not report, so no finding is lifted by the 1.1.0 fold ramp`,
+  )
+}
+if (fold.foldOnly.length > 0) {
+  const foldRamped = rampNote(GATE, '1.1.0', 'the SQL history fold (DROP TABLE and ALTER POLICY)', {
+    until: '1.2.0',
+  })
+  if (foldRamped) {
+    withhold([errs], fold.foldOnly)
+    for (const e of fold.foldOnly) console.log(`${GATE}: NOTE — (ramp) ${e}`)
   }
 }
 

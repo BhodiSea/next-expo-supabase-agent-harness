@@ -25,6 +25,9 @@
       "!**/apps/web/lib/routes.generated.ts",
       // Installer-written manifest (JSON.stringify shape, hash-verified by doctor).
       "!**/.harness/manifest.json",
+      // An Edge Function's lockfile (1.1.0), written by deno and read `--frozen` by
+      // tools/check-edge-functions.mjs: a formatter pass would read as a lock deno did not write.
+      "!**/supabase/functions/*/deno.lock",
       // Vendored third-party CSS (the metal token preset's rim system) —
       // byte-stable upstream dist files; a formatter pass would read as drift
       // against the vendored source. Absent on non-metal scaffolds, harmless.

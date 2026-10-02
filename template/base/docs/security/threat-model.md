@@ -36,6 +36,7 @@ Rule tables from `.claude/hooks/lib/guard-rules.mjs`, in source order. Each rule
 - `move-protected-away` — Blocked: moving a file OFF the enforcement surface leaves nothing behind to check — the same outcome as deleting it, spelled as a rename.
 - `git-restore-old-revision` — Blocked: checking out an OLDER REVISION of a protected file reinstates a gate script from before a rule existed, or a floor from before a step existed, with a clean working tree afterwards.
 - `self-rebaseline-writer` — Blocked: re-recording a ratchet BASELINE (the surviving-mutant set, the gzip floor) accepts the regression the ratchet just caught, and leaves every gate green by construction.
+- `apply-proposal-invocation` — Blocked: `apply-proposal` writes a staged register edit into place, and applying it is the decision the write guard reserves for a human.
 - `git-hookspath-repoint` — Blocked: repointing core.hooksPath disables the lefthook commit-time layer.
 - `dev-auth-access` — Blocked: .dev-auth/ holds local signing material — it is never read, copied, or listed from shell.
 - `git-force-push` — Blocked: force-push is forbidden;
@@ -85,6 +86,7 @@ Rule tables from `.claude/hooks/lib/guard-rules.mjs`, in source order. Each rule
 - `essential-eight-register` — protected path `^tools\/essential-eight\.json$`
 - `conformance-map-register` — protected path `^tools\/conformance-map\.json$`
 - `migrations-allow` — protected path `^tools\/migrations-allow\.json$`
+- `grant-bound-allow` — protected path `^tools\/grant-bound-allow\.json$`
 - `framework-floor` — protected path `^tools\/framework-floor\.json$`
 - `cc-floor` — protected path `^tools\/cc-floor\.json$`
 - `db-perf-baseline` — protected path `^tools\/db-perf-baseline\.json$`

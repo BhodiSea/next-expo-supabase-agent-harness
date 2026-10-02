@@ -88,10 +88,14 @@ ALTER TABLE public.notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notes FORCE ROW LEVEL SECURITY;
 
 -- Grants are the outer gate (see 10_account.sql for the full reasoning):
--- anon has no business here, and service_role's grant is revoked because
--- BYPASSRLS makes the grant the only lever over it.
+-- anon has no business here, service_role's grant is revoked because
+-- BYPASSRLS makes the grant the only lever over it, and authenticated's is
+-- revoked so that it holds exactly the four verbs granted below and none of
+-- the default's TRUNCATE, REFERENCES, TRIGGER or MAINTAIN (1.1.0,
+-- supabase/migrations/20260930000000_three_role_revoke.sql).
 REVOKE ALL ON TABLE public.notes FROM anon;
 REVOKE ALL ON TABLE public.notes FROM service_role;
+REVOKE ALL ON TABLE public.notes FROM authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.notes TO authenticated;
 
 -- The skill-region markers around the four policies below delimit the span the harness

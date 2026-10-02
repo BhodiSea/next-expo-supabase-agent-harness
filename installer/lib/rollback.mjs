@@ -107,6 +107,7 @@ const FIXED_CANDIDATES = [
   '.harness/manifest.json',
   '.harness/pending/dependencies.json',
   '.harness/pending/source-fixes.json',
+  '.harness/pending/pin-floors.json',
 ]
 
 /**

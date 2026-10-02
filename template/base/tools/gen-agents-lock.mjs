@@ -7,7 +7,9 @@
 // skills prescribe. They are the most privileged prose in the repository and, before this
 // lock, nothing noticed them changing. An agent could soften `security-reviewer.md`,
 // widen a skill, or repoint a command, and every gate stayed green — the roster check in
-// `docs-sync` reads frontmatter (tools, model, name) and never the body, where the actual
+// `docs-sync` reads frontmatter (tools, model, name) and, of a reviewer's body, only whether
+// it demands the verdict line, and (1.1.0) whether it closes on that demand and states its
+// `Severities:`/`Blocking:` lines. It never judges the rest of the body, where the actual
 // instructions live.
 //
 // WHY THIS ONE GENERATOR REFUSES TO WRITE, WHEN THE OTHER THREE DO NOT. It is worth

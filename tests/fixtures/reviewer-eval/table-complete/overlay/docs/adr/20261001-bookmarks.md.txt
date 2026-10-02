@@ -1,0 +1,50 @@
+# 20261001 — Org bookmarks
+
+- **Status:** Accepted
+- **Date:** 2026-10-01
+- **Slice:** bookmarks
+
+## Context
+
+An org's members want to keep shared links in one place. The data is org-owned, read by
+every member and written by members at rank 20 and above, so it is a tenant table under
+the same rules as every other: FORCE row security, four per-operation policies drawn from
+`tools/tenancy.json`'s predicate forms, the tenant key leading the primary key and the
+list index, a freeze trigger on `org_id` and an audit trigger with no `WHEN` clause.
+
+## Decision
+
+Create `public.bookmarks` in `supabase/migrations/20261001000000_bookmarks.sql`, and
+revoke the platform's default privileges from all three roles before granting
+`authenticated` exactly `SELECT, INSERT, UPDATE, DELETE`. The `REVOKE ALL ... FROM
+authenticated` is the change to an authorization control this record is attached to: a
+GRANT adds a privilege and removes none, so without it `authenticated` keeps TRUNCATE,
+REFERENCES and TRIGGER, the 1.0.2 finding (`docs/adr/20260920-authenticated-write-revoke.md`).
+`service_role` gets nothing: no Edge Function reads this table.
+
+## Alternatives Considered
+
+- **Revoke two roles and grant four verbs** — rejected: it leaves `authenticated` holding
+  TRUNCATE, which row security never sees.
+- **Store bookmarks per user** — rejected: they are the org's links, and the org is the
+  data controller.
+
+## Consequences
+
+Members see every bookmark of every org they hold a seat in; members at rank 20 and above
+write them. `supabase/tests/bookmarks_privileges.test.sql` asserts the exact privilege
+set, and the table is in both isolation registers.
+
+## Sources
+
+- <https://www.postgresql.org/docs/17/ddl-priv.html> — a GRANT adds a privilege and
+  removes none.
+- `[corpus: postgres/rls-force]` — FORCE, WITH CHECK, and the per-operation policies.
+- `[corpus: postgres/rls-initplan]` — the scalar sub-select in each predicate.
+
+## Traceability
+
+| Requirement | Migration / DAL / route / UI files | Test ids |
+| ----------- | ---------------------------------- | -------- |
+| R1: members read their org's bookmarks and no other org's | `supabase/migrations/20261001000000_bookmarks.sql` | `tests/rls/ > bookmarks`, `rls_structure.test.sql > rls_targets` |
+| R2: authenticated holds exactly four verbs | `supabase/migrations/20261001000000_bookmarks.sql` | `bookmarks_privileges.test.sql` |

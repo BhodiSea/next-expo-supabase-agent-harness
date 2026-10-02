@@ -72,11 +72,42 @@ are the only lever over `service_role`, which is why they are used as one.
    internet and needs a signature check of its own. Record which, and why.
 4. **What is the blast radius if the key leaks?** With the per-table grants
    above, this is answerable in one sentence. That is the point of them.
-5. **How is it tested?** RLS tests cannot cover it. Something has to.
+5. **How is it tested?** RLS tests cannot cover it. Something has to — the
+   handler split below is how.
+
+## How a function is checked (1.1.0)
+
+A function is two files and a pinned dependency set, and each part has its own check:
+
+- **`index.ts` is a shell.** It binds the handler to the Deno runtime and to
+  supabase-js (`Deno.serve(createDeleteAccountHandler({ env, connect }))`) and
+  does nothing else. No Node-side runner can load it, so
+  `tools/check-edge-functions.mjs` (the `edge-functions` job in
+  `quality-gate.yml`) typechecks it with `deno check --frozen` against the two
+  files beside it.
+- **`deno.json` pins the imports, `deno.lock` freezes them.** Supabase deploys
+  each function with its own `deno.json`, so that is where a function's
+  dependency versions live, each an exact `jsr:`/`npm:` release. Write or refresh
+  the lock with `deno check --frozen=false --config supabase/functions/<name>/deno.json supabase/functions/<name>/index.ts`
+  and commit both; Renovate's deno manager proposes bumps to the two together.
+- **`handler.ts` holds every decision** — which key the function runs with, who
+  the caller is, what it does in what order — and takes its clients and its
+  environment as parameters, with no `Deno` global and no `jsr:`/`npm:`
+  specifier (a type-only import is fine: Node erases it). So
+  `handler.test.ts`, a vitest suite, runs it in plain Node under the `unit`
+  step; `vitest.config.ts` measures a function directory once it holds a vitest
+  suite, `diff-coverage` holds each changed file to the per-file floors, and the
+  mutation lane mutates everything under `supabase/functions/*/` except
+  `index.ts`.
+- **Lint reaches all of it.** The TypeScript parser, the ≤ 15
+  cognitive-complexity contract, and the `no-unverified-session` and
+  `crypto-primitives-one-door` rules. `service-role-edge-functions-only` stays off:
+  this directory is its sanctioned home.
 
 ## Wiring, when the first one lands
 
-Functions live at `supabase/functions/<name>/index.ts` and are declared in
+Functions live at `supabase/functions/<name>/index.ts` (the shell), beside its
+`handler.ts`, `handler.test.ts`, `deno.json` and `deno.lock`, and are declared in
 `supabase/config.toml`:
 
 ```toml
@@ -110,4 +141,6 @@ operation no user-context policy can express, the owned tables cascade from that
 row so it needs no `GRANT` of its own, `verify_jwt` authenticates the caller,
 and the id it deletes comes from that caller's verified token — never a
 parameter — so its blast radius is one sentence. Its ADR is
-`docs/adr/20260720-account-deletion.md`.
+`docs/adr/20260720-account-deletion.md`, and `handler.test.ts` holds the one
+ordering it cannot survive getting wrong: the personal-org sweep is verified
+before `deleteUser` runs.

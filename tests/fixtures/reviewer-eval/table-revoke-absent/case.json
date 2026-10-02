@@ -1,0 +1,32 @@
+{
+  "reviewer": "security-reviewer",
+  "kind": "table",
+  "expect": "BLOCK",
+  "mustName": [
+    "table-authenticated-revoke"
+  ],
+  "twin": "table-complete",
+  "why": "The two-revoke migration behind the 1.0.2 finding: public.bookmarks revokes anon and service_role, then grants authenticated four verbs, so authenticated keeps the platform's TRUNCATE, REFERENCES and TRIGGER. Everything else a table must bring is present, including the privilege assertion that would catch it against a live database.",
+  "edits": [
+    {
+      "path": "tests/rls/db-context.ts",
+      "after": "export const ISOLATION_TARGETS: IsolationTarget[] = [",
+      "lines": [
+        "  {",
+        "    table: 'bookmarks',",
+        "    ownerColumn: 'org_id',",
+        "    provision: 'direct',",
+        "    scopeValue: (ctx) => ctx.teamOrgId,",
+        "    row: (ctx) => ({ org_id: ctx.teamOrgId, url: 'https://example.test/rls-probe', label: 'rls probe' }),",
+        "  },"
+      ]
+    },
+    {
+      "path": "supabase/tests/rls_structure.test.sql",
+      "after": "INSERT INTO rls_targets (table_name, owner_column) VALUES",
+      "lines": [
+        "  ('bookmarks', 'org_id'),"
+      ]
+    }
+  ]
+}

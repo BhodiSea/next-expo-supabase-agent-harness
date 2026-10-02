@@ -33,7 +33,7 @@
 // SOURCE: docs/harness/gates-catalog.md (mutation-ratchet) [corpus: harness/doctrine]
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { fail, ok, skipOrFail } from './lib/gate.mjs'
+import { fail, ok, rampNote, skipOrFail } from './lib/gate.mjs'
 
 const GATE = 'mutation-ratchet'
 const REPORT = 'reports/mutation/mutation.json'
@@ -204,7 +204,29 @@ const scoped = new Set(mutatedFiles)
 const accepted = new Set(baseline.map((e) => e.id))
 const surviving = new Set(found.map((s) => s.id))
 
-const fresh = found.filter((s) => !accepted.has(s.id))
+const unaccepted = found.filter((s) => !accepted.has(s.id))
+
+// THE 1.1.0 EDGE FUNCTION RAMP. supabase/functions/*/ joined the mutated floor in 1.1.0
+// (tools/lib/mutation-critical.mjs), and an install whose baseVersion predates it carries
+// function code no test was ever asked to kill mutants in. So a NEW survivor under
+// supabase/functions/ is a NOTE with the deadline on that install until 1.2.0; a survivor
+// anywhere else is judged exactly as before, and a fresh scaffold is held at once.
+const EDGE = /^supabase\/functions\//
+const edgeFresh = unaccepted.filter((s) => EDGE.test(s.file))
+const edgeRamped =
+  edgeFresh.length > 0 &&
+  rampNote(
+    GATE,
+    '1.1.0',
+    `${String(edgeFresh.length)} new surviving mutant(s) on the Edge Function surface (supabase/functions/*/, on the mutated floor since 1.1.0)`,
+    { until: '1.2.0' },
+  )
+if (edgeRamped) {
+  for (const s of edgeFresh) {
+    console.log(`${GATE}: NOTE — (ramp) ${s.file} [${s.status}] ${s.mutator}: ${s.snippet}`)
+  }
+}
+const fresh = edgeRamped ? unaccepted.filter((s) => !EDGE.test(s.file)) : unaccepted
 const tightenable = baseline.filter((e) => scoped.has(e.file) && !surviving.has(e.id))
 const stale = baseline.filter((e) => !existsSync(e.file))
 
@@ -240,6 +262,6 @@ if (fresh.length > 0) {
 ok(
   GATE,
   `${String(found.length)} survivor(s) across ${String(mutatedFiles.length)} mutated file(s), all within the committed baseline${
-    tightenable.length > 0 ? ` (${String(tightenable.length)} ready to ratchet out)` : ''
-  }`,
+    edgeRamped ? ` except the ${String(edgeFresh.length)} Edge Function NOTE(s) above` : ''
+  }${tightenable.length > 0 ? ` (${String(tightenable.length)} ready to ratchet out)` : ''}`,
 )

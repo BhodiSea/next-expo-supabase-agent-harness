@@ -58,8 +58,18 @@ CREATE INDEX push_device_tokens_owner_id_created_at_id_idx
 ALTER TABLE public.push_device_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.push_device_tokens FORCE ROW LEVEL SECURITY;
 
+-- All three roles, then exactly the four verbs the policies below admit: the
+-- platform's default privileges grant ALL on a new `public` table to anon,
+-- authenticated and service_role, and a GRANT removes nothing, so without the
+-- authenticated revoke the role would keep TRUNCATE, REFERENCES, TRIGGER and
+-- MAINTAIN, which no policy admits. `schema-rls` holds every table to this
+-- doctrine (1.1.0), and the `migrations` gate needs the adr line for a revoke
+-- from authenticated.
+-- adr: docs/adr/20260930-three-role-revoke.md
+-- SOURCE: https://www.postgresql.org/docs/17/ddl-priv.html
 REVOKE ALL ON TABLE public.push_device_tokens FROM anon;
 REVOKE ALL ON TABLE public.push_device_tokens FROM service_role;
+REVOKE ALL ON TABLE public.push_device_tokens FROM authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.push_device_tokens TO authenticated;
 
 -- Four per-operation policies, TO authenticated, each predicate real and each

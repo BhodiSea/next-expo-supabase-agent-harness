@@ -1,10 +1,11 @@
 import { defineConfig, devices } from '@playwright/test'
 
 // The web-e2e browser lane's Playwright config. Deliberately minimal: one Chromium project
-// against a Next dev server this file boots. The lane runner (tools/check-web-e2e.mjs, CI
-// only) starts the Supabase local stack first, so the landing route's getVerifiedUser()
-// resolves (anonymous) rather than erroring, and the NEXT_PUBLIC_* build vars come from the
-// job env — they are public by construction (see .env.example block (b)).
+// against a production Next server this file builds and starts (see `webServer` below). The
+// lane (the web-e2e job, CI only) starts the Supabase local stack first, so the landing
+// route's getVerifiedUser() resolves (anonymous) rather than erroring, and the NEXT_PUBLIC_*
+// build vars come from the job env — they are public by construction (see .env.example
+// block (b)).
 //
 // This file is owned by the browser toolchain, not the app's tsc/eslint: it is listed in
 // eslint.config.mjs `ignores` and is NOT in apps/web/tsconfig `include`. Playwright transpiles
@@ -38,8 +39,9 @@ export default defineConfig({
     // anything about production. Both disappear against `next start`, and a real
     // regression in either would still red.
     //
-    // The cost is one `next build` per lane (~10s on this app). That is the price of the
-    // suite testing the artifact that gets deployed.
+    // The cost is one `next build` per lane: 35 to 49 s for this app, measured cold on a
+    // four-core Linux machine at 1.1.0 (the chain's web-compile step runs the same build).
+    // That is the price of the suite testing the artifact that gets deployed.
     command: 'pnpm run build && pnpm run start',
     url: BASE_URL,
     reuseExistingServer: !isCI,

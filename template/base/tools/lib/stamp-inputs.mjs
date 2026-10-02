@@ -57,16 +57,36 @@ export const STAMP_INPUTS = {
     'pnpm-lock.yaml',
     'tools/lib/bundle-measure.mjs',
   ]),
+  // THE WEB COMPILE (1.1.0): `next build --webpack` over apps/web. Its verdict reads the app
+  // (next.config.ts, next-env.d.ts, the postcss config and any apps/web/.env* file among it),
+  // every workspace package the app bundles (transpilePackages compiles their raw source), the
+  // base tsconfig both extend, the workspace layout, and the lockfile that fixes every
+  // resolution. `.next` and each package's `dist` are STAMP_EXCLUDES, so neither the build's
+  // own output nor `types`' tsc -b output churns it; the step restores the committed
+  // next-env.d.ts the build rewrites, which is what lets a second run hit. The environment is
+  // not hashed: the step prints the placeholder keys it filled instead.
+  'web-compile': withMachinery('tools/check-web-build.mjs', [
+    'apps/web',
+    'packages',
+    'tsconfig.base.json',
+    'pnpm-workspace.yaml',
+    'pnpm-lock.yaml',
+  ]),
   // contract inventory regen-diff (action + event inventories) + tsconfig project-
   // references sync + the G18 bounded-wire-string sweep (its reviewed allow list is an
   // input: narrowing an entry must re-arm the gate on the very next validate, never ride
   // a warm stamp). `apps`/`packages` cover the tsconfig topology + the router/catalog/DTO
   // sources; the generators + their shared serializer + the committed inventories are named
-  // so a generator edit or a hand-edit to an inventory also re-arms the stamp.
+  // so a generator edit or a hand-edit to an inventory also re-arms the stamp. From 1.1.0
+  // the event-catalog generator also reads the root package.json (its 1.0.x compatibility
+  // entry applies while that lists the example) and imports lib/event-catalogs.mjs, which
+  // imports lib/source-text.mjs: the gate spawns the generator, so the import-closure test
+  // cannot see these, and they are named here by hand.
   contracts: withMachinery('tools/check-contract-drift.mjs', [
     'apps',
     'packages',
     'pnpm-workspace.yaml',
+    'package.json',
     'tsconfig.json',
     'knip.json',
     'tools/dto-bounds-allow.json',
@@ -74,6 +94,7 @@ export const STAMP_INPUTS = {
     'tools/gen-event-catalog.mjs',
     'tools/gen-query-shapes.mjs',
     'tools/lib/inventory.mjs',
+    'tools/lib/event-catalogs.mjs',
     'tools/lib/query-recorder.mjs',
     'tools/generated/action-inventory.json',
     'tools/generated/event-catalog.json',
@@ -95,6 +116,7 @@ export const STAMP_INPUTS = {
     'tools',
     'tests',
     'tools/lib/sql-parse.mjs',
+    'tools/lib/sql-fold-ramp.mjs',
   ]),
   // the whole jest-expo/RNTL fast lane (screens + states + a11y sweeps).
   // Deliberate exclusions: the tRPC/API server graph is mocked at the seam (the
@@ -191,6 +213,7 @@ export const STAMP_INPUTS = {
     'packages/verticals',
     'tools/lib/query-shapes.mjs',
     'tools/lib/sql-parse.mjs',
+    'tools/lib/sql-fold-ramp.mjs',
   ]),
   // reviewed budgets closed over the GENERATED mutation inventory, the by-value
   // module diff, and both wiring reads (the tRPC host + the Server Actions dir).
@@ -220,6 +243,7 @@ export const STAMP_INPUTS = {
     'tools/audit-columns.json',
     'tools/pii-columns.json',
     'tools/lib/sql-parse.mjs',
+    'tools/lib/sql-fold-ramp.mjs',
   ]),
   // root+mobile lockstep + web/api major agreement + node-major agreement + rc-pin +
   // single-zod-instance + single-react-per-surface. Every version the gate reads
@@ -265,6 +289,46 @@ export const STAMP_INPUTS = {
     'tools/lib/eol.mjs',
     'tools/lib/framework-floor.mjs',
     'tools/lib/support-register.mjs',
+  ]),
+  // THE COMPLIANCE REGISTERS (1.1.0): the second and third scripts of the `docs-sync` step,
+  // each stamped under its own name. Each list is what that script's verdict reads, and
+  // nothing else. A register row's `proof` names evidence paths, but neither script opens
+  // them: the field is judged as text, so keying the stamp on them would add invalidations
+  // without adding a check. lib/fs-walk.mjs is in the machinery withMachinery adds.
+  //
+  // essential-eight: the register, the chain config it imports, and the workflows
+  // liveControls reads. Its negative proof ALSO reads supabase/config.toml and five
+  // product roots, and those stay OUT of the list on purpose: the proof runs on every run,
+  // before the stamp is consulted, and the script stamps only when the proof finds nothing.
+  // A stamp keyed on them would miss on nearly every turn that edits product code; a
+  // storage flip or an upload surface still reds the turn it lands, warm stamp or not.
+  'essential-eight': withMachinery('tools/check-essential-eight.mjs', [
+    'tools/essential-eight.json',
+    'tools/harness.config.mjs',
+    '.github/workflows',
+    'tools/lib/essential-eight.mjs',
+    'tools/lib/live-controls.mjs',
+  ]),
+  // conformance-map: the register, the chain config, the workflows, the guard-rule table
+  // (its rule ids are live controls), the module list, and the generator it spawns in
+  // --check mode with the two documents that compares. `docs/modules` is a directory: which
+  // module markers the script checks depends on tools/modules.json, and this register is
+  // static data, so the whole tree is hashed. It is absent on a core scaffold, and a missing
+  // path hashes as a `missing:` token, so enabling the first module re-arms the stamp.
+  // lib/conformance-map.mjs imports lib/standards-claim.mjs.
+  'conformance-map': withMachinery('tools/check-conformance-map.mjs', [
+    'tools/conformance-map.json',
+    'tools/harness.config.mjs',
+    '.github/workflows',
+    '.claude/hooks/lib/guard-rules.mjs',
+    'tools/modules.json',
+    'docs/modules',
+    'tools/gen-conformance-docs.mjs',
+    'docs/compliance/controls-crosswalk.md',
+    'docs/security/threat-model.md',
+    'tools/lib/conformance-map.mjs',
+    'tools/lib/standards-claim.mjs',
+    'tools/lib/live-controls.mjs',
   ]),
   // THE RLS RUNNER (1.0.4): a Stop step, not a validate gate, stamped inside
   // tests/rls/run-rls.mjs with its command unchanged. Its inputs are what either suite

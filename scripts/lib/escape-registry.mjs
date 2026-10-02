@@ -1,5 +1,5 @@
-// escape-registry — the reviewed-data files are enumerated in THREE places, and
-// until 0.5.0 nothing compared the copies.
+// escape-registry — the reviewed-data files are enumerated in FOUR places (three until
+// 1.1.0), and until 0.5.0 nothing compared the copies.
 //
 // WHY THIS EXISTS. `tools/lib/enforcement-surface.mjs` opens by explaining that a second
 // hand-maintained copy of the escape list "would drift, and the drift would be invisible —
@@ -10,6 +10,9 @@
 //   2. tools/lib/enforcement-surface.mjs#ESCAPE_LISTS — what gate-integrity's
 //                                                   commit-not-dirty rule iterates
 //   3. .claude/hooks/lib/guard-rules.mjs#WRITE_PROTECTED — what the agent may not edit
+//   4. installer/lib/proposals.mjs#PROPOSABLE      — what `apply-proposal` may write (1.1.0,
+//                                                   #65); a copy, because the installer never
+//                                                   imports a template module
 //
 // Its first run found three live divergences, and the sharpest was not the one anybody had
 // predicted: tools/security-headers.json was SEEDED and in ESCAPE_LISTS with NO write-guard
@@ -87,6 +90,9 @@ export const TOLERATED_ABSENT = new Set([
   'tools/retrofit-accept.json',
   'tools/secret-scan-allow.json',
   'tools/migrations-allow.json',
+  // 1.1.0 (#74): schema-rls' grant-bound allowances. The gate reads it absent-as-empty, and
+  // a (table, role, privilege) row is a privilege no policy admits, allowed to stand.
+  'tools/grant-bound-allow.json',
 ])
 
 // Explicitly out of population, with the reason. tools/harness.config.mjs is reviewed
@@ -99,6 +105,58 @@ export const OUT_OF_POPULATION = new Map([
     'CONFIG_FILES, not an escape — its control is the frozen floor snapshot, which CI trusts over the config itself',
   ],
 ])
+
+// The escapes a proposal may NOT target (1.1.0, #65), with the reason. Each is written by
+// its own generator, which the bash guard's self-rebaseline-writer rule reserves for a human;
+// a hand-staged baseline would be the same acceptance without the measurement behind it.
+export const NOT_PROPOSABLE = new Map([
+  [
+    'tools/perf-baseline.json',
+    'written only by tools/perf-baseline.mjs, from a measured build; a human re-runs it (HARNESS_ALLOW_SELF_EDIT=1) rather than applying a hand-written floor',
+  ],
+  [
+    'tools/mutation-baseline.json',
+    'written only by `check-mutation-ratchet.mjs --write`, from a mutation run; a human re-runs it (HARNESS_ALLOW_SELF_EDIT=1) rather than applying a hand-written survivor set',
+  ],
+])
+
+/**
+ * The fourth list (1.1.0, #65). `apply-proposal` keeps its own copy of the proposable set,
+ * so it is reconciled here: ESCAPE_LISTS, plus every `advisory` member of KINDS (reviewed
+ * text a human may want to change as much as an escape), minus NOT_PROPOSABLE. Pure, like
+ * deriveRegistry: the runner and the tests hand it the lists.
+ *
+ * @param {{ escapes: readonly string[], proposable: readonly string[] }} input
+ * @returns {string[]}
+ */
+export function reconcileProposable({ escapes, proposable }) {
+  const problems = []
+  const advisory = [...KINDS].filter(([, d]) => d.kind === 'advisory').map(([f]) => f)
+  const expected = new Set([...escapes, ...advisory].filter((f) => !NOT_PROPOSABLE.has(f)))
+  const actual = new Set(proposable)
+  for (const file of [...expected].sort()) {
+    if (!actual.has(file)) {
+      problems.push(
+        `${file} is a reviewed register (ESCAPE_LISTS or an advisory KINDS member) but is absent from installer/lib/proposals.mjs#PROPOSABLE, so an agent cannot stage an edit to it for a human to apply. Add it there, or to NOT_PROPOSABLE in this script with the reason.`,
+      )
+    }
+  }
+  for (const file of [...actual].sort()) {
+    if (NOT_PROPOSABLE.has(file)) {
+      problems.push(`${file} is in installer/lib/proposals.mjs#PROPOSABLE but NOT_PROPOSABLE excludes it: ${NOT_PROPOSABLE.get(file)}. Remove it from PROPOSABLE.`)
+    } else if (!expected.has(file)) {
+      problems.push(
+        `${file} is in installer/lib/proposals.mjs#PROPOSABLE but is not in ESCAPE_LISTS or an advisory KINDS member, so \`apply-proposal\` would write a file that is owned, pinned, generated or unguarded. Remove it from PROPOSABLE.`,
+      )
+    }
+  }
+  for (const file of NOT_PROPOSABLE.keys()) {
+    if (!escapes.includes(file)) {
+      problems.push(`NOT_PROPOSABLE names ${file}, which is not in ESCAPE_LISTS — a stale entry. Remove it.`)
+    }
+  }
+  return problems
+}
 
 // The anti-vacuity floor, sized against the MEASURED population rather than a round
 // number, in the shape check-tier-coverage.mjs uses. Measured 2026-08-06: SEEDED ∩ tools/**

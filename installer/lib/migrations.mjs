@@ -7,7 +7,8 @@
 //       "promotedModules": ["gate-perf-budget"],
 //       "configSteps": [{ "name": "e2e", "cmd": "node tools/check-e2e.mjs", "after": "build" }],
 //       "configCommandUpdates": [{ "name": "lint", "from": "old cmd", "to": "new cmd" }],
-//       "seedOnInitOnly": ["apps/mobile/src/features/matrix/", "apps/mobile/src/routes.ts"]
+//       "seedOnInitOnly": ["apps/mobile/src/features/matrix/", "apps/mobile/src/routes.ts"],
+//       "catalogPinFloors": [{ "name": "vitest", "minVersion": "4.1.11", "advisory": "GHSA-…", "why": "…" }]
 //     }
 //   }
 // Without this, a newer template can only ADD files to installed projects:
@@ -19,6 +20,9 @@
 // into an existing install — the consumer's routes/app never reference them, so
 // planting would red route-manifest + knip. They stay pullable on demand via
 // `update --refresh-seeded <path>` (the documented opt-in channel).
+// catalogPinFloors (1.1.0) are reviewed security floors for SEEDED catalog pins: `update`
+// names and parks each one the consumer's pnpm-workspace.yaml does not provably meet, and
+// `doctor` warns on it (exit 2). Neither ever writes the catalog.
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { templateRoot, toPosix } from './copy.mjs'
@@ -364,20 +368,24 @@ export const DEPENDENCY_OBLIGATIONS_PATH = '.harness/pending/dependencies.json'
 // this key" is the obligation check's question, and a false "already met" is the only
 // dangerous answer — so the probe is anchored to a catalog-entry shape rather than a bare
 // substring. Hoisted out of unmetDependencyObligations in 1.0.4 so `doctor`'s toolchain
-// report reads the Supabase CLI's pin through the same anchor.
+// report reads the Supabase CLI's pin through the same anchor, and read by the pin floors
+// (1.1.0), for which a present key read as ABSENT is the dangerous answer: an absent key is
+// not judged. So the key may carry either YAML quote, as long as both sides match — a YAML
+// formatter rewrites `'@vitest/coverage-v8':` as `"@vitest/coverage-v8":`, and before 1.1.0
+// that line read as no entry at all.
 /**
  * The value of an indented `name:` entry in a pnpm-workspace.yaml text, with a trailing
  * comment and surrounding quotes removed ('' for a key with no value), or null when no such
- * entry exists.
+ * entry exists. The key may be bare, 'single-quoted' or "double-quoted".
  * @param {string} workspaceYaml
  * @param {string} name
  * @returns {string | null}
  */
 export function catalogEntry(workspaceYaml, name) {
   const key = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const m = new RegExp(`^\\s{2,}'?${key}'?\\s*:(.*)$`, 'm').exec(workspaceYaml)
+  const m = new RegExp(`^\\s{2,}(['"]?)${key}\\1\\s*:(.*)$`, 'm').exec(workspaceYaml)
   if (!m) return null
-  return m[1]
+  return m[2]
     .replace(/\s+#.*$/, '')
     .trim()
     .replace(/^(['"])(.*)\1$/, '$2')
@@ -412,8 +420,8 @@ export function unmetDependencyObligations(migrations, version, tree) {
 
 /**
  * Write (or clear) the parked obligations file. Returns the unmet list.
- * `doctor` reds on this file's presence; nothing else consumes it, and nothing in the
- * installer edits a seeded manifest.
+ * `doctor` recomputes the obligations from the tree and reds while any is unmet; it never
+ * trusts this file, and nothing in the installer edits a seeded manifest.
  */
 export function applyDependencyObligations({ targetDir, report, migrations, version, dryRun }) {
   const read = (rel) => {
@@ -570,4 +578,128 @@ export function applySeededSourceFixObligations({ targetDir, report, migrations,
     )
   }
   return unapplied
+}
+
+// ── catalogPinFloors (1.1.0) ──────────────────────────────────────────────────────────
+// THE HOLE THIS CLOSES. 1.0.3 raised the template's vitest and @vitest/coverage-v8 pins to
+// 4.1.11 for GHSA-82fw-gwwq-j7x9, and nothing delivered the raise: pnpm-workspace.yaml is
+// SEEDED, so `update` never rewrites it, no gate judges the pin, and dependencyObligations
+// asks only whether a key is PRESENT, which a `vitest: 4.1.10` line answers yes.
+//
+// WHY A KIND OF ITS OWN, not a minVersion on dependencyObligations. An unmet obligation is a
+// doctor ERROR, because a gate the harness installed cannot run without it; an old pin stops
+// no gate, and the upgrade lane fails every leg whose doctor exits 1. The dependency-channel
+// check also rejects an obligation no owned config references (vitest.config.ts selects
+// coverage by the string 'v8'), and the lane's applier inserts a new catalog line, which
+// would duplicate a key that is already there. So a floor is a WARNING (exit 2), judged by
+// version, and it has its own parked file.
+//
+// Same delivery as the two channels above: EMIT, never write a seeded manifest, and
+// self-clear once the tree meets every floor. Whether a raise gets a floor is a reviewed
+// decision, like a tools/framework-floor.json row; scripts/check-dependency-channel.mjs
+// holds the record's shape and the template's own pin to it, so a fresh scaffold never warns.
+export const PIN_FLOORS_PATH = '.harness/pending/pin-floors.json'
+
+const PLAIN_VERSION = /^\d+\.\d+\.\d+$/
+
+/**
+ * The plain x.y.z a catalog value pins at its LOWER bound, or null when the value does not
+ * prove one: one leading `^`, `~`, `>=` or `=` is stripped, and anything but an exact
+ * x.y.z is left (a dist-tag, an `npm:` alias, a URL, `workspace:`, a prerelease, a space
+ * after the operator). A range is judged by its lower bound, not by what the lockfile
+ * resolved, so the error is always in the safe direction: a met floor can read as unmet,
+ * never the reverse.
+ * @param {string} value a catalogEntry() value (comment and quotes already removed)
+ * @returns {string | null}
+ */
+export function pinnedLowerBound(value) {
+  const bare = value.replace(/^(?:\^|~|>=|=)/, '')
+  return PLAIN_VERSION.test(bare) ? bare : null
+}
+
+/**
+ * One floor judged against a pnpm-workspace.yaml text: `absent` when the catalog has no
+ * entry for the key (not judged: the consumer moved or dropped the package, as
+ * framework-floor.mjs treats an unresolved one), `met` when the entry's lower bound is at or
+ * above `minVersion`, `unmet` otherwise. The anchor is catalogEntry's, the one home of it.
+ * @param {string} workspaceYaml
+ * @param {{ name: string, minVersion: string }} floor
+ * @returns {{ verdict: 'absent' | 'met' | 'unmet', found: string | null }}
+ */
+export function judgePinFloor(workspaceYaml, floor) {
+  const found = catalogEntry(workspaceYaml, floor.name)
+  if (found === null) return { verdict: 'absent', found }
+  const lower = pinnedLowerBound(found)
+  const met = lower !== null && cmpVersions(lower, floor.minVersion) >= 0
+  return { verdict: met ? 'met' : 'unmet', found }
+}
+
+/**
+ * Floors recorded at or before `version` that the tree does not provably meet, each tagged
+ * with `since` and the catalog value it `found`. PURE over its inputs.
+ *
+ * @param {object} migrations  parsed template/migrations.json
+ * @param {string} version     the harness version being installed
+ * @param {{ workspaceYaml: string }} tree  the consumer's current pnpm-workspace.yaml text
+ */
+export function unmetCatalogPinFloors(migrations, version, { workspaceYaml }) {
+  return Object.entries(migrations)
+    .filter(([v]) => VERSION_KEY.test(v) && cmpVersions(v, version) <= 0)
+    .flatMap(([v, entry]) => (entry.catalogPinFloors ?? []).map((f) => ({ ...f, since: v })))
+    .flatMap((f) => {
+      const { verdict, found } = judgePinFloor(workspaceYaml, f)
+      return verdict === 'unmet' ? [{ ...f, found }] : []
+    })
+}
+
+/**
+ * Write (or clear) the parked pin-floor file. Returns the unmet list. Mirrors
+ * applyDependencyObligations: EMITS, never writes a seeded manifest, self-clears once every
+ * floor is met, writes nothing on a dry run, and never moves update's exit code. `doctor`
+ * recomputes the floors from the tree and never trusts this file.
+ */
+export function applyCatalogPinFloors({ targetDir, report, migrations, version, dryRun }) {
+  const workspaceYaml = treeFileReader(targetDir)('pnpm-workspace.yaml') ?? ''
+  const unmet = unmetCatalogPinFloors(migrations, version, { workspaceYaml })
+
+  const parked = join(targetDir, PIN_FLOORS_PATH)
+  if (unmet.length === 0) {
+    if (!dryRun && existsSync(parked)) rmSync(parked, { force: true })
+    return unmet
+  }
+
+  if (!dryRun) {
+    writeInstallFile(
+      parked,
+      `${JSON.stringify(
+        {
+          '//': 'Written by `installer update`. A release recorded a security floor for these catalog pins, and your pnpm-workspace.yaml does not provably meet it. `update` does NOT edit pnpm-workspace.yaml or package.json: both are SEEDED, and a tree whose lockfile no longer matches its manifests fails `pnpm install --frozen-lockfile`. Raise each pin to at least its minVersion, run `pnpm install`, commit pnpm-lock.yaml, then re-run `doctor`; it clears this file once every floor is met.',
+          harnessVersion: version,
+          floors: unmet.map(({ since, name, found, minVersion, advisory, why }) => ({
+            since,
+            name,
+            found,
+            minVersion,
+            advisory,
+            why,
+          })),
+        },
+        null,
+        2,
+      )}\n`,
+    )
+  }
+
+  for (const f of unmet) {
+    const action =
+      pinnedLowerBound(f.found) === null
+        ? `\`${f.name}: ${f.found}\` cannot be proven at or above ${f.minVersion}; pin at least ${f.minVersion} in the pnpm-workspace.yaml catalog`
+        : `raise \`${f.name}\` from ${f.found} to at least ${f.minVersion} in the pnpm-workspace.yaml catalog`
+    // The advisory id is named once: the shipped `why` strings already carry it.
+    const why = f.why.includes(f.advisory) ? f.why : `${f.why} (${f.advisory})`
+    report.notes.push(
+      `CATALOG PIN FLOOR (${f.since}): ${action}, then \`pnpm install\` and commit pnpm-lock.yaml. WHY: ${why} (parked at ${PIN_FLOORS_PATH})`,
+    )
+  }
+  return unmet
 }

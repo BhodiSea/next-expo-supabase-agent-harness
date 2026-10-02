@@ -21,10 +21,22 @@
 //      never a skip) and carries name (== filename), description, and model;
 //      the reviewer agents (REVIEWER_AGENTS) hold ONLY read-only tools and
 //      disallow Write + Edit — "read-only by construction" (README "The agent
-//      roster"), machine-asserted. Deliberately NOT version-ramped: the agent
-//      files are harness-OWNED, so the update that delivers this check
-//      refreshes the roster with it — only a hand-widened reviewer reds, and
-//      that is the point.
+//      roster"), machine-asserted — and each reviewer body asks for the
+//      `VERDICT: PASS` / `VERDICT: BLOCK` line. Since 1.1.0 (#62) an agent's
+//      `harnessFallbackModels` list, where present, must name at least one model
+//      and each one once (the pin counts): reviewer-verdicts judges a security
+//      reviewer's recorded model against it. These are NOT version-ramped: every
+//      fork of a roster file was made under them, so only a hand-widened or
+//      verdict-less reviewer reds, and that is the point. TWO roster rules are
+//      ramped, both 1.1.0's, because since 1.0.2 `update` keeps a re-recorded
+//      fork of an owned body and parks the incoming copy, so the update that
+//      delivers a rule no longer refreshes a forked body with it: the severity
+//      contract (#71) — each reviewer body states `Severities:` and `Blocking:`
+//      on lines of their own, Blocking a subset of Severities and holding the
+//      floor (CRITICAL, HIGH) — and the verdict demand's POSITION (#72): the
+//      body's last paragraph must be the demand, so nothing is asked for after
+//      the line the SubagentStop hook reads last. A body forked before 1.1.0
+//      gets dated NOTEs until 1.2.0; a fresh scaffold is live from day one.
 //   3b/3c/3d (0.9.5). AGENTS.md's own line-budget sentence is checked for
 //      truth (a claims-check, not a size cap — no sentence, no check); the
 //      advertised-command closure extends from AGENTS.md into the bodies of
@@ -40,6 +52,14 @@
 // SOURCE: docs/harness/README.md (docs-sync gate) [corpus: harness/doctrine]
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { VALIDATE_STEPS } from './harness.config.mjs'
+// The roster as a NAMESPACE for the 1.1.0 surface (#62, #71, #72): an install can keep a FORK
+// of tools/lib/agent-roster.mjs that `update` parked while it re-planted this gate, and a named
+// import of an export the fork lacks fails at LINK time, before any check here runs. Through
+// the namespace a missing export is `undefined`: without fallbackListProblems there is no list
+// to check; without severityContractProblems, or without verdictDemandProblem, section 5
+// names the stale lib as its finding (and still judges the demand's PRESENCE, with the 1.0.x
+// test). The 1.0.x names stay named.
+import * as roster from './lib/agent-roster.mjs'
 import {
   parseFrontmatter,
   REVIEWER_AGENTS,
@@ -128,13 +148,21 @@ if (!listMatch) {
   // `update` cannot rewrite a project's memory file, so the consumer is the only one who
   // can fix it, and hard-redding them on an upgrade they did not ask for is precisely the
   // ambush this mechanism exists to prevent. The NOTE below tells them exactly what to
-  // paste. Expires at 1.1.0; the move is excused by the byte-matched `rampExtensions`
-  // entry in template/migrations.json "1.0.0" — the deadline ratchet reds without it —
-  // and the 1.1.0 record's rampExpiry paid its expiry, which discharged the obligations
-  // row docs-sync-gate-list-ramp-expiry. It opens at minVersion 1.0.0, NOT at the 0.8.0
-  // the previous re-open used: an escape opened at or below the population it protects is
-  // inert for exactly that population (the 0.11.1 lesson), and every install below 1.0.0
-  // receives the two steps.
+  // paste. It was due at 1.1.0; the move is excused by the byte-matched `rampExtensions`
+  // entry in template/migrations.json "1.0.0" — the deadline ratchet reds without it — and
+  // 1.1.0 extends it again rather than letting it expire (below). It opened at minVersion
+  // 1.0.0, NOT at the 0.8.0 the previous re-open used: an escape opened at or below the
+  // population it protects is inert for exactly that population (the 0.11.1 lesson), and
+  // every install below 1.0.0 receives the two steps.
+  //
+  // RE-OPENED AT 1.1.0 (#77), for the FOURTH time and for the same reason. 1.1.0 injects
+  // `web-compile` after `build` through the "1.1.0" record's configSteps, so every existing
+  // chain grows to 37 while its seeded AGENTS.md still documents 36 (or fewer), and the escape
+  // above had just expired at 1.1.0: it opened at 1.0.0, so it is inert for every 1.0.x install
+  // and expired for every older one. It opens at minVersion 1.1.0 now, which covers all of
+  // them, and ends at 1.2.0. The move is excused by the byte-matched `rampExtensions` entry in
+  // template/migrations.json "1.1.0", and the 1.2.0 record owes its expiry (obligations row
+  // docs-sync-gate-list-ramp-expiry).
   //
   // The comment lives HERE and not inside the condition: scripts/check-ramp-ledger.mjs reads the
   // line preceding `rampNote(` to decide whether the result is consumed, and a comment between
@@ -142,8 +170,8 @@ if (!listMatch) {
   if (listErrs.length > 0) {
     if (
       additiveOnly &&
-      rampNote(GATE, '1.0.0', 'AGENTS.md gate-list lockstep after an injected chain step', {
-        until: '1.1.0',
+      rampNote(GATE, '1.1.0', 'AGENTS.md gate-list lockstep after an injected chain step', {
+        until: '1.2.0',
       })
     ) {
       for (const e of listErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)
@@ -571,10 +599,70 @@ if (existsSync(PROBE)) {
 
 // 5. Agent roster. Every roster file must parse (fail-open here would let a
 //    malformed reviewer hide a write grant) and carry the universal fields;
-//    the seven reviewers may hold only read-only tools and must disallow
-//    Write + Edit. Author agents keep their write tools — universal fields only.
+//    the REVIEWER_AGENTS reviewers may hold only read-only tools, must disallow
+//    Write + Edit, must demand the verdict line, must state the severity contract
+//    (1.1.0, ramped) and must CLOSE their body on the verdict demand (1.1.0, ramped;
+//    the demand's presence never is). Author agents keep their write tools —
+//    universal fields only.
 const AGENTS_DIR = '.claude/agents'
 const DOCTRINE = 'reviewers are read-only by construction (README "The agent roster")'
+const ROSTER_LIB = 'tools/lib/agent-roster.mjs'
+const CONTRACT_REMEDY =
+  'the SubagentStop hook reads the `Blocking:` line to send back a PASS that lists a blocking finding. Restore the two lines from the template or from .harness/pending/, then a human re-locks the agent surface and re-records the sha — docs/runbooks/harness-upgrade.md (1.1.0)'
+// The severity-contract findings (1.1.0, #71), ramped as one set after the loop.
+const contractFindings = []
+let contractUnjudged = 0
+
+/**
+ * One reviewer body's severity-contract findings, or none; over a lib without the judge,
+ * nothing, counted so the caller names the stale lib ONCE.
+ * @param {string} path @param {string} body
+ */
+function contractProblemsOf(path, body) {
+  if (typeof roster.severityContractProblems !== 'function') {
+    contractUnjudged += 1
+    return
+  }
+  for (const p of roster.severityContractProblems(body)) {
+    contractFindings.push(`${path}: ${p} — ${CONTRACT_REMEDY}`)
+  }
+}
+
+// The verdict demand (1.1.0, #72). Its PRESENCE is a hard red on every vintage, as it has
+// been since 0.2.0; its POSITION — the body's last paragraph is the demand, optionally
+// followed by the shipped rationale sentence — is ramped as one set after the loop. The
+// definition is verdictDemandProblem() in the lib; the 1.0.x presence test stays here only as
+// the fallback over a parked fork of the lib that predates it.
+const LEGACY_DEMAND_PRESENCE = /`VERDICT: PASS`\s+or\s+`VERDICT: BLOCK`/
+const DEMAND_REMEDY =
+  'the SubagentStop hook reads a PASS only as the reply\'s last line, so a body that asks for anything after the verdict line (v1.0.1\'s "Follow it with the top 3 fixes") makes it bounce every PASS that obeys the body. Restore the closing paragraph from the template or from .harness/pending/, then a human re-locks the agent surface and re-records the sha — docs/runbooks/harness-upgrade.md (1.1.0)'
+const demandFindings = []
+let demandUnjudged = 0
+
+/**
+ * One reviewer body's verdict demand: 'absent' goes straight to errs, 'not-closing' joins the
+ * ramped set. Over a lib without the judge, presence is judged with the 1.0.x test and the
+ * position is counted as not judged, so the caller names the stale lib ONCE.
+ * @param {string} path @param {string} body
+ */
+function verdictDemandOf(path, body) {
+  let problem = null
+  if (typeof roster.verdictDemandProblem === 'function') {
+    problem = roster.verdictDemandProblem(body)
+  } else {
+    demandUnjudged += 1
+    if (!LEGACY_DEMAND_PRESENCE.test(body.replace(/\s+/g, ' '))) problem = 'absent'
+  }
+  if (problem === 'absent') {
+    errs.push(
+      `${path}: reviewer does not demand a machine-readable verdict — its body never asks for exactly one final line, \`VERDICT: PASS\` or \`VERDICT: BLOCK\`, and that demand must be its last paragraph. A bare PASS/FAIL cannot be told apart from prose.`,
+    )
+  } else if (problem === 'not-closing') {
+    demandFindings.push(
+      `${path}: reviewer body does not close on the verdict demand — its last paragraph must be exactly "${String(roster.VERDICT_DEMAND)}", optionally followed by the shipped rationale sentence, and nothing may follow it: ${DEMAND_REMEDY}`,
+    )
+  }
+}
 const rosterFiles = existsSync(AGENTS_DIR)
   ? readdirSync(AGENTS_DIR)
       .filter((f) => f.endsWith('.md'))
@@ -592,7 +680,8 @@ let reviewersChecked = 0
 for (const file of rosterFiles) {
   const path = `${AGENTS_DIR}/${file}`
   const stem = file.slice(0, -3)
-  const parsed = parseFrontmatter(readFileSync(path, 'utf8'))
+  const body = readFileSync(path, 'utf8') // read ONCE: the frontmatter and the body's rules
+  const parsed = parseFrontmatter(body)
   if (!parsed.ok) {
     errs.push(
       `${path}: frontmatter does not parse (${parsed.error}) — an unreadable roster fails CLOSED; the accepted grammar is pinned in tools/lib/agent-roster.mjs`,
@@ -608,6 +697,8 @@ for (const file of rosterFiles) {
       `${path}: name '${fm.name.trim()}' must match the filename ('${stem}') — the subagent's identity is its filename`,
     )
   }
+  // The fallback list (1.1.0, #62): present and well formed, or absent.
+  for (const problem of roster.fallbackListProblems?.(fm) ?? []) errs.push(`${path}: ${problem}`)
   if (!REVIEWER_AGENTS.includes(stem)) continue
   reviewersChecked += 1
   // A reviewer's OUTPUT CONTRACT, not just its permissions. The rest of this loop proves a
@@ -617,12 +708,11 @@ for (const file of rosterFiles) {
   // distinguish a verdict from a sentence about one, and neither could any future gate
   // that wanted to bind a merge to a review. The prefixed form is the whole point, and it
   // is asserted here because an agent file is prose that nothing else in the chain reads.
-  const body = readFileSync(path, 'utf8')
-  if (!/`VERDICT: PASS`\s+or\s+`VERDICT: BLOCK`/.test(body.replace(/\s+/g, ' '))) {
-    errs.push(
-      `${path}: reviewer does not require a machine-readable verdict — its instructions must end by demanding exactly one final line, \`VERDICT: PASS\` or \`VERDICT: BLOCK\`. A bare PASS/FAIL cannot be told apart from prose.`,
-    )
-  }
+  // Since 1.1.0 (#72) the demand must also CLOSE the body: the hook reads a PASS only as the
+  // reply's last line, so a body asking for anything after it bounces every obedient PASS.
+  verdictDemandOf(path, body)
+  // The severity contract (1.1.0, #71): which severities the body ranks at, and which block.
+  contractProblemsOf(path, body)
   if (!fm.tools?.trim()) {
     errs.push(
       `${path}: reviewer declares no 'tools' list — an absent list inherits EVERY tool; ${DOCTRINE}. Pin tools to a subset of: ${REVIEWER_READONLY_TOOLS.join(', ')}`,
@@ -643,6 +733,42 @@ for (const file of rosterFiles) {
         `${path}: reviewer 'disallowedTools' must include ${t} (belt-and-suspenders under the tools allowlist) — ${DOCTRINE}`,
       )
     }
+  }
+}
+
+if (contractUnjudged > 0) {
+  contractFindings.push(
+    `${ROSTER_LIB} has no severityContractProblems export — it is a fork older than this gate (\`update\` parks the new copy under .harness/pending/), so the severity contract of ${String(contractUnjudged)} reviewer bod${contractUnjudged === 1 ? 'y' : 'ies'} was NOT judged. Merge the parked lib and re-record its sha — docs/runbooks/harness-upgrade.md (1.0.2, "Forking an owned file").`,
+  )
+}
+// Ramped (1.1.0, #71): `update` parks a locally modified owned body rather than overwriting
+// it, so a body forked before 1.1.0 must not red on the upgrade that delivers the contract.
+// The comment lives HERE, not between `if (` and the call: scripts/check-ramp-ledger.mjs
+// reads the text right before `rampNote(` to decide the result is consumed.
+if (contractFindings.length > 0) {
+  if (rampNote(GATE, '1.1.0', 'the reviewer severity contract', { until: '1.2.0' })) {
+    for (const f of contractFindings) console.log(`${GATE}: NOTE — (ramp) ${f}`)
+  } else {
+    errs.push(...contractFindings)
+  }
+}
+
+if (demandUnjudged > 0) {
+  demandFindings.push(
+    `${ROSTER_LIB} has no verdictDemandProblem export — it is a fork older than this gate (\`update\` parks the new copy under .harness/pending/), so where the verdict demand sits in ${String(demandUnjudged)} reviewer bod${demandUnjudged === 1 ? 'y' : 'ies'} was NOT judged; only its presence was. Merge the parked lib and re-record its sha — docs/runbooks/harness-upgrade.md (1.1.0).`,
+  )
+}
+// Ramped (1.1.0, #72): the closing-position findings, and the stale-lib finding that stands
+// in for them. The demand's absence is never ramped: it went to errs inside the loop. The
+// comment lives HERE, not between `if (` and the call: scripts/check-ramp-ledger.mjs reads the
+// text right before `rampNote(` to decide the result is consumed.
+if (demandFindings.length > 0) {
+  if (
+    rampNote(GATE, '1.1.0', 'reviewer bodies closing on the verdict demand', { until: '1.2.0' })
+  ) {
+    for (const f of demandFindings) console.log(`${GATE}: NOTE — (ramp) ${f}`)
+  } else {
+    errs.push(...demandFindings)
   }
 }
 

@@ -35,9 +35,9 @@ SOURCE: docs/harness/README.md (security-invariants rule)
   created on or after 2026-10-30**. The same migration file then works in the project
   it was written against and 403s in the next one it is replayed into, byte-identical
   in both. A deny-all policy (`WITH CHECK (false)`) is the one shape that needs no
-  grant, because it admits nothing. `tools/check-rls-manifest.mjs` closes policy → grant
-  (never the reverse — `service_role` holds ADR'd grants with no policy, since it
-  bypasses row security).
+  grant, because it admits nothing. `tools/check-rls-manifest.mjs` closes policy → grant,
+  and from 1.1.0 bounds grant → policy for `anon` and `authenticated` too (never for
+  `service_role`, which holds ADR'd grants with no policy, since it bypasses row security).
 - **…and the GRANT is EXACT, which takes a REVOKE first.** A GRANT adds a privilege and
   removes none. Where the platform default applies, `authenticated` already holds ALL on
   a new `public` table, so `REVOKE ALL … FROM anon` + `FROM service_role` followed by a
@@ -46,8 +46,11 @@ SOURCE: docs/harness/README.md (security-invariants rule)
   `REVOKE ALL ON TABLE public.<t> FROM authenticated;` beside the other two, THEN grant
   exactly what the policies admit. The `migrations` gate reads that revoke as a change
   to an authorization control, so the file carries `-- adr: docs/adr/<file>` and the ADR
-  exists. `supabase/tests/rls_structure.test.sql` asserts the exact privilege set per
-  table — add yours. ADR: `docs/adr/20260920-authenticated-write-revoke.md`.
+  exists. `schema-rls` holds every table to the three revokes and the exact grant, and
+  `supabase/tests/rls_grants.generated.test.sql` asserts the exact privilege set of every
+  table: regenerate it with `node tools/gen-grant-assertions.mjs` (`pnpm gen` runs it), never
+  by hand. ADRs: `docs/adr/20260920-authenticated-write-revoke.md`,
+  `docs/adr/20260930-three-role-revoke.md`.
 - **`service_role` BYPASSES RLS and has exactly one sanctioned home.** No policy
   in the repo constrains it and the RLS suite cannot cover it. It is reachable
   ONLY inside an ADR-governed Edge Function (`supabase/functions/<name>/index.ts`)

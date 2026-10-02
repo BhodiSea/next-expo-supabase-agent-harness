@@ -1,0 +1,20 @@
+{
+  "reviewer": "security-reviewer",
+  "kind": "function",
+  "expect": "PASS",
+  "mustName": [],
+  "twin": "function-revoke-absent",
+  "why": "The control twin: the same function with REVOKE ... FROM PUBLIC and FROM anon before the one grant its allowlist row authorizes.",
+  "edits": [
+    {
+      "path": "tools/security-definer-allow.json",
+      "after": "  \"allow\": [",
+      "lines": [
+        "    {",
+        "      \"function\": \"public.org_audit_summary\",",
+        "      \"reason\": \"Per-action counts of an org's audit trail over a clamped window, for the admin activity card: the sibling of public.org_audit_events, with the same owner (app_audit_reader, SELECT and nothing else) and the same rule. Schema `audit` grants USAGE to no client role, so a count is reachable only through a definer function; `_org` is a selector, and the SELECT policy on audit.events (rank >= 30) decides what is counted, so an org the caller does not administer counts nothing.\"",
+        "    },"
+      ]
+    }
+  ]
+}

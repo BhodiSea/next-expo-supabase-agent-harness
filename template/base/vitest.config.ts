@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
 // Root Vitest config (BUILD-SPEC §Vitest). Three projects:
@@ -24,6 +26,55 @@ import { defineConfig } from 'vitest/config'
 // mobile modules — import closure reaches zero react-native/expo native code —
 // DO run here, listed file-by-file in the unit-node include below.
 // Tests are colocated as *.test.ts or live under <workspace>/tests/unit/.
+//
+// EDGE FUNCTIONS (1.1.0). supabase/functions/<fn>/index.ts is a Deno.serve shell that no
+// Node runner can load (a jsr: import, Deno globals, a server started at import time), so
+// tools/check-edge-functions.mjs typechecks it with `deno check` instead. The code a function
+// DECIDES with lives beside it, in files that name no Deno global and no jsr:/npm: specifier
+// (the seeded delete-account/handler.ts), and those run HERE, in plain Node, under unit-node.
+// Both lists below are DERIVED from the tree rather than globbed, for two reasons a glob gets
+// wrong on an install that already has functions:
+//   - EDGE_SUITES is every *.test.ts under supabase/functions that imports from 'vitest'. A
+//     glob would also collect a test written for `deno test`, which cannot load under Node,
+//     and one such file would red the whole `unit` step.
+//   - EDGE_MEASURED is the coverage glob for each top-level directory under
+//     supabase/functions (a function, or _shared/) that holds one of those suites. Vitest has
+//     no ramp, and it reports an included file that no test loads as 0% covered, so a glob
+//     over all of supabase/functions would count every untested helper an install already
+//     has against the aggregate floor. A directory with no vitest suite is not measured, and
+//     tools/check-diff-coverage.mjs still names a CHANGED file under it as absent from the
+//     coverage map — the finding that says "add a suite" (a NOTE until 1.2.0 on an install
+//     whose baseVersion predates 1.1.0).
+const ROOT = fileURLToPath(new URL('.', import.meta.url))
+const EDGE_FUNCTIONS = 'supabase/functions'
+// The quotes are escapes on purpose: tools/check-diff-coverage.mjs reads COVERAGE_EXCLUDE out
+// of this file with a string-aware scan, and a bare quote inside a regex literal would read
+// to it as the start of a string.
+const VITEST_IMPORT = /\bfrom\s+[\x27\x22]vitest[\x27\x22]/
+
+function listDir(rel: string) {
+  try {
+    return readdirSync(`${ROOT}${rel}`, { withFileTypes: true }).sort((a, b) =>
+      a.name < b.name ? -1 : 1,
+    )
+  } catch {
+    return []
+  }
+}
+
+function vitestSuitesUnder(rel: string): string[] {
+  return listDir(rel).flatMap((entry) => {
+    const path = `${rel}/${entry.name}`
+    if (entry.isDirectory()) return entry.name === 'node_modules' ? [] : vitestSuitesUnder(path)
+    if (!entry.name.endsWith('.test.ts')) return []
+    return VITEST_IMPORT.test(readFileSync(`${ROOT}${path}`, 'utf8')) ? [path] : []
+  })
+}
+
+const EDGE_SUITES = vitestSuitesUnder(EDGE_FUNCTIONS)
+const EDGE_MEASURED = [
+  ...new Set(EDGE_SUITES.map((suite) => suite.split('/').slice(0, 3).join('/'))),
+].map((dir) => `${dir}/**/*.ts`)
 
 // Source files the UNIT-coverage bar cannot measure honestly — excluded from
 // coverage AND from the diff-coverage gate (tools/check-diff-coverage.mjs parses
@@ -79,6 +130,10 @@ const COVERAGE_EXCLUDE = [
   'apps/web/lib/safe-action.ts',
   'apps/web/lib/rate-limit-runtime.ts',
   'apps/web/lib/app-data/notes.ts',
+  // An Edge Function's Deno.serve shell (1.1.0): it imports a jsr: specifier and starts a
+  // server when it loads, so no Node runner can import it. `deno check` covers it
+  // (tools/check-edge-functions.mjs); the code it wraps is measured in its handler.
+  'supabase/functions/*/index.ts',
 ]
 
 // Per-file coverage floors — deliberately BELOW the aggregate thresholds: their
@@ -131,6 +186,9 @@ export default defineConfig({
         'apps/mobile/src/features/actions/fuzzyScore.ts',
         'apps/mobile/src/features/actions/recents.ts',
         'apps/mobile/src/features/matrix/matrixData.ts',
+        // Edge Functions (1.1.0): each top-level directory under supabase/functions that holds
+        // a vitest suite — derived above, see EDGE_MEASURED.
+        ...EDGE_MEASURED,
       ],
       exclude: COVERAGE_EXCLUDE,
       // The vitest defaults, pinned explicitly because a sibling gate depends on
@@ -188,6 +246,9 @@ export default defineConfig({
             'apps/mobile/src/features/actions/fuzzyScore.test.ts',
             'apps/mobile/src/features/actions/recents.test.ts',
             'apps/mobile/src/features/matrix/matrixData.test.ts',
+            // Edge Function suites (1.1.0) — every vitest suite under supabase/functions,
+            // derived above (EDGE_SUITES), so a `deno test` file is never collected.
+            ...EDGE_SUITES,
           ],
         },
       },

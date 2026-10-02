@@ -19,6 +19,15 @@ SOURCE: docs/harness/README.md (provenance rule)
   (`tools/check-sources.mjs`) run the identical heuristic — per-edit and
   tree-wide; both merge the group extensions in `tools/decision-groups.json`,
   which is how new decision classes join the taxonomy.
+- Mandatory and advisory classes (1.1.0). An uncited site in a MANDATORY class
+  blocks the edit (the hook exits 2) and reds the gate: `rls-policy`,
+  `guc-identity`, `token-verification`, `cryptography`, `mobile-security` and any
+  group a project adds. Three classes are ADVISORY — `vector-index`,
+  `llm-sampling`, `tuning-constants`: an uncited or wrongly grounded site there is
+  reported (the hook's `additionalContext`, the gate's `provenance: ADVISORY`
+  line) and blocks nothing, but cite it all the same. A site that matches any
+  mandatory class is mandatory. `"mandatory": ["<key>"]` in
+  `tools/decision-groups.json` promotes an advisory class; nothing demotes one.
 - Cite version-pinned authorities. When the authority is pinned in the corpus
   (`tools/mcp/corpus/index.json`, or the project's `tools/mcp/corpus/project.json`),
   append `[corpus: <id>]` and verify it resolves with the `corpus_search` MCP tool.

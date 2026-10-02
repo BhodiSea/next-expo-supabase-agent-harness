@@ -47,11 +47,12 @@ SOURCE: docs/harness/README.md.
 ## Package manager: pnpm 11 (pinned via `packageManager`), Node >= 22
 
 ALWAYS `pnpm`, never `npm`/`yarn`. Workspace deps = `workspace:*`; external
-versions = `catalog:` (the catalog is the only place version numbers appear).
+versions = `catalog:` (the catalog is the only place version numbers appear, save
+an Edge Function's own `deno.json` + `deno.lock`, which it deploys with).
 
 ## Commands
 
-- `pnpm validate` — **THE GATE**: `node tools/validate.mjs`, the 36-step chain
+- `pnpm validate` — **THE GATE**: `node tools/validate.mjs`, the 37-step chain
   from `tools/harness.config.mjs` (see below). Must be green before a turn ends.
 - `pnpm typecheck` (`tsc -b`) · `pnpm lint` / `pnpm lint:fix` · `pnpm format`
   (`biome check --write .`) · `pnpm knip` · `pnpm arch` (depcruise).
@@ -78,12 +79,12 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   Maestro flow AND a startup-budget row) and exits 2 until everything passes.
 - **Prove, don't claim.** Show passing gate output; never assert "it works".
 - Do NOT edit a test in the same turn as the fix it covers (reward-hacking).
-- The 36 gates, in order: `format`, `gate-integrity`, `wiring`, `secrets`,
+- The 37 gates, in order: `format`, `gate-integrity`, `wiring`, `secrets`,
   `types`, `lint`, `suppressions`,
   `provenance`, `boundaries`, `resilience`, `observability`, `expo-policy`, `native-deps`, `version-sync`,
   `prompts`, `licenses`, `schema-rls`, `tenancy`, `auth-posture`, `data-flow`, `types-drift`, `migrations`,
   `db-limits`, `contracts`, `query-shapes`, `rate-limits`,
-  `parity`, `dead-code`, `architecture`, `build`, `styleguide`, `perf-budget`,
+  `parity`, `dead-code`, `architecture`, `build`, `web-compile`, `styleguide`, `perf-budget`,
   `route-manifest`, `security-headers`, `e2e`, `docs-sync`
   (docs/harness/gates-catalog.md documents each).
 - The 10 Stop-chain steps, in order: `validate`, `rls-isolation`, `unit`,
@@ -111,7 +112,8 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   per-operation policies (`TO authenticated`, `WITH CHECK` on INSERT/UPDATE) keyed
   on `auth.uid()`, a leading-column owner index, `REVOKE ALL` from `anon`, `service_role`
   AND `authenticated`, then the EXACT grants its policies admit (a GRANT removes nothing;
-  the default leaves it TRUNCATE). Web and mobile hit the SAME policies, so isolation
+  the default leaves it TRUNCATE). `pnpm gen` regenerates the exact-privilege pgTAP
+  file, never a hand edit. Web and mobile hit the SAME policies, so isolation
   is enforced in ONE place; `supabase/tests/**` (pgTAP) + `tests/rls/` (supabase-js)
   prove tenant B cannot read A on every `db reset`. **The owner index must carry the
   ORDERING, not just the filter** — `(owner_id, <ORDER BY columns, direction>)` so
@@ -169,10 +171,8 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   reaches data through the tRPC client (`src/lib/trpc/**`) or a vertical's `./client`,
   and holds its Supabase session only in `LargeSecureStore` (`src/lib/supabase/**`) —
   never JS-visible storage, never a log line.
-- **No `EXPO_PUBLIC_`- or `NEXT_PUBLIC_`-prefixed secret-shaped names** (`*KEY|SECRET|
-  TOKEN|PASSWORD|PRIVATE`) — both prefixes are inlined into their shipped bundle. The
-  public config is `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE` /
-  `EXPO_PUBLIC_*` transport only; the service-role key and any provider secret stay
+- **The public config is `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE` /
+  `EXPO_PUBLIC_*` transport only**; the service-role key and any provider secret stay
   server-env.
 - **Store identity is locked** in `tools/identity.lock.json` (bundle id /
   package) — it is upgrade identity and never changes. `version`,
@@ -187,17 +187,13 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   Every iOS usage string is reviewed in `tools/expo-permissions.json` `ios[]`,
   and an auth surface requires the account-deletion surface (a
   `session.deleteAccount` procedure — Apple 5.1.1(v)).
-- **`WITH RECURSIVE` requires a `CYCLE` clause or visited guard** — graph data
-  loops forever otherwise.
 - **Prompt lock discipline:** every LLM prompt file is versioned in its name
   (`extract.v1.md`) and hash-locked in `tools/prompts.lock.json`. Changing a
   prompt = new `.vN` file + re-run the eval + deliberate lock update (the lock
   is write-guard-protected).
-- **Shell hygiene** (bash-guard enforced): no `rm -rf`, no force-push, no
-  `git reset --hard`, no `git commit --no-verify`, no reading `.env*` /
-  `.dev-auth/`, no `pnpm update` (Renovate owns bumps), no `knip --fix`, no
-  destructive raw SQL outside migrations, and store/signing credentials
-  (`EXPO_TOKEN`, Android keystores, Apple API keys) never touch shell or repo.
+- **Shell hygiene** (bash-guard enforced): no destructive raw SQL outside migrations,
+  and store/signing credentials (`EXPO_TOKEN`, Android keystores, Apple API keys)
+  never touch shell or repo.
 
 ## Quality bar
 
@@ -308,7 +304,8 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   human-reviewed `tools/provenance-overrides.json`); a bare URL counts only on a
   `tools/lib/citation-domains.mjs` allowlisted host.
 - Emit one ADR per slice via `/adr <slice>` (records in `docs/adr/`); then run
-  `/verify-citations` until it returns `CITATIONS: CLEAN`.
+  `/verify-citations` until it returns `CITATIONS: CLEAN`. Review rounds go in
+  `docs/reviews/<YYYYMMDD>-<slice>.md`, never in the ADR.
 
 ## Spec-first & governance
 

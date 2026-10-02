@@ -21,9 +21,14 @@ when they fall due.
   were re-read on 2026-09-29 and re-dated (issue #54). They are
   `conformance-play-target-api-window` (Google Play target API level) and
   `conformance-cra-art14-application` (EU Cyber Resilience Act Article 14
-  reporting). The second half is a check that compares the framework
-  floor against the vendor's advisory feed, so that a security release is
-  noticed when it ships and not when a review window happens to end.
+  reporting). The second half is done in 1.1.0 (issue #81): the scheduled
+  `floor-advisories` job in `hygiene.yml` asks OSV and the upstream
+  repository's published advisories about every framework floor and the
+  catalog pin, so that a security release is noticed when it ships and not
+  when a review window happens to end. Its first run is red on a real
+  advisory, GHSA-vcvr-r3jv-pc5j, which covers the 16.x floor and the pin
+  and waits on the maintainer's floor decision. This bullet leaves the list
+  once a scheduled run of the released tree is green end to end.
 - **Find why the scheduled device lane's perf-harness phase goes red.** The
   mutation journey of issue #10 has passed since 1.0.0 fixed it, but
   `maestro-smoke` still failed on seven of the fourteen scheduled runs from
@@ -98,7 +103,7 @@ does, its section says so.
   `day0-empty-states` factory lane runs the Stop chain on both escapes and
   proves each red. It keeps the example: the event-catalog leg, a generator
   that discovers each vertical's catalog, changes the `contracts` verdict for
-  an existing install, so it moves to 1.1.0 (issue #39).
+  an existing install, so it moves to 1.1.0 (issue #82).
   ([N07](design/FIELD-UPGRADES-2026-09.md#n07-legal-empty-states-on-day-0-and-a-factory-lane-that-proves-them),
   issue #46)
 - **A project-side citation corpus.** The citation corpus splits into an owned
@@ -143,6 +148,15 @@ None of these tightens a gate for an existing install. Where one changes what
   `pull-requests: read`, and `update` parks the new workflow beside a fork.
   ([N06](design/FIELD-UPGRADES-2026-09.md#n06-skip-a-lane-that-already-passed-on-the-same-tree),
   issue #57)
+- **Event catalogs found in each vertical.** A vertical opts in by exporting
+  its catalog from `./client` as `EVENT_CATALOG`, so the generator no longer
+  imports the example by name and a new vertical needs no edit to an owned,
+  hash-pinned file. Until 2.0.0 the generator still reads the example's old
+  export while an install's root `package.json` lists it, so existing installs
+  regenerate the same catalog. Nothing checks that a vertical opts in: that
+  needs a `gate-proposal` of its own.
+  ([N07](design/FIELD-UPGRADES-2026-09.md#n07-legal-empty-states-on-day-0-and-a-factory-lane-that-proves-them),
+  issue #82)
 - **Database proofs on a fixture table.** The isolation, MFA and audit pgTAP
   suites build `public.pgtap_fixture` inside their transaction from the
   vertical-slice skill's RLS skeleton, so deleting the example does not delete
@@ -154,8 +168,9 @@ None of these tightens a gate for an existing install. Where one changes what
 - **Generated skill references.** The code blocks in the vertical-slice
   skill's references are regions cut verbatim from spans the example marks,
   and a factory check fails on drift in either direction. The table, trigger,
-  index, FORCE and grant half of the RLS skeleton stays hand-written until the
-  example grants what it teaches (the three-role revoke, #74).
+  index, FORCE and grant half of the RLS skeleton stays hand-written; since
+  1.1.0 the example grants what it teaches (the three-role revoke, #74), so
+  that half could be cut from it next.
   ([N09](design/FIELD-UPGRADES-2026-09.md#n09-skill-references-generated-from-the-example),
   issue #59)
 - **A session-start brief and `harness:status`.** A `SessionStart` hook and
@@ -175,33 +190,63 @@ None of these tightens a gate for an existing install. Where one changes what
   gate FAIL line get no note.
   ([N11](design/FIELD-UPGRADES-2026-09.md#n11-per-gate-field-notes-in-fail-lines),
   issue #61)
-- **A fallback order for reviewer models.** An owed reviewer can still run
-  when its pinned model is unavailable, and the ledger records which model
-  ran.
-  ([N12](design/FIELD-UPGRADES-2026-09.md#n12-a-fallback-order-for-reviewer-models))
-- **A resolver for spec anchors.** Specs gain addressable sections, so a
-  prompt cites a section and not a file.
-  ([N13](design/FIELD-UPGRADES-2026-09.md#n13-a-resolver-for-spec-anchors))
-- **Review records outside ADRs.** A defined home for round-by-round review
-  records, so ADRs keep decisions.
-  ([N14](design/FIELD-UPGRADES-2026-09.md#n14-review-records-outside-adrs))
-- **A proposal flow for register edits.** An agent stages a protected edit for
-  a human to apply in one action. The corpus half of this item is in 1.0.4.
+- **A resolver for spec anchors.** The spec template's fields are `##`
+  headings whose ids are their GitHub anchors, and
+  `node tools/spec-anchor.mjs specs/<feature>.md#<id>` prints one section.
+  `/new-feature` puts the sections a slice implements in the reviewer's brief,
+  and ADRs cite them. A project's own specs are not rewritten, and nothing
+  checks that a citation resolves: that needs a `gate-proposal` of its own.
+  ([N13](design/FIELD-UPGRADES-2026-09.md#n13-a-resolver-for-spec-anchors),
+  issue #63)
+- **Review records outside ADRs.** Each change keeps its review rounds in
+  `docs/reviews/<YYYYMMDD>-<slice>.md`, one table per round (reviewer, verdict,
+  findings, resolution), linked from its ADR's Traceability, so the ADR keeps
+  the decisions. No gate reads the directory, and `update` plants the seeded
+  README only where an install has none. The whole-turn reviewers bind to the
+  whole diff, record included, so the README orders their last run after it.
+  ([N14](design/FIELD-UPGRADES-2026-09.md#n14-review-records-outside-adrs),
+  issue #64)
+- **A proposal flow for register edits.** An agent writes the whole proposed
+  register as `harness-proposals/<id>.json`, a committed directory no deny
+  layer names, and a human applies it with `apply-proposal <id>` in a
+  terminal after reading the reason and the diff. A stale `base` or a dirty
+  target is refused, the bash guard denies an agent the verb, and `doctor`
+  lists pending proposals as `info`. The corpus half of this item is in 1.0.4.
   ([N15](design/FIELD-UPGRADES-2026-09.md#n15-a-proposal-flow-for-register-edits-and-a-project-side-corpus),
   issue #65)
 - **Absence checklists and a reviewer eval.** Reviewers report what a change
   should have brought with it and did not, and a factory-side eval measures
   them on seeded defects.
   ([N17](design/FIELD-UPGRADES-2026-09.md#n17-absence-checklists-for-reviewers-and-a-reviewer-eval))
-- **A smaller always-loaded context.** A sentence leaves `AGENTS.md` only when
-  a gate already reds its violation, and `encryption.md` becomes a stub.
-  ([N18](design/FIELD-UPGRADES-2026-09.md#n18-a-smaller-always-loaded-context))
-- **Compliance register checks on a release cadence.** Locally the two
-  register checks run behind an input stamp. CI and releases always run them.
-  ([N19](design/FIELD-UPGRADES-2026-09.md#n19-compliance-register-checks-on-a-release-cadence))
+- **A smaller always-loaded context.** `encryption.md` is a stub that keeps the
+  invariants whose checks run with the `e2ee` module off, and the full rule is
+  the path-scoped `e2ee.md`, which the `authoring-e2ee-feature` skill reads
+  first. A sentence left `AGENTS.md` only where a hook denies its violation with
+  a message that teaches the fix, and `security-invariants.md` still states it:
+  `WITH RECURSIVE`, the public-prefix secret names, and the shell-hygiene
+  commands the bash guard denies outright. `AGENTS.md` is seeded, so installs
+  keep theirs.
+  ([N18](design/FIELD-UPGRADES-2026-09.md#n18-a-smaller-always-loaded-context),
+  issue #67)
+- **Compliance register checks behind an input stamp.** `essential-eight` and
+  `conformance-map`, the `docs-sync` step's register scripts, skip locally when
+  nothing their verdict reads has changed: the register, the chain config, the
+  workflows and, for the map, the guard rules, the module list and markers, and
+  the generator with its two documents. The cited evidence is not an input,
+  because neither script opens it. `essential-eight`'s negative proof still runs
+  on every run, before the stamp. CI always judges both in full; running them
+  only at release time is out of scope.
+  ([N19](design/FIELD-UPGRADES-2026-09.md#n19-compliance-register-checks-on-a-release-cadence),
+  issue #68)
 - **Provenance by decision class.** Mandatory where a citation guards a
-  security decision, advisory elsewhere.
-  ([N20](design/FIELD-UPGRADES-2026-09.md#n20-provenance-mandatory-where-it-guards-a-security-decision-advisory-elsewhere))
+  security decision, advisory elsewhere. `vector-index`, `llm-sampling` and
+  `tuning-constants` are advisory: an uncited or wrongly grounded site there
+  prints an `ADVISORY` line and the hook hands the agent a note instead of
+  blocking. Every other class, the seeded and project-added ones included,
+  stays mandatory, a seeded `"mandatory"` list promotes a class back, and
+  nothing demotes one. A written citation must still resolve in every class.
+  ([N20](design/FIELD-UPGRADES-2026-09.md#n20-provenance-mandatory-where-it-guards-a-security-decision-advisory-elsewhere),
+  issue #69)
 
 ### 1.1.0, behind a ramp
 
@@ -220,30 +265,80 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
   its `agent_id` is documented and not yet probed.
   ([R01](design/FIELD-UPGRADES-2026-09.md#r01-reviewer-ledger-v2),
   issue #70)
-- **A severity contract and a round budget.** Reviewer bodies say which
-  severities block, and the hook bounds rounds without ever turning a spent
-  budget into a pass.
-  ([R02](design/FIELD-UPGRADES-2026-09.md#r02-a-severity-contract-and-a-round-budget))
-- **`docs-sync` holds the verdict demand to the end of the body.** Presence is
-  checked today. Position is what #23 had to fix.
-  ([R03](design/FIELD-UPGRADES-2026-09.md#r03-docs-sync-holds-the-verdict-demand-to-the-end-of-the-body))
-- **A CI self-lint job.** The shipped `actions-lint` workflow holds a
-  project's own workflows to a bash default and a ceiling on every job.
-  ([R04](design/FIELD-UPGRADES-2026-09.md#r04-a-ci-self-lint-job-for-shells-and-ceilings))
-- **Grants bounded by policies.** A static upper bound on what `authenticated`
-  is granted, generated privilege-exactness assertions, and the three-role
-  revoke doctrine with its ADR.
-  ([R05](design/FIELD-UPGRADES-2026-09.md#r05-grants-bounded-by-policies-generated-exactness-and-a-revoke-doctrine))
+- **The model each reviewer verdict ran on, and a reviewed fallback list.** The
+  ledger records the model that wrote each verdict, read from the subagent's
+  transcript, and each reviewer file carries a `harnessFallbackModels` list.
+  `reviewer-verdicts` names every verdict off its pin, on a green turn too, and
+  a security reviewer's PASS counts only on its pin or a listed model. That
+  finding is a NOTE below `baseVersion` 1.1.0 until 2.1.0. Where the transcript
+  records the model was probed at Claude Code 2.1.285 in print mode; how the
+  terminal, VS Code and the desktop app show the green-turn notice is not yet
+  observed. Planned as no-ramp; the ramp is what keeps an install whose
+  configuration already forces a model off the list from redding on its first
+  Stop.
+  ([N12](design/FIELD-UPGRADES-2026-09.md#n12-a-fallback-order-for-reviewer-models),
+  issue #62)
+- **A severity contract and a round budget.** Every reviewer body states
+  `Blocking: CRITICAL, HIGH`, and `docs-sync` holds the line. The SubagentStop
+  hook bounces a PASS that lists a finding at a blocking severity and records
+  each verdict's round. `reviewer-verdicts` reds a review loop still open after
+  three rounds with the recorded findings, for the human; a PASS past the budget
+  never clears it. Two ramps opened at 1.1.0 hold both checks as NOTEs below
+  that `baseVersion` until 1.2.0.
+  ([R02](design/FIELD-UPGRADES-2026-09.md#r02-a-severity-contract-and-a-round-budget),
+  issue #71)
+- **`docs-sync` holds the verdict demand to the end of the body.** Each
+  reviewer body's last paragraph must be the verdict demand, optionally
+  followed by its shipped rationale sentence, so nothing is asked for after the
+  line the SubagentStop hook reads last; presence stays a hard red on every
+  vintage. One ramp opened at 1.1.0 holds the position check as NOTEs below that
+  `baseVersion` until 1.2.0. An earlier paragraph that asks for text after the
+  verdict is still not caught.
+  ([R03](design/FIELD-UPGRADES-2026-09.md#r03-docs-sync-holds-the-verdict-demand-to-the-end-of-the-body),
+  issue #72)
+- **A CI self-lint job.** The shipped `actions-lint` workflow runs a
+  `workflow-hardening` job that holds a project's own workflows, `.yml` and
+  `.yaml`, to a workflow-level bash default, a ceiling on every job and
+  harden-runner as each job's first step, in audit mode on Windows, where
+  `harden-runner-coverage` beside it only counts. One ramp opened at 1.1.0
+  holds its findings as NOTEs below that `baseVersion` until 1.2.0. It reads
+  YAML's shape rather than parsing YAML, so a flow mapping or an anchor is
+  reported as unreadable, and `graduate` does not run it.
+  ([R04](design/FIELD-UPGRADES-2026-09.md#r04-a-ci-self-lint-job-for-shells-and-ceilings),
+  issue #73)
+- **Grants bounded by policies.** `schema-rls` folds the grant history a
+  second time from the platform's default privileges: every privilege `anon`
+  or `authenticated` holds must be admitted by a policy, every table revokes
+  the default from all three roles (the doctrine and its ADR, applied to
+  `profiles` and `notes` by a new migration), and
+  `supabase/tests/rls_grants.generated.test.sql`, rendered by
+  `tools/gen-grant-assertions.mjs`, asserts the exact privileges of every table
+  instead of hand-counted lists. One ramp opened at 1.1.0 holds all three as
+  NOTEs below that `baseVersion` until 1.2.0. Sequences, views, custom roles
+  and `ALTER DEFAULT PRIVILEGES` stay outside the fold.
+  ([R05](design/FIELD-UPGRADES-2026-09.md#r05-grants-bounded-by-policies-generated-exactness-and-a-revoke-doctrine),
+  issue #74)
 - **`sql-parse` learns `DROP TABLE` and `ALTER POLICY`.** Seven gates stop
   reasoning about tables that are gone and predicates that were replaced.
   ([R06](design/FIELD-UPGRADES-2026-09.md#r06-the-sql-parser-learns-drop-table-and-alter-policy))
-- **i18n detection on the syntax tree.** Replaces expressions over source
-  text, and keys the allowlist on content instead of a line number.
-  ([R07](design/FIELD-UPGRADES-2026-09.md#r07-i18n-detection-on-the-syntax-tree))
-- **The web build in the chain, and a browser test per route.** A web app that
-  does not compile can pass the local chain today, and no closure asks whether
-  a route has a browser test.
-  ([R08](design/FIELD-UPGRADES-2026-09.md#r08-the-web-build-in-the-chain-and-a-browser-test-per-route))
+- **i18n detection on the syntax tree.** The `i18n` step walks the TypeScript
+  syntax tree beside its regular expressions and reports the union, and its
+  allowlist is keyed on a hash of the string's content instead of a line
+  number. Two ramps opened at 1.1.0 hold what only the walk finds, and the old
+  `file:line` entries, as NOTEs below that `baseVersion` until 1.2.0, when the
+  expressions and `site` entries are removed. A string reached through a
+  variable or a helper is still seen by neither scan.
+  ([R07](design/FIELD-UPGRADES-2026-09.md#r07-i18n-detection-on-the-syntax-tree),
+  issue #76)
+- **The web build in the chain, and a browser test per route.** A stamped
+  `web-compile` step runs `next build` after `build`, so a web app that does not
+  compile reds the chain and `static`, and `route-manifest` asks that some spec
+  under `apps/web/e2e` names a state test id of every registered web route; the
+  seeded suite gains specs for `notes` and `security`. Two ramps opened at 1.1.0
+  hold both as NOTEs below that `baseVersion` until 1.2.0, and `docs-sync`'s
+  gate-list escape re-opens for the 37th step.
+  ([R08](design/FIELD-UPGRADES-2026-09.md#r08-the-web-build-in-the-chain-and-a-browser-test-per-route),
+  issue #77)
 
 ### 2.0.0, breaking
 

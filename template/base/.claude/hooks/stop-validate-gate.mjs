@@ -182,6 +182,14 @@ const SKIP_RE = /\bSKIPPED\b/
 // never listed.
 const STAMP_RE = /^[\w-]+: STAMPED — /
 const STAMPED_WHY = 'inputs unchanged since their last green run, so they did NOT re-run; CI always re-runs'
+// A VERDICT FROM A MODEL OTHER THAN THE REVIEWER'S PIN (1.1.0, #62) is `<gate>: FALLBACK MODEL —
+// …`, one line per such verdict, printed by tools/check-reviewer-verdicts.mjs. Anchored like the
+// stamp line. These are listed on a GREEN run through the one channel that reaches anyone at
+// exit 0: stderr and plain stdout from a hook that exits 0 go to the debug log only, while a
+// JSON `systemMessage` on stdout is shown to the user and does not continue the turn
+// (design/CONTROL-PLANE-FACTS.md, Fact 16). A fallback is never silent.
+const FALLBACK_RE = /^[\w-]+: FALLBACK MODEL — /
+const FALLBACK_WHY = "a reviewer verdict ran on a model other than the reviewer's pinned one"
 
 /** @param {string} out @param {RegExp} re @returns {string[]} */
 function linesMatching(out, re) {
@@ -250,6 +258,8 @@ const skips = []
 // that ended on warm stamps must not read like one that re-proved everything. A red step's
 // own output, stamps included, is already in its failure block.
 const stamps = []
+// FALLBACK MODEL lines from green steps (1.1.0, #62), listed on both paths like the stamps.
+const fallbacks = []
 for (const [name, cmd] of STEPS) {
   const startedAt = performance.now()
   const { ok, out } = runStep(cmd)
@@ -257,6 +267,7 @@ for (const [name, cmd] of STEPS) {
   if (ok) {
     for (const line of linesMatching(out, SKIP_RE)) skips.push(`[${name}] ${line.trim()}`)
     for (const line of linesMatching(out, STAMP_RE)) stamps.push(`[${name}] ${line.trim()}`)
+    for (const line of linesMatching(out, FALLBACK_RE)) fallbacks.push(`[${name}] ${line.trim()}`)
   } else {
     failures.push(`### ${name} FAILED (${cmd})\n${spill(name, out)}`)
     failedGates.push(name)
@@ -370,6 +381,13 @@ if (failures.length === 0) {
   if (stamps.length > 0) {
     process.stderr.write(`stop-validate-gate: green with stamped layers (${STAMPED_WHY}):\n${stamps.join('\n')}\n`)
   }
+  // ...nor a verdict off its reviewer's pin pass unseen (1.1.0, #62). The debug log gets them
+  // with the rest; the user gets them as the one JSON object this hook ever prints on stdout.
+  if (fallbacks.length > 0) {
+    const message = `stop-validate-gate: green, and ${String(fallbacks.length)} verdict(s) where ${FALLBACK_WHY}:\n${fallbacks.join('\n')}`
+    process.stderr.write(`${message}\n`)
+    process.stdout.write(`${JSON.stringify({ systemMessage: message })}\n`)
+  }
   process.exit(0)
 }
 
@@ -383,5 +401,7 @@ const header = turn.capReached
     : 'Done means GREEN GATE. The turn cannot end with a red build. Fix every failure below, then the gate re-runs automatically.\n\n'
 const skipNote = skips.length > 0 ? `\n\nSkipped layers (did NOT run):\n${skips.join('\n')}\n` : ''
 const stampNote = stamps.length > 0 ? `\n\nStamped layers (${STAMPED_WHY}):\n${stamps.join('\n')}\n` : ''
-process.stderr.write(header + failures.join('\n\n') + skipNote + stampNote)
+const fallbackNote =
+  fallbacks.length > 0 ? `\n\nFallback models (${FALLBACK_WHY}):\n${fallbacks.join('\n')}\n` : ''
+process.stderr.write(header + failures.join('\n\n') + skipNote + stampNote + fallbackNote)
 process.exit(2)

@@ -21,6 +21,16 @@
 // query, and a synthetic row would have to be shaped like the contract, which is a
 // second place for the row contract to live.
 // SOURCE: docs/harness/README.md (generated artifacts are runtime walks, never source lexes) [corpus: harness/doctrine]
+//
+// TWO CALLS THAT ARE NOT SELECTS (1.1.0). `db.rpc(name, args)` starts a chain of its own:
+// the row is `op: "rpc"`, `table: null`, and one extra key, `rpc: { name, args }`, where
+// `args` is the sorted argument NAMES and never a value. `upsert` is a reviewed method whose
+// row is `op: "upsert"` with the payload's keys and one extra key, `onConflict` (the option
+// split on commas and sorted, or null when absent, which targets the primary key). A row
+// that uses neither gains no key, so every manifest recorded before 1.1.0 regenerates
+// byte-identical. Through 1.0.x the port had no rpc(), so a probed DAL that called it threw
+// inside `pnpm gen`, and an upsert recorded as a select whose `extra` named it.
+// SOURCE: https://docs.postgrest.org/en/v12/references/api/tables_views.html#on-conflict
 
 /**
  * The builder methods the shape grammar understands. Anything else a DAL calls lands
@@ -41,6 +51,7 @@ const KNOWN_METHODS = new Set([
   'order',
   'select',
   'update',
+  'upsert',
 ])
 
 /**
@@ -86,6 +97,17 @@ export function createRecorder() {
   const db = {
     from(table) {
       const chain = { table: String(table), calls: [] }
+      chains.push(chain)
+      return makeQuery(chain)
+    },
+    // A function call through PostgREST. The call itself is the chain's start, not one of
+    // its methods, so it never reaches `extra`; anything chained after it still does.
+    rpc(name, args) {
+      const chain = {
+        table: null,
+        rpc: { args: Object.keys(args ?? {}).sort(codeUnit), name: String(name) },
+        calls: [],
+      }
       chains.push(chain)
       return makeQuery(chain)
     },
@@ -140,11 +162,42 @@ export function boundKind(shape) {
  * and this supplies everything that came from the DAL's own behaviour.
  */
 /** Which statement the chain built. A chain carries at most one of these by construction. */
-function operationOf(named) {
-  for (const write of ['delete', 'insert', 'update']) {
+function operationOf(chain, named) {
+  if (chain.rpc !== undefined) return 'rpc'
+  for (const write of ['delete', 'insert', 'update', 'upsert']) {
     if (named(write).length > 0) return write
   }
   return 'select'
+}
+
+/**
+ * The upsert's conflict target: the `onConflict` option split on commas and sorted, or null
+ * when the option is absent, which PostgREST reads as the primary key.
+ */
+function onConflictOf(call) {
+  const option = call.args[1]?.onConflict
+  if (option === undefined || option === null) return null
+  return String(option)
+    .split(',')
+    .map((c) => c.trim())
+    .filter(Boolean)
+    .sort(codeUnit)
+}
+
+/**
+ * The written columns. An upsert reads the object's keys, or the first element's for an
+ * array. insert and update keep their 1.0.x reading, under which an inserted array's keys
+ * are its indices: changing that would change the committed manifest of every install whose
+ * DAL inserts an array, so it is left for an item of its own.
+ */
+function payloadOf(named, upsertCall) {
+  if (upsertCall !== undefined) {
+    const value = upsertCall.args[0]
+    const row = Array.isArray(value) ? value[0] : value
+    return Object.keys(row ?? {}).sort(codeUnit)
+  }
+  const payloadCall = named('insert')[0] ?? named('update')[0]
+  return payloadCall === undefined ? [] : Object.keys(payloadCall.args[0] ?? {}).sort(codeUnit)
 }
 
 /** Columns named across every `.or()` in the chain, in order of first appearance. */
@@ -159,12 +212,11 @@ function orColumnsOf(filters) {
 export function normalizeChain(chain) {
   const calls = chain.calls
   const named = (name) => calls.filter((c) => c.method === name)
-  const op = operationOf(named)
+  const op = operationOf(chain, named)
 
   const selects = named('select')
-  const payloadCall = named('insert')[0] ?? named('update')[0]
-  const payload =
-    payloadCall === undefined ? [] : Object.keys(payloadCall.args[0] ?? {}).sort(codeUnit)
+  const upsertCall = named('upsert')[0]
+  const payload = payloadOf(named, upsertCall)
 
   const orFilters = named('or').map((c) => String(c.args[0] ?? ''))
   const orColumns = orColumnsOf(orFilters)
@@ -179,6 +231,8 @@ export function normalizeChain(chain) {
       .filter((c) => c.args[1] === null)
       .map((c) => String(c.args[0])),
     limit: limits.length > 0 ? Number(limits.at(-1).args[0]) : null,
+    // The two keys 1.1.0 adds ride only on their own op, so no other row changes shape.
+    ...(upsertCall === undefined ? {} : { onConflict: onConflictOf(upsertCall) }),
     op,
     or: orFilters.length > 0 ? orFilters.map(normalizeFilter).join(' AND ') : null,
     orColumns,
@@ -190,11 +244,14 @@ export function normalizeChain(chain) {
     range: calls
       .filter((c) => RANGE_METHODS.has(c.method))
       .map((c) => ({ column: String(c.args[0]), op: c.method })),
+    ...(chain.rpc === undefined ? {} : { rpc: { ...chain.rpc } }),
     table: chain.table,
+    extra: [...new Set(calls.map((c) => c.method).filter((m) => !KNOWN_METHODS.has(m)))].sort(
+      codeUnit,
+    ),
+    // Derived from the fields above once the row is whole; the placeholder keeps the key order.
+    kind: 'unbounded',
   }
-  shape.extra = [...new Set(calls.map((c) => c.method).filter((m) => !KNOWN_METHODS.has(m)))].sort(
-    codeUnit,
-  )
   shape.kind = boundKind(shape)
   return shape
 }

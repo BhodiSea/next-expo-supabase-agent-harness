@@ -84,6 +84,9 @@ jobs:
       # CHILD processes and are covered BEHAVIORALLY by the canary red-proof
       # closure (scripts/check-canary-coverage.mjs), not by line coverage — a
       # gate that cannot go red is decoration, which line counting cannot catch.
+      # This job installs nothing, so lib/i18n-tree.mjs (1.1.0, #76) is measured
+      # here without `typescript`: its tree-walk tests skip by name, and lint.yml's
+      # machinery-lint runs them with the parser, under that module's own floor.
       - run: >-
           node --test --experimental-test-coverage
           --test-coverage-include='template/base/tools/lib/**'
@@ -138,6 +141,12 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 22
+      # deno for the Edge Function typecheck (1.1.0, #78): the SAME exact release the template's
+      # quality-gate.yml pins in its edge-functions job — tests/gates/workflow-lanes.test.mjs
+      # holds the two equal, so the factory proves the version consumers run.
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: 2.9.6
       - name: Scaffold canary fixture (committed git baseline for the diff-based gates)
         run: |
           node installer/cli.mjs init --dir "$RUNNER_TEMP/canary" --tier core --yes
@@ -361,6 +370,52 @@ jobs:
           fi
           git checkout -q -- tools/perf-baseline.json
           echo 'canary OK: the build ratchet went red'
+      - name: 'Canary 35: a server-only import in a client module → web-compile must FAIL on the build error while types stays green'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          # 1.1.0 (#77). app/providers.tsx is a 'use client' module; lib/auth/session.ts opens
+          # with `import 'server-only'`. A side-effect import of it typechecks (tsc knows nothing
+          # of the RSC boundary), so `types` stays green, and only a real `next build` refuses
+          # it. CI=true here, so the step ignores any stamp the baseline recorded and builds.
+          before=$(git hash-object apps/web/app/providers.tsx)
+          sed -i "s#^'use client'\$#'use client'\nimport '../lib/auth/session'#" apps/web/app/providers.tsx
+          if [ "$(git hash-object apps/web/app/providers.tsx)" = "$before" ]; then
+            echo '::error::CANARY SETUP: the server-only import never reached app/providers.tsx — the injection is stale, not the gate'; exit 1
+          fi
+          pnpm exec tsc -b . apps/web apps/mobile \
+            || { echo '::error::CANARY SETUP: types reddened on the injection — this canary needs a tree only a bundler can refuse'; exit 1; }
+          if env -u GITHUB_BASE_REF node tools/check-web-build.mjs > canary35.log 2>&1; then
+            cat canary35.log
+            echo '::error::CANARY: web-compile PASSED a client module that imports server-only code — the step does not compile the app'; exit 1
+          fi
+          if ! grep -q '^web-compile: FAIL' canary35.log || ! grep -q 'server-only' canary35.log; then
+            cat canary35.log
+            echo "::error::CANARY: web-compile reddened WITHOUT carrying Next's server-only error — wrong failure path (log above)"; exit 1
+          fi
+          git checkout -q -- apps/web/app/providers.tsx
+          [ -z "$(git status --porcelain apps/web)" ] \
+            || { git status --porcelain apps/web; echo '::error::CANARY: a failed web build left apps/web dirty — the committed next-env.d.ts must be restored'; exit 1; }
+          echo 'canary OK: web-compile went red on a server-only import types could not see'
+      - name: 'Canary 36: every orgs state test id removed from apps/web/e2e → route-manifest must FAIL naming orgs'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          # 1.1.0 (#77): the per-route browser closure. Today the three `'orgs-empty'` lines in
+          # authenticated.spec.ts are the only literals of an orgs state test id in the suite.
+          before=$(cat apps/web/e2e/*.spec.ts | git hash-object --stdin)
+          sed -i "s/'orgs-empty'/'orgs-renamed'/g; s/'orgs-loading'/'orgs-renamed'/g" apps/web/e2e/*.spec.ts
+          if [ "$(cat apps/web/e2e/*.spec.ts | git hash-object --stdin)" = "$before" ]; then
+            echo '::error::CANARY SETUP: no orgs state test id was removed from apps/web/e2e — the injection is stale, not the gate'; exit 1
+          fi
+          if env -u GITHUB_BASE_REF node tools/check-web-routes.mjs > canary36.log 2>&1; then
+            cat canary36.log
+            echo '::error::CANARY: route-manifest PASSED a registered route no spec renders — the browser closure cannot fail'; exit 1
+          fi
+          if ! grep -qF 'orgs (/o): no spec under apps/web/e2e' canary36.log; then
+            cat canary36.log
+            echo '::error::CANARY: route-manifest reddened WITHOUT naming orgs — wrong failure path (log above)'; exit 1
+          fi
+          git checkout -q -- apps/web/e2e
+          echo 'canary OK: route-manifest went red naming the route no spec renders'
       - name: 'Canary 13: remove a numbered gates-catalog section → docs-sync must FAIL'
         working-directory: ${{ runner.temp }}/canary
         run: |
@@ -474,6 +529,46 @@ jobs:
           grep -oE 'jsx-a11y/[a-z-]+' a11y.log | sort -u
           rm apps/web/lib/canary-a11y.tsx a11y.log
           echo 'canary OK: jsx-a11y is resolved AND enforcing on apps/web'
+      - name: 'Canary 37: getSession() in an Edge Function → the lint step must FAIL (no-unverified-session reaches supabase/functions)'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          # Until 1.1.0 eslint.config.mjs ignored `supabase/**`, and a later block cannot reach
+          # anything a global ignore lists — so the three blocks that NAME supabase/functions
+          # (no-unverified-session, the service-role confinement, crypto-primitives-one-door)
+          # reached nothing, and a getSession() in the one function that holds the service-role
+          # key passed lint. Against the 1.0.3 config this canary FAILS: lint stays green.
+          # --no-warn-ignored so an explicitly named file that is ignored exits 0 as it does
+          # in `eslint .`, instead of redding on the "file ignored" warning and proving nothing.
+          cp supabase/functions/delete-account/index.ts index.ts.bak
+          printf '\nexport async function canaryLeak(client: { auth: { getSession(): Promise<unknown> } }) {\n  return client.auth.getSession()\n}\n' >> supabase/functions/delete-account/index.ts
+          if pnpm exec eslint --no-warn-ignored --max-warnings 0 supabase/functions/delete-account/index.ts > session.log 2>&1; then
+            cat session.log
+            echo '::error::CANARY: eslint PASSED a getSession() inside an Edge Function — supabase/functions is outside the lint (a global ignore, or no parser block for it)'; exit 1
+          fi
+          grep -q 'local/no-unverified-session' session.log \
+            || { cat session.log; echo '::error::CANARY: eslint reddened, but not on no-unverified-session — some other rule stood in for the one being proven'; exit 1; }
+          mv index.ts.bak supabase/functions/delete-account/index.ts
+          rm session.log
+          echo 'canary OK: no-unverified-session reaches supabase/functions'
+      - name: 'Canary 38: a type error in the delete-account shell → edge-functions must FAIL (deno check, frozen lock)'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          # index.ts is a Deno.serve shell nothing Node-side can load, so `deno check` is the one
+          # layer that types it. The control first: the untouched function typechecks (and the
+          # frozen lock matches its deno.json). Then one type error must red the gate, with
+          # deno's own diagnostic in the output.
+          env -u GITHUB_BASE_REF node tools/check-edge-functions.mjs
+          cp supabase/functions/delete-account/index.ts index.ts.bak
+          printf "\nconst canaryN: number = 'x'\n" >> supabase/functions/delete-account/index.ts
+          if env -u GITHUB_BASE_REF node tools/check-edge-functions.mjs > edge.log 2>&1; then
+            cat edge.log
+            echo '::error::CANARY: edge-functions PASSED a type error in index.ts — deno check is not running over the shell'; exit 1
+          fi
+          grep -q 'TS2322' edge.log \
+            || { cat edge.log; echo '::error::CANARY: edge-functions reddened, but not on the injected type error'; exit 1; }
+          mv index.ts.bak supabase/functions/delete-account/index.ts
+          rm edge.log
+          echo 'canary OK: edge-functions reds a type error in the Deno shell'
       - name: 'Canary 15: a committed .only → test-quality must FAIL'
         working-directory: ${{ runner.temp }}/canary
         run: |
@@ -492,6 +587,23 @@ jobs:
           fi
           rm apps/mobile/src/oops-i18n.tsx
           echo 'canary OK: the static i18n gate went red'
+      # 1.1.0 (#76): a shape only the syntax-tree walk sees. The scaffold is installed above,
+      # so `typescript` loads from the project and the walk RUNS; the red must name the string
+      # and its attribute, which no regular expression of the gate reports.
+      - name: "Canary 34: accessibilityLabel={'Close dialog'} → the i18n syntax-tree walk must FAIL naming it"
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          printf 'import { Text } from "react-native"\n\nexport const Oops = () => <Text accessibilityLabel={%s} />\n' "'Close dialog'" > apps/mobile/src/oops-i18n-tree.tsx
+          if env -u GITHUB_BASE_REF node tools/check-i18n.mjs > canary34.log 2>&1; then
+            cat canary34.log
+            echo '::error::CANARY: i18n PASSED a string in an expression container — the syntax-tree walk did not run, or cannot fail'; exit 1
+          fi
+          cat canary34.log
+          if ! grep -qF '"Close dialog" (accessibilityLabel attribute)' canary34.log; then
+            echo '::error::CANARY: i18n went red without naming "Close dialog" (accessibilityLabel attribute) — the red came from somewhere other than the syntax-tree walk'; exit 1
+          fi
+          rm apps/mobile/src/oops-i18n-tree.tsx canary34.log
+          echo 'canary OK: the i18n syntax-tree walk went red on a shape the regular expressions miss'
       - name: 'Canary 21: delete a CSP directive → security-headers must FAIL'
         working-directory: ${{ runner.temp }}/canary
         run: |
@@ -564,8 +676,9 @@ jobs:
   # the three edits land IN the baseline commit: left dirty, gate-integrity reds them.
   # Removing the whole example would turn red things other items own (the pgTAP proofs
   # on the notes table, the registers naming the example, the matrix route's startup,
-  # suppression, knip and Maestro rows), so this lane removes nothing. No Supabase stack:
-  # run-stop-chain.mjs prints its declared exclusions, as in the canary job.
+  # suppression, knip and Maestro rows), so this lane removes nothing; from 1.1.0 (#82) its
+  # event-catalog leg moves the example aside for one generator run and puts it back. No
+  # Supabase stack: run-stop-chain.mjs prints its declared exclusions, as in the canary job.
   day0-empty-states:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -702,6 +815,68 @@ jobs:
         run: |
           env -u GITHUB_BASE_REF node tools/check-perf-budget.mjs
           env -u GITHUB_BASE_REF node tools/check-expo-policy.mjs
+      # 1.1.0 (#82). THE EVENT-CATALOG LEG. The generator finds each vertical's catalog in
+      # its ./client (EVENT_CATALOG), so it no longer imports the example by name: on this
+      # fresh scaffold it regenerates the committed five rows with no "not catalogued" line,
+      # and with the example moved aside it writes the catalog without the example's three
+      # rows instead of throwing. The generator runs through ./node_modules/.bin/tsx, not
+      # `pnpm exec`: pnpm's pre-run dependency check re-installs when the workspace changes,
+      # and that install fails while packages/api and apps/web depend on a vertical that is
+      # gone. The rest of the chain still needs the example (#85 removes it at 2.0.0).
+      - name: 'Event catalog: the opted-in example regenerates the committed catalog; moved aside, exactly its three rows drop'
+        working-directory: ${{ runner.temp }}/day0
+        run: |
+          ./node_modules/.bin/tsx tools/gen-event-catalog.mjs --check > catalog.log 2>&1 || { cat catalog.log; exit 1; }
+          if [ "$(cat catalog.log)" != 'tools/generated/event-catalog.json: in sync (5 events)' ]; then
+            cat catalog.log
+            echo '::error::DAY0: the fresh scaffold did not regenerate the committed five-event catalog with nothing else printed'; exit 1
+          fi
+          mv packages/verticals/notes "$RUNNER_TEMP/notes-aside"
+          status=0
+          ./node_modules/.bin/tsx tools/gen-event-catalog.mjs > catalog.log 2>&1 || status=$?
+          mv "$RUNNER_TEMP/notes-aside" packages/verticals/notes
+          if [ "$status" != 0 ]; then
+            cat catalog.log
+            echo '::error::DAY0: the event-catalog generator failed on a tree without the example'; exit 1
+          fi
+          node -e '
+            const { execFileSync } = require("node:child_process")
+            const fs = require("node:fs")
+            const path = "tools/generated/event-catalog.json"
+            const committed = JSON.parse(execFileSync("git", ["show", "HEAD:" + path], { encoding: "utf8" }))
+            const kept = committed.filter((row) => !row.name.startsWith("notes."))
+            if (committed.length - kept.length !== 3) throw new Error(path + ": expected three notes.* rows in the committed catalog")
+            const want = JSON.stringify(kept, null, 2) + "\n"
+            const got = fs.readFileSync(path, "utf8")
+            if (got !== want) {
+              console.error(got)
+              throw new Error("DAY0: without the example " + path + " must lose exactly the three notes.* rows")
+            }
+          '
+          git checkout -q -- tools/generated/event-catalog.json
+          echo 'OK: in sync with the example opted in; without it the generator dropped exactly its three rows'
+      - name: 'Canary 33: the example declares EVENT_CATALOG as a number → the event-catalog generator must FAIL naming its file'
+        working-directory: ${{ runner.temp }}/day0
+        run: |
+          node -e '
+            const fs = require("node:fs")
+            const f = "packages/verticals/notes/src/client.ts"
+            const from = "export { noteEvents as EVENT_CATALOG } from \u0027./events.js\u0027\n"
+            const s = fs.readFileSync(f, "utf8")
+            if (!s.includes(from)) throw new Error(f + ": anchor not found: " + from)
+            fs.writeFileSync(f, s.replace(from, "export const EVENT_CATALOG = 42\n"))
+          '
+          if ./node_modules/.bin/tsx tools/gen-event-catalog.mjs --check > canary33.log 2>&1; then
+            cat canary33.log
+            echo '::error::CANARY: the event-catalog generator PASSED a vertical whose EVENT_CATALOG is not a catalog — the export is not checked'; exit 1
+          fi
+          if ! grep -qF 'packages/verticals/notes/src/client.ts: EVENT_CATALOG is not an event catalog' canary33.log; then
+            cat canary33.log
+            echo "::error::CANARY: the generator reddened WITHOUT naming the vertical's ./client — wrong failure path (log above)"; exit 1
+          fi
+          git checkout -q -- packages/verticals/notes/src/client.ts
+          ./node_modules/.bin/tsx tools/gen-event-catalog.mjs --check
+          echo 'canary OK: the generator went red naming packages/verticals/notes/src/client.ts'
 
   canary-mutation:
     name: 'canary-mutation: an untested branch must red the mutation lane — and nothing else'
@@ -832,7 +1007,8 @@ jobs:
   # The product promise on Linux: a fresh scaffold is validate-green OUT OF THE
   # BOX with real toolchains required, the warm agent-time experience stays
   # inside its wall-time budget (with the e2e stamp positive control — the
-  # biggest warm win must be SEEN engaging, not assumed), and the RLS story is
+  # biggest warm win must be SEEN engaging, not assumed — and, since 1.1.0, one
+  # for the two register scripts of docs-sync), and the RLS story is
   # proven in BOTH directions against the scaffold's own pinned database:
   # fail-closed with no db, green with one, and RED again when the keyset index
   # is dropped (Canary 17 — the DAL plan probe seeing the whole-partition Sort).
@@ -857,6 +1033,12 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: ${{ matrix.node }}
+      # deno for the Edge Function typecheck (1.1.0, #78): the SAME exact release the template's
+      # quality-gate.yml pins in its edge-functions job — tests/gates/workflow-lanes.test.mjs
+      # holds the two equal, so the factory proves the version consumers run.
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: 2.9.6
       - name: Bootstrap a fresh project from the template
         run: node installer/cli.mjs init --dir "$GITHUB_WORKSPACE/.selftest/boot" --tier core --yes
       - name: Git baseline + corepack (lefthook prepare and the diff-based gates need a repo)
@@ -920,6 +1102,15 @@ jobs:
         # validate of an install — and until now nothing kept its log, so the README had
         # to say "the cold path is unmeasured". The record step below reads it on dispatch.
         run: env -u GITHUB_BASE_REF node tools/validate.mjs --min-floor | tee cold-validate.log
+      # 1.1.0 (#78): the Edge Function typecheck is a CI-only lane, so THE GATE above never runs
+      # it. With deno present it must print OK over the seeded function: SKIPPED here would
+      # mean the consumer's edge-functions lane checks nothing on a fresh scaffold.
+      - name: Edge Functions typecheck — OK with deno present, never SKIPPED
+        working-directory: .selftest/boot
+        run: |
+          env -u GITHUB_BASE_REF node tools/check-edge-functions.mjs | tee edge-functions.log
+          grep -q '^edge-functions: OK — 1 Edge Function(s) typecheck' edge-functions.log \
+            || { echo '::error::edge-functions did not typecheck the seeded delete-account function'; exit 1; }
       - name: Warm validate wall-time budget (stamped local experience — fail >120s, warn >90s)
         working-directory: .selftest/boot
         env:
@@ -962,6 +1153,49 @@ jobs:
             echo '::error::warm validate did not skip e2e via its stamp — the warm-path win regressed'
             exit 1
           fi
+      - name: Warm-lane positive control — the web-compile stamp engaged, and the build left apps/web clean
+        working-directory: .selftest/boot
+        # 1.1.0 (#77): the cold --min-floor run above ran a real `next build` and recorded the
+        # web-compile stamp, so the warm run must ride it instead of building again. `next build`
+        # rewrites the committed apps/web/next-env.d.ts and the step restores it; a dirty
+        # apps/web would be a defect of its own and would also miss this stamp on every run.
+        run: |
+          if grep -E '^web-compile: STAMPED.*inputs unchanged' warm-validate.log; then
+            echo 'web-compile stamp engaged on the warm run: OK'
+          else
+            echo '::error::warm validate did not skip web-compile via its stamp — a stamp input churns between two runs over an unchanged tree'
+            exit 1
+          fi
+          dirty="$(git status --porcelain apps/web)"
+          if [ -n "$dirty" ]; then
+            echo "$dirty"
+            echo '::error::two validate runs left apps/web dirty — the web build must restore the committed next-env.d.ts'
+            exit 1
+          fi
+          echo 'apps/web is clean after two validate runs: OK'
+      - name: Warm-lane positive control — the essential-eight and conformance-map stamps engaged
+        working-directory: .selftest/boot
+        # 1.1.0: the docs-sync step's two register scripts are stamped too. The cold run above
+        # recorded both stamps (HARNESS_REQUIRE_TOOLCHAINS ignores a stamp but still records
+        # one after a green run), so the warm run must ride each of them. essential-eight
+        # prints its stamp line only after its negative proof found nothing, which on a
+        # zero-edit scaffold it must not. A green warm log WITHOUT both lines means a stamp
+        # input churns between two runs over an unchanged tree, or a script stopped stamping.
+        run: |
+          missing=0
+          if grep -E '^essential-eight: STAMPED.*inputs unchanged' warm-validate.log; then
+            echo 'essential-eight stamp engaged on the warm run: OK'
+          else
+            echo '::error::warm validate did not skip essential-eight via its stamp'
+            missing=1
+          fi
+          if grep -E '^conformance-map: STAMPED.*inputs unchanged' warm-validate.log; then
+            echo 'conformance-map stamp engaged on the warm run: OK'
+          else
+            echo '::error::warm validate did not skip conformance-map via its stamp'
+            missing=1
+          fi
+          exit "$missing"
       - name: RLS runner FAILS CLOSED without a database (CI=true)
         working-directory: .selftest/boot
         run: |

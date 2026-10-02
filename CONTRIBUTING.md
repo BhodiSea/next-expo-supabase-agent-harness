@@ -89,7 +89,7 @@ node scripts/check-rule-integrity.mjs      # the shipped boundary rules cannot b
 # remembered. check-ramp-ledger, check-dependency-channel and check-seeded-migrations
 # need full git history (fetch-depth: 0) and SKIP LOUDLY without a previous release tag
 # rather than passing.
-node scripts/check-escape-registry.mjs     # SEEDED_FILES / ESCAPE_LISTS / WRITE_PROTECTED reconcile
+node scripts/check-escape-registry.mjs     # SEEDED_FILES / ESCAPE_LISTS / WRITE_PROTECTED / PROPOSABLE reconcile
 node scripts/check-tier-coverage.mjs       # every one-surface gate declares its surface
 node scripts/check-ramp-ledger.mjs         # no never-armed ramp; the expiry population is derived
 node scripts/check-dependency-channel.mjs  # every owned-config dependency has a channel to an EXISTING install
@@ -111,7 +111,7 @@ cd /tmp/scratch && git init -q && pnpm install && git add -A \
   && node tools/validate.mjs --report-all
 ```
 
-`--report-all` runs all **36** steps and shows every red at once. The two added in
+`--report-all` runs all **37** steps and shows every red at once. The two added in
 0.3.0 run before anything expensive and are the ones most likely to catch a
 machinery mistake: `wiring` (step 3 — are the enforcement layers actually
 connected) and `secrets` (step 4 — a hermetic credential scan, in rule-id lockstep
@@ -120,6 +120,14 @@ with `.gitleaks.toml`).
 Root `devDependencies` are exact-pinned and never ship: the npm `files` list
 excludes every root config/lockfile, and with no `prepare` script `npx
 github:…` never installs them.
+
+**Editing the machinery.** `.claude/hooks/pretool-write-guard.mjs` denies the
+Edit and Write tools on the paths in its `PROTECTED` list unless the session
+was started with `HARNESS_ALLOW_SELF_EDIT=1`. The CI-shaped scripts
+(`scripts/ci/upgrade-lane.sh`, `scripts/ci/consumer-ci-static.sh`,
+`scripts/ci/run-stop-chain.mjs`) remove it before they run, because with it set
+a scaffold checks less than CI does. What it relaxes inside a scaffold is listed
+in `template/base/docs/harness/README.md`.
 
 ## Coding standards
 
@@ -225,10 +233,11 @@ step 5 compresses):
   two-factor authentication and disallow tokens", and the `npm` environment
   restricted to `v*` tags in the repository settings.
 - **Post-tag follow-ups are part of the release**, not optional: dispatch the
-  schedule-gated lanes once (`obligations-clockful`, `registers-clockful`) so
-  their first runs happen while the release context is warm, and re-record the
-  chain-budget measurement only through the reviewed `workflow_dispatch` path
-  (the 0.7.0/0.8.0 pattern — measure, commit, then publish, in that order).
+  schedule-gated lanes once (`obligations-clockful`, `registers-clockful`,
+  `floor-advisories`) so their first runs happen while the release context is
+  warm, and re-record the chain-budget measurement only through the reviewed
+  `workflow_dispatch` path (the 0.7.0/0.8.0 pattern — measure, commit, then
+  publish, in that order).
 - **A release that GROWS the chain re-records BEFORE the tag** (1.0.0: 34 → 36).
   `check-claims` refuses every wall-clock figure while the committed measurement's
   step count differs from the live chain, so the figures are scrubbed in the

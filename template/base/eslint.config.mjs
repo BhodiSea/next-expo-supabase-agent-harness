@@ -64,7 +64,13 @@ export default tseslint.config(
       'packages/platform/supabase/src/database.types.ts', // `supabase gen types` output; types-drift-gated
       'tools/**', // gate scripts (incl. the custom-rules plugin): plain node, guarded by the harness itself
       'tests/**', // root-level RLS runner surface (gates wave)
-      'supabase/**', // SQL migrations/schemas/seed — owned by the schema-rls + migrations gates
+      // SQL migrations/schemas/seed and config — owned by the schema-rls + migrations gates.
+      // Everything under supabase/ EXCEPT the Edge Functions (1.1.0), which are TypeScript and
+      // are linted by the supabase/functions blocks below. `supabase/*` and not `supabase/**`
+      // because ESLint cannot un-ignore a file inside an ignored directory: the pattern must
+      // ignore the directory's ENTRIES so the negation can bring one of them back.
+      'supabase/*',
+      '!supabase/functions/',
       // The web-e2e browser toolchain (Playwright transpiles + runs these with its own
       // esbuild; they are NOT in apps/web/tsconfig, so type-aware lint would error "not in
       // project"). tools/check-web-e2e.mjs holds them to a non-vacuous, axe-bearing suite.
@@ -74,6 +80,11 @@ export default tseslint.config(
   },
   {
     files: ['**/*.ts', '**/*.tsx'],
+    // The Edge Functions are in no tsconfig (they run on Deno), and type-aware lint reports a
+    // file outside every project as "not found by the project service" — the .next/ story in
+    // the ignores above. They get the syntax-level blocks below instead; `deno check`
+    // (tools/check-edge-functions.mjs) is their type half.
+    ignores: ['supabase/functions/**'],
     extends: [...tseslint.configs.strictTypeChecked, ...tseslint.configs.stylisticTypeChecked],
     languageOptions: {
       parserOptions: {
@@ -113,6 +124,40 @@ export default tseslint.config(
         'error',
         { allowNumber: true, allowBoolean: true },
       ],
+    },
+  },
+  {
+    // EDGE FUNCTIONS (1.1.0). Until 1.1.0 the global ignore above read `supabase/**`, and the
+    // file itself says a later block cannot reach anything in that list — so no rule reached
+    // supabase/functions, although three blocks below name it (no-unverified-session,
+    // service-role-edge-functions-only, crypto-primitives-one-door) and the getSession block's
+    // own comment cites an Edge Function as a case that "passed every layer". This block gives
+    // the functions the TypeScript PARSER with no project service, so those blocks reach them
+    // unedited; the security rules are not ramped, because a getSession() there is an
+    // authentication bypass, not a debt.
+    files: ['supabase/functions/**/*.ts'],
+    languageOptions: { parser: tseslint.parser },
+    linterOptions: { reportUnusedDisableDirectives: 'error' },
+  },
+  {
+    // The complexity contract over the functions (1.1.0): the ≤ 15 the rest of the tree meets,
+    // with its suppression hole closed the same way (no-suppressed-complexity, tests included).
+    //
+    // ONE DATED EXEMPTION. The delete-account index.ts that every 1.0.x install carries measures
+    // 16 (its readKey), and it is SEEDED, so `update` cannot deliver the 1.1.0 handler split
+    // that fixes it: without the exemption this block would red `lint` on every upgraded install
+    // at once, over a file the install did not write. A lint rule cannot carry a rampNote, so the
+    // path sits here as the ramp — the pairing the env-through-register block records from 0.9.5 —
+    // with the 1.1.0 seededSourceFixes instruction `doctor` surfaces (pull the split with
+    // `update --refresh-seeded supabase/functions/delete-account/`), and the 1.2.0 release
+    // removes it. Register row: edge-functions-complexity-seeded-exemption. The shipped 1.1.0
+    // index.ts is a one-call shell, so the exemption costs a fresh scaffold nothing.
+    files: ['supabase/functions/**/*.ts'],
+    ignores: ['supabase/functions/delete-account/index.ts'],
+    plugins: { sonarjs, local: localRules },
+    rules: {
+      'sonarjs/cognitive-complexity': ['error', 15],
+      'local/no-suppressed-complexity': 'error',
     },
   },
   {
@@ -416,6 +461,10 @@ export default tseslint.config(
     //
     // NOT ramped, and the changelog says why in these words: a pre-existing violation here
     // is an authentication bypass, not a style debt.
+    //
+    // The supabase/functions glob below was DEAD until 1.1.0: the global `supabase/**` ignore
+    // kept every file under it out of reach. The Edge Function parser block above is what
+    // makes it live (Canary 37 proves it on a rendered scaffold).
     files: [
       'apps/web/**/*.ts',
       'apps/web/**/*.tsx',

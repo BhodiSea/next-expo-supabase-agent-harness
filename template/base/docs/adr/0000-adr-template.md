@@ -34,8 +34,12 @@ Every inline `// SOURCE:` (`-- SOURCE:` in SQL) in the slice MUST appear here.
 
 ## Traceability
 
-The RTM fragment: requirement -> implementation files -> test ids.
+The RTM fragment: requirement -> implementation files -> test ids. Each requirement
+cites the spec section it comes from.
 
 | Requirement | Migration / DAL / route / UI files | Test ids |
 | ----------- | ---------------------------------- | -------- |
-| R1: ...     | `supabase/migrations/<ts>_<feature>.sql`, `packages/api/src/routers/<feature>.ts`, `apps/{web,mobile}/...` | `supabase/tests/... > isolates ...`, `<feature>.test.ts > ...` |
+| R1: ... (`specs/<feature>.md#goals`) | `supabase/migrations/<ts>_<feature>.sql`, `packages/api/src/routers/<feature>.ts`, `apps/{web,mobile}/...` | `supabase/tests/... > isolates ...`, `<feature>.test.ts > ...` |
+
+Review record: `docs/reviews/<YYYYMMDD>-<slice>.md` — round-by-round findings live there;
+this ADR states what was decided.

@@ -166,6 +166,7 @@ Steps that run on every validate and are named as no row’s control, each with 
 - `migrations` — Append-only migration discipline and the DML/ADR markers are change-management hygiene; the schema controls that DO map (RLS, grants, audit) are claimed by schema-rls and tenancy, and claiming this step too would count one artefact twice.
 - `parity` — Web/mobile feature parity has no security-requirement subject.
 - `build` — That the tree compiles is a precondition of every other control, not a requirement any standard states.
+- `web-compile` — That the web app compiles is a precondition of every other control, as for build. Its one security-bearing refusal, a Client Component importing a server-only module, backstops the server/client boundary whose named controls are the lint rules, the depcruise layering and the web-build lane's client-bundle purity scan, so it is not claimed as a row's evidence beside them.
 - `styleguide` — Design-token discipline has no security-requirement subject.
 - `perf-budget` — Bundle and interaction budgets have no security-requirement subject; the effect-cleanup leak scan is availability hygiene, not a standard’s row.
 - `e2e` — The e2e step asserts spec PRESENCE for routes; the security-bearing e2e specs themselves are claimed by the web-e2e lane rows.

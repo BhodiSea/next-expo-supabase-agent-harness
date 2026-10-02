@@ -38,6 +38,7 @@ is the set of repo-root sites that hardcode the upstream owner:
 - `REUSE.toml` and `LICENSES/`: keep the upstream copyright and append yours
 - `tests/gates/check-reuse.test.mjs`: it asserts the upstream copyright string
 - `scripts/check-corpus-fidelity.mjs`: the User-Agent contact URL
+- `scripts/check-floor-advisories.mjs`: the User-Agent contact URL
 - `installer/lib/detect.mjs`: the sibling-harness redirect messages
 - `scripts/hygiene.mjs`: two edits, described below
 

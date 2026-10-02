@@ -35,6 +35,9 @@ export function probeModules() {
   return found
 }
 
+/** A JSON array whose every element is a string. */
+const stringList = (v) => Array.isArray(v) && v.every((x) => typeof x === 'string')
+
 /** Fields every manifest row must carry, with the type each must have. */
 const ROW_SHAPE = {
   columns: (v) => v === null || typeof v === 'string',
@@ -45,15 +48,38 @@ const ROW_SHAPE = {
   is: Array.isArray,
   kind: (v) => typeof v === 'string',
   limit: (v) => v === null || Number.isInteger(v),
-  op: (v) => ['delete', 'insert', 'select', 'update'].includes(v),
+  op: (v) => ['delete', 'insert', 'rpc', 'select', 'update', 'upsert'].includes(v),
   or: (v) => v === null || typeof v === 'string',
   orColumns: Array.isArray,
   order: Array.isArray,
   payload: Array.isArray,
   range: Array.isArray,
-  table: (v) => typeof v === 'string' && v.length > 0,
+  // An rpc names a function, not a table (see OP_SHAPE below).
+  table: (v, row) => (row.op === 'rpc' ? v === null : typeof v === 'string' && v.length > 0),
   vertical: (v) => typeof v === 'string',
 }
+
+/**
+ * The one key each of the two 1.1.0 ops adds, required on that op (the recorder writes it on
+ * no other row, so a 1.0.x manifest parses unchanged). An rpc row with no `rpc`, or an upsert
+ * row with no `onConflict`, fails closed: without it the gate would judge a call whose target
+ * it cannot name.
+ *   rpc        — { name, args }: the function name, and the sorted argument names.
+ *   onConflict — the sorted conflict columns, or null for the primary key.
+ */
+const OP_SHAPE = {
+  rpc: {
+    rpc: (v) =>
+      v !== null &&
+      typeof v === 'object' &&
+      typeof v.name === 'string' &&
+      v.name.length > 0 &&
+      stringList(v.args),
+  },
+  upsert: { onConflict: (v) => v === null || stringList(v) },
+}
+const opShapeOf = (op) =>
+  typeof op === 'string' && Object.hasOwn(OP_SHAPE, op) ? OP_SHAPE[op] : {}
 
 /**
  * Parse and structurally validate the manifest. Throws with a precise reason on
@@ -72,8 +98,8 @@ export function parseShapes(text) {
   for (const [i, row] of rows.entries()) {
     if (row === null || typeof row !== 'object')
       throw new Error(`row ${String(i)} is not an object`)
-    for (const [key, valid] of Object.entries(ROW_SHAPE)) {
-      if (!valid(row[key])) {
+    for (const [key, valid] of Object.entries({ ...ROW_SHAPE, ...opShapeOf(row.op) })) {
+      if (!valid(row[key], row)) {
         throw new Error(`row ${String(i)} (${String(row.id ?? '?')}): bad or missing "${key}"`)
       }
     }

@@ -22,20 +22,27 @@ Build in this strict order. Steps 1, 5, 6 and 7 are irreversible-ish in differen
 column encrypted for a month cannot be retroactively indexed, and a user who loses the device
 AND the recovery code cannot be given their data back.
 
-## Step 0 — preconditions, all three
+## Step 0 — preconditions, all four
 
 Do not start until all of these are true:
 
-1. **The module is enabled** — `packages/platform/crypto/` exists (`@app/crypto`). If it does
+1. **You have read the full encryption rule, `.claude/rules/e2ee.md`.** It is path-scoped:
+   it loads on its own only once a file under `packages/platform/crypto/`, a host seam under
+   `apps/*/src/host/` or `docs/modules/e2ee/` has been read, and this recipe also edits
+   migrations, `tools/data-flow.json` and `tools/pii-columns.json`, which its globs do not
+   reach. The always-loaded `.claude/rules/encryption.md` holds only what applies with the
+   module off; the envelope and AAD construction, the wrapped-key erase lever, the export
+   stance and the audit-capture refusal every step below applies are in `e2ee.md`.
+2. **The module is enabled** — `packages/platform/crypto/` exists (`@app/crypto`). If it does
    not, the module is opt-in and enabling it is a separate, reviewed act: read
    `docs/modules/e2ee/README.md` first, in particular "What this deliberately does NOT solve".
-2. **Host adapters are wired.** `createWebCryptoProvider()` (and, if the feature shares,
+3. **Host adapters are wired.** `createWebCryptoProvider()` (and, if the feature shares,
    `createWebCryptoX25519Provider()`) cover web and Node and return `null` where there is no
    Web Crypto. The MOBILE `CryptoProvider` / `X25519Provider` and BOTH surfaces'
    `KeystoreAdapter` are consumer code — `docs/modules/e2ee/mobile-provider.patch.md` is the
    recipe. Hermes ships no Web Crypto, so on a device the whole feature computes nothing until
    the patch is applied. Check before writing a screen that assumes otherwise.
-3. **The decision is recorded in an ADR** (`/adr <slice>`), naming the columns, the losses
+4. **The decision is recorded in an ADR** (`/adr <slice>`), naming the columns, the losses
    accepted from step 1, the sign-out policy for the root key, WHEN the recovery code is
    issued (before the first seal, or never — and if never, say "lost device is lost data" in
    those words), whether the feature shares (and therefore needs the public-key directory),
@@ -102,8 +109,9 @@ boundary and an encrypted table gets no relief from it. In the SAME migration: `
 never `TO public`) using only the two legal predicate shapes over `org_id`, a leading-column
 owner index that carries the ORDERING as well as the filter, `REVOKE ALL` from `anon`,
 `service_role` and `authenticated` (the platform default grants all three, and a GRANT removes
-nothing), then the explicit `GRANT` per operation the policies admit, and the audit trigger with **no `WHEN`
-clause**. Read `.claude/skills/authoring-vertical-slice/references/migration-rls.md` and
+nothing), then the explicit `GRANT` per operation the policies admit (and
+`node tools/gen-grant-assertions.mjs` to regenerate the exact-privilege assertions, never by
+hand), and the audit trigger with **no `WHEN` clause**. Read `.claude/skills/authoring-vertical-slice/references/migration-rls.md` and
 follow it exactly — including re-casing the RLS statements to UPPERCASE so the provenance
 heuristic can see them.
 

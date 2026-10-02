@@ -51,6 +51,22 @@
 // those defaults stop applying to projects created on or after 2026-10-30. See
 // tools/lib/table-grants.mjs.
 //
+// AND THE HISTORY FOLD IN 1.1.0. The parser read neither DROP TABLE nor ALTER POLICY, and this
+// gate discarded the DROP POLICY list it did parse, so a policy rewritten by ALTER POLICY was
+// judged on its CREATE text, a dropped policy kept covering its operation, and a dropped table
+// kept vouching — its old policies, grant and owner index counting for a re-created table of
+// the same name. It now reads the parser's one live-policy fold and the folded views, and
+// reports a DROP TABLE or ALTER POLICY whose target no earlier migration left in place.
+// Findings only the fold produces ride a 1.1.0 ramp until 1.2.0 (the block at the end).
+//
+// AND THE GRANT BOUND IN 1.1.0 (#74). The closure above runs one way, and its fold starts
+// empty, so it never saw what Supabase's default privileges hand a role on a new `public`
+// table: the 1.0.2 escape was a grant wider than its policies, and no static check found it.
+// A second fold, seeded with that default, now bounds what anon and authenticated hold by the
+// policies that admit it, holds every table to the three-role revoke doctrine, and keeps
+// supabase/tests/rls_grants.generated.test.sql equal to what tools/gen-grant-assertions.mjs
+// renders. One 1.1.0 ramp until 1.2.0 covers all three. See tools/lib/table-grants.mjs.
+//
 // Static and <100ms: statement-level SQL parsing via tools/lib/sql-parse.mjs, not
 // substring vibes — an early regex version was defeated by the shipped migration's
 // own `AS PERMISSIVE` syntax and never looked at predicates at all. The runtime
@@ -61,17 +77,35 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { fail, failures, ok, rampNote, skipOrFail } from './lib/gate.mjs'
 import {
+  foldOnlyFindings,
+  foldTouches,
+  historyFor,
+  isTwin,
+  withhold,
+} from './lib/sql-fold-ramp.mjs'
+import {
+  parseCreatedTables,
   parseFunctions,
   parseGrants,
   parseIndexes,
+  parseLivePolicies,
   parsePolicies,
   parseRlsToggles,
   readSqlDir,
   readSqlDirByFile,
   splitStatements,
   stripSchema,
+  unresolvedTableDrops,
 } from './lib/sql-parse.mjs'
-import { policyGrantProblems } from './lib/table-grants.mjs'
+import {
+  doctrineProblems,
+  foldPrivileges,
+  grantAllowRows,
+  grantBoundProblems,
+  policyGrantProblems,
+  postgresMajor,
+  renderGrantAssertions,
+} from './lib/table-grants.mjs'
 
 const GATE = 'schema-rls'
 const SCHEMAS_DIR = 'supabase/schemas'
@@ -83,6 +117,8 @@ const PGTAP_STRUCTURE = 'supabase/tests/rls_structure.test.sql'
 const PGTAP_DIR = 'supabase/tests'
 const MFA_PROOF = 'supabase/tests/mfa_aal2.test.sql'
 const CONFIG_TOML = 'supabase/config.toml'
+const GRANT_ALLOW = 'tools/grant-bound-allow.json'
+const GENERATED_GRANTS = 'supabase/tests/rls_grants.generated.test.sql'
 const RAMP = '0.2.0'
 const RAMP_GRANTS = '0.6.0'
 
@@ -139,20 +175,23 @@ const definerAllow = reviewedList(DEFINER_ALLOW, 'allow', 'function')
 //    actually replays. RLS is only real once it is in a migration; a policy that
 //    lives only in the declarative schema never ran. Parsed PER FILE so a negation
 //    can name the migration that introduced it.
+//
+//    THE HISTORY IS FOLDED (1.1.0). A DROP TABLE removes the table from every view below and
+//    a later CREATE starts it fresh; ALTER POLICY rewrites the policy it names; DROP POLICY
+//    removes one — this gate used to parse the DROP POLICY list and discard it, so a dropped
+//    policy kept covering its operation and kept being judged. parseLivePolicies is the one
+//    live-policy fold tenancy reads too. What the fold alone finds rides a ramp (below).
 const perFile = readSqlDirByFile(MIGRATIONS_DIR)
-const allStatements = perFile.flatMap((f) => f.statements)
+const allStatements = historyFor(perFile.flatMap((f) => f.statements))
 
 const { enabled, forced, disabled, unforced, triggersDisabled } = parseRlsToggles(allStatements)
-const { policies } = parsePolicies(allStatements)
+// The fold ramp's twin replays the 1.0.x reading, and that reading was the raw CREATE list.
+const livePolicies = parseLivePolicies(allStatements)
+const { policies } = isTwin() ? parsePolicies(allStatements) : livePolicies
 const { leading: indexedLeading } = parseIndexes(allStatements)
 const functions = parseFunctions(allStatements)
 const grants = parseGrants(allStatements)
-
-const createdTables = new Set()
-for (const stmt of allStatements) {
-  const m = stmt.match(/^CREATE TABLE (?:IF NOT EXISTS )?([a-z0-9_.]+)/i)
-  if (m) createdTables.add(stripSchema(m[1]))
-}
+const createdTables = new Set(parseCreatedTables(allStatements).keys())
 
 /** Which migration file a statement came from — for negation messages that name it. */
 function fileOf(stmt) {
@@ -374,6 +413,25 @@ for (const table of [...createdTables].sort()) {
   )
 }
 
+// A drop or a rewrite the fold cannot place (1.1.0). Guessing either way would be wrong: read
+// as a no-op, a real policy change goes unjudged; read as applied, the gate judges a table or
+// a policy the history never showed it. DROP TABLE IF EXISTS on an unknown table is a no-op in
+// the database and here, so only the unconditional form is reported. A table made OUTSIDE the
+// migrations (the dashboard, an extension) and dropped by an applied one is acknowledged the
+// way every other table outside this gate's model is: a reviewed reason in the exemption list.
+// For a dropped table that is all the entry can do — nothing of it is left to judge.
+for (const { table, stmt } of unresolvedTableDrops(allStatements)) {
+  if (exempt.has(table)) continue
+  errs.push(
+    `${table}: DROP TABLE in ${fileOf(stmt)} names a table no earlier migration creates — the history cannot drop what it never made. In a new migration write DROP TABLE IF EXISTS if the drop is a deliberate no-op; if an applied migration dropped a table made outside the migrations, record that with a reason in ${EXEMPT}`,
+  )
+}
+for (const { table, name, stmt } of livePolicies.unresolved) {
+  errs.push(
+    `${table}: ALTER POLICY ${name} in ${fileOf(stmt)} names no policy an earlier migration left in place — it was never created, or a DROP POLICY or DROP TABLE removed it, so the rewrite has nothing to rewrite and the database refuses it`,
+  )
+}
+
 // ---------------------------------------------------------------------------
 // THE POLICY → GRANT CLOSURE (0.6.0)
 // ---------------------------------------------------------------------------
@@ -401,6 +459,78 @@ const grantErrs = policyGrantProblems({
   grants,
   tables: new Set([...declaredTables, ...createdTables, ...policies.keys()]),
 })
+
+// ---------------------------------------------------------------------------
+// THE GRANT BOUND, THE THREE-ROLE REVOKE DOCTRINE, THE GENERATED ASSERTIONS (1.1.0, #74)
+// ---------------------------------------------------------------------------
+// The closure above keeps its fold of EXPLICIT statements only: seeded with the platform
+// default, a missing GRANT would pass it. The bound needs the opposite, so it gets a fold of
+// its own (tools/lib/table-grants.mjs) that starts each `public` table with everything the
+// default hands anon, authenticated and service_role:
+//   - every privilege anon or authenticated then holds must be admitted by a policy, or
+//     listed with a reason in tools/grant-bound-allow.json (absent-as-empty; creating it is
+//     the widening, so a row naming a privilege nobody holds is a finding);
+//   - every table revokes that default from all three roles and grants what each keeps;
+//   - supabase/tests/rls_grants.generated.test.sql is what the generator renders, checked
+//     only while the doctrine holds (until then the generator refuses, and the doctrine
+//     finding is the one with a fix attached).
+// All three are one kind of finding for the ramp at the end. A malformed allow list is not:
+// an escape hatch whose parse fails must fail loud, never open, so it goes in `errs`.
+// SOURCE: https://www.postgresql.org/docs/17/ddl-priv.html
+
+/** A file's text, or null when it is absent — read-and-catch, never a presence check held apart from the read. */
+function textOrNull(path) {
+  try {
+    return readFileSync(path, 'utf8')
+  } catch (e) {
+    if (e?.code === 'ENOENT' || e?.code === 'ENOTDIR') return null
+    throw e
+  }
+}
+
+function readGrantAllow(privileges) {
+  const text = textOrNull(GRANT_ALLOW)
+  if (text === null) return new Map()
+  let parsed
+  try {
+    parsed = JSON.parse(text)
+  } catch (e) {
+    errs.push(`${GRANT_ALLOW} is not valid JSON (${e.message}) — the list must be reviewable data`)
+    return new Map()
+  }
+  const { rows, problems } = grantAllowRows(parsed, privileges)
+  errs.push(...problems)
+  return rows
+}
+
+/** The committed pgTAP file against its in-memory render; nothing while the doctrine fails. */
+function generatedGrantProblems(fold, doctrineHolds) {
+  if (!doctrineHolds || !existsSync(PGTAP_DIR)) return []
+  const { text } = renderGrantAssertions(fold)
+  if (text === null) return []
+  const committed = textOrNull(GENERATED_GRANTS)
+  if (committed === null) {
+    return [
+      `${GENERATED_GRANTS} does not exist — the exact table privileges anon, authenticated and service_role hold are a COMMITTED pgTAP assertion rendered from the migrations. Run \`node tools/gen-grant-assertions.mjs\` (\`pnpm gen\` runs it) and commit it.`,
+    ]
+  }
+  if (committed === text) return []
+  return [
+    `${GENERATED_GRANTS} is stale — the grants in ${MIGRATIONS_DIR}, or [db].major_version in ${CONFIG_TOML}, changed without regenerating it. Run \`node tools/gen-grant-assertions.mjs\` (\`pnpm gen\` runs it) and commit the diff; never edit its rows or its plan() by hand.`,
+  ]
+}
+
+const grantFold = foldPrivileges(
+  allStatements,
+  existsSync(CONFIG_TOML) ? postgresMajor(readFileSync(CONFIG_TOML, 'utf8')) : null,
+)
+const doctrineErrs = doctrineProblems(grantFold)
+const boundErrs = [
+  ...grantFold.unread,
+  ...grantBoundProblems(grantFold, policies, readGrantAllow(grantFold.privileges)),
+  ...doctrineErrs,
+  ...generatedGrantProblems(grantFold, doctrineErrs.length === 0),
+]
 
 // ---------------------------------------------------------------------------
 // SECURITY DEFINER discipline
@@ -615,6 +745,40 @@ if (existsSync(CONFIG_TOML)) {
 }
 
 // ---------------------------------------------------------------------------
+// The 1.1.0 history fold ramp (#75)
+// ---------------------------------------------------------------------------
+// A finding only the folded history produces — a policy judged on its ALTER POLICY text, a
+// DROP POLICY or DROP TABLE that uncovers an operation or an index, an unresolved target — is a
+// dated NOTE on an install whose baseVersion predates 1.1.0, because its applied history was
+// judged by a parser that could not read those statements. A finding the 1.0.x reading also
+// produces is not lifted, and one only the 1.0.x reading produced is already gone above: it
+// described a policy or table that was dropped or rewritten. tools/lib/sql-fold-ramp.mjs
+// replays this script over the pre-fold history to tell the three apart. DROP POLICY counts as
+// a fold statement here and nowhere else, because this gate is the one that discarded it.
+const foldTouched =
+  foldTouches(allStatements) || allStatements.some((s) => /^DROP POLICY /i.test(s))
+const fold = await foldOnlyFindings(
+  import.meta.url,
+  [errs, rampedErrs, grantErrs, boundErrs],
+  foldTouched,
+)
+if (!fold.replayed) {
+  console.log(
+    `${GATE}: the 1.0.x replay of the migration history did not report, so no finding is lifted by the 1.1.0 fold ramp`,
+  )
+}
+if (fold.foldOnly.length > 0) {
+  const foldRamped = rampNote(
+    GATE,
+    '1.1.0',
+    'the SQL history fold (DROP TABLE, ALTER POLICY and DROP POLICY)',
+    { until: '1.2.0' },
+  )
+  if (foldRamped) {
+    withhold([errs, rampedErrs, grantErrs, boundErrs], fold.foldOnly)
+    for (const e of fold.foldOnly) console.log(`${GATE}: NOTE — (ramp) ${e}`)
+  }
+}
 
 if (rampedErrs.length > 0) {
   const ramped = rampNote(
@@ -652,6 +816,23 @@ if (grantErrs.length > 0) {
   else errs.push(...grantErrs)
 }
 
+// RAMPED from 1.1.0 until 1.2.0 (#74), one site for three kinds of finding: the bound, the
+// doctrine, and a missing or stale generated file. An install seeded before 1.1.0 has tables
+// that predate the doctrine — every one of them, profiles and notes included, since the
+// harness's own migrations taught two revokes until 1.0.2 — and no generated file (`update`
+// withholds it, with the migration that applies the doctrine). The findings condition comes
+// first: rampNote prints on every armed call, so a clean tree must never reach it.
+if (boundErrs.length > 0) {
+  const ramped = rampNote(
+    GATE,
+    '1.1.0',
+    'the grant bound, the three-role revoke doctrine and the generated grant assertions',
+    { until: '1.2.0' },
+  )
+  if (ramped) for (const e of boundErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)
+  else errs.push(...boundErrs)
+}
+
 failures(
   GATE,
   errs,
@@ -659,5 +840,5 @@ failures(
 )
 ok(
   GATE,
-  `${declaredTables.size} table(s): FORCE RLS (never disabled) + per-op policies + real, uncorrelated predicates + owner-column indexes + dual isolation-registry coverage + every policy role holds a matching table GRANT${functions.some((f) => f.securityDefiner) ? ` + ${functions.filter((f) => f.securityDefiner).length} reviewed definer function(s)` : ''}`,
+  `${declaredTables.size} table(s): FORCE RLS (never disabled) + per-op policies + real, uncorrelated predicates + owner-column indexes + dual isolation-registry coverage + every policy role holds a matching table GRANT + every privilege anon and authenticated hold is admitted by a policy + the platform default revoked from all three roles${existsSync(PGTAP_DIR) && grantFold.tables.size > 0 ? ` + ${GENERATED_GRANTS} in sync` : ''}${functions.some((f) => f.securityDefiner) ? ` + ${functions.filter((f) => f.securityDefiner).length} reviewed definer function(s)` : ''}`,
 )

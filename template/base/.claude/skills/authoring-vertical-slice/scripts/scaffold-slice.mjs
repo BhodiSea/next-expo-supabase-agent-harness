@@ -53,7 +53,9 @@ const files = [
       '// RLS READS a phone performs against its own scoped Supabase client. Nothing here may\n' +
       '// reach a service-role client, a Next-coupled leaf, or a Node built-in (Metro does not\n' +
       '// tree-shake). Re-export the reads, the input schemas, the event vocabulary and the pure\n' +
-      '// domain. Writes stay OFF this barrel. See packages/verticals/notes/src/client.ts.\n',
+      '// domain. Writes stay OFF this barrel. See packages/verticals/notes/src/client.ts.\n' +
+      '// Export the event catalog under the name the generator looks for, then run `pnpm gen`:\n' +
+      `// export { ${camel}Events as EVENT_CATALOG } from './events.js'\n`,
   ],
   [
     join(vertical, 'index.ts'),
@@ -162,6 +164,9 @@ console.log(
 console.log(
   'next: add an ISOLATION_TARGET to tests/rls/db-context.ts AND an rls_targets row to ' +
     'supabase/tests/rls_structure.test.sql for each user-scoped table',
+)
+console.log(
+  `next: export the catalog from src/client.ts as EVENT_CATALOG (export { ${camel}Events as EVENT_CATALOG } from './events.js'), or its events are never catalogued`,
 )
 console.log('next: wire the router into appRouter (packages/api/src/index.ts), then run: pnpm gen')
 console.log(

@@ -8,7 +8,7 @@
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -30,10 +30,21 @@ const SHIPPED_EXEMPT = fileURLToPath(
 
 const EXEMPT_EMPTY = '{"comment":"x","exempt":[]}\n'
 
+/** Supabase's default privileges undone for all three roles: the 1.1.0 doctrine (#74). */
+const REVOKE_THREE = `REVOKE ALL ON TABLE public.thing FROM anon;
+REVOKE ALL ON TABLE public.thing FROM service_role;
+REVOKE ALL ON TABLE public.thing FROM authenticated;`
+const GEN = fileURLToPath(new URL('../../template/base/tools/gen-grant-assertions.mjs', import.meta.url))
+const GENERATED = 'supabase/tests/rls_grants.generated.test.sql'
+/** The shipped migration that applies the doctrine to profiles and notes (#74). */
+const THREE_ROLE_REVOKE = '20260930000000_three_role_revoke.sql'
+/** The shipped 1.0.2 migration that revoked authenticated's writes on seven read-only tables. */
+const WRITE_REVOKE = '20260920000000_authenticated_write_revoke.sql'
+
 // A minimal owner-scoped table whose owner column is a SEPARATE indexed column
 // (owner_id), the notes shape. Overridable pieces let each RED case perturb one rule.
 /**
- * @param {{enable?: string, force?: string, index?: string, usingSelect?: string, policies?: string, grants?: string, extra?: string}} [o]
+ * @param {{enable?: string, force?: string, index?: string, usingSelect?: string, policies?: string, revokes?: string, grants?: string, extra?: string}} [o]
  */
 function migration(o = {}) {
   const {
@@ -42,6 +53,10 @@ function migration(o = {}) {
     index = 'CREATE INDEX thing_owner_idx ON public.thing (owner_id, created_at DESC);',
     usingSelect = 'USING (owner_id = (SELECT auth.uid()))',
     policies,
+    // The three-role revoke the 1.1.0 doctrine requires (#74). A slot of its own, not part
+    // of `grants`: six tests override `grants` to perturb the POLICY -> GRANT closure, and
+    // each must keep judging only what it was written for.
+    revokes = REVOKE_THREE,
     // The GRANT the 0.6.0 policy→grant closure requires. It is a DEFAULT rather than
     // part of the fixed prelude because the whole point of the check is that its absence
     // is invisible: every fixture in this file predates it and every one of them passed.
@@ -62,6 +77,7 @@ CREATE POLICY thing_delete_own ON public.thing AS PERMISSIVE FOR DELETE TO authe
 ${index}
 ${enable}
 ${force}
+${revokes}
 ${pols}
 ${grants}
 ${extra}`
@@ -87,6 +103,9 @@ function fixture({
   definerAllow = '{"comment":"x","allow":[]}\n',
   configToml = null,
   shipped = false,
+  manifest = null,
+  grantAllow = null,
+  generated = true,
 } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'nesah-rlsgate-'))
   mkdirSync(join(dir, 'tools'), { recursive: true })
@@ -116,6 +135,16 @@ function fixture({
     writeFileSync(join(dir, 'supabase/tests/rls_structure.test.sql'), structure(structureRows))
   }
   if (configToml !== null) writeFileSync(join(dir, 'supabase/config.toml'), configToml)
+  if (manifest !== null) {
+    mkdirSync(join(dir, '.harness'), { recursive: true })
+    writeFileSync(join(dir, '.harness/manifest.json'), JSON.stringify(manifest))
+  }
+  if (grantAllow !== null) writeFileSync(join(dir, 'tools/grant-bound-allow.json'), grantAllow)
+  // The committed pgTAP privilege assertions (1.1.0, #74), rendered by the REAL generator the
+  // way `pnpm gen` renders them. The shipped tree carries its own committed copy. Where the
+  // fixture fails the doctrine the generator refuses and writes nothing, and the gate then
+  // reports the doctrine, not the file.
+  if (generated && !shipped) spawnSync('node', [GEN], { cwd: dir, encoding: 'utf8' })
   return dir
 }
 
@@ -147,6 +176,7 @@ test('GREEN: an INLINE primary key on the owner column satisfies the index rule'
 );
 ALTER TABLE public.thing ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.thing FORCE ROW LEVEL SECURITY;
+${REVOKE_THREE}
 CREATE POLICY thing_select_own ON public.thing FOR SELECT TO authenticated USING (id = (SELECT auth.uid()));
 CREATE POLICY thing_insert_own ON public.thing FOR INSERT TO authenticated WITH CHECK (id = (SELECT auth.uid()));
 CREATE POLICY thing_update_own ON public.thing FOR UPDATE TO authenticated USING (id = (SELECT auth.uid())) WITH CHECK (id = (SELECT auth.uid()));
@@ -578,15 +608,24 @@ test('RED (0.6.0): the SHIPPED tree with one GRANT line deleted — the green ab
   // The strongest form of the proof: not a fixture shaped like the scaffold, but THE
   // scaffold, minus one line. A closure that passes the shipped tree because it never
   // looked at it would survive every fixture-only red-proof in this file.
+  //
+  // Since 1.1.0 (#74) the line is the three-role revoke migration's: it revokes ALL from
+  // `authenticated` on notes and re-grants the four verbs, so that GRANT is the one the
+  // privileges come from, and the creating migration's older GRANT no longer counts.
   const dir = fixture({ shipped: true })
-  const mig = join(dir, 'supabase/migrations/20260101000100_notes.sql')
+  const mig = join(dir, `supabase/migrations/${THREE_ROLE_REVOKE}`)
   const before = readFileSync(mig, 'utf8')
   const GRANT = 'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.notes TO authenticated;'
-  assert.ok(before.includes(GRANT), 'the shipped notes migration must carry the grant this deletes')
+  assert.ok(before.includes(GRANT), 'the shipped three-role revoke migration must carry the grant this deletes')
   writeFileSync(mig, before.replace(GRANT, ''))
   const r = runGate(dir)
   assert.equal(r.code, 1, r.out)
-  assert.ok(r.out.includes('notes: policy notes_select_own'), r.out)
+  // The LIVE policy is named. Through 1.0.x this pinned notes_select_own, the owner-scoped
+  // policy 20260201000100_notes_org_scope.sql DROPs; since the 1.1.0 history fold a dropped
+  // policy is out of judgment, and the org-scoped policy that replaced it is the one the
+  // missing grant strands.
+  assert.ok(r.out.includes('notes: policy notes_select_org'), r.out)
+  assert.ok(!r.out.includes('notes: policy notes_select_own'), r.out)
 })
 
 test('GREEN (0.6.0): a deny-all policy needs no grant — the carve-out that keeps the tenancy spine legal', () => {
@@ -680,6 +719,10 @@ test('GREEN (0.6.0): ALL TABLES IN SCHEMA fans out, and a grant to PUBLIC is hel
   )
   assert.equal(fanOut.code, 0, fanOut.out)
 
+  // The PUBLIC grant satisfies the closure: every role holds it, authenticated included.
+  // Since 1.1.0 (#74) the bound then reports it for `anon`, which holds the same four
+  // privileges through PUBLIC and which no policy of this table admits. Both halves are
+  // asserted, so the closure's acceptance is still pinned while the verdict moves.
   const toPublic = runGate(
     fixture({
       migration: migration({
@@ -687,7 +730,13 @@ test('GREEN (0.6.0): ALL TABLES IN SCHEMA fans out, and a grant to PUBLIC is hel
       }),
     }),
   )
-  assert.equal(toPublic.code, 0, toPublic.out)
+  assert.equal(toPublic.code, 1, toPublic.out)
+  assert.doesNotMatch(toPublic.out, /but no migration GRANTs/)
+  assert.match(
+    toPublic.out,
+    /thing: `anon` holds SELECT, INSERT, UPDATE, DELETE on public\.thing \(through PUBLIC\), which no policy admits/,
+  )
+  assert.doesNotMatch(toPublic.out, /`authenticated` holds/)
 })
 
 // ── THE MFA RAIL (0.9.9) ──────────────────────────────────────────────────────────
@@ -796,4 +845,381 @@ CREATE POLICY thing_delete_own ON public.thing AS PERMISSIVE FOR DELETE TO authe
   )
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /no PERMISSIVE policy FOR SELECT/)
+})
+
+// ---------------------------------------------------------------------------
+// 1.1.0 (#75) — the history fold: DROP TABLE and ALTER POLICY
+// ---------------------------------------------------------------------------
+// The parser read neither statement before 1.1.0, and this gate also discarded the DROP
+// POLICY list, so a rewritten policy was judged on text the database no longer runs and a
+// dropped table kept vouching for itself. Reproductions 1, 4 and 5 of the issue, plus the
+// Guard's unresolved-target findings. Findings only the fold produces ride a 1.1.0 ramp
+// until 1.2.0; a finding the 1.0.x reading also produces stays a hard red at every vintage.
+
+/** baseVersion 1.0.3 at harness 1.1.0: the install the ramp is for. */
+const PRE_FOLD = { baseVersion: '1.0.3', harnessVersion: '1.1.0', files: {} }
+/** The same install one release on, where the ramp has expired. */
+const PRE_FOLD_EXPIRED = { baseVersion: '1.0.3', harnessVersion: '1.2.0', files: {} }
+
+test('RED (1.1.0, repro 1): ALTER POLICY … USING (true) is judged as the database runs it', () => {
+  const r = runGate(
+    fixture({
+      migration: migration({ extra: 'ALTER POLICY thing_select_own ON public.thing USING (true);' }),
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /thing: policy thing_select_own has a vacuous USING \(true\)/)
+})
+
+test('GREEN (1.1.0, repro 4): a table created and then dropped is no longer "created but not declared"', () => {
+  const extra = 'CREATE TABLE public.widgets (id uuid PRIMARY KEY);\nDROP TABLE public.widgets;'
+  const r = runGate(fixture({ migration: migration({ extra }) }))
+  assert.equal(r.code, 0, r.out)
+  // …and without the drop it still reds, so the case above is not vacuous.
+  const kept = runGate(
+    fixture({ migration: migration({ extra: 'CREATE TABLE public.widgets (id uuid PRIMARY KEY);' }) }),
+  )
+  assert.equal(kept.code, 1, kept.out)
+  assert.match(kept.out, /widgets: created by a migration but not declared/)
+})
+
+test('RED (1.1.0, repro 5): a dropped and re-created table starts fresh — no old policy, grant or index counts', () => {
+  const extra = `DROP TABLE public.thing;
+CREATE TABLE public.thing (id uuid PRIMARY KEY, owner_id uuid NOT NULL);
+ALTER TABLE public.thing ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.thing FORCE ROW LEVEL SECURITY;`
+  const r = runGate(fixture({ migration: migration({ extra }) }))
+  assert.equal(r.code, 1, r.out)
+  for (const op of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
+    assert.match(r.out, new RegExp(`thing: no PERMISSIVE policy FOR ${op}`))
+  }
+  assert.match(r.out, /thing: no index with leading column owner_id/)
+})
+
+test('RED (1.1.0): a DROP POLICY is folded here too — the dropped policy no longer covers its operation', () => {
+  const r = runGate(
+    fixture({ migration: migration({ extra: 'DROP POLICY thing_delete_own ON public.thing;' }) }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /thing: no PERMISSIVE policy FOR DELETE/)
+})
+
+test('RED (1.1.0, Guard): DROP TABLE of a table no migration created is an unresolved finding', () => {
+  const r = runGate(fixture({ migration: migration({ extra: 'DROP TABLE public.ghost;' }) }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /ghost: DROP TABLE in \S+0001_thing\.sql names a table no earlier migration creates/)
+})
+
+test('GREEN (1.1.0, Guard): an applied drop of a table made outside the migrations, exempted with a reason', () => {
+  const r = runGate(
+    fixture({
+      migration: migration({ extra: 'DROP TABLE public.ghost;' }),
+      exempt: '{"comment":"x","exempt":[{"table":"ghost","reason":"created from the dashboard in 2025, dropped by 0001"}]}\n',
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+})
+
+test('GREEN (1.1.0, Guard): DROP TABLE IF EXISTS on an unknown table is a no-op, not a finding', () => {
+  const r = runGate(fixture({ migration: migration({ extra: 'DROP TABLE IF EXISTS public.ghost;' }) }))
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED (1.1.0, Guard): ALTER POLICY naming no live policy is an unresolved finding', () => {
+  const r = runGate(
+    fixture({ migration: migration({ extra: 'ALTER POLICY ghost_policy ON public.thing USING (owner_id = (SELECT auth.uid()));' }) }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /thing: ALTER POLICY ghost_policy in \S+0001_thing\.sql names no policy an earlier migration left in place/)
+})
+
+test('GREEN (1.1.0): ALTER POLICY … RENAME TO keeps the policy covering its operation', () => {
+  const r = runGate(
+    fixture({
+      migration: migration({ extra: 'ALTER POLICY thing_select_own ON public.thing RENAME TO thing_select_mine;' }),
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RAMP (1.1.0): a fold-only finding is a NOTE on a 1.0.3 install at harness 1.1.0', () => {
+  const r = runGate(
+    fixture({
+      migration: migration({ extra: 'ALTER POLICY thing_select_own ON public.thing USING (true);' }),
+      manifest: PRE_FOLD,
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /schema-rls: NOTE — the SQL history fold .*expires in 1\.2\.0/)
+  assert.match(r.out, /schema-rls: NOTE — \(ramp\) thing: policy thing_select_own has a vacuous USING \(true\)/)
+})
+
+test('RAMP (1.1.0): the same finding is RAMP EXPIRED and red at harness 1.2.0', () => {
+  const r = runGate(
+    fixture({
+      migration: migration({ extra: 'ALTER POLICY thing_select_own ON public.thing USING (true);' }),
+      manifest: PRE_FOLD_EXPIRED,
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /schema-rls: RAMP EXPIRED — the SQL history fold/)
+  assert.match(r.out, /has a vacuous USING \(true\)/)
+})
+
+test('RAMP (1.1.0): with no manifest the fold-only finding is a plain red', () => {
+  // Repro 1 above IS this case (no fixture here writes a manifest); pinned by name so the
+  // three states of the ramp sit together.
+  const r = runGate(
+    fixture({ migration: migration({ extra: 'ALTER POLICY thing_select_own ON public.thing USING (true);' }) }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.doesNotMatch(r.out, /NOTE — \(ramp\)/)
+})
+
+test('RAMP (1.1.0): a finding the 1.0.x reading ALSO produces stays hard on a 1.0.3 install', () => {
+  // The CREATE itself is vacuous, and the history holds a DROP TABLE of an unrelated table,
+  // so the fold runs and the replay runs — and still both readings agree on this finding.
+  const r = runGate(
+    fixture({
+      migration: migration({
+        usingSelect: 'USING (true)',
+        extra: 'CREATE TABLE public.widgets (id uuid PRIMARY KEY);\nDROP TABLE public.widgets;',
+      }),
+      manifest: PRE_FOLD,
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /has a vacuous USING \(true\)/)
+  assert.doesNotMatch(r.out, /NOTE — \(ramp\) thing: policy thing_select_own/)
+})
+
+test('RAMP (1.1.0): a finding only the 1.0.x reading produced clears on every install', () => {
+  // The vacuous CREATE is rewritten by ALTER POLICY to a real predicate: the database runs
+  // the real one, so nothing is left to report — with or without a manifest.
+  const extra = 'ALTER POLICY thing_select_own ON public.thing USING (owner_id = (SELECT auth.uid()));'
+  for (const manifest of [null, PRE_FOLD]) {
+    const r = runGate(fixture({ migration: migration({ usingSelect: 'USING (true)', extra }), manifest }))
+    assert.equal(r.code, 0, r.out)
+    assert.doesNotMatch(r.out, /vacuous/)
+  }
+})
+
+// ---------------------------------------------------------------------------
+// 1.1.0 (#74) — the grant bound, the three-role revoke doctrine, and the generated
+// privilege assertions (design record R05)
+// ---------------------------------------------------------------------------
+// The POLICY -> GRANT closure above asks whether a policy has a grant behind it and never
+// the reverse, and its fold starts EMPTY, so it never sees what Supabase's default
+// privileges hand a role on a new `public` table. The 1.0.2 escape was exactly that: a
+// grant wider than its policies, which no static check found. A second fold now starts each
+// `public` table with every privilege for anon, authenticated and service_role:
+//   - the BOUND: every privilege anon or authenticated holds is admitted by a policy;
+//   - the DOCTRINE: every privilege the default-seeded fold holds is held by the explicit one;
+//   - the GENERATED FILE: supabase/tests/rls_grants.generated.test.sql is what
+//     tools/gen-grant-assertions.mjs renders.
+// One ramp covers all three (1.1.0 until 1.2.0); no fixture here writes a manifest to
+// silence a finding, and the RAMP cases below are the only ones that write one.
+
+const PRE_BOUND = { baseVersion: '1.0.3', harnessVersion: '1.1.0', files: {} }
+const PRE_BOUND_EXPIRED = { baseVersion: '1.0.3', harnessVersion: '1.2.0', files: {} }
+const TWO_REVOKES = `REVOKE ALL ON TABLE public.thing FROM anon;
+REVOKE ALL ON TABLE public.thing FROM service_role;`
+const SEVEN_READ_ONLY = [
+  'admin_elevations',
+  'invitations',
+  'memberships',
+  'org_quota',
+  'org_usage',
+  'orgs',
+  'quota_defaults',
+]
+const doctrineNamed = (out) =>
+  [...out.matchAll(/^(?:schema-rls: NOTE — \(ramp\) )?\s*-?\s*([a-z_.]+): the platform default still reaches/gm)].map(
+    (m) => m[1],
+  )
+
+test('RED (1.1.0, #74): the SHIPPED tree without the three-role revoke migration reports profiles and notes', () => {
+  const dir = fixture({ shipped: true })
+  rmSync(join(dir, `supabase/migrations/${THREE_ROLE_REVOKE}`))
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.deepEqual([...new Set(doctrineNamed(r.out))].sort(), ['notes', 'profiles'], r.out)
+  assert.match(r.out, /profiles: `authenticated` holds TRUNCATE, REFERENCES, TRIGGER, MAINTAIN on public\.profiles, which no policy admits/)
+  assert.match(r.out, /REVOKE ALL ON TABLE public\.notes FROM authenticated;/)
+})
+
+test('RED (1.1.0, #74): the SHIPPED tree without 20260920000000_authenticated_write_revoke.sql reports all seven tables', () => {
+  // Today's shipped tree without that migration passed schema-rls: the 1.0.2 escape.
+  const dir = fixture({ shipped: true })
+  rmSync(join(dir, `supabase/migrations/${WRITE_REVOKE}`))
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.deepEqual([...new Set(doctrineNamed(r.out))].sort(), SEVEN_READ_ONLY, r.out)
+  for (const t of SEVEN_READ_ONLY) {
+    assert.match(r.out, new RegExp(`${t}: \`authenticated\` holds INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER, MAINTAIN on public\\.${t}, which no policy admits`))
+  }
+})
+
+test('RED (1.1.0, #74): a grant behind a deny-all policy', () => {
+  const pols = `CREATE POLICY thing_select_own ON public.thing FOR SELECT TO authenticated USING (owner_id = (SELECT auth.uid()));
+CREATE POLICY thing_insert_none ON public.thing FOR INSERT TO authenticated WITH CHECK (false);
+CREATE POLICY thing_update_none ON public.thing FOR UPDATE TO authenticated USING (false);
+CREATE POLICY thing_delete_none ON public.thing FOR DELETE TO authenticated USING (false);`
+  const r = runGate(
+    fixture({
+      migration: migration({
+        policies: pols,
+        grants: 'GRANT SELECT, INSERT ON TABLE public.thing TO authenticated;',
+      }),
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /thing: `authenticated` holds INSERT on public\.thing, which no policy admits/)
+  assert.ok(r.out.includes('GRANT SELECT ON TABLE public.thing TO authenticated;'), r.out)
+})
+
+test('RED (1.1.0, #74): GRANT ALL hands authenticated four privileges no policy admits', () => {
+  const r = runGate(fixture({ migration: migration({ grants: 'GRANT ALL ON TABLE public.thing TO authenticated;' }) }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /thing: `authenticated` holds TRUNCATE, REFERENCES, TRIGGER, MAINTAIN on public\.thing, which no policy admits/)
+  assert.ok(
+    r.out.includes('REVOKE ALL ON TABLE public.thing FROM authenticated; GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.thing TO authenticated;'),
+    r.out,
+  )
+})
+
+test('RED (1.1.0, #74): … TO authenticated WITH GRANT OPTION is read as a grant to authenticated', () => {
+  // parseGrants reads the role list of this statement as ONE role, `authenticated with grant
+  // option`. Reused as it is, the bound would see nothing granted to authenticated and pass.
+  const r = runGate(
+    fixture({ migration: migration({ grants: 'GRANT ALL ON TABLE public.thing TO authenticated WITH GRANT OPTION;' }) }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /thing: `authenticated` holds TRUNCATE, REFERENCES, TRIGGER, MAINTAIN on public\.thing, which no policy admits/)
+})
+
+test('RED (1.1.0, #74): a schema-wide REVOKE before a later CREATE TABLE does not clear it', () => {
+  const r = runGate(
+    fixture({
+      migration: `REVOKE ALL ON ALL TABLES IN SCHEMA public FROM authenticated;\n${migration({ revokes: TWO_REVOKES })}`,
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /thing: the platform default still reaches `authenticated`/)
+  assert.match(r.out, /thing: `authenticated` holds TRUNCATE, REFERENCES, TRIGGER, MAINTAIN on public\.thing/)
+})
+
+test('RED (1.1.0, #74): a table that never revokes from service_role', () => {
+  const r = runGate(
+    fixture({
+      migration: migration({
+        revokes: 'REVOKE ALL ON TABLE public.thing FROM anon;\nREVOKE ALL ON TABLE public.thing FROM authenticated;',
+      }),
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /thing: the platform default still reaches `service_role`/)
+  assert.ok(r.out.includes('REVOKE ALL ON TABLE public.thing FROM service_role;'), r.out)
+  // service_role bypasses row security, so the bound never judges it against a policy.
+  assert.doesNotMatch(r.out, /`service_role` holds/)
+})
+
+test('RED (1.1.0, #74): a stale allow row — the role does not hold what it allows', () => {
+  const r = runGate(
+    fixture({
+      grantAllow: JSON.stringify({
+        comment: 'x',
+        allow: [{ table: 'thing', role: 'anon', privilege: 'SELECT', reason: 'anon reads it (no longer true)' }],
+      }),
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /tools\/grant-bound-allow\.json allows \(thing, anon, SELECT\), but `anon` does not hold SELECT on public\.thing/)
+})
+
+test('GREEN (1.1.0, #74): an allow row excuses exactly the privilege it names', () => {
+  const grants = 'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.thing TO authenticated;\nGRANT TRIGGER ON TABLE public.thing TO authenticated;'
+  const red = runGate(fixture({ migration: migration({ grants }) }))
+  assert.equal(red.code, 1, red.out)
+  assert.match(red.out, /thing: `authenticated` holds TRIGGER on public\.thing, which no policy admits/)
+  const allow = JSON.stringify({
+    comment: 'x',
+    allow: [{ table: 'thing', role: 'authenticated', privilege: 'TRIGGER', reason: 'a reviewed trigger-owner need' }],
+  })
+  const green = runGate(fixture({ migration: migration({ grants }), grantAllow: allow }))
+  assert.equal(green.code, 0, green.out)
+})
+
+test('RED (1.1.0, #74): a malformed allow list fails loud, never open', () => {
+  const r = runGate(fixture({ grantAllow: '{ nope' }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /tools\/grant-bound-allow\.json is not valid JSON/)
+  const shape = runGate(
+    fixture({ grantAllow: JSON.stringify({ allow: [{ table: 'thing', role: 'anon', privilege: 'SELECT' }] }) }),
+  )
+  assert.equal(shape.code, 1, shape.out)
+  assert.match(shape.out, /tools\/grant-bound-allow\.json: every entry must be/)
+})
+
+test('RED (1.1.0, #74): a stale generated file, and a missing one', () => {
+  const stale = fixture()
+  const path = join(stale, GENERATED)
+  const text = readFileSync(path, 'utf8')
+  const flipped = text.replace("('public.thing', 'authenticated', 'TRUNCATE', false)", "('public.thing', 'authenticated', 'TRUNCATE', true)")
+  assert.notEqual(flipped, text, 'the rendered file must carry the row this flips')
+  writeFileSync(path, flipped)
+  const r = runGate(stale)
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /supabase\/tests\/rls_grants\.generated\.test\.sql is stale/)
+  assert.match(r.out, /node tools\/gen-grant-assertions\.mjs/)
+
+  const missing = runGate(fixture({ generated: false }))
+  assert.equal(missing.code, 1, missing.out)
+  assert.match(missing.out, /supabase\/tests\/rls_grants\.generated\.test\.sql does not exist/)
+})
+
+test('GREEN (1.1.0, #74): three revokes, then exact grants, and the generated file in sync', () => {
+  const dir = fixture()
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /every privilege anon and authenticated hold is admitted by a policy/)
+  const text = readFileSync(join(dir, GENERATED), 'utf8')
+  assert.match(text, /\('public\.thing', 'authenticated', 'SELECT', true\)/)
+  assert.match(text, /\('public\.thing', 'authenticated', 'MAINTAIN', false\)/)
+  // The generator's regen-diff agrees with the gate.
+  const check = spawnSync('node', [GEN, '--check'], { cwd: dir, encoding: 'utf8' })
+  assert.equal(check.status, 0, `${check.stdout}${check.stderr}`)
+})
+
+test('GREEN (1.1.0, #74): a major_version = 15 config renders seven privileges', () => {
+  const on15 = '[db]\nport = 54322\nmajor_version = 15\n'
+  const dir = fixture({ configToml: on15 })
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+  const text = readFileSync(join(dir, GENERATED), 'utf8')
+  assert.doesNotMatch(text, /MAINTAIN/)
+  assert.equal([...text.matchAll(/^\s+\('public\.thing', 'anon', /gm)].length, 7)
+  // The same file under a major-17 config is stale: the major is an input of the render.
+  writeFileSync(join(dir, 'supabase/config.toml'), on15.replace('15', '17'))
+  const moved = runGate(dir)
+  assert.equal(moved.code, 1, moved.out)
+  assert.match(moved.out, /rls_grants\.generated\.test\.sql is stale/)
+})
+
+test('RAMP (1.1.0, #74): the bound and the doctrine are NOTEs when .harness/manifest.json gives baseVersion 1.0.3', () => {
+  const r = runGate(fixture({ migration: migration({ revokes: TWO_REVOKES }), manifest: PRE_BOUND }))
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /schema-rls: NOTE — the grant bound, the three-role revoke doctrine and the generated grant assertions .*expires in 1\.2\.0/)
+  assert.match(r.out, /schema-rls: NOTE — \(ramp\) thing: the platform default still reaches `authenticated`/)
+  assert.match(r.out, /schema-rls: NOTE — \(ramp\) thing: `authenticated` holds TRUNCATE/)
+  // …a plain red with no manifest, as every fixture above shows, and RAMP EXPIRED at 1.2.0.
+  const expired = runGate(fixture({ migration: migration({ revokes: TWO_REVOKES }), manifest: PRE_BOUND_EXPIRED }))
+  assert.equal(expired.code, 1, expired.out)
+  assert.match(expired.out, /schema-rls: RAMP EXPIRED — the grant bound/)
+})
+
+test('RAMP (1.1.0, #74): a missing generated file is a NOTE on a 1.0.3 install too — one site, three kinds', () => {
+  const r = runGate(fixture({ generated: false, manifest: PRE_BOUND }))
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /schema-rls: NOTE — \(ramp\) supabase\/tests\/rls_grants\.generated\.test\.sql does not exist/)
 })

@@ -230,7 +230,12 @@ the shape a real request arrives with.
   `ENABLE` + `FORCE` + four per-op policies, a leading-column owner index, and initPlan-shaped
   predicates, OR exempted in the write-guard-protected `tools/rls-exempt.json` (a human
   decision — never edit it). It closes over `ISOLATION_TARGETS` in `tests/rls/db-context.ts`
-  and holds it in sync with `rls_targets` in `supabase/tests/rls_structure.test.sql`.
+  and holds it in sync with `rls_targets` in `supabase/tests/rls_structure.test.sql`. From
+  1.1.0 it also reds a privilege `anon` or `authenticated` holds that no policy admits, a
+  table that keeps the platform default for any of the three roles, and a
+  `supabase/tests/rls_grants.generated.test.sql` that is missing or stale: after the
+  migration, run `node tools/gen-grant-assertions.mjs` (`pnpm gen` runs it) and commit the
+  file. Never edit its rows or its `plan()` by hand.
 - `migrations`: append-only vs git; no DML without an explicit allowance; destructive DDL
   (`DROP TABLE`/`COLUMN`, `TRUNCATE`) requires an `-- adr: docs/adr/<file>` pointing at an
   existing ADR — run `/adr` BEFORE writing the migration (it cannot be edited afterwards).

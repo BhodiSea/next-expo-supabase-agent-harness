@@ -14,10 +14,10 @@
 // empty register reading as a clean bill of health.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { test } from 'node:test'
+import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { STOP_HOOK_STEPS, VALIDATE_STEPS } from '../../template/base/tools/harness.config.mjs'
 import {
@@ -30,7 +30,11 @@ import {
   summarise,
   unmappedControlProblems,
 } from '../../template/base/tools/lib/conformance-map.mjs'
+import { hashInputs } from '../../template/base/tools/lib/gate.mjs'
 import { liveControls } from '../../template/base/tools/lib/live-controls.mjs'
+// A namespace import: a named import of an entry the register lacks would fail this whole
+// file at link time instead of failing the stamp cases that need it.
+import * as stampRegister from '../../template/base/tools/lib/stamp-inputs.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const BASE = join(ROOT, 'template/base')
@@ -340,7 +344,9 @@ test('the shipped map places every chain step exactly once — named as a contro
       `${step} must be exactly one of named | unmapped`,
     )
   }
-  assert.equal(STEPS.length, 46, '36 validate + 10 Stop steps')
+  // 47 since 1.1.0 (#77): web-compile joined the validate chain, keyed as unmapped.
+  assert.equal(STEPS.length, 47, '37 validate + 10 Stop steps')
+  assert.ok(unmapped.has('web-compile'), 'web-compile is keyed as unmapped, with its reason')
 })
 
 test('a chain step that is neither named nor listed reds', () => {
@@ -651,4 +657,189 @@ test('the shipped GATE fails CLOSED on an empty register — an empty map is a m
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+// ---- the stamp (1.1.0, #68) -------------------------------------------------------------
+// The script is stamped like the other register-reading gates: a warm run over unchanged
+// inputs prints `conformance-map: STAMPED — inputs unchanged since last green run` and exits
+// 0 without judging the map or spawning the generator. The stamp is keyed on what the
+// verdict reads (the register, the chain config, the workflows, the guard rules, the module
+// list and markers, the generator and its two documents, and each imported library), never
+// on the evidence paths the rows cite, which neither script opens. CI (CI=true or
+// HARNESS_REQUIRE_TOOLCHAINS=1) always judges in full.
+//
+// The fixture is the anti-vacuity one plus a stub of every other input, so each case below
+// EDITS an input that exists rather than creating one: the script, harness.config.mjs,
+// modules.json and tools/lib/**, an EMPTY register (judged in full it reds, so exit 0 can
+// only be the stamp), one workflow, the guard rules, the generator and both generated
+// documents. The child environment drops CI and HARNESS_REQUIRE_TOOLCHAINS, so the cases
+// pass under the CI-shaped command on both selftest legs; only the CI case sets CI=true.
+const STAMP_GATE = 'conformance-map'
+const STAMP_SCRIPT = 'tools/check-conformance-map.mjs'
+const STAMP_LINE = `${STAMP_GATE}: STAMPED — inputs unchanged since last green run`
+const made = []
+after(() => {
+  for (const dir of made) rmSync(dir, { recursive: true, force: true })
+})
+
+/** @param {string} dir @param {string} rel @param {string} text */
+function put(dir, rel, text) {
+  mkdirSync(dirname(join(dir, rel)), { recursive: true })
+  writeFileSync(join(dir, rel), text)
+}
+
+function stampFixture() {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-cmapstamp-'))
+  made.push(dir)
+  mkdirSync(join(dir, 'tools'), { recursive: true })
+  for (const f of ['check-conformance-map.mjs', 'harness.config.mjs', 'modules.json']) {
+    cpSync(join(BASE, 'tools', f), join(dir, 'tools', f))
+  }
+  cpSync(join(BASE, 'tools', 'lib'), join(dir, 'tools', 'lib'), { recursive: true })
+  put(dir, 'tools/conformance-map.json', JSON.stringify({ requirements: [] }))
+  put(
+    dir,
+    '.github/workflows/ci.yml',
+    'name: ci\non: push\njobs:\n  static:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n',
+  )
+  put(dir, '.claude/hooks/lib/guard-rules.mjs', '// stub\n')
+  put(dir, 'tools/gen-conformance-docs.mjs', '// stub\n')
+  put(dir, 'docs/compliance/controls-crosswalk.md', 'stub\n')
+  put(dir, 'docs/security/threat-model.md', 'stub\n')
+  return dir
+}
+
+/** @param {string} dir @param {{ ci?: boolean }} [opts] */
+function runStamped(dir, { ci = false } = {}) {
+  const env = { ...process.env }
+  delete env.CI
+  delete env.HARNESS_REQUIRE_TOOLCHAINS
+  delete env.GITHUB_BASE_REF
+  if (ci) env.CI = 'true'
+  const res = spawnSync(process.execPath, [STAMP_SCRIPT], { cwd: dir, encoding: 'utf8', env })
+  return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
+}
+
+// Write the digest a green run would record, from inside the fixture: hashInputs is
+// cwd-relative. The check-e2e.test.mjs pattern, copied (its helpers are local to that file).
+function seedStamp(dir) {
+  const prev = process.cwd()
+  process.chdir(dir)
+  try {
+    mkdirSync(join(dir, '.harness'), { recursive: true })
+    writeFileSync(
+      join(dir, '.harness', `${STAMP_GATE}.ok`),
+      hashInputs(stampRegister.STAMP_INPUTS[STAMP_GATE] ?? []),
+    )
+  } finally {
+    process.chdir(prev)
+  }
+}
+
+/** A fixture with a seeded stamp, asserted to ride it before the case changes anything. */
+function warmFixture() {
+  const dir = stampFixture()
+  seedStamp(dir)
+  const warm = runStamped(dir)
+  assert.equal(warm.code, 0, `precondition: the seeded stamp must hold\n${warm.out}`)
+  assert.ok(warm.out.includes(STAMP_LINE), warm.out)
+  return dir
+}
+
+/** @param {{ code: number | null, out: string }} r */
+function assertJudged(r) {
+  assert.equal(r.code, 1, r.out)
+  assert.ok(!r.out.includes('inputs unchanged'), `no stamp line may print once the script judges:\n${r.out}`)
+  assert.ok(!r.out.includes('STAMPED'), r.out)
+}
+
+test('STAMP (1.1.0): a seeded stamp over unchanged inputs exits 0 and prints the stamp line', () => {
+  const dir = stampFixture()
+  seedStamp(dir)
+  const r = runStamped(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes(STAMP_LINE), r.out)
+  // Proof the map was never judged: judged in full, this fixture reds on anti-vacuity.
+  assert.ok(!r.out.includes('declares no requirements'), r.out)
+})
+
+test('STAMP: CI=true ignores a seeded stamp and judges the map in full', () => {
+  const dir = stampFixture()
+  seedStamp(dir)
+  const r = runStamped(dir, { ci: true })
+  assertJudged(r)
+  assert.ok(r.out.includes('declares no requirements'), r.out)
+})
+
+// Each input the verdict reads. The libraries are the import closure of the script and of
+// the generator it spawns (the membership test in gate-helpers.test.mjs derives it from the
+// source; here it is written out, so a lib that silently left the entry fails this list too).
+const edit = (rel) => (dir) => appendFileSync(join(dir, rel), '\n// edited\n')
+const CMAP_EDITS = {
+  'the register': (dir) => put(dir, 'tools/conformance-map.json', JSON.stringify({ requirements: [], edited: true })),
+  'tools/harness.config.mjs': edit('tools/harness.config.mjs'),
+  'a workflow': (dir) => appendFileSync(join(dir, '.github/workflows/ci.yml'), '# edited\n'),
+  'the workflow set (a new file)': (dir) => put(dir, '.github/workflows/new.yml', 'name: new\n'),
+  '.claude/hooks/lib/guard-rules.mjs': edit('.claude/hooks/lib/guard-rules.mjs'),
+  'tools/modules.json': (dir) => appendFileSync(join(dir, 'tools/modules.json'), '\n'),
+  'the module markers (a new docs/modules/<name>/README.md)': (dir) => put(dir, 'docs/modules/e2ee/README.md', '# e2ee\n'),
+  'docs/compliance/controls-crosswalk.md': (dir) => appendFileSync(join(dir, 'docs/compliance/controls-crosswalk.md'), 'edited\n'),
+  'docs/security/threat-model.md': (dir) => appendFileSync(join(dir, 'docs/security/threat-model.md'), 'edited\n'),
+  'the generator': edit('tools/gen-conformance-docs.mjs'),
+}
+for (const lib of ['conformance-map.mjs', 'standards-claim.mjs', 'live-controls.mjs', 'fs-walk.mjs', 'gate.mjs', 'stamp-inputs.mjs']) {
+  CMAP_EDITS[`tools/lib/${lib}`] = edit(`tools/lib/${lib}`)
+}
+
+for (const [input, change] of Object.entries(CMAP_EDITS)) {
+  test(`STAMP: changing ${input} after a green stamp makes the script judge again`, () => {
+    const dir = warmFixture()
+    change(dir)
+    assertJudged(runStamped(dir))
+  })
+}
+
+test('STAMP: a green run over the shipped map records the stamp, and the next run rides it', () => {
+  // The whole loop, not a seeded digest: the shipped map, chain, workflows, guard rules,
+  // generator and documents are green together, so recordGreen() writes
+  // .harness/conformance-map.ok and the warm run hits it without spawning the generator.
+  const dir = stampFixture()
+  cpSync(join(BASE, 'tools/conformance-map.json'), join(dir, 'tools/conformance-map.json'))
+  cpSync(join(BASE, 'github/workflows'), join(dir, '.github/workflows'), { recursive: true })
+  for (const f of [
+    '.claude/hooks/lib/guard-rules.mjs',
+    'tools/gen-conformance-docs.mjs',
+    'docs/compliance/controls-crosswalk.md',
+    'docs/security/threat-model.md',
+  ]) {
+    cpSync(join(BASE, f), join(dir, f))
+  }
+  const cold = runStamped(dir)
+  assert.equal(cold.code, 0, cold.out)
+  assert.match(cold.out, /^conformance-map: OK — 392 requirement/m)
+  assert.ok(existsSync(join(dir, '.harness', `${STAMP_GATE}.ok`)), 'a green run must record the stamp')
+  // With the generator gone, a real run would red naming it; the warm run never reaches it.
+  rmSync(join(dir, 'tools/gen-conformance-docs.mjs'))
+  const gone = runStamped(dir)
+  assertJudged(gone)
+  assert.ok(gone.out.includes('tools/gen-conformance-docs.mjs is missing'), gone.out)
+  cpSync(join(BASE, 'tools/gen-conformance-docs.mjs'), join(dir, 'tools/gen-conformance-docs.mjs'))
+  // Restored byte-for-byte, the digest is the recorded one again: the red run recorded nothing.
+  const warm = runStamped(dir)
+  assert.equal(warm.code, 0, warm.out)
+  assert.ok(warm.out.includes(STAMP_LINE), warm.out)
+})
+
+test('STAMP: a stamp register with no list for this gate judges in full, and never throws', () => {
+  // `update` keeps a forked tools/lib/stamp-inputs.mjs and parks the new one, so the 1.1.0
+  // script can meet a register that predates its entry. It must judge as it did through
+  // 1.0.4, not crash on hashInputs(undefined).
+  const dir = stampFixture()
+  writeFileSync(join(dir, 'tools', 'lib', 'stamp-inputs.mjs'), 'export const STAMP_INPUTS = {}\n')
+  mkdirSync(join(dir, '.harness'), { recursive: true })
+  writeFileSync(join(dir, '.harness', 'conformance-map.ok'), 'stale')
+  const r = runStamped(dir)
+  assertJudged(r)
+  assert.ok(r.out.includes('declares no requirements'), r.out)
+  assert.ok(!r.out.includes('TypeError'), r.out)
 })

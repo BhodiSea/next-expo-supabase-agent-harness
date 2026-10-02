@@ -1,0 +1,58 @@
+{
+  "reviewer": "security-reviewer",
+  "kind": "edge-function",
+  "expect": "BLOCK",
+  "mustName": [
+    "edge-function-adr"
+  ],
+  "twin": "edge-function-complete",
+  "why": "A new Edge Function holding the service key, with its config block and its census entry, its signature check, its per-table grant and the pgTAP allowlist rows, but no ADR: the grant migration names docs/adr/20261003-email-bounces.md and the change does not add it.",
+  "edits": [
+    {
+      "path": "supabase/config.toml",
+      "before": "[functions.delete-account]",
+      "lines": [
+        "# email-bounces is the email provider's webhook, so no session exists to verify:",
+        "# verify_jwt = false, and the function checks the provider's HMAC signature itself",
+        "# (docs/adr/20261003-email-bounces.md).",
+        "[functions.email-bounces]",
+        "verify_jwt = false",
+        ""
+      ]
+    },
+    {
+      "path": "tools/auth-tunables.json",
+      "replace": "  \"additionalSections\": []",
+      "lines": [
+        "  \"additionalSections\": [",
+        "    \"functions.email-bounces\"",
+        "  ]"
+      ]
+    },
+    {
+      "path": "supabase/tests/rls_structure.test.sql",
+      "after": "INSERT INTO service_role_grant_allow (table_name, priv) VALUES",
+      "lines": [
+        "  ('invitations', 'SELECT'),",
+        "  ('invitations', 'DELETE'),"
+      ]
+    },
+    {
+      "path": "tools/resilience.json",
+      "after": "  \"seams\": [",
+      "lines": [
+        "    {",
+        "      \"id\": \"edge-fn-email-bounces\",",
+        "      \"file\": \"supabase/functions/email-bounces/index.ts\",",
+        "      \"kind\": \"edge-function\",",
+        "      \"posture\": {",
+        "        \"timeoutMs\": null,",
+        "        \"retries\": 0,",
+        "        \"backoffMs\": null",
+        "      },",
+        "      \"why\": \"One idempotent DELETE per verified bounce, never retried here: the provider re-delivers, freshly signed, a webhook that did not get a 2xx, so a failed delete answers 500 and the retry is the provider's.\"",
+        "    },"
+      ]
+    }
+  ]
+}

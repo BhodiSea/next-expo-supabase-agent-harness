@@ -18,10 +18,12 @@ import {
   isAllowedCitationHost,
 } from '../../template/base/tools/lib/citation-domains.mjs'
 import {
+  ADVISORY_DECISION_GROUPS,
   CORPUS_REF,
   DECISION,
   DECISION_GROUPS,
   SOURCE_WINDOW_LINES,
+  decisionGroupsOf,
   extractHttpsUrlHosts,
   extractSourceComments,
   findCitedDecisionSites,
@@ -29,11 +31,14 @@ import {
   gateFileMatch,
   gateScansFile,
   hookScansFile,
+  isMandatoryGroup,
+  isMandatorySite,
+  parseMandatoryPromotions,
   payloadResolves,
 } from '../../template/base/tools/lib/provenance-rules.mjs'
 
 // ── exported shape: the decision taxonomy and its knobs ───────────────────────
-// NOTE: the harness repo root has no tools/decision-groups.json, so only the six
+// NOTE: the harness repo root has no tools/decision-groups.json, so only the
 // BUILT-IN groups load here; the seeded `mobile-security` consumer group is
 // covered end-to-end by check-sources.test.mjs against a rendered scaffold.
 test('DECISION_GROUPS carries the built-in stack decision classes in order', () => {
@@ -166,7 +171,9 @@ test('gateScansFile applies SCAN_EXCLUDES but NOT scannability or HOOK_EXCLUDES'
 // ── findUncitedDecisionSites: the window + comment-line heuristic ──────────────
 test('an uncited decision line is flagged with 1-based line and a trimmed excerpt', () => {
   const flagged = findUncitedDecisionSites('  const claims = await jwtVerify(token, jwks)\n')
-  assert.deepEqual(flagged, [{ line: 1, excerpt: 'const claims = await jwtVerify(token, jwks)' }])
+  assert.deepEqual(flagged, [
+    { line: 1, excerpt: 'const claims = await jwtVerify(token, jwks)', groups: ['token-verification'] },
+  ])
 })
 
 test('a keyword appearing INSIDE a `//`, `*`, `/*` or `--` comment line is a mention, not a decision', () => {
@@ -185,12 +192,16 @@ test('SOURCE_WINDOW_LINES=3: a citation exactly three lines above cites; four ab
   const covered = ['// SOURCE: x', 'a', 'b', 'const c = jwtVerify()'].join('\n')
   assert.deepEqual(findUncitedDecisionSites(covered), [])
   const justOut = ['// SOURCE: x', 'a', 'b', 'c', 'const d = jwtVerify()'].join('\n')
-  assert.deepEqual(findUncitedDecisionSites(justOut), [{ line: 5, excerpt: 'const d = jwtVerify()' }])
+  assert.deepEqual(findUncitedDecisionSites(justOut), [
+    { line: 5, excerpt: 'const d = jwtVerify()', groups: ['token-verification'] },
+  ])
 })
 
 test('the window only looks UP — a SOURCE on the line below does not cite the decision', () => {
   const src = ['const c = jwtVerify()', '// SOURCE: x'].join('\n')
-  assert.deepEqual(findUncitedDecisionSites(src), [{ line: 1, excerpt: 'const c = jwtVerify()' }])
+  assert.deepEqual(findUncitedDecisionSites(src), [
+    { line: 1, excerpt: 'const c = jwtVerify()', groups: ['token-verification'] },
+  ])
 })
 
 test('mixed cited/uncited sites: only lines outside every SOURCE window are returned', () => {
@@ -204,8 +215,8 @@ test('mixed cited/uncited sites: only lines outside every SOURCE window are retu
     'const t = { clockTolerance: 300 }', // 7 — uncited
   ].join('\n')
   assert.deepEqual(findUncitedDecisionSites(src), [
-    { line: 6, excerpt: 'const b = createRemoteJWKSet(u)' },
-    { line: 7, excerpt: 'const t = { clockTolerance: 300 }' },
+    { line: 6, excerpt: 'const b = createRemoteJWKSet(u)', groups: ['token-verification'] },
+    { line: 7, excerpt: 'const t = { clockTolerance: 300 }', groups: ['token-verification'] },
   ])
 })
 
@@ -221,7 +232,9 @@ test('LINE-BASED LIMIT: a block-comment interior line not starting with `*` is s
   // interior line that does not lead with `*` looks like code and gets flagged.
   // Properly-formatted JSDoc (`*`-prefixed) is skipped (asserted above).
   const src = ['/*', '  jwtVerify happens here', '*/'].join('\n')
-  assert.deepEqual(findUncitedDecisionSites(src), [{ line: 2, excerpt: 'jwtVerify happens here' }])
+  assert.deepEqual(findUncitedDecisionSites(src), [
+    { line: 2, excerpt: 'jwtVerify happens here', groups: ['token-verification'] },
+  ])
 })
 
 test('empty source yields no flags', () => {
@@ -407,4 +420,94 @@ test('payloadResolves: a repo-relative path grounds only when it exists on disk'
   assert.equal(payloadResolves('/etc/hosts', dir), false)
   // A single token with no `/` is never treated as a path.
   assert.equal(payloadResolves('decisions', dir), false)
+})
+
+// ── mandatory and advisory classes (1.1.0, #69) ────────────────────────────────
+// The split is ONE owned constant: the advisory classes. Every other key is mandatory — the
+// other built-ins, the seeded mobile-security, any group a project adds, and any built-in a
+// later release adds. The seeded tools/decision-groups.json may PROMOTE a class with a
+// top-level "mandatory" list and can demote nothing. This file runs where no
+// tools/decision-groups.json exists, so the parse never runs at import here: its branches are
+// proved through the exported pure function, one case each.
+test('ADVISORY_DECISION_GROUPS names exactly the three advisory classes, each a built-in key', () => {
+  assert.deepEqual([...ADVISORY_DECISION_GROUPS], ['vector-index', 'llm-sampling', 'tuning-constants'])
+  const builtins = new Set(DECISION_GROUPS.map((g) => g.key))
+  for (const key of ADVISORY_DECISION_GROUPS) assert.ok(builtins.has(key), `${key} is a built-in key`)
+  assert.ok(Object.isFrozen(ADVISORY_DECISION_GROUPS), 'the split cannot be widened at runtime')
+})
+
+test('isMandatoryGroup: every built-in outside the advisory set is mandatory, and so is an unknown key', () => {
+  for (const key of ['rls-policy', 'guc-identity', 'token-verification', 'cryptography']) {
+    assert.equal(isMandatoryGroup(key), true, key)
+  }
+  for (const key of ADVISORY_DECISION_GROUPS) assert.equal(isMandatoryGroup(key), false, key)
+  // The seeded group and any project group: not in the advisory constant, so mandatory.
+  assert.equal(isMandatoryGroup('mobile-security'), true)
+  assert.equal(isMandatoryGroup('chunk-size'), true)
+})
+
+test('isMandatorySite: ANY mandatory class makes the site mandatory; no class at all fails closed', () => {
+  assert.equal(isMandatorySite(['tuning-constants']), false)
+  assert.equal(isMandatorySite(['llm-sampling', 'tuning-constants']), false)
+  assert.equal(isMandatorySite(['token-verification', 'tuning-constants']), true)
+  // A DECISION hit whose line no single group re-matches, or a caller passing a finding from
+  // a lib that predates `groups`: judged mandatory, as every site was before the split.
+  assert.equal(isMandatorySite([]), true)
+  assert.equal(isMandatorySite(undefined), true)
+})
+
+test('decisionGroupsOf: the one group matcher both finders use, in taxonomy order', () => {
+  assert.deepEqual(decisionGroupsOf('const c = await jwtVerify(t, k, { timeoutMs: 5 })'), [
+    'token-verification',
+    'tuning-constants',
+  ])
+  assert.deepEqual(decisionGroupsOf('CREATE INDEX ON t USING hnsw (e vector_cosine_ops);'), ['vector-index'])
+  assert.deepEqual(decisionGroupsOf('export const nothing = 1'), [])
+})
+
+test('findUncitedDecisionSites: a line matching two classes carries both, advisory and mandatory', () => {
+  assert.deepEqual(findUncitedDecisionSites('const p = { temperature: 0.2, maxRetries: 3 }\n'), [
+    { line: 1, excerpt: 'const p = { temperature: 0.2, maxRetries: 3 }', groups: ['llm-sampling', 'tuning-constants'] },
+  ])
+})
+
+const KNOWN = ['rls-policy', 'vector-index', 'tuning-constants', 'mobile-security']
+
+test('parseMandatoryPromotions: ABSENT — no file, or a file without the key, promotes nothing', () => {
+  assert.deepEqual(parseMandatoryPromotions(null, KNOWN), [])
+  assert.deepEqual(parseMandatoryPromotions({ groups: [] }, KNOWN), [])
+})
+
+test('parseMandatoryPromotions: VALID — known keys are promoted, duplicates collapse, [] is allowed', () => {
+  assert.deepEqual(parseMandatoryPromotions({ groups: [], mandatory: ['tuning-constants'] }, KNOWN), [
+    'tuning-constants',
+  ])
+  assert.deepEqual(
+    parseMandatoryPromotions({ mandatory: ['vector-index', 'tuning-constants', 'vector-index'] }, KNOWN),
+    ['vector-index', 'tuning-constants'],
+  )
+  // Naming a class that is already mandatory is harmless: promotion only ever adds.
+  assert.deepEqual(parseMandatoryPromotions({ mandatory: ['rls-policy'] }, KNOWN), ['rls-policy'])
+  assert.deepEqual(parseMandatoryPromotions({ mandatory: [] }, KNOWN), [])
+})
+
+test('parseMandatoryPromotions: NOT AN ARRAY — fails closed, a string and null alike', () => {
+  assert.throws(
+    () => parseMandatoryPromotions({ mandatory: 'tuning-constants' }, KNOWN),
+    /tools\/decision-groups\.json: "mandatory" must be an ARRAY of decision-group keys/,
+  )
+  assert.throws(() => parseMandatoryPromotions({ mandatory: null }, KNOWN), /must be an ARRAY/)
+})
+
+test('parseMandatoryPromotions: UNKNOWN KEY — fails closed, naming the key and the known ones', () => {
+  assert.throws(
+    () => parseMandatoryPromotions({ mandatory: ['tuning-constants', 'x'] }, KNOWN),
+    (/** @type {Error} */ err) => {
+      assert.match(err.message, /tools\/decision-groups\.json: "mandatory" names \["x"\]/)
+      assert.match(err.message, /known: rls-policy, vector-index, tuning-constants, mobile-security/)
+      return true
+    },
+  )
+  // A non-string entry is not a key either.
+  assert.throws(() => parseMandatoryPromotions({ mandatory: [7] }, KNOWN), /names \[7\]/)
 })

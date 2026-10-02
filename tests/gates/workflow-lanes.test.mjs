@@ -113,8 +113,12 @@ test('the pinned scanners are still WIRED into the lanes named for them', () => 
     ['osv-scan.yml', 'scan-full', /osv-scanner/i],
     ['actions-lint.yml', 'actionlint', /actionlint/i],
     ['actions-lint.yml', 'zizmor', /zizmor/i],
+    // HARNESS-AUTHORED (1.1.0, #73): the job is named for the gate script it runs.
+    ['actions-lint.yml', 'workflow-hardening', /check-workflow-hardening\.mjs/],
     ['migration-safety.yml', 'squawk', /squawk/i],
     ['mutation.yml', 'stryker-full', /stryker|mutation/i],
+    // HARNESS-AUTHORED (1.1.0, #78): the job is named for the gate script it runs.
+    ['quality-gate.yml', 'edge-functions', /node tools\/check-edge-functions\.mjs/],
   ]
   for (const [file, id, needle] of WIRING) {
     const job = jobsOf(readFileSync(join(DIR, file), 'utf8')).find((j) => j.id === id)
@@ -125,6 +129,69 @@ test('the pinned scanners are still WIRED into the lanes named for them', () => 
       `${file} job '${id}' no longer invokes the scanner it is named for — the check name survives, the behaviour does not, and a branch-protection rule only ever sees the name`,
     )
   }
+})
+
+/**
+ * Every tools/lib module a template gate reaches through relative imports, as `lib/<file>`.
+ * @param {string} gate a file under template/base/tools
+ * @returns {string[]}
+ */
+function toolsLibClosure(gate) {
+  const TOOLS = join(ROOT, 'template', 'base', 'tools')
+  const seen = new Set()
+  const visit = (rel) => {
+    const src = readFileSync(join(TOOLS, rel), 'utf8')
+    for (const m of src.matchAll(/^import [^'"]*['"](\.{1,2}\/[^'"]+\.mjs)['"]/gm)) {
+      const next = join(rel, '..', m[1]).split('\\').join('/')
+      if (next.startsWith('lib/') && !seen.has(next)) {
+        seen.add(next)
+        visit(next)
+      }
+    }
+  }
+  visit(gate)
+  return [...seen].sort()
+}
+
+test('the edge-functions lane: its own changes output and filter, the nightly net, deno pinned exactly (1.1.0, #78)', () => {
+  // The Edge Function typecheck is a JOB, not a chain step, so what makes it enforcement is
+  // decidable only here: that a PR touching a function arms it, that the schedule arms it
+  // regardless, and that the deno it runs is one exact release, never a range.
+  const text = readFileSync(join(DIR, 'quality-gate.yml'), 'utf8')
+  const jobs = jobsOf(text)
+  const job = jobs.find((j) => j.id === 'edge-functions')
+  assert.ok(job, "quality-gate.yml no longer defines the 'edge-functions' job")
+  assert.match(job.body, /^ {4}needs: \[changes\]$/m, job.body)
+  assert.match(job.body, /needs\.changes\.outputs\.edge-functions == 'true'/, job.body)
+  assert.match(job.body, /github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'/, job.body)
+  assert.match(job.body, /uses: denoland\/setup-deno@[0-9a-f]{40} # v\d+\.\d+\.\d+/, job.body)
+  assert.match(job.body, /^ {10}deno-version: \d+\.\d+\.\d+$/m, 'deno must be pinned to ONE release: a range resolves differently on the next run')
+  const changes = jobs.find((j) => j.id === 'changes')
+  assert.ok(changes, "quality-gate.yml no longer defines 'changes'")
+  assert.match(changes.body, /^ {6}edge-functions: \$\{\{ steps\.filter\.outputs\.edge-functions \}\}$/m)
+  const filter = /^ {12}edge-functions:\n((?: {14}.*\n)*)/m.exec(changes.body)
+  assert.ok(filter, "the changes job has no 'edge-functions' paths filter")
+  for (const path of ['supabase/functions/**', 'tools/check-edge-functions.mjs', '.harness/manifest.json']) {
+    assert.ok(filter[1].includes(`'${path}'`), `the edge-functions filter omits ${path}`)
+  }
+  // The gate's own import closure under tools/lib, DERIVED from its source rather than listed:
+  // a helper the gate starts importing arms the lane without anyone remembering the filter.
+  for (const lib of toolsLibClosure('check-edge-functions.mjs')) {
+    assert.ok(filter[1].includes(`'tools/${lib}'`), `the edge-functions filter omits tools/${lib}, which the gate imports`)
+  }
+  const summary = jobs.find((j) => j.id === 'gate-summary')
+  assert.match(summary?.body ?? '', /^ {6}- edge-functions$/m, 'gate-summary does not wait for edge-functions')
+})
+
+test('the factory selftest runs the SAME deno release the edge-functions lane pins (1.1.0, #78)', () => {
+  // bootstrap-linux proves the gate prints OK on a fresh scaffold and Canary 38 proves it reds;
+  // both would prove it for a deno no consumer runs if the two pins drifted apart.
+  const pinOf = (text) => [...text.matchAll(/^ +deno-version: (\S+)$/gm)].map((m) => m[1])
+  const shipped = pinOf(readFileSync(join(DIR, 'quality-gate.yml'), 'utf8'))
+  const factory = pinOf(readFileSync(join(ROOT, '.github', 'workflows', 'selftest.yml'), 'utf8'))
+  assert.equal(shipped.length, 1, `quality-gate.yml pins deno ${String(shipped.length)} time(s)`)
+  assert.ok(factory.length >= 2, 'selftest.yml installs deno in the canary and bootstrap-linux jobs')
+  for (const pin of factory) assert.equal(pin, shipped[0], 'selftest.yml and quality-gate.yml pin different deno releases')
 })
 
 test('the device-lane paths filter covers the packages the installed app is MADE OF', () => {
@@ -262,6 +329,43 @@ test('no lane that builds a PRODUCTION artifact pins NODE_ENV to development (0.
       )
     }
   }
+})
+
+test('a lane that runs `next build` from a fresh checkout builds the workspace declarations first (1.1.0)', () => {
+  // THE SAME DEFECT CLASS AS THE NODE_ENV TEST ABOVE, found the same way: by running the
+  // build, not by reading the job (#77). apps/web's tsconfig REFERENCES the composite
+  // workspace packages, and Next's own type check (the "Running TypeScript" phase of `next
+  // build`) reads each reference's EMITTED declarations — which `tsc -b` writes and a fresh
+  // checkout does not have. So `pnpm --filter web build` straight after `pnpm install` fails
+  // with TS6305 ("Output file '…/dist/index.d.ts' has not been built from source file") on
+  // every import of an @app/* package, and the lane never reaches its purity scan or its
+  // first browser assertion. Measured on a zero-edit scaffold: red without, green with.
+  //
+  // The chain's web-compile step needs no such step: it runs after `types`, whose `tsc -b`
+  // writes them. A CI job that builds on its own has no `types` before it.
+  //
+  // BASE workflows only, and the one module job this leaves out is named rather than
+  // excused: ci-web-deploy's attest-web builds with `pnpm --filter web run build` and has
+  // the same TS6305 gap, and it also publishes only the NEXT_PUBLIC_* half of the env the
+  // build parses (quality-gate.yml's web-build step records the server half failing
+  // `Collecting page data`). Fixing one without the other would not make that lane pass, so
+  // both are left to that module's own change rather than half-fixed here.
+  const BUILDS_WEB = /pnpm --filter web (?:run )?build\b|node tools\/check-web-e2e\.mjs/
+  const DECLARATIONS = /^\s*run: pnpm exec tsc -b (?:apps\/web|\.)/m
+  const lanes = []
+  for (const { label, text } of BASE) {
+    for (const job of jobsOf(text)) {
+      const build = BUILDS_WEB.exec(job.body)
+      if (build === null) continue
+      lanes.push(job.id)
+      const tsc = DECLARATIONS.exec(job.body)
+      assert.ok(
+        tsc !== null && tsc.index < build.index,
+        `${label} job \`${job.id}\` builds the web app from a fresh checkout without running \`pnpm exec tsc -b apps/web\` first — Next's type check then fails with TS6305 on every @app/* import, so the lane can never pass.`,
+      )
+    }
+  }
+  assert.deepEqual(lanes.sort(), ['web-build', 'web-e2e'], 'the two shipped lanes that build the web app')
 })
 
 // ── POST-MERGE LANE REUSE (1.1.0, #57) ──────────────────────────────────────────────────────

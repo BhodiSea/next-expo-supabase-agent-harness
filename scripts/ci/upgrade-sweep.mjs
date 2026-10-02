@@ -334,7 +334,7 @@ const SWEEPS = {
   // re-date on tools/eol.json (the harness moved its own removalTarget from 1.1.0 to
   // 1.2.0), and the DERIVED pass already adopts that path from HEAD, which is the whole
   // remedy: the copied register carries the re-affirmed row, so the re-opened version-sync
-  // arrival ramp has nothing to NOTE. The seven 1.0.0-opened sites that expire here need no
+  // arrival ramp has nothing to NOTE. The six 1.0.0-opened sites that expire here need no
   // step of their own: '1.0.0' above is their sweep, and every leg that meets them crosses
   // 1.0.0 too. Empty, and written down, because computeSweepSet asks every version that
   // withholds a path or parks a seeded-source fix for a reviewed posture. The reviewer ledger
@@ -342,8 +342,94 @@ const SWEEPS = {
   // no leg runs (scripts/ci/stop-side-expiries.json names its unit proof), and the three
   // seeded texts it asks for, the wholeTurn class in tools/reviewer-triggers.json, the
   // AGENTS.md sentence and the .gitignore line for supabase/.branches/, are copied by hand
-  // from the runbook's 1.1.0 section.
-  '1.1.0': {},
+  // from the runbook's 1.1.0 section. The security-reviewer model check ramp (#62) opens here
+  // too and adds no step, for the same Stop-step reason; it asks for no seeded text, because
+  // the fallback lists it reads live in the OWNED agent files `update` re-plants. The severity
+  // contract's two ramps (#71) add no step either: docs-sync's judges a FORKED reviewer body,
+  // a leg forks none, and `update` re-plants the shipped bodies, which all carry the contract;
+  // the round budget is a Stop step's, which no leg runs (stop-side-expiries.json names its
+  // unit proof). docs-sync's verdict-demand ramp (#72) adds no step for the same reason as
+  // the contract's: it judges a FORKED reviewer body, and the re-planted shipped bodies all
+  // close on the demand, so it has nothing to NOTE on any leg. workflow-hardening's ramp
+  // (#73) adds no step either: the gate is CI-only, so no leg runs it
+  // (stop-side-expiries.json names its unit proof), and a leg's workflows are the shipped
+  // ones `update` re-plants, which all meet its rules. The SQL history fold's six ramps (#75)
+  // add no step either: they judge only a history holding a top-level DROP TABLE or ALTER
+  // POLICY (or, for schema-rls, a DROP POLICY), and the only such statements a lane scaffold
+  // carries are the shipped DROP POLICYs, whose replacements the same migrations create, so no
+  // leg has a fold-only finding to NOTE. The i18n gate's two ramps (#76) add no step either:
+  // i18n is a Stop step that no leg runs (stop-side-expiries.json names its unit proof), the
+  // syntax-tree walk finds nothing in the apps/ source of any tag from v0.6.0 through v1.0.4,
+  // every string it finds in v0.1.3 through v0.5.0 (all under apps/web) the 1.0.x regular
+  // expressions already report, so a leg that adopts the web seam, as this sweep does, meets
+  // the same findings with or without the walk, and a leg's tools/i18n-allow.json is the empty
+  // seed, with no site entry to convert. The Edge Function surface (#78) adds no step either,
+  // though it withholds four paths and parks a second seeded-source fix: the fix's paths are the
+  // whole delete-account split (index.ts, handler.ts, handler.test.ts, deno.json, deno.lock), and
+  // the DERIVED pass adopts them, which is the runbook's sweep. A swept leg therefore ends on the
+  // 1.1.0 shell, which clears the dated lint exemption's need, runs the handler suite under
+  // `unit` and holds the handler to the per-file floors. Its ramps add nothing to NOTE on a leg:
+  // diff-coverage is a Stop step, and mutation-scope, the ratchet and edge-functions are CI-only,
+  // so no leg runs them (stop-side-expiries.json names each unit proof).
+  //
+  // THE GRANT BOUND (#74) is the one 1.1.0 ramp a swept leg DOES meet, and it withholds two
+  // more paths: supabase/migrations/20260930000000_three_role_revoke.sql and
+  // supabase/tests/rls_grants.generated.test.sql. The leg adopts NEITHER, for 1.0.2's reason
+  // restated: the harness's migration would sit unapplied, timestamped ahead of history the
+  // scaffold may already have applied, and the harness's generated file describes the
+  // harness's tables, not the leg's. Every leg's scaffold predates the doctrine (profiles and
+  // notes keep the platform default for authenticated on every vintage, and below 1.0.2 so do
+  // the seven read-only tables), so schema-rls NOTEs stand until the runbook's two steps run —
+  // and graduate refuses while they do. `grantDoctrine` runs exactly those steps, the way a
+  // consumer runs them: the doctrine SQL the gate prints, derived from the leg's OWN
+  // migrations by the leg's own tools/lib/table-grants.mjs, in a NEW migration of the leg's
+  // own that sorts after its history, then `node tools/gen-grant-assertions.mjs`.
+  //
+  // THE BROWSER SPECS (#77) are two more withheld paths, apps/web/e2e/notes.spec.ts and
+  // apps/web/e2e/security.spec.ts, and a swept leg ADOPTS both: route-manifest's per-route
+  // browser closure NOTEs on every install below 1.1.0 that has no spec naming a state test
+  // id of `notes` and `security`, and copying the two seeded specs is exactly the runbook's
+  // remedy. They are named in extraAdopt rather than through adoptSeedOnInitOnly, which would
+  // also plant tools/surfaces.json and #74's two paths. Nothing else of #77 needs a step:
+  // web-compile is quiet on a leg whose web app compiles under the placeholder env, and
+  // docs-sync's re-opened gate-list escape is cleared by the sweep's own §3 AGENTS.md
+  // rewrite, derived from the install's chain (36 → 37).
+  '1.1.0': {
+    grantDoctrine: true,
+    extraAdopt: ['apps/web/e2e/notes.spec.ts', 'apps/web/e2e/security.spec.ts'],
+  },
+}
+
+/**
+ * The next migration timestamp after every one in `names`: a migration the sweep writes must
+ * sort after the history the install already has, or its `migrations` gate reads it as
+ * history out of order.
+ * @param {string[]} names file names under supabase/migrations
+ * @returns {string}
+ */
+export function nextMigrationStamp(names) {
+  let max = 0n
+  for (const n of names) {
+    const m = /^(\d{14})_/.exec(n)
+    if (m !== null && BigInt(m[1]) > max) max = BigInt(m[1])
+  }
+  return String(max + 1n).padStart(14, '0')
+}
+
+/**
+ * The migration the runbook's 1.1.0 section tells a consumer to write: the doctrine SQL
+ * schema-rls prints for THIS tree, under the marker the `migrations` gate requires for a
+ * revoke from authenticated.
+ * @param {string} stamp @param {string} fixSql one statement per line
+ * @returns {string}
+ */
+export function doctrineMigration(stamp, fixSql) {
+  return `-- ${stamp}_three_role_revoke — revoke the platform's default privileges from every role that
+-- still holds them, then re-grant what each was granted explicitly: the statements schema-rls
+-- prints for this tree (docs/runbooks/harness-upgrade.md, 1.1.0). Written by the upgrade sweep.
+-- adr: docs/adr/20260930-three-role-revoke.md
+-- SOURCE: https://www.postgresql.org/docs/17/ddl-priv.html
+${fixSql}`
 }
 
 /**
@@ -375,6 +461,7 @@ export function computeSweepSet(migrations, baseVersion, headVersion) {
   /** @type {[string, string][]} */
   const tomlSectionAppends = []
   let reconcileDataFlowExclusions = false
+  let grantDoctrine = false
   for (const v of versionsBetween(migrations, baseVersion, headVersion)) {
     const record = migrations[v]
     const sweep = SWEEPS[v]
@@ -402,8 +489,9 @@ export function computeSweepSet(migrations, baseVersion, headVersion) {
     tomlSectionRenames.push(...(sweep?.tomlSectionRenames ?? []))
     tomlSectionAppends.push(...(sweep?.tomlSectionAppends ?? []))
     if (sweep?.reconcileDataFlowExclusions === true) reconcileDataFlowExclusions = true
+    if (sweep?.grantDoctrine === true) grantDoctrine = true
   }
-  return { adopt, tomlSectionRenames, tomlSectionAppends, reconcileDataFlowExclusions }
+  return { adopt, tomlSectionRenames, tomlSectionAppends, reconcileDataFlowExclusions, grantDoctrine }
 }
 
 /**
@@ -610,6 +698,49 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
           `tools/data-flow.json (export.excluded reconciled: dropped ${dropped.join(', ')} — no migration creates them)`,
         )
       }
+    }
+  }
+
+  // ── 2d. the three-role revoke doctrine and the generated grant assertions (1.1.0) ──
+  // The runbook's two steps, in its order: the doctrine SQL in a NEW migration, then the
+  // generator. Both come from the INSTALL's own owned files, which `update` has just
+  // re-planted, so the SQL is the same text its own schema-rls prints and the file is the one
+  // its own gate compares. Nothing of the harness's migration or generated file is copied.
+  if (sweepSet.grantDoctrine && existsSync(join(installDir, 'tools/gen-grant-assertions.mjs'))) {
+    const libUrl = (rel) => pathToFileURL(join(installDir, rel)).href
+    const grants = await import(libUrl('tools/lib/table-grants.mjs'))
+    const sqlParse = await import(libUrl('tools/lib/sql-parse.mjs'))
+    const migrationsDir = join(installDir, 'supabase/migrations')
+    const statements = sqlParse.readSqlDirByFile(migrationsDir).flatMap((f) => f.statements)
+    const configText = readTextOrNull(join(installDir, 'supabase/config.toml'))
+    const fold = grants.foldPrivileges(
+      statements,
+      configText === null ? null : grants.postgresMajor(configText),
+    )
+    const fixSql = grants.doctrineFixSql(fold)
+    if (fixSql !== '') {
+      const stamp = nextMigrationStamp(
+        existsSync(migrationsDir) ? readdirSync(migrationsDir).sort() : [],
+      )
+      const name = `${stamp}_three_role_revoke.sql`
+      mkdirSync(migrationsDir, { recursive: true })
+      writeFileSync(join(migrationsDir, name), doctrineMigration(stamp, fixSql))
+      done.push(`supabase/migrations/${name} (the runbook's three-role revoke SQL for this tree)`)
+    }
+    const gen = (args) =>
+      spawnSync(process.execPath, ['tools/gen-grant-assertions.mjs', ...args], {
+        cwd: installDir,
+        encoding: 'utf8',
+      })
+    if (gen(['--check']).status !== 0) {
+      const wrote = gen([])
+      if (wrote.status !== 0) {
+        process.stderr.write(
+          `upgrade-sweep: node tools/gen-grant-assertions.mjs refused after the doctrine SQL — the runbook's two steps do not clear this tree:\n${wrote.stderr}`,
+        )
+        process.exit(1)
+      }
+      done.push('supabase/tests/rls_grants.generated.test.sql (node tools/gen-grant-assertions.mjs)')
     }
   }
 

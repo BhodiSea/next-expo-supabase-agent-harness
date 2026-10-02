@@ -1,6 +1,7 @@
 // The released-sha tables — the git and filesystem half.
 //
-// What a HISTORICAL commit shipped, judged by that commit's own installer. Shared by
+// What a HISTORICAL commit shipped (and, since 1.1.0, which escape lists it planted), judged
+// by that commit's own installer. Shared by
 // scripts/generate-released-shas.mjs (which folds every release commit into the tables)
 // and scripts/check-released-shas.mjs --verify-tags (which requires every tag's tree to be
 // inside its version's table), so the two cannot disagree about what a commit ships. The
@@ -14,7 +15,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { derender } from '../../installer/lib/provenance.mjs'
-import { ownedMap, templateTrees } from './released-shas.mjs'
+import { ESCAPE_LISTS } from '../../template/base/tools/lib/enforcement-surface.mjs'
+import { ownedMap, plantedMap, templateTrees } from './released-shas.mjs'
 
 /** @param {string} root @param {string[]} argv */
 export const git = (root, argv) =>
@@ -32,22 +34,31 @@ function probeAnswers(tokens) {
 }
 
 /**
- * The owned map of one extracted tree, SELF-PROVED: that tree's own `render`, fed probe
- * answers, must `derender` back to the source for every placeholder-bearing owned file.
- * The sites are computed with today's token regex and the inversion is checked against the
- * historical renderer, so a commit whose token syntax differed would fail here, loudly,
- * instead of yielding a table that parks that vintage's untouched files.
+ * The owned map and the planted map (1.1.0, #84) of one extracted tree, SELF-PROVED: that
+ * tree's own `render`, fed probe answers, must `derender` back to the source for every
+ * placeholder-bearing file either map lists. The sites are computed with today's token
+ * regex and the inversion is checked against the historical renderer, so a commit whose
+ * token syntax differed would fail here, loudly, instead of yielding a table that parks that
+ * vintage's untouched files or calls its planted escape lists widenings.
+ *
+ * The planted map covers TODAY's ESCAPE_LISTS (the live tree's
+ * tools/lib/enforcement-surface.mjs), found in the commit's own template whatever their
+ * mode was then.
  *
  * @param {string} dir an extracted `installer/` + `template/` tree @param {string} label
+ * @returns {Promise<{ owned: import('./released-shas.mjs').OwnedMap, planted: import('./released-shas.mjs').OwnedMap }>}
  */
-export async function ownedMapOfTree(dir, label) {
+export async function mapsOfTree(dir, label) {
   const copy = await import(pathToFileURL(join(dir, 'installer/lib/copy.mjs')).href)
   const manifest = await import(pathToFileURL(join(dir, 'installer/lib/manifest.mjs')).href)
   const placeholders = await import(pathToFileURL(join(dir, 'installer/lib/placeholders.mjs')).href)
   const trees = templateTrees(join(dir, 'template'))
-  const map = ownedMap({ trees, walkTemplate: copy.walkTemplate, renderEntry: copy.renderEntry, fileMode: manifest.fileMode })
+  const walker = { trees, walkTemplate: copy.walkTemplate, renderEntry: copy.renderEntry }
+  const owned = ownedMap({ ...walker, fileMode: manifest.fileMode })
+  const planted = plantedMap({ ...walker, paths: ESCAPE_LISTS })
   for (const entry of trees.flatMap((tree) => copy.walkTemplate(tree))) {
-    const sites = map[entry.installPath]?.find((v) => v.sites)?.sites
+    const variants = [...(owned[entry.installPath] ?? []), ...(planted[entry.installPath] ?? [])]
+    const sites = variants.find((v) => v.sites)?.sites
     const source = sites === undefined ? null : copy.renderEntry(entry, {})
     if (sites === undefined || typeof source !== 'string') continue
     const answers = probeAnswers([...new Set(sites.map(([, token]) => token))])
@@ -55,7 +66,7 @@ export async function ownedMapOfTree(dir, label) {
       throw new Error(`${label}: derender does not invert this commit's own render for ${entry.installPath}`)
     }
   }
-  return map
+  return { owned, planted }
 }
 
 /**

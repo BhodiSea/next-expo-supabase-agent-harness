@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url'
 import {
   REVIEWER_AGENTS,
   REVIEWER_READONLY_TOOLS,
+  fallbackListProblems,
   parseFrontmatter,
   splitList,
 } from '../template/base/tools/lib/agent-roster.mjs'
@@ -79,8 +80,10 @@ if (marketplace !== null) {
 
 // ── agent roster (mirror of the docs-sync roster sub-check, over the source) ──
 // Universal: every agent parses (parse failure = red, never a skip) and carries
-// name (== filename)/description/model. Reviewers: tools ⊆ the read-only
-// allowlist AND disallowedTools ⊇ {Write, Edit}. Authors stay unconstrained.
+// name (== filename)/description/model, and a `harnessFallbackModels` list, where
+// present, names at least one model and each once (1.1.0, #62). Reviewers: tools ⊆
+// the read-only allowlist AND disallowedTools ⊇ {Write, Edit}. Authors stay
+// unconstrained.
 const AGENTS_DIR = 'template/base/.claude/agents'
 const DOCTRINE = 'reviewers are read-only by construction (README "The agent roster")'
 const agentsAbs = join(ROOT, AGENTS_DIR)
@@ -113,6 +116,7 @@ for (const file of rosterFiles) {
   if (fm.name?.trim() && fm.name.trim() !== stem) {
     errs.push(`${rel}: name '${fm.name.trim()}' must match the filename ('${stem}')`)
   }
+  for (const problem of fallbackListProblems(fm)) errs.push(`${rel}: ${problem}`)
   if (!REVIEWER_AGENTS.includes(stem)) continue
   if (!fm.tools?.trim()) {
     errs.push(

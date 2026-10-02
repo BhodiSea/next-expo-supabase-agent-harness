@@ -18,6 +18,14 @@
 //   - packages/verticals/*/src/**  — the DAL (data/*.ts) and its domain (owner-scoped ids,
 //     cursors): the data-authorization surface, where a row re-parse or a cursor bound going
 //     wrong leaks or corrupts.
+//   - supabase/functions/*/**  — the Edge Functions (1.1.0): the one home of service-role
+//     code, the credential that bypasses row security. The seeded delete-account function
+//     decides in its handler which key it runs with and in what order the caller's data
+//     leaves, and one misordering there is unrecoverable. Each function's index.ts is carved
+//     out below: it is a Deno.serve shell that imports a jsr: specifier and starts a server
+//     as it loads, so the vitest runner cannot import it; `deno check` covers it
+//     (tools/check-edge-functions.mjs). STARRED, so a tree with no functions stays green:
+//     the zero-match alarm (tools/mutation-scope.mjs) exempts starred roots.
 //
 // The scope is DIRECTORY-shaped on purpose, so it CLOSES over work an agent adds: a new
 // packages/verticals/comments/src/data/comments.ts is mutated the day it lands, with no
@@ -51,6 +59,7 @@
 // or ANY extra root matching zero files is a hard red — anti-vacuity, never ramped.
 // SOURCE: docs/harness/gates-catalog.md (mutation-ratchet) [corpus: harness/doctrine]
 import { readFileSync } from 'node:fs'
+import { walkFiles } from './fs-walk.mjs'
 
 // CRITICAL_EXCLUDES below is module-local, not exported: it feeds MUTATE_GLOBS and
 // isCritical and nothing imports it — exporting an unimported constant is exactly the dead
@@ -70,6 +79,7 @@ const CRITICAL_ROOTS = [
   'packages/platform/supabase/src/',
   'packages/platform/errors/src/',
   'packages/verticals/*/src/',
+  'supabase/functions/*/',
 ]
 export const FLOOR_ROOTS = CRITICAL_ROOTS
 
@@ -124,6 +134,31 @@ const CRITICAL_EXCLUDES = [
  */
 const PROBE_FILE = /^packages\/verticals\/[^/]+\/src\/data\/query-probes\.ts$/
 
+/** An Edge Function's Deno.serve shell (1.1.0) — see the scope note at the top. */
+const EDGE_SHELL = /^supabase\/functions\/[^/]+\/index\.ts$/
+
+/**
+ * The top-level directories under supabase/functions (a function, or _shared/) that hold a
+ * vitest suite: a *.test.ts, at any depth below it, that imports from 'vitest'. They are the
+ * Edge Function code the mutation lane's runner can run a test against — vitest.config.ts runs
+ * exactly those suites (EDGE_SUITES) and measures exactly those directories (EDGE_MEASURED),
+ * and tests/gates/edge-function-split.test.mjs holds the two readings equal. A `deno test`
+ * file imports no 'vitest' and counts for nothing here. POSIX paths, sorted.
+ * @param {string} [root] the project root
+ * @returns {Set<string>}
+ */
+export function edgeSuiteDirs(root = '.') {
+  const base = `${root}/supabase/functions`
+  const dirs = new Set()
+  for (const rel of walkFiles(base, { excludeDirs: new Set(['node_modules']) })) {
+    if (!rel.endsWith('.test.ts') || !rel.includes('/')) continue
+    if (/\bfrom\s+['"]vitest['"]/.test(readFileSync(`${base}/${rel}`, 'utf8'))) {
+      dirs.add(`supabase/functions/${rel.split('/')[0]}`)
+    }
+  }
+  return dirs
+}
+
 /** Stryker's `mutate` globs. Tests, type decls and the carve-outs above are excluded. */
 export const MUTATE_GLOBS = [
   ...CRITICAL_ROOTS.map((root) => `${root}**/*.ts`),
@@ -132,6 +167,7 @@ export const MUTATE_GLOBS = [
   '!packages/verticals/*/src/index.ts',
   '!packages/verticals/*/src/client.ts',
   '!packages/verticals/*/src/data/query-probes.ts',
+  '!supabase/functions/*/index.ts',
   ...CRITICAL_EXCLUDES.map((path) => `!${path}`),
 ]
 
@@ -145,11 +181,13 @@ export function isCritical(file, extraRoots = []) {
   const path = file.replaceAll('\\', '/')
   if (!path.endsWith('.ts') || path.endsWith('.test.ts') || path.endsWith('.d.ts')) return false
   if (CRITICAL_EXCLUDES.includes(path)) return false
-  if (PROBE_FILE.test(path)) return false
+  if (PROBE_FILE.test(path) || EDGE_SHELL.test(path)) return false
   if (/^packages\/verticals\/[^/]+\/src\/(index|client)\.ts$/.test(path)) return false
   if (extraRoots.some((e) => rootMatches(path, e.root))) return true
   if (path.startsWith('packages/verticals/')) return /^packages\/verticals\/[^/]+\/src\//.test(path)
-  return CRITICAL_ROOTS.some((root) => path.startsWith(root))
+  // rootMatches, not startsWith: a starred root (supabase/functions/*/) is a pattern, and a
+  // plain prefix test would never match it.
+  return CRITICAL_ROOTS.some((root) => rootMatches(path, root))
 }
 
 // ── YOUR additive half (1.0.0): tools/mutation-scope-extra.json ────────────────────────

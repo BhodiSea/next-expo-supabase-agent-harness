@@ -16,6 +16,8 @@ pointing at an existing record.
 - **Sources mirror the code.** Every inline `// SOURCE:` (`-- SOURCE:` in SQL) in the
   slice MUST appear in that slice's ADR **Sources** section, and vice versa. `/adr`
   cross-checks this; `/verify-citations` then resolves each source.
+- **Reviews live outside the ADR.** Rounds, findings and resolutions go in
+  `docs/reviews/` (see its README).
 
 ## How the provenance loop closes
 

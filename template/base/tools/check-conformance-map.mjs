@@ -38,8 +38,9 @@ import {
   summarise,
   unmappedControlProblems,
 } from './lib/conformance-map.mjs'
-import { failures, ok } from './lib/gate.mjs'
+import { failures, ok, stampGate } from './lib/gate.mjs'
 import { liveControls } from './lib/live-controls.mjs'
+import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 
 const GATE = 'conformance-map'
 const ROOT = process.cwd()
@@ -47,6 +48,19 @@ const REGISTER = 'tools/conformance-map.json'
 const MODULES = 'tools/modules.json'
 const GUARD_RULES = '.claude/hooks/lib/guard-rules.mjs'
 const GENERATOR = 'tools/gen-conformance-docs.mjs'
+
+// --- the stamp (1.1.0) ------------------------------------------------------------------
+// Consulted before the register is read, so a warm run spawns no generator. It is keyed on
+// what the verdict reads (tools/lib/stamp-inputs.mjs): the register, the chain config, the
+// workflows, the guard-rule table, the module list and markers, the generator and its two
+// documents, and the libraries. Never on the evidence paths a row's `proof` names: this
+// script judges that field as text and never opens them. CI=true and
+// HARNESS_REQUIRE_TOOLCHAINS=1 ignore it, and `update` and `graduate` delete it. Where this
+// tree's stamp register has no list for this gate (a copy `update` kept beside a parked
+// newer one), the script judges in full, as it did through 1.0.4.
+const recordGreen = Array.isArray(STAMP_INPUTS[GATE])
+  ? stampGate(GATE, STAMP_INPUTS[GATE])
+  : () => {}
 
 // --- the register --------------------------------------------------------------------
 const path = join(ROOT, REGISTER)
@@ -149,6 +163,7 @@ failures(
 )
 
 const s = summarise(register)
+recordGreen()
 ok(
   GATE,
   `${String(s.total)} requirement(s): ${String(s.covered)} covered, ${String(s.partial)} partial, ${String(s.notCovered)} not-covered, ${String(s.notApplicable)} not-applicable — ASVS 5.0.0 ${String(s.byStandard.asvs)} / MASVS 2.1 ${String(s.byStandard.masvs)} / CRA Annex I ${String(s.byStandard.cra)}; ${String(s.moduleConditional)} module-conditional (${String(installed.size)} module(s) installed here); this register does NOT claim a verification level — see ${REGISTER} header.`,

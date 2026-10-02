@@ -1604,8 +1604,9 @@ naming the parked copy.
 
 **If your `baseVersion` is 1.0.0 or later, nothing expires for you.** Every ramp 1.0.0
 opened carries `minVersion 1.0.0`, so none of them has ever been live on your install. What
-the version bump itself brings a 1.0.x install is the uuid arrival NOTE below; each ramp a
-later 1.1.0 change opens has its own part of this section. Read what applies
+the version bump itself brings a 1.0.x install is the uuid arrival NOTE below, and the new
+`web-compile` chain step brings the gate-list NOTE beside it; each ramp a later 1.1.0 change
+opens has its own part of this section. Read what applies
 to YOUR `baseVersion` off `node scripts/ci/ramp-expectations.mjs <your base> 1.1.0` in a
 harness checkout, and off `pnpm validate 2>&1 | grep -E 'NOTE — \(ramp\)|RAMP EXPIRED'` in
 your own tree, never off this page.
@@ -1616,30 +1617,29 @@ more than one release behind, read the sections above in order before crossing t
 
 ### What ARRIVES (hard) — for installs below 1.0.0
 
-The six-gate NOTE fleet 1.0.0 opened, less its re-opened eol arrival. Each finding that
-printed as `NOTE — (ramp)` with `expires in 1.1.0` now prints under a `RAMP EXPIRED`
-banner and reds its step. The numbers are the items of the 1.0.0 section's "What OPENS"
-list, which says what to do for each:
+The NOTE fleet 1.0.0 opened, less its two re-opened sites (the eol arrival and
+`docs-sync`'s gate list, both below). Each finding that printed as `NOTE — (ramp)` with
+`expires in 1.1.0` now prints under a `RAMP EXPIRED` banner and reds its step. The numbers
+are the items of the 1.0.0 section's "What OPENS" list, which says what to do for each:
 
 1. **`suppressions`** (item 1). Reconcile `tools/suppressions-allow.json` to your tree: a
    directive with no row, and a row naming a directive your tree lacks, both red.
 2. **`resilience`** (item 2). Every outbound seam your tree added needs its
    `tools/resilience.json` row.
-3. **`docs-sync`'s gate list** (item 3). Your seeded `AGENTS.md` must list every step the
-   chain runs. Paste the names the finding prints.
-4. **`boundaries`, two sites.** The behavior-keyed anatomy widening (item 4), and the
+3. **`boundaries`, two sites.** The behavior-keyed anatomy widening (item 4), and the
    census module-name closure: an entry in `tools/exports-walls.json` whose `module` is not
    in the owned `tools/modules.json` reds. Fix the name, or remove the entry's sanction.
-5. **`version-sync`'s vendor-support register** (item 5, its first half):
+4. **`version-sync`'s vendor-support register** (item 5, its first half):
    `tools/support-register.json` and its platform-fact closure against your Postgres and
    Node pins.
-6. **`auth-posture`'s `[auth.hook.*]` floors** (item 6), and only if the auth-event trail
+5. **`auth-posture`'s `[auth.hook.*]` floors** (item 6), and only if the auth-event trail
    migration is in your tree. With neither the migration nor the config sections, nothing
    is demanded, exactly as before.
 
 `scripts/ci/upgrade-sweep.mjs` `SWEEPS['1.0.0']` is what the upgrade lane's swept leg runs
-before it requires `graduate` to succeed, and it adds no step for this release
-(`SWEEPS['1.1.0']` is empty, and says why).
+before it requires `graduate` to succeed. For these sites `SWEEPS['1.1.0']` adds no step
+(it says why); what it does carry belongs to later subsections of this section: the grant
+bound's `grantDoctrine` step, and the two seeded browser specs it adopts.
 
 ### What re-OPENS (a dated NOTE, until 1.2.0) — for every install below 1.1.0
 
@@ -1668,6 +1668,16 @@ git add tools/eol.json
 That pull replaces the whole file, your own rows included, so read the diff before you
 commit it. The parked fix clears itself once your file no longer says `"1.1.0"`.
 `graduate` refuses while this NOTE stands.
+
+**`docs-sync`'s `AGENTS.md` gate list.** 1.1.0 injects a chain step, `web-compile`, directly
+after `build` (the last subsection of this section), so your chain has 37 steps while your
+seeded `AGENTS.md` still lists 36, or fewer. The escape that covered this drift reached its
+deadline at this very release, so it re-opens at minVersion 1.1.0: while every step your
+`AGENTS.md` lists still exists in the same order, the drift prints as `NOTE — (ramp)` with
+`expires in 1.2.0`, and the NOTE ends by telling you to paste the chain's names. Do exactly
+that: put the 37 names it prints into the "The N gates, in order:" sentence, and change the
+"N-step chain" line to 37. A listed step that no longer exists, or a reordering, is your
+own drift and stays a hard red. `graduate` refuses while this NOTE stands.
 
 ### What `update` plants, and what else moved
 
@@ -1703,7 +1713,110 @@ yours to copy (its subsection below). The session-start brief adds
 has one entry to merge (its subsection below). Field notes re-plant `tools/lib/gate.mjs`,
 `.claude/hooks/lib/guard-rules.mjs`, `docs/harness/gates-catalog.md` and
 `docs/security/threat-model.md`, and plant the seeded `tools/field-notes.json` when your
-install has none (its subsection below). What you may notice afterwards:
+install has none (its subsection below). The reviewer model record re-plants
+`.claude/hooks/subagent-verdict.mjs`, `.claude/hooks/stop-validate-gate.mjs`,
+`tools/check-reviewer-verdicts.mjs`, `tools/lib/reviewer-verdicts.mjs`,
+`tools/lib/agent-roster.mjs`, `tools/check-docs-sync.mjs`, the eight reviewer files under
+`.claude/agents/` (and re-records their `tools/agents.lock.json` entries),
+`docs/harness/gates-catalog.md` and `docs/harness/README.md`; nothing of it is seeded (its
+subsection below). The severity contract re-plants the eight reviewer bodies under
+`.claude/agents/` (`update` re-records their `tools/agents.lock.json` entries),
+`.claude/hooks/subagent-verdict.mjs`, `tools/check-docs-sync.mjs`,
+`tools/check-reviewer-verdicts.mjs`, `tools/lib/agent-roster.mjs`,
+`tools/lib/reviewer-verdicts.mjs`, `docs/harness/gates-catalog.md` and
+`docs/harness/README.md`; a reviewer body you edited is kept and the new one parked (its
+subsection below). The verdict-demand rule re-plants `tools/check-docs-sync.mjs`,
+`tools/lib/agent-roster.mjs`, `docs/harness/gates-catalog.md`, and the comments of
+`tools/gen-agents-lock.mjs` and `.claude/hooks/lib/guard-rules.mjs`; it changes no reviewer
+body (its subsection below). The spec anchors add `tools/spec-anchor.mjs` and
+`tools/lib/spec-anchor.mjs`, and re-plant `specs/_template.md`,
+`.claude/commands/new-feature.md`, `.claude/commands/adr.md` and
+`.claude/agents/torvalds-reviewer.md` (`update` re-records their `tools/agents.lock.json`
+entries), `docs/adr/0000-adr-template.md`, `docs/harness/README.md` and
+`tools/conformance-map.json`; nothing of it is seeded, and your own specs stay as they are.
+Review records plant the seeded `docs/reviews/README.md` when your install has none, and
+re-plant `docs/adr/0000-adr-template.md`, `docs/adr/README.md`, `.claude/commands/adr.md`
+and `.claude/commands/new-feature.md` (`update` re-records the two commands'
+`tools/agents.lock.json` entries); their `AGENTS.md` sentence is yours to copy (its
+subsection below). The proposal flow re-plants `.claude/hooks/lib/guard-rules.mjs` (the
+`apply-proposal-invocation` rule), `.claude/hooks/pretool-write-guard.mjs` (its tamper deny
+names the flow), `docs/harness/README.md` and `docs/security/threat-model.md` (generated; it
+lists the new rule). The verb itself is the installer's, so nothing else lands in your tree
+(its subsection below). The companion tables re-plant the seven reviewer bodies under
+`.claude/agents/` other than `citation-verifier.md` (`update` re-records their
+`tools/agents.lock.json` entries) and `docs/harness/README.md`; a reviewer body you edited
+is kept and the new one parked (its subsection below). The smaller always-loaded context
+re-plants `.claude/rules/encryption.md` (now a stub), the `authoring-e2ee-feature` skill
+(`update` re-records its `tools/agents.lock.json` entry), `docs/harness/README.md` and
+`tools/conformance-map.json`, and plants the new `.claude/rules/e2ee.md`; the `AGENTS.md`
+change is yours to take or leave (its subsection below). The register stamps re-plant
+`tools/check-essential-eight.mjs`, `tools/check-conformance-map.mjs`,
+`tools/lib/stamp-inputs.mjs`, `docs/harness/gates-catalog.md` and `docs/harness/README.md`;
+nothing of it is seeded. The provenance advisory split re-plants
+`tools/lib/provenance-rules.mjs`, `tools/check-sources.mjs`,
+`.claude/hooks/posttool-source-check.mjs`, `.claude/hooks/lib/hookio.mjs`,
+`.claude/rules/provenance.md`, `.claude/agents/citation-verifier.md` (`update` re-records
+its `tools/agents.lock.json` entry), `docs/harness/gates-catalog.md` and
+`docs/harness/README.md`; the comments of your seeded `tools/decision-groups.json` and
+`tools/reviewer-triggers.json` stay as they are (its subsection below). The self-edit
+documentation re-plants `docs/harness/README.md` (a section, "What
+`HARNESS_ALLOW_SELF_EDIT=1` relaxes", under Tamper evidence),
+`docs/harness/gates-catalog.md` and `tools/check-gate-integrity.mjs` (its OK line); no
+verdict changes. The event-catalog discovery adds `tools/lib/event-catalogs.mjs`, and
+re-plants `tools/gen-event-catalog.mjs`, `tools/lib/stamp-inputs.mjs`, the vertical-slice
+skill's `scripts/scaffold-slice.mjs` and `references/dal-dto.md` (`update` re-records their
+`tools/agents.lock.json` entries) and `docs/harness/gates-catalog.md`; the example's
+`client.ts` and your root `package.json` are seeded and stay as they are (its subsection
+below). The catalog pin floors re-plant `tools/lib/harness-brief.mjs`; the floors are the
+installer's own, and your `pnpm-workspace.yaml` is never written (its subsection below).
+The project workflow rules add `tools/check-workflow-hardening.mjs` and
+`tools/lib/workflow-hardening.mjs`, and re-plant `.github/workflows/actions-lint.yml` (a
+new `workflow-hardening` job; `harden-runner-coverage` changes only its comment),
+`.github/zizmor.yml` (its comment) and `docs/harness/gates-catalog.md`; nothing of it is
+seeded (its subsection below). The SQL history fold re-plants `tools/lib/sql-parse.mjs`,
+`tools/lib/stamp-inputs.mjs`, `tools/check-rls-manifest.mjs`, `tools/check-tenancy.mjs`,
+`tools/check-migrations.mjs`, `tools/check-data-flow.mjs`, `tools/check-db-limits.mjs`,
+`tools/check-query-shapes.mjs` and `docs/harness/gates-catalog.md`, and adds
+`tools/lib/sql-fold-ramp.mjs`; nothing of it is seeded (its subsection below). The grant
+bound re-plants `tools/lib/table-grants.mjs`, `tools/lib/sql-parse.mjs`,
+`tools/check-rls-manifest.mjs`, `tools/lib/enforcement-surface.mjs`,
+`.claude/hooks/lib/guard-rules.mjs` (the `grant-bound-allow` rule),
+`docs/security/threat-model.md`, the `migration-rls-author` and `security-reviewer` agents,
+the `/new-migration`, `/new-feature` and `/rls-check` commands, both authoring skills and
+the vertical-slice skill's `references/migration-rls.md` and `references/tests.md` (`update`
+re-records their `tools/agents.lock.json` entries), `.claude/rules/security-invariants.md`
+and `docs/harness/gates-catalog.md`, and adds `tools/gen-grant-assertions.mjs` and
+`docs/adr/20260930-three-role-revoke.md`; its migration and its generated test are withheld,
+and its three seeded texts are yours to copy (its subsection below). The query-shape rules
+for `rpc()` and `upsert()` re-plant `tools/lib/query-recorder.mjs`, `tools/lib/query-shapes.mjs`,
+`tools/lib/sql-parse.mjs`, `tools/check-query-shapes.mjs`, `tools/conformance-map.json` and
+`docs/harness/gates-catalog.md`; your committed `tools/generated/query-shapes.json` is seeded
+and stays as it is (its subsection below). The i18n syntax-tree walk adds
+`tools/lib/i18n-tree.mjs` and re-plants `tools/check-i18n.mjs` and
+`docs/harness/gates-catalog.md`; your `tools/i18n-allow.json` is seeded and stays as it is,
+and a `site` entry in it has a key to take instead (its subsection below).
+The web compile step adds `tools/check-web-build.mjs` and injects it into your
+`tools/harness.config.mjs` as `web-compile`, after `build`, and re-plants
+`tools/check-web-routes.mjs`, `tools/check-docs-sync.mjs`, `tools/lib/stamp-inputs.mjs`,
+`tools/validate.floor.json`, `tools/build-check.mjs` (comments),
+`.github/workflows/quality-gate.yml`, `docs/harness/gates-catalog.md`,
+`docs/harness/enforcement-tiers.md`, `docs/harness/README.md`, `tools/conformance-map.json`
+and `docs/compliance/controls-crosswalk.md`; the two new browser specs are withheld, and
+your `AGENTS.md` is yours to update (its subsection below).
+The Edge Function checks add `tools/check-edge-functions.mjs`, and re-plant
+`eslint.config.mjs`, `vitest.config.ts`, `biome.jsonc`, `tools/check-diff-coverage.mjs`,
+`tools/check-mutation-ratchet.mjs`, `tools/mutation-scope.mjs`, `tools/lib/gate.mjs`,
+`tools/lib/mutation-critical.mjs`, `tools/conformance-map.json`,
+`.github/workflows/quality-gate.yml` (a new `edge-functions` job),
+`docs/harness/gates-catalog.md`, `docs/harness/enforcement-tiers.md` and
+`docs/adr/20260720-account-deletion.md`; the split of the delete-account function they
+reach is seeded, and `update` withholds it (its subsection below).
+The planted-list provenance re-plants `tools/check-gate-integrity.mjs` and
+`docs/harness/gates-catalog.md`, and adds two owned files: `tools/lib/derender.mjs` and the
+generated `tools/lib/planted-shas.json`, which lists the escape-list bytes each harness
+release planted. Both arrive in the same run as any escape list `update` plants, and nothing
+of it is seeded (its subsection below).
+What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1745,6 +1858,160 @@ install has none (its subsection below). What you may notice afterwards:
 - **A new `tools/field-notes.json` appears, untracked, with an empty `notes` object.** It
   changes nothing until you write a note in it: a failing gate then prints your note on the
   line after its `FIX[<gate>]:` line. Commit it as it is, or with your first note.
+- **`reviewer-verdicts` names a reviewer verdict that ran on a model other than its pin.**
+  One `reviewer-verdicts: FALLBACK MODEL — …` line per such verdict, and on a green turn
+  Claude Code shows them to you as a hook warning. On an install whose `baseVersion` is
+  below 1.1.0, a security reviewer's PASS on a model its agent file does not name prints as
+  `NOTE — the security-reviewer model check … expires in 2.1.0`. The subsection on the model
+  record below says what counts.
+- **A reviewer can be sent back for a PASS that lists a blocking finding, and `docs-sync`
+  may print a NOTE about a reviewer body you forked.** Every shipped reviewer body now
+  states `Blocking: CRITICAL, HIGH`, and a PASS whose reply lists `- [HIGH] …` is bounced
+  to re-state, the way a reply with no verdict line is. A body you forked has no such line
+  until you add it, so its reviewer is not bounced on this ground, and `docs-sync` names
+  it in a NOTE that expires in 1.2.0. On a `baseVersion` below 1.1.0, `reviewer-verdicts`
+  may also print `NOTE — the per-reviewer round budget`. The subsection on the severity
+  contract below says what to do.
+- **`docs-sync` may print a NOTE that a reviewer body you forked does not close on its
+  verdict demand.** Only a reviewer body whose last paragraph is not the verdict demand, or
+  a fork of `tools/lib/agent-roster.mjs`, produces one; every shipped body conforms. The
+  subsection on the verdict demand below gives the fix.
+- **The spec template has `##` headings, and `node tools/spec-anchor.mjs` prints one
+  section.** The bold labels of `specs/_template.md` are now headings, with a new
+  `Decisions` section whose entries each take a `###` heading, and a heading's id is its
+  GitHub anchor. `node tools/spec-anchor.mjs specs/<feature>.md` lists a spec's ids, and
+  `node tools/spec-anchor.mjs specs/<feature>.md#<id>` prints one section. `/new-feature`
+  puts the sections a slice implements in the `torvalds-reviewer` brief, and `/adr` cites
+  them in Traceability. Your own specs are not rewritten: one with bold labels has no ids,
+  and the reviewer reads it whole. Nothing reads the tool's output, and no gate changes.
+  If you edited one of the owned files above, your copy stays, the new one is parked under
+  `.harness/pending/`, and `update` exits 2 while it stays there.
+- **A new `docs/reviews/README.md` appears, untracked, and `/adr` and `/new-feature` point
+  at it.** It says where review rounds go. No gate reads it, so it changes no verdict. If
+  you already had a file at that path, `update` left it exactly as it was and parked
+  nothing.
+- **An agent that wants to change a register under `tools/` stages a proposal instead of
+  asking you for `HARNESS_ALLOW_SELF_EDIT=1`.** The write guard's deny now tells it how, so a
+  `harness-proposals/<id>.json` can appear in your tree. `doctor` lists it as `info`, and it
+  changes nothing until you apply it. The bash guard denies an agent the `apply-proposal`
+  command. The subsection on proposals below says how to review and apply one.
+- **Reviewer replies carry `<id>: present (file:line)` and `<id>: absent` lines.** Every
+  reviewer body but `citation-verifier`'s now lists what a change must bring, and its
+  reviewer accounts for each row that applies. An absence is a finding at the severity the
+  body already gives that rule, so a reviewer can now BLOCK on a revoke, a register row or a
+  `page.meta.ts` that the diff never mentions. No gate changes. If you edited a reviewer
+  body, your copy stays and the new one is parked under `.harness/pending/`; the subsection
+  on companion tables below says how to take the table.
+- **`.claude/rules/encryption.md` is shorter, and `.claude/rules/e2ee.md` is new.** The
+  stub keeps what applies while the `e2ee` module is off, each item with the check that
+  holds it. The full rule loads when a file under `packages/platform/crypto/`,
+  `apps/*/src/host/` or `docs/modules/e2ee/` is read, and the `authoring-e2ee-feature`
+  skill's Step 0 now tells the agent to read it first. No verdict changes. If you edited
+  `encryption.md` or the skill, your copy stays, the new one is parked under
+  `.harness/pending/`, and `update` exits 2 while it stays there; a file of your own already
+  at `.claude/rules/e2ee.md` is kept the same way, as the 1.0.4 section describes for a
+  harness-owned path with no manifest record.
+- **A warm validate prints two more `STAMPED` lines: `essential-eight` and
+  `conformance-map`.** The `docs-sync` step's two register scripts now skip when nothing
+  their verdict reads has changed since their last green run: the register, the chain
+  config, the workflows and, for the map, the guard rules, the module list, `docs/modules`,
+  the generator and its two documents. `essential-eight` still checks `[storage]` and the
+  upload surfaces on every run, before it looks at its stamp. CI and
+  `validate --ci-parity` judge both in full, and the first run after `update` re-proves
+  both. Nothing is yours to do. If you forked `tools/lib/stamp-inputs.mjs`, both judge in
+  full until you merge the parked copy.
+- **`provenance` prints `ADVISORY` lines, and the source-check hook stops blocking on
+  some uncited sites.** An uncited or wrongly grounded site in `vector-index`,
+  `llm-sampling` or `tuning-constants` alone now prints
+  `provenance: ADVISORY (n) — file:line [class]` and passes, and the hook hands the agent
+  a note instead of exiting 2. Nothing that was green turns red. The subsection on
+  advisory classes below says how to keep a class mandatory.
+- **`gate-integrity`'s OK line can say a check did not run.** With
+  `HARNESS_ALLOW_SELF_EDIT=1` set, it reads `escape-list commit rule not run` and
+  `threshold-config commit rule not run` where it printed a count of clean files, and with
+  no git work tree it also reads `history check not run`. It exits as it did before. The
+  doctrine's new section lists everything the flag relaxes, and its Stop-hook cost section
+  no longer suggests commenting `build` or `e2e` out, which the floors and `gate-integrity`
+  refuse.
+- **`contracts` re-runs locally after an edit to your root `package.json`, and `pnpm gen`
+  may name a vertical as not catalogued.** The event-catalog generator now reads the root
+  `package.json` to decide whether the example's old export still applies, so the file joins
+  the `contracts` stamp; CI never honoured a stamp. `tools/generated/event-catalog.json`
+  regenerates unchanged. A direct run of the generator prints `<package> is not catalogued`
+  for each other vertical whose `./client` does not export `EVENT_CATALOG`; those were not
+  catalogued under 1.0.x either, and the gate prints nothing new. If you forked the
+  generator, your copy stays, the new one is parked under `.harness/pending/`, and `update`
+  exits 2 while it stays there: the subsection on the event catalog below says what to do.
+- **`doctor` may warn that a catalog pin is below a security floor, and exit 2.** If your
+  `pnpm-workspace.yaml` still pins `vitest` or `@vitest/coverage-v8` at 4.1.10, as every
+  release from 0.1.3 through 1.0.2 scaffolded it, `doctor` prints one warning per package
+  and exits 2 where it exited 0, and `update` prints a `CATALOG PIN FLOOR` note per package
+  and parks `.harness/pending/pin-floors.json`. No gate reds on it, and `update`'s exit code
+  does not move. The subsection on catalog pin floors below says what to do.
+- **`actions-lint` runs a new job, `workflow-hardening`, and it may print NOTEs about
+  workflows you wrote.** It checks every workflow under `.github/workflows/` for a
+  workflow-level bash default, a ceiling on every job and harden-runner as each job's first
+  step. Every workflow the harness ships passes. On an install whose `baseVersion` is below
+  1.1.0 a finding prints as `workflow-hardening: NOTE — (ramp) …` and the job stays green
+  until 1.2.0. The job also runs when `.harness/manifest.json` changes. The subsection on
+  your own workflows below gives the sweep.
+- **Six SQL gates may print a NOTE about your migration history.** Only when it holds a
+  top-level `DROP TABLE` or `ALTER POLICY` (or, for `schema-rls`, a `DROP POLICY`), and only
+  for a finding the gates now see because they read those statements. On an install whose
+  `baseVersion` is below 1.1.0 each such finding reads `NOTE — (ramp)` under a NOTE that
+  expires in 1.2.0. A table created and later dropped no longer reds `schema-rls` as
+  undeclared. The subsection on the SQL history fold below says what to sweep.
+- **`schema-rls` prints NOTEs about your grants, naming `profiles` and `notes` at least.**
+  It now reds a table privilege `anon` or `authenticated` holds that no policy admits, a
+  table that keeps the platform's default privileges for any of `anon`, `authenticated` or
+  `service_role`, and a missing or stale `supabase/tests/rls_grants.generated.test.sql`.
+  Every install below 1.1.0 meets the first two on `profiles` and `notes`, and an install
+  that never applied 1.0.2's migration meets them on seven more tables. On an install whose
+  `baseVersion` is below 1.1.0 each reads `NOTE — (ramp)` under a NOTE that expires in
+  1.2.0, and `graduate` refuses while they stand. The subsection on the grant bound below
+  gives the SQL, then the command.
+- **`pnpm gen` records a DAL's `rpc()` and `upsert()` calls, and `query-shapes` judges
+  them.** If no probed DAL function of yours makes either call, the manifest regenerates
+  unchanged and nothing moves. If one does, it could not pass under 1.0.x: `pnpm gen` threw
+  on the rpc, and an upsert failed `query-shapes` with advice about OFFSET pagination. Run
+  `pnpm gen` again and commit the manifest; the subsection on rpc and upsert below says what
+  the gate now checks.
+- **The `i18n` Stop step may print NOTEs that expire in 1.2.0, and every FAIL line ends
+  with a `{"key": …}` entry.** The step now also parses each file with your `typescript`
+  and finds copy its regular expressions never matched, such as
+  `accessibilityLabel={'Close dialog'}` or `<h2>Plans from $5</h2>`. On an install whose
+  `baseVersion` is below 1.1.0 each such string prints as a NOTE, and so does each
+  `{"site": "file:line"}` entry in `tools/i18n-allow.json`, with the key that replaces it.
+  A finding the step already reported stays a red, and one only its regular expressions
+  report says it retires with them in 1.2.0. Without an installed `typescript` the step
+  says the walk did not run, and in CI it fails. The subsection on the i18n syntax-tree
+  walk below says what to do.
+- **Your chain has a 37th step, `web-compile`, and it builds your web app.** The first
+  validate after `update` runs `next build` over `apps/web`, which takes tens of seconds,
+  and prints `web-compile: STAMPED` on every later run until something under `apps/web`,
+  `packages`, the base tsconfig, the workspace file or the lockfile changes. `static` runs
+  it on every pull request. `route-manifest` may print a NOTE naming `notes` and `security`,
+  and `docs-sync` a NOTE about your gate list. Your quality-gate workflow's `web-build` and
+  `web-e2e` jobs gain one step that builds the workspace declarations first. The subsection
+  on the web compile step below says what each NOTE asks of you.
+- **`lint` now reads `supabase/functions`, and a new `edge-functions` job may print NOTEs.**
+  A `getSession()` call or a raw `crypto.subtle` in one of your own Edge Functions now reds
+  `lint` at once, as it would anywhere on the server graph, and so does a function over
+  cognitive complexity 15 (the delete-account `index.ts` your install carries is exempt from
+  that one until 1.2.0). `doctor` warns that the seeded delete-account function still has its
+  1.0.x shape, and `update` notes four new files it did not plant. On an install whose
+  `baseVersion` is below 1.1.0, `edge-functions`, `diff-coverage` and the mutation lane print
+  `NOTE — (ramp)` lines about `supabase/functions` until 1.2.0. The subsection on Edge
+  Functions below gives the sweep.
+- **`gate-integrity`'s plant NOTE reads differently, and an untracked escape list can be a
+  finding.** For an escape list `update` just planted, the NOTE now says its bytes match the
+  manifest record and a harness release planted exactly these bytes
+  (`tools/lib/planted-shas.json`); commit it with the rest of the upgrade, as before. An
+  untracked escape list whose sha matches its manifest record but that no release planted,
+  such as one created by hand with its sha written into `.harness/manifest.json`, now reads
+  `gate-integrity: NOTE — (ramp 1.1.0) … no harness release planted these bytes` on an
+  install whose `baseVersion` is below 1.1.0, until 1.2.0, and fails after. The subsection
+  on planted escape lists below gives the sweep.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -2076,6 +2343,974 @@ stamped run or a local skip.
   `unit`, `mobile-unit` and `rls-isolation` print no `<gate>: FAIL` line, and a long failed
   Stop step may keep a note only in `.harness/stop-output/<step>.log`. The catalog's
   "Shared behavior" paragraph has the details.
+
+### A reviewer verdict records the model it ran on (security reviewers: a NOTE until 2.1.0)
+
+A reviewer's agent file pins one model, and Claude Code can still run it on another: a
+per-invocation `model` parameter, `CLAUDE_CODE_SUBAGENT_MODEL` (with
+`CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1`), an `availableModels` allowlist that substitutes for a
+blocked model, or a `fallbackModel` chain that fails over. From 1.1.0 the SubagentStop hook
+records in each ledger entry the `model` that wrote the verdict, read from the subagent's
+own transcript, and `pinned`, whether it is the pin. `reviewer-verdicts` judges it:
+
+- **The pin counts, and an alias pin counts for its whole family.** `model: opus` counts for
+  any Opus model ID, whichever version the alias resolved to. A full model ID counts only as
+  itself.
+- **A listed model counts, and is named.** Each shipped reviewer file now carries a
+  `harnessFallbackModels` line, next to `model`. Claude Code ignores the key and picks no
+  model from it; `reviewer-verdicts` reads it. To run a reviewer on a listed model, pass
+  that model as the per-invocation `model`.
+- **Any other model is named, never silently counted.** One `FALLBACK MODEL` line per
+  verdict, shown to you as a warning when the turn ends green.
+- **For `security-reviewer`, `web-security-reviewer` and `mobile-security-reviewer` it does
+  not count.** A PASS on a model that is neither the pin nor listed, or one whose model the
+  hook could not read (`model: null`), reds.
+
+Entries written before the update carry no `model` field and are judged exactly as before.
+
+**The ramp.** If your `baseVersion` is below 1.1.0, the security finding prints as a NOTE
+that expires in 2.1.0. A fresh 1.1.0 scaffold is judged from the start.
+
+**What to do.**
+
+1. **If your configuration forces a model on subagents, check it against the security
+   reviewers' lists.** The settings that do are `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, an
+   `availableModels` allowlist that blocks a reviewer's pin, and a `fallbackModel` chain. A
+   re-run lands on the same model, so re-running does not clear the finding. Either lift
+   the setting for your security reviews, or, if you accept that model for security review,
+   add it to that reviewer's `harnessFallbackModels` in a reviewed diff. The agent files are
+   write-guarded and hashed, so that is a human act: edit under
+   `HARNESS_ALLOW_SELF_EDIT=1`, re-record the lock with
+   `HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write`, and re-record the
+   file's sha in `.harness/manifest.json` (the 1.0.2 section, "Forking an owned file").
+2. **If a reviewer cannot run on its pin** (the Agent tool reports a model error, and the
+   Stop red says the reviewer did not run), dispatch it with the Agent tool's `model` set
+   to a model its `harnessFallbackModels` line names. The red says so too. That verdict
+   counts, and is named.
+3. **If `update` parked one of your reviewer files,** your copy has no list, so only its pin
+   counts. Merge the parked copy to take the list.
+4. **If every PASS records `model: null`,** the hook cannot find the model in your Claude
+   Code's transcript. That is a harness defect, not yours: report it with your Claude Code
+   version.
+5. **Before you graduate,** read the NOTEs, fix what they name, and graduate when they are
+   gone.
+
+### Reviewer bodies state which severities block, and review rounds get a budget (NOTEs until 1.2.0)
+
+Until 1.1.0 no reviewer body said which severity justifies `VERDICT: BLOCK`, so a nit and a
+vulnerability both could, and a reviewer could PASS over a HIGH finding it listed itself.
+Nothing bounded a fix-and-re-review loop either, except the turn-wide block cap that every
+kind of block spends. From 1.1.0:
+
+- **Every reviewer body states its severity contract**, on two lines of their own before its
+  closing verdict paragraph, with the finding format after them:
+
+  ```
+  Severities: CRITICAL, HIGH, MEDIUM, LOW
+  Blocking: CRITICAL, HIGH
+
+  Write each finding on a line of its own as `- [SEVERITY] file:line — …`, with a severity
+  from the `Severities:` line. Return `VERDICT: BLOCK` when a finding at a `Blocking:`
+  severity stands, and `VERDICT: PASS` otherwise: a PASS that lists a blocking finding is
+  sent back to you to re-state.
+  ```
+
+  `docs-sync` holds the two lines: each present once, `Blocking:` a subset of
+  `Severities:`, and `Blocking:` holding at least `CRITICAL` and `HIGH`.
+- **The SubagentStop hook bounces a PASS that lists a blocking finding.** It reads the
+  `Blocking:` line from the body of the reviewer that stopped. A reply that ends
+  `VERDICT: PASS` and has a line starting `- [HIGH] …` exits 2, so the reviewer re-states,
+  and `.harness/verdict-bounces.jsonl` records the shape `pass-with-blocking-finding` with
+  the finding lines. A BLOCK is never bounced on this ground, and neither is a body with no
+  `Blocking:` line, which keeps the 1.0.x behaviour.
+- **Each verdict records its round, and the Stop step holds each reviewer to a budget of 3
+  rounds per review loop.** A BLOCK opens a loop, every later verdict of that reviewer in
+  the session is its next round, and the loop closes when the same run (its `agent_id`)
+  passes over a tree that did not move under it. A loop still open after its third round
+  is spent: `reviewer-verdicts` reds with every blocking finding the reviewer recorded and
+  tells the agent to stop and hand them to you, and a PASS recorded after that never clears
+  it. The budget is judged over the change set the reviewer ledger v2 keys, so on a branch
+  with no upstream it does not judge, and `NOTE — no merge base` says so. It is a constant
+  of the owned `tools/lib/reviewer-verdicts.mjs`, not a field of the seeded
+  `tools/reviewer-triggers.json`, so there is nothing to add to your trigger table.
+
+**When a budget is spent.** The step keeps redding for as long as that reviewer is owed in
+this session, and the agent is told not to run it again. The findings are yours to decide:
+fix them yourself, or with the agent in a NEW session, where every budget starts afresh; or
+change the diff so it no longer owes that reviewer. Starting a new session is the reset, and
+it is a human's act, not the agent's.
+
+**The ramps.** If your `baseVersion` is below 1.1.0, both checks print as NOTEs that expire
+in 1.2.0:
+
+```
+docs-sync: NOTE — the reviewer severity contract (ramp: live from baseVersion 1.1.0; this install's baseVersion is <yours>; expires in 1.2.0). …
+docs-sync: NOTE — (ramp) .claude/agents/<name>.md: no `Blocking:` line — …
+reviewer-verdicts: NOTE — the per-reviewer round budget (ramp: live from baseVersion 1.1.0; …; expires in 1.2.0). …
+```
+
+From harness 1.2.0 the same findings print under `RAMP EXPIRED` and red their step, and on an
+install whose `baseVersion` is 1.1.0 or later they red from the start. The hook's bounce is
+not ramped: it fires only for a body that states `Blocking:`, and an existing install gets
+one only when `update` re-plants an unmodified body or you add the lines yourself.
+
+**Adding the contract to a forked reviewer body.** `.claude/agents/` is write-guarded and the
+lock is a human act, so each step is yours, not an agent's.
+
+1. **Add the lines.** Merge the parked copy from `.harness/pending/.claude/agents/<name>.md`
+   if `update` left one, or paste the block above into your body, just before its closing
+   `End with exactly one final line: …` paragraph, which must stay last. Keep `CRITICAL` and
+   `HIGH` on the `Blocking:` line; you may add `MEDIUM` to block on more.
+2. **Re-lock the agent surface.** `prompts` reds the edited body until the lock moves, and the
+   bash guard refuses the writer from an agent's shell, so a human runs:
+
+   ```
+   HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write
+   ```
+
+3. **Re-record the body's sha** in `.harness/manifest.json`, in a reviewed commit, as
+   "Forking an owned file" in the 1.0.2 section describes, and delete the parked copy.
+
+A reviewer of your own, outside the eight the harness ships, is not judged by `docs-sync`. Add
+the two lines to it if you want the hook to hold its PASSes to its findings. If the `docs-sync`
+finding names `tools/lib/agent-roster.mjs`, or the `reviewer-verdicts` one names
+`tools/lib/reviewer-verdicts.mjs`, your fork of that lib predates the contract: merge the
+parked copy under `.harness/pending/tools/lib/` into it and re-record its sha.
+
+### A reviewer body must close on its verdict demand (`docs-sync`, a NOTE until 1.2.0)
+
+The SubagentStop hook records a reviewer's PASS only when `VERDICT: PASS` is the last line
+of its reply. A reviewer body that asks for anything after that line, such as "Follow it
+with the top 3 fixes", which two shipped bodies said at v1.0.1, gets every obedient PASS
+bounced. `docs-sync` used to check only that a body asked for the verdict somewhere. From
+1.1.0 it also checks where: the last paragraph of each reviewer body in `.claude/agents/`
+must be exactly this, with the second and third sentences optional:
+
+```
+End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`. The prefix is
+what makes the outcome machine-readable — a bare `PASS` can occur anywhere in prose,
+so a caller (or a future receipt gate) cannot tell a verdict from a sentence.
+```
+
+Line breaks and CRLF endings do not matter; words do. The severity contract's lines and the
+finding format (the subsection above) come before this paragraph, never after it. A body
+with no verdict demand at all still reds on every vintage, as it always has.
+
+**Who sees it.** Only an install that forked a reviewer body. `update` re-plants an
+unmodified body, and every shipped body conforms. A fork you re-recorded is kept; when the
+shipped body changed since your version, the incoming copy is parked at
+`.harness/pending/.claude/agents/<name>.md`. If your `baseVersion` is below 1.1.0 the
+finding is a NOTE:
+
+```
+docs-sync: NOTE — reviewer bodies closing on the verdict demand (ramp: live from baseVersion 1.1.0; this install's baseVersion is <yours>; expires in 1.2.0). …
+docs-sync: NOTE — (ramp) .claude/agents/<name>.md: reviewer body does not close on the verdict demand — …
+```
+
+From harness 1.2.0 the same finding prints under `RAMP EXPIRED` and reds the step, and on
+an install whose `baseVersion` is 1.1.0 or later it reds from the start.
+
+**The fix, in this order.** `.claude/agents/` is write-guarded and the lock is a human act,
+so each step is yours, not an agent's.
+
+1. **Restore the closing paragraph.** Merge the parked copy from `.harness/pending/` if there
+   is one, or copy the paragraph above from the template. Move whatever your fork asked for
+   after the verdict to an earlier paragraph, and say it comes BEFORE the verdict, as the
+   shipped `torvalds-reviewer.md` does: "Give the top 3 fixes, most important first, BEFORE
+   the verdict".
+2. **Re-lock the agent surface.** `prompts` reds the edited body until the lock moves, and
+   the bash guard refuses the writer from an agent's shell, so a human runs:
+
+   ```
+   HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write
+   ```
+
+3. **Re-record the body's sha** in `.harness/manifest.json`, in a reviewed commit, as
+   "Forking an owned file" in the 1.0.2 section describes: the record keeps `update`
+   treating the file as yours. Delete the parked copy once merged.
+
+If the finding names `tools/lib/agent-roster.mjs` instead of a body, your fork of that lib
+predates the rule: the gate still checks that each body asks for the verdict, but cannot
+check where. Merge `.harness/pending/tools/lib/agent-roster.mjs` into your fork, so that it
+exports `verdictDemandProblem`, and re-record its sha. A fork older than 1.1.0 also lacks
+`severityContractProblems`, so the severity contract's NOTE names the same lib, and the
+same merge clears both.
+
+**One limit.** Only the last paragraph is checked. An earlier paragraph that asks for text
+after the verdict line still passes `docs-sync`, and the hook still bounces every PASS that
+obeys it, so read your fork for that too.
+
+### Review records: `docs/reviews/`
+
+Reviewer findings had no place in history: the ledger under `.harness/` is ignored by git,
+and the ADR template has no section for them. From 1.1.0 a change keeps its review at
+`docs/reviews/<YYYYMMDD>-<slice>.md`, named like its ADR, with a `## Round <n> — YYYY-MM-DD`
+section per round holding a `| Reviewer | Verdict | Findings | Resolution |` table.
+`docs/reviews/README.md` defines the shape, the ADR template's Traceability section links
+the record, and `/adr` and `/new-feature` tell the agent to write it. No gate reads the
+directory, so a missing or malformed record turns nothing red.
+
+`update` plants `docs/reviews/README.md` where your install has none, and leaves one you
+already have exactly as it is, with nothing parked beside it. The owned files above reach
+you as usual. One text does not:
+
+1. **The `AGENTS.md` sentence.** `AGENTS.md` is yours, so `update` does not touch it. In its
+   Provenance list, extend the ADR bullet so it reads:
+
+   ```
+   - Emit one ADR per slice via `/adr <slice>` (records in `docs/adr/`); then run
+     `/verify-citations` until it returns `CITATIONS: CLEAN`. Review rounds go in
+     `docs/reviews/<YYYYMMDD>-<slice>.md`, never in the ADR.
+   ```
+
+   It spends one line of the file's `~350` budget.
+
+Two things to know once you keep records:
+
+- **The whole-turn reviewers see the record.** No path in the `reviewers` list of
+  `tools/reviewer-triggers.json` matches `docs/**`, so writing a record leaves those
+  reviewers' verdicts standing; keep it that way if you add trigger paths. The `wholeTurn`
+  class, where your table has one, binds each PASS to the whole diff, the record included,
+  so a round recorded after a `torvalds-reviewer` or `citation-verifier` PASS sends it stale.
+  The README's "The record is part of the diff" section gives the order that ends there:
+  record every round, then run the whole-turn reviewers once more over the diff that holds
+  the record, and leave that confirming run out of it.
+- **An `-- adr:` marker names the ADR, never the record.** The `migrations` gate checks only
+  that the named file exists, so it would accept a record; the rule is written down, not
+  enforced.
+### Proposing a register edit: `harness-proposals/` and `apply-proposal`
+
+The write guard denies an agent every reviewed register under `tools/`: the allowlists, the
+budgets and registers such as `tools/i18n-allow.json`, `tools/approved-tools.json` or
+`tools/mcp/corpus/project.json`. Until 1.1.0 an agent with a reason to change one could only
+describe the edit, and you either typed it or relaunched the session with
+`HARNESS_ALLOW_SELF_EDIT=1`, which lifts the guard for every protected path at once. From
+1.1.0 the agent writes the whole proposed file as one JSON document,
+`harness-proposals/<id>.json`:
+
+```json
+{
+  "version": 1,
+  "target": "tools/i18n-allow.json",
+  "reason": "Why the register should change.",
+  "base": "<output of git rev-parse HEAD:tools/i18n-allow.json, or null if the file is not in HEAD>",
+  "content": "<the whole proposed file>"
+}
+```
+
+`harness-proposals/` is a committed directory outside every path the deny list and the two
+guards name, so staging a proposal narrows none of them, and a proposal is inert: no gate
+reads it. `format` checks it like any other file, so the agent writes it the way
+`JSON.stringify(proposal, null, 2)` prints it, with one trailing newline.
+
+**What to do.**
+
+1. **List what is pending.** `doctor` lists each proposal as `info`, and so does
+   `npx next-expo-supabase-agent-harness apply-proposal` with no id. Run the installer of
+   the harness version you installed or a later one.
+2. **Review one.** Add the id and `--dry-run`: the command prints the reason and a
+   `git diff --no-index` of the current file against the proposed one, and writes nothing.
+   It needs a terminal on stdin and stdout.
+3. **Apply it, or delete it.** Run the same command without `--dry-run`. After the diff it
+   asks you to type the target path, and only that answer writes the file. It then deletes
+   the proposal and prints `commit <target>`. To reject a proposal, delete the file.
+4. **Commit the register.** It is left uncommitted on purpose: `gate-integrity` fails on an
+   escape list left uncommitted (a shell with `HARNESS_ALLOW_SELF_EDIT=1` set skips that
+   check), and the commit carries the change into your pull request, where CODEOWNERS
+   applies. If the proposal was committed, commit its removal with it.
+
+**When it refuses.** Each refusal exits 1, names its reason and writes nothing:
+
+- **The target is not proposable.** A proposal may target the escape lists in
+  `tools/lib/enforcement-surface.mjs` and `tools/field-notes.json`. It may not target an
+  owned file, the agent surface, settings, a pinned, hashed or generated file, or
+  `tools/perf-baseline.json` and `tools/mutation-baseline.json`, which only their
+  generators write: re-run the generator yourself.
+- **`base` does not match `git rev-parse HEAD:<target>`**, or it is null for a file that is
+  in `HEAD`, or set for one that is not. The register changed after the proposal was staged,
+  and replacing the whole file would revert that change. Ask for the proposal again.
+- **The target has uncommitted changes.** Commit or discard them first, so the file the diff
+  shows is the file that is replaced. The check runs again after you answer.
+- **The id or the target resolves outside `--dir`**, the content is not JSON, the proposal
+  has a field the format does not have, or its text carries a control or
+  bidirectional-format character that could make the terminal show something other than
+  the bytes written.
+
+### Reviewer bodies list what a change must bring: `## WHAT MUST ACCOMPANY IT`
+
+A reviewer body's rubric asks about the lines a diff contains. A companion the diff should
+have brought and did not, such as the `REVOKE ALL … FROM authenticated` that 1.0.2 found
+missing on seven tables, is on no line of it. From 1.1.0 every reviewer body except
+`citation-verifier`'s carries a table of those companions, placed before its `Flag ONLY`
+paragraph where it has one, before its `Severities:` line, and always before its closing
+verdict demand:
+
+```
+| id | The diff introduces | It must also bring | Stated in | Enforced by |
+```
+
+Each row restates a rule the harness already states in the file its `Stated in` cell names,
+so the table adds questions, not rules. The reviewer reports each row that applies as
+`<id>: present (file:line)` or `<id>: absent`, and an absence is a finding at the severity
+the body already gives that rule, so it BLOCKs when that severity is on the body's
+`Blocking:` line. `Enforced by` names the chain step that reds the absence, or says
+`review only`. A row that a step enforces stays in the table, because the database-backed
+proofs skip when no local stack is running. The web-page rows of `accessibility-reviewer`
+and `design-reviewer` widen those two bodies past the mobile UI: `tools/reviewer-triggers.json`
+already summons both on `apps/web/app/**/page.tsx`.
+
+**Who has to act.** Only an install that forked a reviewer body. No gate reads a table, so a
+fork without one reds nothing and simply gets no companion questions. To take the table:
+
+1. **Copy the section.** Take `## WHAT MUST ACCOMPANY IT`, its paragraph and its table from
+   the parked copy at `.harness/pending/.claude/agents/<name>.md` into your body where the
+   parked copy has it: after the rubric, before the `Flag ONLY` paragraph where your body has
+   one, before the `Severities:` line where it has one, and always before the closing
+   verdict demand, which stays the body's last paragraph.
+2. **Re-lock the agent surface and re-record the body's sha**, as steps 2 and 3 of "Adding
+   the contract to a forked reviewer body" describe, in the severity-contract subsection
+   above, and delete the parked copy.
+
+A row of your own is welcome in a fork: keep the five columns, a backticked kebab-case id,
+and a `Stated in` path that exists in your tree.
+### A smaller always-loaded context: `encryption.md` is a stub, and trimming `AGENTS.md` is optional
+
+Every session loads `AGENTS.md` and each rule file without `paths:`. Until 1.1.0
+`encryption.md` was one of them in full, while most of it governs the opt-in `e2ee` module.
+It now keeps what applies with the module off, each item with the check that holds it in a
+base install, and its seven bullets moved word for word to the path-scoped
+`.claude/rules/e2ee.md`. The lint and write-guard messages that cite
+`.claude/rules/encryption.md` still point at text that states their rule.
+
+`update` delivers this to the harness-owned files: both rule files, the
+`authoring-e2ee-feature` skill, `docs/harness/README.md` and `tools/conformance-map.json`.
+**`AGENTS.md` is yours, so `update` does not touch it, and nothing turns red whether you
+trim yours or not.** The shipped copy no longer carries the rules it repeated from
+`.claude/rules/security-invariants.md` that a hook denies with a message naming the fix:
+`WITH RECURSIVE` without a `CYCLE` clause or visited guard, secret-shaped `EXPO_PUBLIC_` and
+`NEXT_PUBLIC_` names, and the shell commands the bash guard refuses outright (`rm -rf`,
+force-push, `git reset --hard`, `git commit --no-verify`, reading `.env*` or `.dev-auth/`,
+`pnpm update`, `knip --fix`). No gate reads those sentences, and the always-loaded
+`security-invariants.md` still states each rule in every session. To take the smaller
+file, delete the `WITH RECURSIVE` bullet under `## Security invariants`, and change the
+secret-name bullet and the shell-hygiene bullet to:
+
+> - **The public config is `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE` /
+>   `EXPO_PUBLIC_*` transport only**; the service-role key and any provider secret stay
+>   server-env.
+>
+> - **Shell hygiene** (bash-guard enforced): no destructive raw SQL outside migrations,
+>   and store/signing credentials (`EXPO_TOKEN`, Android keystores, Apple API keys)
+>   never touch shell or repo.
+
+Leave the gate-list and Stop-chain sentences, the `Keep under ~N lines` sentence and every
+`pnpm` command it advertises as they are: `docs-sync` reads them.
+
+### Advisory decision classes: `provenance` reds only the mandatory ones
+
+Until 1.1.0 every decision class blocked alike: an uncited `timeoutMs` failed `provenance`
+and made the source-check hook exit 2, exactly as an uncited `CREATE POLICY` did. From
+1.1.0 three classes are **advisory**: `vector-index`, `llm-sampling` and
+`tuning-constants`, listed in the owned `tools/lib/provenance-rules.mjs`. An uncited site,
+or a citation whose corpus entry does not cover the class, whose classes are all advisory
+prints on every run and fails nothing:
+
+```
+provenance: ADVISORY (1) — apps/web/lib/limits.ts:1 [tuning-constants] no SOURCE citation
+```
+
+The hook answers the same site with a note in the agent's context and exits 0. Every other
+class stays **mandatory**: `rls-policy`, `guc-identity`, `token-verification`,
+`cryptography`, the seeded `mobile-security` and every group your
+`tools/decision-groups.json` adds. A line that matches a mandatory class and an advisory
+one, such as `jwtVerify(t, k, { timeoutMs: 5 })`, is mandatory. A citation you do write
+must still ground, whatever the class: a pinned corpus id, an existing repository path or
+a URL on an allowlisted host.
+
+**Keeping a class mandatory.** Add a top-level `mandatory` list to
+`tools/decision-groups.json`, beside `comment` and `groups`:
+
+```
+  "mandatory": ["tuning-constants"]
+```
+
+The file is write-guarded, so a human makes the edit and commits it, or reviews and applies
+an agent's `harness-proposals/<id>.json` for it (the subsection above). A value that is not
+an array, or a key that is not a decision group, fails `provenance` and blocks every edit
+until it is fixed. Nothing in the file can make a mandatory class advisory.
+
+**What `update` leaves alone.** `tools/decision-groups.json` and
+`tools/reviewer-triggers.json` are seeded, so an existing install keeps its copies. The
+`mandatory` key works without the new comment, which only documents it, and the
+`citation-verifier` sentence in `tools/reviewer-triggers.json` is prose no check reads.
+Copy either from the template if you want the text.
+
+**If you edited `tools/lib/provenance-rules.mjs`.** `update` keeps your copy, parks the new
+one under `.harness/pending/` and exits 2 while it stays there. The re-planted gate and
+hook find the split only in the new copy, so until you merge it every class stays
+mandatory, exactly as before 1.1.0, and nothing turns red that was green.
+
+### The event catalog: a vertical opts in from its `./client`
+
+`tools/gen-event-catalog.mjs` no longer imports the example by name. It walks the platform
+catalog plus each `packages/verticals/*` whose `./client` entry exports its catalog as
+`EVENT_CATALOG`, and it still reads the example's `noteEvents` export, as 1.0.x did, for as
+long as your root `package.json` lists `@app/notes` and that vertical has not opted in.
+**Your catalog regenerates unchanged, and nothing is yours to do.** A fresh 1.1.0 scaffold's
+`packages/verticals/notes/src/client.ts` carries the line below where yours has
+`export { noteEvents } from './events.js'`, and its root `package.json` no longer lists
+`@app/notes`. Adopting the line is optional:
+
+```ts
+export { noteEvents as EVENT_CATALOG } from './events.js'
+```
+
+To catalogue one of your own verticals, add the same line to its `src/client.ts`, naming its
+own catalog, then run `pnpm gen:contracts`, the part of `pnpm gen` that needs no database,
+and commit the regenerated `tools/generated/event-catalog.json`. The generator looks for the
+name in the file's code, not in its comments, and a vertical that names it without exporting
+a catalog fails the generator with an error naming the file. If you later remove the
+example, drop `@app/notes` from the root `package.json` in the same change: while the root
+lists it and the vertical has not opted in, the generator still takes the old import, which
+fails once the vertical is gone, as it did under 1.0.x. The reverse holds too: pulling the
+new root `package.json` with `update --refresh-seeded package.json` without the `client.ts`
+line drops the example's three rows at the next regeneration, so take both together.
+
+If you forked `tools/gen-event-catalog.mjs` to add your own verticals' imports, your copy is
+kept and the new one is parked at `.harness/pending/tools/gen-event-catalog.mjs`. Add the
+export to each vertical your fork imported, take the parked file, re-record it as "Forking
+an owned file" in the 1.0.2 section describes, and delete the parked copy. Then
+`pnpm gen:contracts` leaves `tools/generated/event-catalog.json` unchanged.
+
+### A catalog pin below a security floor: `.harness/pending/pin-floors.json`
+
+A release can now record a security floor for a pin in your seeded catalog. 1.1.0 records
+two: `vitest` and `@vitest/coverage-v8` at 4.1.11, for GHSA-82fw-gwwq-j7x9, the raise the
+1.0.3 section above asks you to make by hand. `update` still never edits
+`pnpm-workspace.yaml`, so it tells you instead, once per package:
+
+```
+CATALOG PIN FLOOR (1.1.0): raise `vitest` from 4.1.10 to at least 4.1.11 in the pnpm-workspace.yaml catalog, then `pnpm install` and commit pnpm-lock.yaml. WHY: … (parked at .harness/pending/pin-floors.json)
+```
+
+and `doctor` warns with the same finding (`catalog pin below a security floor (since
+1.1.0)`) and exits 2 until the pin meets the floor. It never exits 1 for a floor: an old
+pin stops no gate from running, and your daily `osv-scan` job is still what judges the
+version your lockfile resolved. To clear it, raise both pins together, exactly as the 1.0.3
+section shows, then run `doctor` again:
+
+```
+# in the pnpm-workspace.yaml catalog: vitest: 4.1.11 and '@vitest/coverage-v8': 4.1.11
+pnpm install && git add pnpm-lock.yaml pnpm-workspace.yaml
+npx next-expo-supabase-agent-harness doctor
+```
+
+`doctor` deletes `.harness/pending/pin-floors.json` once every floor is met and says so in
+an `info` line; it is an instruction, not a parked upgrade, so there is nothing to merge
+from it. A pin is judged by the lower bound of its catalog value: `^4.1.11` and `>=4.1.11`
+meet the floor, `^4.1.10` does not, even where your lockfile resolved something newer, and a
+value that is not a version (a dist-tag, an `npm:` alias, a URL) cannot be proven to meet
+it, so it warns too. The key is found whether it is bare, single-quoted or double-quoted,
+and a package you removed from the catalog is not judged.
+### Your own workflows: `workflow-hardening` (a NOTE until 1.2.0)
+
+Since 1.0.2 every workflow the harness ships selects bash at workflow level and gives every
+job a ceiling, and every shipped job starts with harden-runner. Nothing checked a workflow
+you wrote, and `harden-runner-coverage` only counts harden-runner lines per `.yml`
+file: two in one job cover a neighbour with none, one placed after `checkout` passes, a
+comment counts, and a `.yaml` file or a workflow indented by four spaces is never read.
+From 1.1.0 the `workflow-hardening` job in `actions-lint.yml` runs
+`node tools/check-workflow-hardening.mjs`, which holds every workflow in
+`.github/workflows/` to three rules and names each finding `<file>` or `<file>#<job>`:
+
+1. **A workflow-level bash default, above `jobs:`.** GitHub runs a step that names no shell
+   as `bash -e`, without `pipefail`, so `producer | tee file` reports tee's status. Add this
+   at the top level, before `jobs:`:
+
+   ```
+   defaults:
+     run:
+       shell: bash
+   ```
+
+   Write it as plain `bash`: GitHub adds `-eo pipefail` only to that spelling, so a custom
+   command such as `bash -el {0}` is reported even where it sets `pipefail` itself. A
+   workflow with no `run:` step needs none, and the one workflow that publishes OpenSSF
+   Scorecard results must carry no top-level `defaults` or `env` instead.
+2. **A ceiling on every job.** A whole number of `timeout-minutes` at job level, from 1 to
+   360 on a GitHub-hosted runner and to 7200 on a self-hosted one: those are the platform's
+   limits, and a job with no ceiling inherits 360. An expression is not read, so write the
+   number. A job that calls a reusable workflow (`uses:` at job level) takes none.
+3. **harden-runner first.** The first step of every job that is neither a reusable-workflow
+   call nor on a `self-hosted` runner is `step-security/harden-runner`, pinned by SHA, as in
+   every shipped workflow. When the job's `runs-on`, or a matrix value it reads, names
+   windows, that step sets `egress-policy: audit`.
+
+**Who sees it, and when.** If your `baseVersion` is below 1.1.0, each finding is a NOTE and
+the job stays green:
+
+```
+workflow-hardening: NOTE — the workflow hardening rules over the project workflows (…) (ramp: live from baseVersion 1.1.0; this install's baseVersion is <yours>; expires in 1.2.0). …
+workflow-hardening: NOTE — (ramp) .github/workflows/<file>#<job>: the first step uses actions/checkout@…, not step-security/harden-runner — …
+```
+
+From harness 1.2.0 the same findings print under `RAMP EXPIRED` and red the job, and on an
+install whose `baseVersion` is 1.1.0 or later they red it from the start.
+
+**The sweep.** Run `node tools/check-workflow-hardening.mjs` in your tree; it needs Node
+only. Fix each finding it names as the rules above say, and run it again until it prints
+`workflow-hardening: OK`. The check is not a chain step, so `graduate` does not run it:
+run it by hand before you graduate. Because the job also runs when `.harness/manifest.json`
+changes, a graduation that left a finding shows it on that pull request. The job is new, so
+no branch-protection rule requires it until you add `workflow hardening (bash default, job
+ceilings, harden-runner first)` to your required checks.
+
+**If you forked `actions-lint.yml`.** `update` keeps your copy, parks the new one under
+`.harness/pending/.github/workflows/actions-lint.yml` and exits 2 while it stays there.
+Your fork has no `workflow-hardening` job until you merge it, so nothing runs the check in
+CI; `node tools/check-workflow-hardening.mjs` still works locally.
+
+### What OPENS: the SQL gates fold `DROP TABLE` and `ALTER POLICY` (NOTEs until 1.2.0)
+
+Through 1.0.x the parser the SQL gates share read neither statement. A table your history
+dropped kept its columns, indexes, triggers, RLS toggles, policies and grants in every view,
+and lent them to a later table of the same name. A policy you rewrote with `ALTER POLICY`
+was judged on its CREATE text, which the database no longer runs. `schema-rls` also read
+`DROP POLICY` and ignored it, so a dropped policy still covered its operation. From 1.1.0
+each gate reads the history as the database applies it:
+
+- `DROP TABLE [IF EXISTS] a, b [CASCADE | RESTRICT]` removes each table, its partitions and
+  everything on them, and clears the foreign keys that pointed at them. A later
+  `CREATE TABLE` of the same name starts with nothing.
+- `ALTER POLICY` replaces the `TO`, `USING` and `WITH CHECK` clauses it names and keeps the
+  rest; `ALTER POLICY … RENAME TO` renames.
+- `schema-rls` reports a `DROP TABLE` without `IF EXISTS`, or an `ALTER POLICY`, whose
+  target no earlier migration left in place. `DROP TABLE IF EXISTS` on an unknown table is
+  a no-op, as it is in the database.
+- `migrations` treats `ALTER POLICY` as an authorization change: it needs an
+  `-- adr: docs/adr/<file>` line naming an existing ADR, as `DROP POLICY` already did. A
+  migration whose only `ALTER POLICY` statements are `RENAME TO` needs none.
+
+A `DROP TABLE` inside a function body (`EXECUTE format('DROP TABLE …')`) is not a statement
+of the history, so it folds nothing. The harness's own migrations hold neither statement at
+the top level, so a scaffold that never wrote one sees no change.
+
+**Who sees a NOTE.** An install whose `baseVersion` is below 1.1.0 and whose history holds
+one of those statements, for each finding that only the new reading produces. The gates
+are `schema-rls`, `tenancy`, `data-flow`, `db-limits` and `query-shapes`, each with one
+ramp, and `migrations` for its `ALTER POLICY` rule:
+
+```
+schema-rls: NOTE — the SQL history fold (DROP TABLE, ALTER POLICY and DROP POLICY) (ramp: live from baseVersion 1.1.0; this install's baseVersion is <yours>; expires in 1.2.0). …
+schema-rls: NOTE — (ramp) notes: policy notes_select_own has a vacuous USING (true) — it permits every row
+migrations: NOTE — ALTER POLICY as an authorization change (ramp: live from baseVersion 1.1.0; …; expires in 1.2.0). …
+migrations: NOTE — (ramp) supabase/migrations/<file>.sql: ALTER POLICY removes an authorization control — …
+```
+
+A finding the old reading also produced stays a hard failure, whatever your
+`baseVersion`: the ramp covers only what the gates could not see before. A finding only
+the old reading produced is gone, because it described a table or policy your history
+dropped or rewrote. From harness 1.2.0 every NOTE above prints under `RAMP EXPIRED` and
+reds its step, and on an install whose `baseVersion` is 1.1.0 or later they red from the
+start. To tell the two kinds apart the gate replays itself over your history as 1.0.x read
+it; that replay runs only when the history holds one of the statements and the gate found
+something.
+
+**The sweep, before 1.2.0.** Your migrations are append-only, so every fix goes in a NEW
+migration:
+
+1. **Fix what the fold exposes.** A re-created table needs its own `ENABLE` and `FORCE ROW
+   LEVEL SECURITY`, its per-operation policies, its `GRANT`s and its owner-column index; a
+   predicate an `ALTER POLICY` rewrote must match the reviewed forms `tenancy` names; a
+   reviewed entry that named a dropped table (`untenantedTables` in `tools/tenancy.json`, a
+   `tools/data-flow.json` row) is stale, so remove it. A new migration that rewrites a policy
+   carries its `-- adr:` line.
+2. **Acknowledge an `ALTER POLICY` that is already applied.** It cannot take an `-- adr:`
+   line without editing a committed migration, which `migrations` refuses. Add the existing
+   escape for it to `tools/migrations-allow.json`, one entry per file:
+
+   ```
+   { "file": "<migration basename>", "rule": "authz-adr", "reason": "<why applied history cannot be swept>" }
+   ```
+
+   The migration must exist at your diff base, and the entry reds once the finding is gone.
+3. **A drop of a table made outside the migrations.** If an applied migration drops a table
+   the dashboard or an extension created, `schema-rls` cannot place the drop. Record the
+   table with a reason in `tools/rls-exempt.json`; nothing of a dropped table is left for
+   the exemption to hide. The same holds for a drop of a table an `ALTER TABLE … RENAME TO`
+   renamed: the gates do not follow a table rename, so the new name reads as never created.
+   The entry exempts the NAME, so a table a later migration creates under it is exempt too:
+   give a new table a new name.
+
+The harness's upgrade lane has nothing to sweep here: `scripts/ci/upgrade-sweep.mjs`
+`SWEEPS['1.1.0']` adds no step, because its scaffolds hold neither statement. Then
+graduate as the section on graduating says.
+
+**One case has no escape yet.** An applied `ALTER POLICY` of a policy the migrations never
+created (one made in the dashboard) stays unresolved for `schema-rls`, and nothing
+acknowledges it before the ramp expires. Report it; the release that owes this ramp's
+expiry has to answer it.
+
+### What OPENS: `schema-rls` bounds grants by policies and holds every table to the three-role revoke (a NOTE until 1.2.0)
+
+Supabase's default privileges grant ALL on every new `public` table to `anon`,
+`authenticated` and `service_role`, and a GRANT removes nothing. Until 1.0.2 the harness's
+own migrations revoked the default from `anon` and `service_role` only, then granted four
+verbs to `authenticated`, which kept TRUNCATE, REFERENCES, TRIGGER and (on PostgreSQL 17)
+MAINTAIN. Row security does not apply to those four, so no policy narrows them. 1.0.2
+closed that on the seven tables `authenticated` only reads; `profiles` and `notes`, the two
+it writes, kept it. And `schema-rls` only ever checked that a policy had a grant behind it,
+never that a grant had a policy behind it, so nothing found any of it. From 1.1.0
+(`docs/adr/20260930-three-role-revoke.md`) `schema-rls` reds three things:
+
+1. **A grant wider than the table's policies.** Every privilege `anon` or `authenticated`
+   holds, counting the platform default, a grant to `PUBLIC` and column grants, needs a
+   PERMISSIVE policy for that operation (or `ALL`) naming the role, `public` or no role,
+   whose predicate is not literally `false`. TRUNCATE, REFERENCES, TRIGGER and MAINTAIN are
+   never admitted: revoke them.
+2. **A table that keeps the platform default** for any of the three roles: the doctrine is
+   `REVOKE ALL` from all three, then the exact grants. This is what makes the privileges the
+   same on every database, including a project created on or after 2026-10-30, which gets
+   no default at all.
+3. **A missing or stale `supabase/tests/rls_grants.generated.test.sql`**, the pgTAP
+   assertion of the exact privileges every table's three roles hold. It is generated from
+   your migrations by `node tools/gen-grant-assertions.mjs` and never edited by hand.
+
+Each finding prints the `REVOKE` and `GRANT` statements that clear it.
+
+**Who sees a NOTE.** Every install whose `baseVersion` is below 1.1.0, because its
+`profiles` and `notes` predate the doctrine:
+
+```
+schema-rls: NOTE — the grant bound, the three-role revoke doctrine and the generated grant assertions (ramp: live from baseVersion 1.1.0; this install's baseVersion is <yours>; expires in 1.2.0). …
+schema-rls: NOTE — (ramp) notes: `authenticated` holds TRUNCATE, REFERENCES, TRIGGER, MAINTAIN on public.notes, which no policy admits — … Clear it in a NEW migration: REVOKE ALL ON TABLE public.notes FROM authenticated; GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.notes TO authenticated; …
+schema-rls: NOTE — (ramp) notes: the platform default still reaches `authenticated` — … Clear it in a NEW migration: REVOKE ALL ON TABLE public.notes FROM authenticated; GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.notes TO authenticated; …
+```
+
+From harness 1.2.0 they print under `RAMP EXPIRED` and red the step, and on an install
+whose `baseVersion` is 1.1.0 or later they red from the start. `graduate` refuses while one
+stands.
+
+**The sweep: the SQL first, then the generator.** A fresh scaffold gets
+`supabase/migrations/20260930000000_three_role_revoke.sql` and the generated test.
+**`update` plants neither**: `supabase/migrations/` is your applied history, and a file
+with the harness's timestamp could sort ahead of migrations you have already applied; the
+harness's generated test describes the harness's tables, not yours.
+
+1. Create a migration of your own:
+
+   ```
+   supabase migration new three_role_revoke
+   ```
+
+   and put in it the statements your findings print. For the two tables the harness
+   shipped, keeping the four verbs their policies admit, that is:
+
+   ```sql
+   -- adr: docs/adr/20260930-three-role-revoke.md
+   -- SOURCE: https://www.postgresql.org/docs/17/ddl-priv.html
+   REVOKE ALL ON TABLE public.profiles FROM authenticated;
+   REVOKE ALL ON TABLE public.notes FROM authenticated;
+
+   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.profiles TO authenticated;
+   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.notes TO authenticated;
+   ```
+
+   If you never applied 1.0.2's migration, add its SQL for the seven read-only tables (the
+   1.0.2 section above). For a table of your own, add the lines its findings print, or
+   run `node tools/gen-grant-assertions.mjs`: while any table fails the doctrine it
+   refuses, names the tables and prints every statement your tree needs at once. The
+   `-- adr:` line is required, because your `migrations` gate treats a `REVOKE … FROM
+   authenticated` as a change to an authorization control; the ADR is the one this update
+   plants. Then `pnpm db:reset && pnpm db:test`.
+2. Generate the assertion and commit it:
+
+   ```
+   node tools/gen-grant-assertions.mjs
+   git add supabase/tests/rls_grants.generated.test.sql
+   ```
+
+   It reads `[db].major_version` from `supabase/config.toml`: eight table privileges on
+   PostgreSQL 17, seven on 15 and 16. Run it again after every grant change; `schema-rls`
+   reds a stale copy. `pnpm db:test` then runs it against your local stack.
+3. **A privilege you mean to keep that no policy admits** (a TRIGGER an owner-side process
+   needs, say) goes in `tools/grant-bound-allow.json`, one row per table, role and
+   privilege, with a reason. The file is write-guarded like the other allow lists, and a row
+   naming a privilege nobody holds reds:
+
+   ```json
+   { "allow": [{ "table": "<table>", "role": "authenticated", "privilege": "TRIGGER", "reason": "<why>" }] }
+   ```
+
+Three seeded texts are yours to copy. `package.json` gains the generator in `pnpm gen`:
+
+```json
+"gen": "… && pnpm gen:routes && pnpm gen:grants",
+"gen:grants": "node tools/gen-grant-assertions.mjs",
+```
+
+`AGENTS.md`'s RLS bullet gains, after "(a GRANT removes nothing; the default leaves it
+TRUNCATE).":
+
+> `pnpm gen` regenerates the exact-privilege pgTAP file, never a hand edit.
+
+And `supabase/AGENTS.md`'s grant bullet ends:
+
+> That revoke needs an `-- adr:` marker (the `migrations` gate). Then `pnpm gen` (or
+> `node tools/gen-grant-assertions.mjs`) regenerates `tests/rls_grants.generated.test.sql`,
+> the exact privileges of every table; never edit its rows or its `plan()` by hand.
+
+The schema files `supabase/schemas/10_account.sql` and `20_notes.sql` gained the same
+`REVOKE ALL … FROM authenticated` line in a fresh scaffold; add it to yours so the
+declarative schema matches the history. The hand-written assertions in
+`rls_structure.test.sql` stay: they state intent (the `service_role` allowlist, the seat and
+quota shapes) that a file generated from the migrations cannot.
+
+The harness's upgrade lane runs exactly these two steps on its swept leg
+(`scripts/ci/upgrade-sweep.mjs` `SWEEPS['1.1.0']`): the statements the gate prints, in a
+migration of the leg's own, then the generator. It copies neither withheld file.
+
+### A DAL that calls `rpc()` or `upsert()`: regenerate the query-shape manifest
+
+Through 1.0.4 neither call could pass `query-shapes`. The recording port that `pnpm gen`
+drives each probed DAL function with had no `rpc()`, so generation threw on a function that
+called it, and an upsert recorded as a read whose `extra` named `.upsert()`, which the gate
+failed with advice about OFFSET pagination. Both are now recorded as their own kind of row.
+`tools/generated/query-shapes.json` is seeded, so `update` does not rewrite it. If a probed
+DAL function of yours makes either call:
+
+1. Run `pnpm gen`, or `pnpm gen:contracts`, the part of it that needs no database.
+2. Run `node tools/check-query-shapes.mjs`, and fix what it names (below).
+3. Commit `tools/generated/query-shapes.json`. Only the rows of rpc and upsert calls change;
+   every other row keeps its bytes.
+
+What the gate now checks, and the fix for each red:
+
+- **`calls rpc public.<name>, which no migration creates`.** No file in
+  `supabase/migrations/` creates that function in `public`, the one schema PostgREST
+  exposes, so the call would get PGRST202. Create it there, or call a name a migration
+  creates.
+- **`without its required parameter(s) …` or `names …, which public.<name> has no input
+  parameter called`.** Pass every input parameter that has no DEFAULT, under its declared
+  name, and no other. An OUT parameter is a result, not an argument.
+- **`upsert into public.<table> ON CONFLICT (…) — no UNIQUE index or primary key …`.** Put
+  the exact columns of a UNIQUE index or of the primary key in `onConflict`, in any order,
+  or add the index in a new migration; the finding lists the ones the table holds. On a
+  tenant table the index carries the tenant column, because `tenancy` reds a UNIQUE there
+  that omits it, so the conflict target names it too. With no `onConflict` the target is
+  the primary key, so the table needs one.
+- **`upsert into tenant table "<table>" writes no <tenant column>`.** Write the tenant column
+  in the payload, as an insert does.
+
+The gate reads migrations, not a database, and it does not model `DROP FUNCTION` or
+overloads (the last definition of a name wins), reads a partial UNIQUE index as an arbiter,
+and does not judge the arguments of a function with an unnamed input parameter. If you
+edited one of the owned files this item re-plants, your copy stays, the new one is parked
+under `.harness/pending/`, and `update` exits 2 while it stays there.
+
+### The i18n syntax-tree walk: `tools/i18n-allow.json` keys, not lines
+
+`tools/check-i18n.mjs` now walks the TypeScript syntax tree of every file it scans, with
+the `typescript` your root `package.json` has listed since the first release, beside the
+regular expressions it has always run, and it reports both. Two ramps open at 1.1.0 and
+expire in 1.2.0; on a `baseVersion` of 1.1.0 or later, and on a fresh scaffold, both are
+already hard.
+
+**Strings only the walk finds.** A string inside `{…}` (`title={'Settings'}`), a template
+literal with no `${…}` (`` label: `Home` ``), a double-quoted object value in a `.ts`
+module, and JSX text holding `=`, `;`, a backtick or `$` were never matched before. Below
+1.1.0 each prints as `i18n: NOTE — <file>:<line>: hardcoded user-facing string …`, under
+one ramp NOTE naming `copy only the syntax-tree walk finds`. Move each into your catalog
+and render it through `t('<key>')`, as the line says, or, for a string no human reads, add
+the `{"key": …, "reason": …}` entry the line prints to `tools/i18n-allow.json`.
+
+**`site` entries become keys.** A 1.0.x entry `{"site": "file:line", "reason": …}` mutes
+whatever sits on that line, and a line inserted above the string moves it onto something
+else. A key is 12 hex characters hashed from the file's path, the finding's kind, its
+attribute or property name and its text, so it stays on its string. Below 1.1.0 the step
+still honours a `site` entry and prints its replacement:
+
+```
+i18n: NOTE — tools/i18n-allow.json: {"site": "apps/mobile/src/Brand.tsx:12"} mutes this line until 1.2.0; replace it with {"key": "6d2720cab99b", "reason": "a brand name"}, which stays on the string when the line moves
+```
+
+Replace each `site` entry with the entry its NOTE prints, keeping your reason. A `site`
+entry whose NOTE says it matches no finding is stale: delete it. The file is
+write-guarded, so a human makes the edit and commits it, or reviews and applies an agent's
+`harness-proposals/<id>.json` for it (the subsection on proposals above). Run
+`node tools/check-i18n.mjs` again: once no `site` entry is left and no NOTE names the walk,
+graduating turns nothing of either ramp red. `graduate` runs `validate`, and this is a Stop
+step, so run it yourself before you graduate. A key that matches no finding reds, as a
+stale `site` entry never did.
+
+**What `update` leaves alone.** `tools/i18n-allow.json` is seeded, so your copy and its
+comment stay as they are; only a fresh scaffold gets the comment that describes keys. The
+shipped allowlist is empty, and no release's own scaffold holds a string only the walk
+finds, so an install that never edited its copy or its screens' copy sees nothing new.
+
+**If `typescript` is not installed.** The step prints
+`i18n: NOTE — the syntax-tree walk did not run: …`, judges with the regular expressions
+alone, and cannot tell whether a key that matches none of their findings is stale. Run
+`pnpm install`. In CI, where the quality gate installs before it runs the step, a walk that
+did not run is a failure.
+
+### The web app compiles in the chain, and each web route needs a browser spec (NOTEs until 1.2.0)
+
+Through 1.0.x nothing in your chain compiled the web app: `types` typechecks and does not
+bundle, and `build` is the mobile export. A Client Component that imports a server-only
+module, or an import only the bundler cannot resolve, passed the whole chain and `static`,
+and only the path-filtered `web-build` job ran `next build`. The new step, `web-compile`
+(`node tools/check-web-build.mjs`), runs `pnpm --filter web exec next build --webpack` when
+its inputs changed and prints `STAMPED` when they did not; CI never uses the stamp.
+
+**What it needs.** `node_modules` and `apps/web`: without either it skips loudly on your
+machine and fails in CI, like every toolchain step. It runs after `types`, whose `tsc -b`
+writes the declarations Next's type check reads; run on its own on a fresh clone it fails
+with TS6305 and prints `pnpm exec tsc -b . apps/web apps/mobile`, which is the fix. Your
+environment is used as it is. For each Supabase key the build needs that you have not set
+and no `apps/web/.env*` file defines, it uses the placeholder your `web-build` job builds
+with and prints which keys it filled, so a scaffold with no local stack compiles. It
+restores the committed `apps/web/next-env.d.ts` that `next build` rewrites, so the build
+leaves your tree clean.
+
+**If your web app does not compile.** On an install whose `baseVersion` is below 1.1.0 the
+step prints `web-compile: NOTE — the web compile step (next build over apps/web)` with
+`expires in 1.2.0`, followed by the build's output, and passes. It records no stamp, so the
+NOTE comes back on every run, and `graduate` refuses, until the build is green. Reproduce it
+with `node tools/check-web-build.mjs` and fix what Next reports.
+
+**Each registered web route needs a spec that renders it.** `route-manifest` now also asks,
+for every route in `apps/web/lib/routes.generated.ts`, that some `*.spec.ts` under
+`apps/web/e2e` names one of the route's declared state test ids as a quoted string, outside
+a comment. A fresh scaffold ships `apps/web/e2e/notes.spec.ts` and
+`apps/web/e2e/security.spec.ts` for the two seeded routes that had none; `update` does not
+plant them, so your install has a spec for `orgs` only. Below `baseVersion` 1.1.0 the
+finding is a NOTE, `route-manifest: NOTE — the per-route browser closure (…)`, naming each
+route, its path and its state test ids. Copy the two specs from the harness's
+`template/stack/apps/web/e2e/` if your `notes` and `security` routes are the seeded ones,
+or write a spec per route that signs in, visits it and asserts one of its ids with
+`page.getByTestId('<id>')`. Each seeded spec mints its own user through
+`SUPABASE_SERVICE_ROLE_KEY`, as `authenticated.spec.ts` does, so it runs in the `web-e2e`
+job with no new setup. A route that is chrome rather than content belongs in
+`tools/web-route-allowlist.json` instead.
+
+**Your `AGENTS.md` gate list.** Add `web-compile` after `build` and change 36 to 37 in both
+places (the "What re-OPENS" part above).
+
+**If you edited an owned file.** Your copy of `tools/check-web-routes.mjs`,
+`tools/check-docs-sync.mjs`, `tools/lib/stamp-inputs.mjs` or `quality-gate.yml` is kept,
+the new one is parked under `.harness/pending/`, and `update` exits 2 while it stays there.
+Until you merge a parked `tools/lib/stamp-inputs.mjs`, your copy has no list for
+`web-compile`, so the step builds on every run and records no stamp.
+
+### Edge Functions: pull the handler split, `deno.json` and `deno.lock` (NOTEs until 1.2.0)
+
+Through 1.0.x no check compiled, linted, ran or mutated `supabase/functions`: a global lint
+ignore covered it, `tsc -b` never reached it, and vitest, coverage and Stryker cannot import
+a file that imports a `jsr:` specifier and starts a server as it loads. 1.1.0 reaches it four
+ways. `lint` gives it the TypeScript parser, so `no-unverified-session`,
+`crypto-primitives-one-door`, cognitive complexity 15 and `no-suppressed-complexity` apply.
+`unit` runs every vitest suite under it (a `*.test.ts` importing from `'vitest'`; a
+`deno test` file is left alone) and measures each function directory that holds one, and
+`diff-coverage` holds a changed file there to the per-file floors. The mutation floor gains
+`supabase/functions/*/`, each `index.ts` excepted. The new `edge-functions` job in
+`quality-gate.yml` installs deno and runs `node tools/check-edge-functions.mjs`, which runs
+`deno check --frozen` on each `supabase/functions/<fn>/index.ts` against that function's
+`deno.json` (exact `jsr:`/`npm:` versions) and `deno.lock`.
+
+The seeded delete-account function is split so those checks reach what it decides:
+`handler.ts` holds `readKey` and the four deletion steps and takes its clients and
+environment as parameters, `handler.test.ts` proves the personal-org sweep is verified before
+`deleteUser`, `index.ts` becomes a one-call `Deno.serve` shell, and `deno.json` and
+`deno.lock` pin supabase-js to one release. `index.ts` is seeded, so `update` never rewrites
+yours, and the four new files are withheld.
+
+**Who sees what, and when.** On an install whose `baseVersion` is below 1.1.0:
+
+- `lint` stays green on the 1.0.x `index.ts`: its `readKey` measures 16, and that one path is
+  exempt from the complexity rules until 1.2.0. The security rules are not exempt; the
+  seeded file passes both. A function of YOUR OWN that calls `getSession()`, reaches
+  `crypto.subtle`, or measures over 15 reds `lint` now.
+- `edge-functions` prints `edge-functions: NOTE — (ramp) supabase/functions/<fn>: no
+  deno.json` (and `no deno.lock`) for each function, and stays green.
+- `diff-coverage` prints `diff-coverage: NOTE — (ramp) supabase/functions/…: absent from every
+  coverage map` for a changed file in a function directory that holds no vitest suite.
+- The mutation lane's scoper withholds such a file from Stryker with a
+  `mutation-scope: NOTE — (ramp) …` line, and the ratchet NOTEs a new survivor under
+  `supabase/functions/` in a directory that has a suite.
+
+From harness 1.2.0 all of it prints under `RAMP EXPIRED` and reds, and the lint exemption is
+gone. On an install whose `baseVersion` is 1.1.0 or later it reds from the start.
+
+**The sweep.**
+
+1. Pull the split: `npx next-expo-supabase-agent-harness update --refresh-seeded
+   supabase/functions/delete-account/`. An `index.ts` you never changed is replaced; one you
+   changed stays, the new one is parked under `.harness/pending/`, and you carry your change
+   into `handler.ts` by hand. Then `pnpm exec vitest run supabase/functions` runs the suite,
+   and `doctor` stops warning.
+2. For each function of your own, move what it decides into a file that names no `Deno`
+   global and no `jsr:`/`npm:` specifier (a type-only import is fine) and give that
+   directory a vitest suite; keep `index.ts` a shell. Code in `_shared/` needs a suite in
+   `_shared/`.
+3. Give each function a `deno.json` whose imports name exact releases, and write its lock:
+   `deno check --frozen=false --config supabase/functions/<fn>/deno.json
+   supabase/functions/<fn>/index.ts`. Commit both. Supabase deploys each function with its
+   own `deno.json`.
+4. With deno installed (the version `quality-gate.yml`'s `edge-functions` job pins), run
+   `node tools/check-edge-functions.mjs` until it prints `edge-functions: OK`. It is not a
+   chain step, so `graduate` does not run it: run it by hand before you graduate. The job is
+   new, so no branch-protection rule requires it until you add `edge functions (deno check
+   against deno.json + frozen deno.lock)` to your required checks; `gate-summary` already
+   waits for it.
+
+The harness's upgrade lane adopts the whole split on every swept leg (the fix's paths ride
+the derived pass), and `SWEEPS['1.1.0']` adds no step.
+
+**If you forked `eslint.config.mjs`, `vitest.config.ts` or `quality-gate.yml`.** `update`
+keeps your copy, parks the new one under `.harness/pending/` and exits 2 while it stays
+there, and your fork does not reach `supabase/functions` until you merge it.
+### An uncommitted escape list must be one a release planted (`gate-integrity`, a NOTE until 1.2.0)
+
+**What changed.** `gate-integrity` reds an escape list (the files in
+`tools/lib/enforcement-surface.mjs` `ESCAPE_LISTS`) that is modified but not committed. Its
+one exemption is a list the harness itself just planted, which `init` and `update` leave
+untracked. Until 1.1.0 that exemption asked two questions: is the file untracked, and does
+its sha256 match its `.harness/manifest.json` record? Since 1.0.2 you may re-record a sha
+yourself to keep a fork (the 1.0.2 section, "Forking an owned file"), and the manifest does
+not have to be committed, so a record alone no longer says who wrote the bytes. The gate
+now asks a third question: did a harness release plant exactly these bytes? The answer is
+in `tools/lib/planted-shas.json`, a new owned file that `update` plants and `gate-integrity`
+hash-pins like every owned `tools/` file. It is generated from the harness's released-sha
+tables, which never reach an install; never edit it. A list that carries a placeholder,
+such as `tools/rls-exempt.json` with your `SECURITY_OWNERS`, is compared after the tokens
+are put back from your manifest's answers (`tools/lib/derender.mjs`, also new and owned).
+
+**What you see.** The escape lists `update` plants on this hop are explained by the file
+the same `update` delivers, so the hop adds no finding: each prints the plant NOTE until
+you commit it. An untracked escape list that matches its record but no release variant
+prints, on an install whose `baseVersion` is below 1.1.0:
+
+```
+gate-integrity: NOTE — (ramp 1.1.0) <path>: escape hatch present but not committed, and no harness release planted these bytes. …
+```
+
+From harness 1.2.0, or once you graduate to 1.1.0, it is a failure. Everything that failed
+before still fails with the same text: a tracked list that is modified, an untracked one
+with no record, and an untracked one whose sha differs from its record.
+
+**What to do.** Review each list the NOTE names. If you meant the entries, commit the file,
+so the change is in a pull request diff under CODEOWNERS; if you did not, delete the file
+(or restore it from git) and remove the record you wrote for it. `graduate` refuses while a
+NOTE stands. With `HARNESS_ALLOW_SELF_EDIT=1` set, the commit rule does not run at all, as
+before.
+
+**What is unchanged.** The threshold-config rule beside it (`vitest.config.ts`,
+`eslint.config.mjs` and the other configs that carry numbers) still treats a dirty config
+whose sha matches its record as a harness refresh. If you forked
+`tools/check-gate-integrity.mjs`, your copy is kept, the new one is parked under
+`.harness/pending/`, and `update` exits 2 while it stays there; your copy never reads
+`tools/lib/planted-shas.json`.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

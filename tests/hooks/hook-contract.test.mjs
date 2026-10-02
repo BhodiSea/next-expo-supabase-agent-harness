@@ -381,6 +381,22 @@ const RULE_CANARIES = {
     bashAllow('node tools/gen-action-inventory.mjs'),
     bashAllow('node tools/check-mutation-ratchet.mjs --write', SELF_EDIT),
   ],
+  // 1.1.0 (#65). Applying a staged register edit is the decision the write guard reserves
+  // for a human; the verb's own TTY check is one tripwire and this rule is the second. It
+  // matches `apply-proposal` only as a WHOLE argument, so the verb's own test and lint
+  // commands, which name it inside a path, stay allowed in this repository's sessions too.
+  'apply-proposal-invocation': [
+    bashDeny('npx --yes github:BhodiSea/next-expo-supabase-agent-harness#v1.1.0 apply-proposal --dir .'),
+    bashDeny('node installer/cli.mjs apply-proposal x'),
+    bashDeny('pnpm dlx next-expo-supabase-agent-harness "apply-proposal" x --dry-run'),
+    bashDeny("npx next-expo-supabase-agent-harness 'apply-proposal'"),
+    bashAllow('git commit -m "docs: apply-proposal"'),
+    bashAllow('node --test tests/installer/apply-proposal.test.mjs'),
+    bashAllow('pnpm exec eslint installer/commands/apply-proposal.mjs'),
+    // How an agent reads the `base` a proposal carries: no rule may match it.
+    bashAllow('git rev-parse HEAD:tools/i18n-allow.json'),
+    bashAllow('node installer/cli.mjs apply-proposal x', SELF_EDIT),
+  ],
   'git-hookspath-repoint': [
     bashDeny('git config core.hooksPath /tmp/nohooks'),
     bashDeny('git -c core.hooksPath=/dev/null commit -m x'),
@@ -560,6 +576,14 @@ const RULE_CANARIES = {
   'migrations-allow': [
     pathDeny('tools/migrations-allow.json'),
     pathAllow('docs/runbooks/expand-contract.md'),
+  ],
+  // 1.1.0 (#74), tolerated-absent (grounded in check-canary-coverage.mjs#GROUNDED_ELSEWHERE):
+  // CREATING this file lets a privilege no policy admits stand past schema-rls' grant bound.
+  // The allow-case keeps the rule scoped to the list, never the generated pgTAP file the
+  // same gate regen-diffs.
+  'grant-bound-allow': [
+    pathDeny('tools/grant-bound-allow.json'),
+    pathAllow('supabase/tests/rls_grants.generated.test.sql'),
   ],
   // 0.5.0, and the only harness-OWNED file in this block. Lowering one `minPatchByMajor`
   // turns a `version-sync` red naming four HIGH CVEs into a green, and the diff reads
@@ -1072,6 +1096,56 @@ test('every guard rule id has a behavioral canary (per-rule falsifiability closu
   }
 })
 
+// ── the proposal flow (1.1.0, #65): the staging directory is outside every deny layer ──
+// An agent that may not write tools/i18n-allow.json may write the WHOLE proposed file as
+// harness-proposals/<id>.json, read the `base` it needs with `git rev-parse`, and is told
+// so by the deny it gets. `.harness/proposals/`, the path first recorded for this, is
+// denied three times over (settings, the write guard's harness-dir rule, PROT_DIRS) and
+// gitignored, so the flow lives in a committed directory none of them names.
+test('an agent can stage a proposal: the write guard, the bash guard and the settings deny list all leave harness-proposals/ alone (#65)', () => {
+  const proposal = `${JSON.stringify({ version: 1, target: 'tools/i18n-allow.json', reason: 'r', base: null, content: '{}\n' }, null, 2)}\n`
+  const w = runHook('pretool-write-guard.mjs', {
+    tool_input: { file_path: 'harness-proposals/allow-trademark.json', content: proposal },
+  })
+  assert.equal(denied(w), false, w.stdout)
+  // PROT_DIRS names `.harness/`, not `harness-proposals/`: a shell that lists, reads or
+  // makes the directory, or reads the base, is not denied either.
+  for (const command of [
+    'mkdir -p harness-proposals',
+    'ls harness-proposals/',
+    'cat harness-proposals/allow-trademark.json',
+    'git rev-parse HEAD:tools/i18n-allow.json',
+  ]) {
+    const b = runHook('pretool-bash-guard.mjs', { tool_name: 'Bash', tool_input: { command } })
+    assert.equal(denied(b), false, `${command}: ${b.stdout}`)
+  }
+  const settings = JSON.parse(readFileSync(join(TEMPLATE, '.claude/settings.json'), 'utf8'))
+  const writeDenies = (settings.permissions?.deny ?? []).filter((r) => /^(?:Edit|Write|MultiEdit)\(\.\//.test(r))
+  assert.ok(writeDenies.length >= 4, 'fixture precondition: the shipped settings deny writes by path')
+  for (const rule of writeDenies) {
+    const glob = rule.slice(rule.indexOf('(./') + 3, -1)
+    const re = new RegExp(
+      `^${glob
+        .split('**')
+        .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&').split('*').join('[^/]*'))
+        .join('.*')}$`,
+    )
+    assert.equal(re.test('harness-proposals/allow-trademark.json'), false, rule)
+  }
+})
+
+test('the write guard\'s tamper deny points a register edit at the proposal flow (#65)', () => {
+  const r = runHook('pretool-write-guard.mjs', {
+    tool_input: { file_path: 'tools/i18n-allow.json', content: '{}\n' },
+  })
+  assert.ok(denied(r), r.stdout)
+  const reason = JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason
+  assert.match(reason, /^harness-protected file: set HARNESS_ALLOW_SELF_EDIT=1/)
+  assert.match(reason, /harness-proposals\/<id>\.json/)
+  assert.match(reason, /apply-proposal/)
+  assert.match(reason, /SOURCE: docs\/harness\/README\.md \(tamper evidence\)$/)
+})
+
 // ── mcp-guard: the inline denies (no flat rule id, so no RULE_CANARIES entry) ──
 // Before 0.3.0 an `mcp__` tool call matched NO PreToolUse hook — the matchers were
 // literally "Bash" and "Edit|Write|MultiEdit" — while docs/security/approved-tools.md
@@ -1465,6 +1539,28 @@ test('source-check skips json, tests, and machine-generated adapters', () => {
   }
 })
 
+test('source-check: a mandatory site blocks, and the block also lists the file\'s advisory sites as advisory (#69)', () => {
+  // 1.1.0: exit 2 only when a MANDATORY site is uncited. The same stderr names any uncited
+  // advisory-class site in the file, marked as advisory, and stdout stays empty: one channel.
+  mkdirSync(join(proj, 'apps/server/src'), { recursive: true })
+  const mixed = join(proj, 'apps/server/src/mixed.ts')
+  writeFileSync(mixed, 'const claims = await jwtVerify(token, jwks)\nexport const opts = { timeoutMs: 5000 }\n')
+  const r = runHook('posttool-source-check.mjs', { tool_input: { file_path: mixed } })
+  assert.equal(r.code, 2, r.stderr)
+  assert.equal(r.stdout, '')
+  assert.ok(r.stderr.includes(`${mixed}:1  const claims = await jwtVerify(token, jwks)`), r.stderr)
+  assert.match(r.stderr, /advisory/i)
+  assert.ok(r.stderr.includes(`${mixed}:2 [tuning-constants]`), r.stderr)
+
+  // The advisory site alone does not block.
+  const alone = join(proj, 'apps/server/src/advisory-only.ts')
+  writeFileSync(alone, 'export const opts = { timeoutMs: 5000 }\n')
+  const a = runHook('posttool-source-check.mjs', { tool_input: { file_path: alone } })
+  assert.equal(a.code, 0, a.stderr)
+  assert.equal(a.stderr, '')
+  assert.equal(JSON.parse(a.stdout).hookSpecificOutput.hookEventName, 'PostToolUse')
+})
+
 // ── stop-validate-gate ────────────────────────────────────────────────────────
 // Portable pass/fail steps (the hook-contracts CI lane also runs on Windows,
 // where `true`/`false` are not commands).
@@ -1572,6 +1668,48 @@ test('stop gate: STAMPED lines are listed on a green run and on a red one', () =
   const prose = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_STAMP: 'note: nothing was STAMPED — here' } })
   assert.equal(prose.code, 0, prose.stderr)
   assert.ok(!/stamped/i.test(prose.stderr), prose.stderr)
+})
+
+// A verdict from a model other than the reviewer's pin is never silent (1.1.0, #62). The
+// `reviewer-verdicts` step prints one `<gate>: FALLBACK MODEL — …` line per such verdict, and
+// the hook lists them. On a GREEN run it must use the one channel that reaches anyone at exit
+// 0: stderr and plain stdout go to the debug log only, and a JSON `systemMessage` on stdout is
+// shown to the user without continuing the turn (design/CONTROL-PLANE-FACTS.md, Fact 16).
+test('stop gate (#62): a green run shows every FALLBACK MODEL line to the user through systemMessage, at exit 0', () => {
+  const step = `node -e "console.log(process.env.X_FB); console.log('reviewer-verdicts: OK - 1 owed')"`
+  const line =
+    "reviewer-verdicts: FALLBACK MODEL — security-reviewer's PASS ran on claude-fable-5-1, not its pin (opus): a listed fallback (harnessFallbackModels: fable)."
+  writeFileSync(
+    join(proj, 'tools/harness.config.mjs'),
+    `export const VALIDATE_STEPS = []\nexport const STOP_HOOK_STEPS = [['reviewer-verdicts', ${JSON.stringify(step)}]]\n`,
+  )
+  const green = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_FB: line } })
+  assert.equal(green.code, 0, green.stderr)
+  const out = JSON.parse(green.stdout)
+  assert.deepEqual(Object.keys(out), ['systemMessage'], green.stdout)
+  assert.ok(out.systemMessage.includes(`[reviewer-verdicts] ${line}`), out.systemMessage)
+  assert.ok(!out.systemMessage.includes('OK - 1 owed'), 'only FALLBACK MODEL lines are listed')
+  assert.ok(green.stderr.includes(`[reviewer-verdicts] ${line}`), 'the debug log keeps them too')
+
+  // No such line: stdout stays EMPTY, so nothing is shown and nothing parses as JSON.
+  const quiet = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_FB: 'reviewer-verdicts: nothing to name' } })
+  assert.equal(quiet.code, 0, quiet.stderr)
+  assert.equal(quiet.stdout.trim(), '')
+
+  // A line that only CONTAINS the words is not one: the tag follows `<gate>: `.
+  const prose = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_FB: 'note: no FALLBACK MODEL — here' } })
+  assert.equal(prose.code, 0, prose.stderr)
+  assert.equal(prose.stdout.trim(), '')
+
+  // A red run blocks through stderr as always, and lists the green step's lines there.
+  writeFileSync(
+    join(proj, 'tools/harness.config.mjs'),
+    `export const VALIDATE_STEPS = []\nexport const STOP_HOOK_STEPS = [['reviewer-verdicts', ${JSON.stringify(step)}], ['boom', '${FAIL}']]\n`,
+  )
+  const red = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_FB: line } })
+  assert.equal(red.code, 2, red.stderr)
+  assert.ok(red.stderr.includes('boom FAILED'), red.stderr)
+  assert.ok(red.stderr.includes(`[reviewer-verdicts] ${line}`), `a red run lists them too:\n${red.stderr}`)
 })
 
 // ── symlink shadowing: the write-guard judges the DESTINATION, not the name ───
@@ -1687,8 +1825,9 @@ test('ENV HYGIENE: the escape hatch still WORKS when a case passes it deliberate
 // ── subagent-verdict: the TURN-subject hook's refusal pair (1.0.0) ──────────────────
 // The registry pins denyToolCallSites at 0 because this hook's mechanism is EXIT 2 on
 // SubagentStop — blocking the SUBAGENT, never a tool call — and these are the executed
-// proofs behind its two denyExamples: a reviewer reply ending without a "VERDICT: PASS|BLOCK" line,
-// and an empty or unparseable SubagentStop payload. The exit code is asserted EXACTLY 2
+// proofs behind its denyExamples: a reviewer reply ending without a "VERDICT: PASS|BLOCK" line,
+// an empty or unparseable SubagentStop payload, and (1.1.0, #71, below) a reviewer PASS that
+// lists a finding at a blocking severity. The exit code is asserted EXACTLY 2
 // on every refusal path, because under Claude Code's exit-code contract any OTHER
 // nonzero is non-blocking (the fail-open hazard CONTROL-PLANE-FACTS Fact 12 documents,
 // re-probed 2026-08-15) — and each in-hook refusal must land a blocked-kind entry in
@@ -1793,6 +1932,103 @@ test('subagent-verdict CONTROL: a verdict-carrying reviewer passes with exit 0 (
   const dir = verdictFixture()
   const r = runHook('subagent-verdict.mjs', verdictPayload(), { cwd: dir })
   assert.equal(r.code, 0, `${r.stdout}${r.stderr}`)
+})
+
+// ── THE SEVERITY CONTRACT (1.1.0, #71): the third refusal ───────────────────────────
+// Every shipped reviewer body now states `Blocking: CRITICAL, HIGH`, and the hook reads that
+// line from the body of the reviewer that stopped. Its third denyExample is a reviewer PASS
+// that lists a finding at a blocking severity: the reply says PASS and, in a line of its own,
+// names a finding its own definition says blocks. The bounce moves only in the strict
+// direction — a PASS becomes a re-statement, a BLOCK is never touched — and it fires only for
+// a body that declares `Blocking:`, so a forked body without the line, a project's own
+// reviewer, and a parked lib without the reader all keep the 1.0.x behaviour.
+
+const HIGH_FINDING = '- [HIGH] supabase/migrations/x.sql:3 — the INSERT policy has no WITH CHECK'
+const passWithFinding = (over = {}) =>
+  verdictPayload({ last_assistant_message: `Reviewed.\n\n${HIGH_FINDING}\n\nVERDICT: PASS`, ...over })
+
+test('subagent-verdict REFUSAL: a reviewer PASS that lists a finding at a blocking severity exits EXACTLY 2 (1.1.0)', () => {
+  const dir = verdictFixture()
+  const r = runHook('subagent-verdict.mjs', passWithFinding(), { cwd: dir })
+  assert.equal(
+    r.code,
+    2,
+    `exit must be exactly 2 — any other nonzero is non-blocking:\n${r.stdout}${r.stderr}`,
+  )
+  assert.match(r.stderr, /security-reviewer returned VERDICT: PASS but lists a finding at a blocking severity/)
+  assert.match(r.stderr, /Blocking: CRITICAL, HIGH/)
+  assert.ok(r.stderr.includes(HIGH_FINDING), r.stderr)
+  const [block] = verdictBlocks(dir)
+  assert.equal(block.kind, 'block')
+  assert.ok(block.gates.includes('subagent-verdict/security-reviewer'), JSON.stringify(block.gates))
+  const row = JSON.parse(readFileSync(join(dir, '.harness', 'verdict-bounces.jsonl'), 'utf8').trim())
+  assert.equal(row.shape, 'pass-with-blocking-finding')
+  assert.deepEqual(row.blocking, [HIGH_FINDING])
+  assert.throws(
+    () => readFileSync(join(dir, '.harness', 'reviewer-ledger.jsonl')),
+    { code: 'ENOENT' },
+    'a bounced PASS is not a verdict: nothing reaches the ledger',
+  )
+})
+
+test('subagent-verdict CONTROL: the same PASS exits 0 when the body has no `Blocking:` line (1.1.0)', () => {
+  const dir = verdictFixture()
+  const body = join(dir, '.claude/agents/security-reviewer.md')
+  const forked = readFileSync(body, 'utf8').replace(/^Blocking:.*\n/m, '')
+  assert.ok(!/^Blocking:/m.test(forked), 'the fixture must actually drop the line')
+  writeFileSync(body, forked)
+  const r = runHook('subagent-verdict.mjs', passWithFinding(), { cwd: dir })
+  assert.equal(r.code, 0, `${r.stdout}${r.stderr}`)
+  const entry = JSON.parse(readFileSync(join(dir, '.harness', 'reviewer-ledger.jsonl'), 'utf8').trim())
+  assert.equal(entry.verdict, 'PASS')
+  assert.equal(entry.blocking, null, 'no contract: no findings are judged or recorded')
+})
+
+test('subagent-verdict CONTROL: a BLOCK listing the finding, and a PASS that only MENTIONS a severity, exit 0 (1.1.0)', () => {
+  const dir = verdictFixture()
+  const block = runHook(
+    'subagent-verdict.mjs',
+    verdictPayload({ last_assistant_message: `${HIGH_FINDING}\n\nVERDICT: BLOCK` }),
+    { cwd: dir },
+  )
+  assert.equal(block.code, 0, `the bounce never touches a BLOCK:\n${block.stdout}${block.stderr}`)
+  const mention = runHook(
+    'subagent-verdict.mjs',
+    verdictPayload({
+      last_assistant_message: 'Nothing here rose to [HIGH]; two [LOW] nits below.\n- [LOW] a.ts:1 — a nit\n\nVERDICT: PASS',
+    }),
+    { cwd: dir },
+  )
+  assert.equal(mention.code, 0, `a sentence is not a finding, and LOW does not block:\n${mention.stderr}`)
+  const rows = readFileSync(join(dir, '.harness', 'reviewer-ledger.jsonl'), 'utf8').trim().split('\n')
+  assert.deepEqual(
+    rows.map((l) => JSON.parse(l).blocking),
+    [[HIGH_FINDING], []],
+    'a BLOCK records its blocking findings; a clean PASS records none',
+  )
+})
+
+test('subagent-verdict CONTROL: a parked tools/lib/agent-roster.mjs without the contract reader is "no contract", never a crash (1.1.0)', () => {
+  // The hook reaches the reader through a NAMESPACE import: an install may keep a forked lib
+  // that `update` parked, and a named import of an export it lacks fails at LINK time, before
+  // a line of the hook runs — every SubagentStop would then die on a load error.
+  const root = mkdtempSync(join(tmpdir(), 'epah-verdict-parked-'))
+  cpSync(join(TEMPLATE, '.claude'), join(root, '.claude'), { recursive: true })
+  cpSync(join(TEMPLATE, 'tools/lib'), join(root, 'tools/lib'), { recursive: true })
+  writeFileSync(
+    join(root, 'tools/lib/agent-roster.mjs'),
+    "// a pre-1.1.0 fork: the roster lists, and no severityContract\nexport const REVIEWER_AGENTS = ['security-reviewer']\n",
+  )
+  const res = spawnSync('node', [join(root, '.claude/hooks/subagent-verdict.mjs')], {
+    input: JSON.stringify(passWithFinding()),
+    encoding: 'utf8',
+    cwd: root,
+    env: { ...cleanEnv(), CLAUDE_PROJECT_DIR: root },
+  })
+  assert.equal(res.status, 0, `${res.stdout}${res.stderr}`)
+  const entry = JSON.parse(readFileSync(join(root, '.harness', 'reviewer-ledger.jsonl'), 'utf8').trim())
+  assert.equal(entry.verdict, 'PASS')
+  assert.equal(entry.blocking, null)
 })
 
 test('subagent-verdict CONTROL: a reviewer’s SubagentStart exits 0, appends ONE dispatch record, and nothing else (1.1.0)', () => {

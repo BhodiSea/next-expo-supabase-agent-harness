@@ -11,38 +11,75 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
-## [1.1.0] — 2026-09-29
+## [1.1.0] — 2026-10-02
 
 **A minor, the sharper verdicts release: the notes 1.0.0 opened become verdicts, and the
-checks that land after them judge more precisely.** Seven of the eight ramp sites 1.0.0
+checks that land after them judge more precisely.** Six of the eight ramp sites 1.0.0
 opened reach their deadline, so an install whose `baseVersion` is below 1.0.0 now gets a
 hard failure where it got a dated NOTE: `auth-posture`'s `[auth.hook]` trail posture (only
 where the trail is adopted), `boundaries`' anatomy widening and its census module-name
-closure, `docs-sync`'s AGENTS.md gate list, `resilience`, `suppressions`, and
-`version-sync`'s vendor-support register. A 1.0.x install meets none of them. The eighth
-site, `version-sync`'s eol arrival, re-opens until 1.2.0 instead (see Changed). Each item
+closure, `resilience`, `suppressions`, and `version-sync`'s vendor-support register. A
+1.0.x install meets none of them. The other two re-open until 1.2.0 instead (see Changed):
+`version-sync`'s eol arrival, and `docs-sync`'s AGENTS.md gate list, because this release
+injects a chain step of its own (#77). Each item
 that lands after this bump either ships behind a ramp of its own, opened at 1.1.0, or
 tightens nothing for an existing install, and adds its entry below.
 The `template/migrations.json` record for 1.1.0 carries `rampExpiry` (fifteen vintages,
 0.1.3 through 0.11.1: 1.0.4's thirteen plus 0.11.0 and 0.11.1), one `seededSourceFixes`
-set, one `rampExtensions` entry and one `seedOnInitOnly` path (`tools/surfaces.json`, see
-Added), and injects no chain step. `scripts/lib/ramp-sites.mjs`
-`VINTAGES` grows by `1.0.4`. The obligations register loses seven release rows and
-re-targets the eighth to 1.2.0. The reviewer ledger v2 (see Changed) is the first item
-behind a ramp of its own: it opens at 1.1.0 with a deadline of 2.1.0, and adds one release
-row and one condition row to the register (#70). One new seeded file is planted
+set, two `rampExtensions` entries, five `seedOnInitOnly` paths (`tools/surfaces.json` and
+the two browser specs, see Added, and the grant bound's migration and generated test, see
+Changed) and one `configSteps` injection, `web-compile` after `build` (#77).
+`scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `1.0.4`. The obligations register loses six
+release rows and re-targets the arrival row to 1.2.0; the gate-list row, the seventh, comes
+back targeting 1.2.0 with its re-opened escape (#77). The reviewer ledger v2 (see Changed)
+is the first item behind a ramp of its own: it opens at 1.1.0 with a deadline of 2.1.0, and
+adds one release row and one condition row to the register (#70). One new seeded file is planted
 rather than withheld: `update` writes the empty `tools/field-notes.json` (see Added) where an
-install has none, and it changes no verdict (#61).
-
-### Security
-
-<!-- Entries from the 1.1.0 items that land after the version bump go here. The cut removes
-this heading if none does. -->
+install has none, and it changes no verdict (#61). The security-reviewer model check (see
+Changed) opens a second ramp in the step the reviewer ledger v2 ramp sits in, with the same
+window, and adds one release row and one condition row to the register too (#62). The
+reviewer severity contract and the round budget (see Changed) open two more ramps at 1.1.0,
+each with a deadline of 1.2.0, and add two release rows (#71). `docs-sync`'s verdict-demand
+position (see Changed) opens one more at 1.1.0, with a deadline of 1.2.0, and adds one
+release row (#72).
+A second new seeded file is planted the same way as `tools/field-notes.json`: `update` writes
+`docs/reviews/README.md` (see Added) where an install has none, and no gate reads it (#64).
+`provenance` relaxes rather than tightens (see Changed): three decision classes become
+advisory, so it needs no ramp, and its one new red is a malformed promotion list that no
+install carries yet (#69).
+`doctor` gains one warning (see Changed): an install whose catalog pins `vitest` or
+`@vitest/coverage-v8` below 4.1.11 now exits 2 where it exited 0. The record carries the two
+floors as a new kind, `catalogPinFloors`; no gate verdict, chain step or `update` exit code
+changes (#83).
+The CI-only `workflow-hardening` gate (see Added) opens one more ramp at 1.1.0, over a
+project's own workflows, with a deadline of 1.2.0, and adds one release row and one
+`scripts/ci/stop-side-expiries.json` entry (#73).
+The SQL history fold (see Changed) opens six more at 1.1.0, one in each gate whose verdict
+it moves, each with a deadline of 1.2.0, and adds one release row that anchors all six (#75).
+`schema-rls`' grant bound (see Changed) opens one more at 1.1.0, with a deadline of 1.2.0, over
+three kinds of finding, and adds one release row and one guard rule. Every install below 1.1.0
+meets it on `profiles` and `notes` (#74).
+`query-shapes` judges a DAL's `rpc()` and `upsert()` calls with no ramp (see Fixed): a
+probed DAL that made either call could not pass before (#79).
+The `i18n` step's syntax-tree walk (see Changed) opens the gate's first two ramps at 1.1.0,
+each with a deadline of 1.2.0, and adds one release row: copy only the walk finds, and the
+1.0.x `site` entries its content keys replace (#76).
+The chain grows to 37 steps: `web-compile` compiles the web app (see Added) and opens a ramp
+at 1.1.0 until 1.2.0, `route-manifest`'s new per-route browser closure opens another with the
+same window, and `docs-sync`'s gate-list escape re-opens for the step itself; each adds one
+release row (#77).
+The Edge Function surface (see Added, Changed and Fixed) opens four more at 1.1.0, in
+`diff-coverage`, the mutation lane's scoper and ratchet, and the new CI-only
+`edge-functions` gate, each with a deadline of 1.2.0, and adds one release row that anchors
+all four and four `scripts/ci/stop-side-expiries.json` entries. It withholds four new
+seeded files (`seedOnInitOnly`) and parks a second `seededSourceFixes` set, paired with one
+dated `lint` exemption that has a release row of its own (#78).
+`gate-integrity`'s escape-list plant exemption (see Changed) opens one more at 1.1.0, with a
+deadline of 1.2.0, and adds one release row. `update` plants two new owned files with it,
+`tools/lib/planted-shas.json` and `tools/lib/derender.mjs`, and every released-sha table gains
+a `planted` map (#84).
 
 ### Added
-
-<!-- Entries from the 1.1.0 items that land after the version bump go here. The cut removes
-this heading if none does. -->
 
 - **A dated, content-tripwired deferral for the device lanes: `tools/surfaces.json`.** A
   project building its web surface first had no way to say so: the `mobile` paths filter
@@ -178,22 +215,387 @@ this heading if none does. -->
   `docs/security/threat-model.md` (generated; it lists the new rule) and the upgrade runbook
   where they are sha-unmodified, and plants the empty `tools/field-notes.json` where an
   install has none; absent, the file prints nothing. No chain step and no ramp (#61).
+- **Spec sections have ids, and `tools/spec-anchor.mjs` prints one.** `specs/_template.md`
+  was a list of bold labels under one heading, the H1, so no part of a spec could be cited
+  and no tool read `specs/`. The labels are now `##` headings: `Summary`, `Why now`,
+  `Goals`, `Non-goals`, `Files and interfaces`, `Security invariants`, `Contract impact`, a
+  new `Decisions` whose entries each take a `###` heading, `Out of scope` and
+  `Verification`; the comment block and its SOURCE line stay. A heading's id is its GitHub
+  anchor (lowercase, punctuation dropped, each space a `-`), so
+  `specs/<feature>.md#security-invariants` is also a link on GitHub. The new owned
+  `node tools/spec-anchor.mjs specs/<feature>.md#<id>` prints that heading and everything
+  under it, up to the next heading of the same or a higher level, and with no `#<id>` prints
+  an index of id, line and heading. It skips headings inside code fences and HTML comments,
+  as GitHub does, and reads CRLF as LF. An unknown id, or one that two headings produce,
+  exits 1 and lists the ids on stderr; it does not guess GitHub's `-1` suffix. A path that is not a `.md` file under `specs/`
+  exits 2 with nothing on stdout, an absolute path, one that leaves through `..` and a
+  symlink out included. It writes nothing, and the parsing is the pure
+  `tools/lib/spec-anchor.mjs`. `/new-feature` has the main thread run it for each section a
+  slice implements and put the output in the `torvalds-reviewer` brief; the reviewer judges
+  against the cited sections, reads the whole spec when none is cited, and gains no tool.
+  `/adr`'s Traceability and the ADR template cite `specs/<slice>.md#<id>`, the Spec-first
+  SOP in `docs/harness/README.md` names the command, and the two conformance-map notes that
+  quoted the old label name the new heading, with no grade change. The command is written
+  as `node tools/spec-anchor.mjs` everywhere and no `pnpm` script is added, because
+  `package.json` is seeded. A project's own specs are never rewritten: one written with bold
+  labels has no section ids, and the reviewer reads it whole. No gate, chain step, Stop
+  step, hook rule or CI job changes (#63).
+- **Review rounds get a record of their own, outside the ADR: `docs/reviews/`.** No shipped
+  file said where reviewer findings go. `/new-feature` runs the reviewer subagents and then
+  `/adr`, the ADR template has no section for reviews, and the machine records
+  (`.harness/reviewer-ledger.jsonl`, `.harness/verdict-bounces.jsonl`) sit under
+  `.harness/`, which git ignores. A new seeded `docs/reviews/README.md` defines one record per
+  change at `docs/reviews/<YYYYMMDD>-<slice>.md`, named like the change's ADR: a
+  `## Round <n> — YYYY-MM-DD` section per round, holding a
+  `| Reviewer | Verdict | Findings | Resolution |` table whose Verdict is the verdict line
+  exactly as returned and whose Findings take the reviewer bodies' `[SEVERITY] file:line`
+  form, committed in the same change as its resolution. A record's round counts dispatches
+  across the change, not the ledger's per-reviewer `round` that the round budget reads, and
+  a round the budget stopped is recorded with the human's decision. It says that decisions
+  go in the ADR, that a record is never an `-- adr:` target, and that no gate reads the
+  directory by name. The owned ADR template ends its Traceability section with a
+  `Review record:` line, `docs/adr/README.md` gains a convention, `/adr` cross-checks a third
+  coupling (rounds stay out of the ADR), and `/new-feature` ends by recording every round,
+  `/verify-citations` included. The seeded `AGENTS.md` gains one sentence, which `update`
+  does not deliver; the runbook's 1.1.0 section gives it to copy. The README is the only
+  seeded file under `docs/`, so `update` plants it where it is absent and leaves a project's
+  own copy byte-identical, where an owned path would have parked the incoming copy beside
+  it and exited 2, and
+  `scripts/check-seeded-migrations.mjs` records it as a deliberate plant.
+  `tests/gates/review-records.test.mjs` holds that no shipped gate, hook or workflow names
+  `docs/reviews`, that a record owes no path-triggered reviewer, and that the README carries
+  no corpus reference. No chain step, gate, guard rule or ramp (#64).
+- **An agent stages a register edit, and a human applies it in one action:
+  `apply-proposal`.** The write guard denies an agent every reviewed register under
+  `tools/`, and it had no way to hand a human a proposed edit to one except as prose. The
+  human typed the edit, or relaunched the session with `HARNESS_ALLOW_SELF_EDIT=1`, which
+  lifts the write guard for every protected path at once and every bash-guard rule that
+  honours it. The recorded staging path, `.harness/proposals/`, could not work: the shipped
+  settings, the write guard's `harness-dir` rule and the bash guard's protected directories
+  all deny it, and it is gitignored. An agent now writes the whole proposed file as one JSON
+  document, `harness-proposals/<id>.json`, with `version`, `target`, `reason`, `base` (the
+  output of `git rev-parse HEAD:<target>`, or null when the target is not in `HEAD`) and
+  `content`. The directory is committed and outside every path the deny list and the two
+  guards name, so staging narrows no deny layer, and no gate reads a proposal. The new
+  installer verb `apply-proposal [<id>] [--dir .] [--dry-run]` lists the pending proposals
+  with no id. With one it prints the reason and a `git diff --no-index` of the current file
+  against the proposed one, asks the human to type the target path, writes the file with
+  the installer's one write primitive, deletes the proposal and prints `commit <target>`;
+  `--dry-run` prints the same and writes nothing, and there is no `--yes`. It refuses, with
+  exit 1 and a message of its own, a target outside the proposable set, an id or target that
+  resolves outside `--dir`, content that is not JSON, a `base` that does not equal the
+  committed blob (a null one for a target in `HEAD` and a set one for a target that is not,
+  included), a target with uncommitted changes, a stdin or stdout that is not a terminal,
+  and a reason, target or content carrying a control or bidirectional-format character. The
+  base and dirty checks run again after the prompt, and the bytes written are the ones the
+  diff showed. The proposable set is `ESCAPE_LISTS`, plus the advisory
+  `tools/field-notes.json`, minus `tools/perf-baseline.json` and
+  `tools/mutation-baseline.json`, which only their generators write. The installer never
+  imports a template module, so it keeps its own copy, and `check-escape-registry`
+  reconciles it as a fourth list in both directions. `doctor` lists each pending proposal,
+  and each file there that is not a valid one, as `info`, so its exit code does not move. The
+  bash guard gains `apply-proposal-invocation`, which denies a `node`, `pnpm`, `npx` or
+  `tsx` command with `apply-proposal` as a whole argument unless `HARNESS_ALLOW_SELF_EDIT=1`
+  is set, and the write guard's tamper deny gains one sentence pointing a register edit at
+  the flow. `update` re-plants the owned `.claude/hooks/lib/guard-rules.mjs`,
+  `.claude/hooks/pretool-write-guard.mjs`, `docs/harness/README.md` (a paragraph under
+  Tamper evidence) and `docs/security/threat-model.md` (generated; it lists the new rule)
+  where they are sha-unmodified. No chain step, floor or seeded file changes, and no ramp
+  (#65).
+- **Reviewer bodies list what a change must bring, and a factory eval scores the
+  reviewers.** A reviewer body's rubric asks about the lines a diff contains, and a missing
+  companion is on no line of it: in 1.0.2 seven tables kept `authenticated`'s default write
+  privileges because a revoke was absent, and a CI lane found it, not review. Every reviewer
+  body except `citation-verifier`'s, which checks citations rather than what a diff adds,
+  now carries a `## WHAT MUST ACCOMPANY IT` table before its closing paragraphs, with the
+  columns `id | The diff introduces | It must also bring | Stated in | Enforced by` and one
+  row per companion that a rule the harness already states requires. `security-reviewer`
+  lists a table's three revokes, policies, isolation rows, privilege assertion and audit
+  trigger, a definer function's allowlist row and `EXECUTE` revokes, an Edge Function's
+  ADR, config block and grants, and a tRPC mutation's rate-limit bucket.
+  `web-security-reviewer` lists a Server Action's bucket, identity and contract.
+  `accessibility-reviewer`, `design-reviewer` and `torvalds-reviewer` list a screen's
+  `src/routes.ts` entry and a web page's `page.meta.ts`; in the two mobile-UI bodies the
+  web-page row says it widens the body's scope, because the trigger table summons both on
+  `apps/web/app/**/page.tsx`. `mobile-security-reviewer` lists a permission's and a config
+  plugin's register row, and `architecture-reviewer` a new interface's second consumer. The
+  reviewer reports each row that applies as `<id>: present (file:line)` or `<id>: absent`,
+  and an absence is a finding at the severity the body already gives that rule. `Enforced
+  by` is `review only` or the chain step that reds the absence, and a row a step enforces
+  stays, because the database-backed proofs skip when no local stack is running. The tables
+  only add lines: the one existing line rewritten is `security-reviewer`'s section count,
+  which now says three. `update` re-plants the seven bodies and `docs/harness/README.md` (a
+  paragraph in its agent-roster section) where they are sha-unmodified, re-records the
+  rewritten bodies' `tools/agents.lock.json` entries, and keeps a body the project edited,
+  parking the new one under `.harness/pending/`. No gate reads a table. In the harness
+  repository, `tests/gates/reviewer-companions.test.mjs` holds the shipped bodies to them,
+  and the new factory script `scripts/reviewer-eval.mjs` scores reviewers against the
+  corpus in `tests/fixtures/reviewer-eval/`: an absence case and a complete control twin for
+  each of a table, a SQL function, an Edge Function, a web page and a screen, so a reviewer
+  that always answers PASS, or always BLOCK, scores at most half. The table's absence case
+  is the two-revoke migration behind the 1.0.2 finding. `--check` validates the corpus and
+  applies every case to a fresh core-tier install, `--score <dir>` scores one recorded reply
+  per case with the SubagentStop hook's `classifyVerdict()`, and `--live <dir>` records the
+  replies with `claude -p --agent <reviewer>` on the reviewer's own pin, the way
+  `design/CONTROL-PLANE-FACTS.md` Fact 17 probed. The eval exits 0 whatever the score, and
+  it is not a chain step, a hook, a workflow or a CI check; a score threshold needs a
+  `gate-proposal` of its own. No chain step, gate, guard rule, seeded file or ramp (#66).
+- **A scheduled factory lane compares the shipped framework floor with the published
+  advisories: `floor-advisories`.** Nothing compared the floor in
+  `template/base/tools/framework-floor.json`, or the catalog pin in
+  `template/base/pnpm-workspace.yaml`, with an advisory feed: `registers-clockful` reads
+  only the review dates, `version-sync` compares the pin with the floor, and `factory-sca`
+  scans a lockfile that resolves no `next`. So the vendor's security release of 2026-08-25
+  sat inside a live review window and was noticed only when the window lapsed (see 1.0.2).
+  The new `hygiene.yml` job runs `scripts/check-floor-advisories.mjs` on `schedule` and
+  `workflow_dispatch` only, never on a pull request or a push. For each floored package it
+  probes every `minPatchByMajor` version and the exact catalog pin, because a range can
+  include the pin without including the floor, on two feeds: OSV, and the upstream
+  repository's published advisories, which listed GHSA-2xp9-vwfh-vxw4 on the release day
+  while OSV's record of it is dated after the review had lapsed. OSV decides every
+  advisory it lists, by matching the probe's version itself; an upstream advisory OSV does
+  not list yet is judged on its own `vulnerable_version_range`, cleared for a probe only by
+  a patched version on the probe's own line. The job fails on each advisory that affects a
+  probe, is not withdrawn and matches no row of the floor by its id or an alias, and the
+  line names the advisory and its aliases, the feed, the published date against
+  `reviewedOn`, the probe and the remedy: re-read it, then raise the floor and the pin or
+  record the row, and move both review dates in the same commit. An advisory the floor
+  records prints a NOTE. It fails closed on a feed that does not answer or answers in the
+  wrong shape, on a next page left unread at the page cap, on an OSV lookup that is neither
+  a record nor "not found", on a range syntax no test covers in an advisory OSV does not
+  list, on a missing or ranged pin and on an empty floor; and each floored package needs a
+  canary version on which OSV returns an advisory, and an upstream listing that holds one
+  of its recorded rows, so a wrong query cannot read as clean. The job copies
+  `registers-clockful` and adds only the job's read-only `GITHUB_TOKEN`. The check is
+  factory-only: nothing under `template/` changes, no consumer gate, chain step or verdict
+  moves, and `template/migrations.json` carries nothing for it (#81).
+- **A project's own workflows meet the house rules: a bash default, job ceilings and
+  harden-runner first, behind a ramp until 1.2.0.** Since 1.0.2 every workflow the harness
+  ships selects `shell: bash` at workflow level and bounds every job, and a factory test held
+  that over the template alone. In an install, the one structural workflow check was
+  `actions-lint.yml`'s `harden-runner-coverage` loop, which counts harden-runner lines per
+  `*.yml` file: two steps in one job covered a neighbour with none, a step after `checkout`
+  or a commented-out one passed, and a `.yaml` file, a workflow indented by four spaces and a
+  Windows job's `egress-policy` were never read, although its comment said "first" and its
+  name promises audit mode on Windows. The rules now live in the new owned
+  `tools/lib/workflow-hardening.mjs`, which the factory test imports, so one rule set judges
+  the shipped workflows (under the factory's 240-minute bar) and a project's own. The new
+  CI-only gate `tools/check-workflow-hardening.mjs` reads every `.github/workflows/*.yml`
+  and `*.yaml` and requires a workflow-level `defaults.run.shell: bash` above `jobs:`,
+  spelled exactly so because GitHub adds `pipefail` to no custom command, a
+  whole-number `timeout-minutes` on every job that can take one (1 to 360 on a
+  GitHub-hosted runner and to 7200 on a self-hosted one, the platform's own limits), and
+  `step-security/harden-runner` as the first step of every job that is neither a
+  reusable-workflow call nor self-hosted, with `egress-policy: audit` where `runs-on` or a
+  matrix value it reads names windows. A finding names `<file>` or `<file>#<job>`; CRLF is
+  normalised, the job indentation is read from the first key under `jobs:`, and input the
+  gate cannot read is a finding, never a pass. `actions-lint.yml` runs it in a new
+  `workflow-hardening` job, on the paths the workflow already watched plus the two new files
+  and `.harness/manifest.json`. `harden-runner-coverage` keeps its id, name, loop and
+  verdict; its comment, its canary note and `zizmor.yml` now say that it counts and that
+  `workflow-hardening` checks position. On an install whose `baseVersion` predates 1.1.0 each
+  finding is a NOTE until 1.2.0; a fresh scaffold is held to the rules at once, and every
+  shipped workflow passes in every tier. `update` plants the two files and re-plants
+  `actions-lint.yml`, `zizmor.yml` and the catalog where they are sha-unmodified, and keeps a
+  forked `actions-lint.yml`, parking the new one. Not a chain step (#73).
+- **The chain compiles the web app: `web-compile`, and a browser spec per web route.**
+  Nothing in the chain ran `next build`: `types` typechecks without bundling, `build` is the
+  mobile export, and the web build ran only in the path-filtered `web-build` job and the
+  `web-e2e` server start. So a Client Component importing a `server-only` module, which
+  `tsc` accepts, passed the whole chain and `static`. The new step (owned
+  `tools/check-web-build.mjs`, chain step 31, after `build`) runs
+  `pnpm --filter web exec next build --webpack`, through the binary as `build` runs `expo`,
+  on a stamp miss: its inputs are `apps/web`, `packages`, `tsconfig.base.json`,
+  `pnpm-workspace.yaml` and `pnpm-lock.yaml` plus the machinery, `.next` and `dist` are never
+  hashed, and CI never honours a stamp, so `static` builds on every pull request. It compiles
+  only; the purity scan stays in `web-build`. For each Supabase key the build needs that
+  neither the caller nor an `apps/web/.env*` file sets, it supplies the `web-build` job's
+  placeholder byte for byte and prints the keys it filled, so a zero-edit scaffold compiles;
+  it restores the committed `apps/web/next-env.d.ts` the build rewrites, so the tree stays
+  clean and a second run stamp-hits; it runs after `types`, whose `tsc -b` emits the
+  declarations Next's own type check reads, and names that command when a standalone run
+  reds with TS6305. It skips loudly without `apps/web` or `node_modules` and fails closed in
+  CI. `route-manifest`'s web half now also requires, for every registered route, a
+  `*.spec.*` under `apps/web/e2e` naming one of its non-null declared state test ids as a
+  quoted literal, with comments blanked; a route whose every state is null has no id a spec
+  can name. The seeded suite had one of three: `orgs` rendered, `notes` visited only as an
+  anonymous redirect, `security` never. It gains `apps/web/e2e/notes.spec.ts` (a new
+  identity creates its workspace and lands on `notes-empty`, then a reload renders it again)
+  and `apps/web/e2e/security.spec.ts` (a fresh account's factor list settles on
+  `security-empty` and offers to enrol), each minting its own user as
+  `authenticated.spec.ts` does. Both are `seedOnInitOnly`, so an existing install keeps a
+  spec for `orgs` only. Both findings go through their own `rampNote` at 1.1.0 until 1.2.0,
+  consulted only once findings exist: below that `baseVersion` a failed build is a NOTE
+  carrying the output and recording no stamp, so it repeats and `graduate` stays refused
+  until the app compiles, and an unrendered route is a NOTE naming its id, path and test ids.
+  The "1.1.0" record injects the step after `build`, withholds the two specs, and carries
+  the gate-list escape's move (see Changed); `SWEEPS['1.1.0']` adopts the two specs. The
+  gates catalog gains section 31 and renumbers the old 31 to 36 as 32 to 37,
+  `enforcement-tiers.md` gains a `web-compile` row and updates the `build` and
+  `route-manifest` rows, and the seeded `AGENTS.md` lists 37 gates. Selftest Canary 35 adds
+  a server-only import to the client `app/providers.tsx` of a real scaffold, where `types`
+  stays green and `web-compile` must red carrying Next's error, and Canary 36 removes every
+  `orgs` state test id from the specs, where `route-manifest` must red naming `orgs`; the
+  bootstrap job's warm run must print `web-compile: STAMPED` and leave `apps/web` clean
+  (#77).
+- **Edge Functions typecheck in a CI lane of their own, and the seeded function is split so
+  what it decides can be tested.** The scaffold's one Edge Function holds the key that
+  bypasses row security, and its header says one misordering cannot be recovered from:
+  verify the personal-org sweep, then call `deleteUser`. No check compiled, ran or mutated
+  it. `tsc -b` never reaches `supabase/`, and vitest, coverage and Stryker cannot import a
+  file that imports a `jsr:` specifier and starts a server as it loads, so a type error in
+  service-role code, or `deleteUser` moved ahead of the verified sweep, passed `validate`,
+  the Stop chain and CI alike. The seeded function is split: `handler.ts` holds `readKey`
+  and the four steps, takes its clients (`connect`) and environment (`env`) as parameters,
+  and names no `Deno` global and no runtime import (its one import is type-only);
+  `handler.test.ts`, a 30-case vitest suite, proves the order, the key names, the caller's
+  token and the HTTP surface, and goes red on a handler with steps 3 and 4 swapped;
+  `index.ts` becomes a one-call `Deno.serve` shell; `deno.json` pins
+  `jsr:@supabase/supabase-js@2.117.2` and `deno.lock` freezes it. The new owned CI-only gate
+  `tools/check-edge-functions.mjs` requires each `supabase/functions/<fn>/index.ts` to have
+  a `deno.json` whose `jsr:`/`npm:` imports name exact releases and a `deno.lock`, and runs
+  `deno check --frozen` against the two, so a type error anywhere in the shell's import
+  graph, or a lock that no longer matches, is a finding with deno's own output. No function
+  at all is OK with the count; a missing deno skips loudly locally and fails closed in CI.
+  `quality-gate.yml` runs it in a new `edge-functions` job, with its own `changes` output
+  and filter, the nightly schedule and a place in `gate-summary`'s `needs`; the job installs
+  deno 2.9.6 through a SHA-pinned `denoland/setup-deno`, which Renovate bumps, and caches its
+  modules on the lockfiles. The ADR's "Only the caller's account dies" row names its tests.
+  On an install whose `baseVersion` predates 1.1.0 every finding, and a missing deno,
+  `deno.json` or `deno.lock`, is a NOTE until 1.2.0. The four new files are
+  `seedOnInitOnly`, and a `seededSourceFixes` entry (gate `lint`) tells an existing install
+  to pull the split with `update --refresh-seeded supabase/functions/delete-account/`. Not a
+  chain step (#78).
 
 ### Fixed
 
-<!-- Entries from the 1.1.0 items that land after the version bump go here. The cut removes
-this heading if none does. -->
+- **The doctrine says what `HARNESS_ALLOW_SELF_EDIT=1` relaxes, and no longer offers it as a
+  way to trim the Stop hook.** The flag's reach was spread over the guard hooks, a generator
+  and a gate, and no document stated it. `docs/harness/README.md` gains a section, "What
+  `HARNESS_ALLOW_SELF_EDIT=1` relaxes", that lists all of it: the write guard's
+  protected-path and symlink-escape denies, the bash-guard rules that carry an escape,
+  `tools/gen-agents-lock.mjs --write`, and `gate-integrity`'s commit rule for the escape lists
+  and the threshold configs. The permission denies, the append-only migrations deny and every
+  other check still apply, and nothing records that the flag was set, so layer 2 no longer
+  calls setting it "auditable". The Stop-hook cost section told a human the flag let them
+  comment `build` or `e2e` out of the chain, which `wiring`, the Stop hook's floor union and
+  `gate-integrity` each refuse; that advice is gone. The catalog's `gate-integrity` entry
+  lists the gate's other checks, and `docs/cli.md`, `SECURITY.md` and `CONTRIBUTING.md` point
+  to the section. A factory test holds the section to the code: the rule ids it names must be
+  exactly the `BASH_RULES` entries with an `allowWhen`, and every shipped script that reads
+  the flag must be named. `gate-integrity`'s OK line printed `escape list(s) clean` and
+  `threshold config(s) committed` when the flag had skipped both rules, and `never regressed`
+  with no git work tree for the history check to read. Each clause now says the check did
+  not run, and why. Exit codes are unchanged. No chain step, gate, guard rule, seeded file or
+  ramp (#80).
+- **The event-catalog generator finds each vertical's catalog in the vertical.** A vertical
+  opts in by exporting its catalog from `./client` as `EVENT_CATALOG`. Adding a vertical no
+  longer means editing a harness-owned, hash-pinned file, and the generator no longer imports
+  the worked example by name. New scaffolds' root `package.json` drops `@app/notes`.
+  Existing installs regenerate the same catalog: until 2.0.0 the generator still reads
+  `noteEvents` from `@app/notes/client` while the root `package.json` lists `@app/notes` and
+  that vertical has not opted in. Through 1.0.4 `tools/gen-event-catalog.mjs` imported
+  `@app/notes/client` by name, so a tree without the example threw on the import and
+  reddened `contracts`, following its header's advice to add one import line per vertical
+  reddened `gate-integrity`, and a vertical left off the list dropped out of both the
+  generated and the committed catalog while the regen-diff passed. The new owned
+  `tools/lib/event-catalogs.mjs` reads each `packages/verticals/*/package.json` for its
+  `./client` entry and looks for the name in that file's code with its comments blanked, so
+  the slice scaffolder's `client.ts` stub, which shows the line commented out, opts nothing
+  in. A vertical that names it and exports no catalog fails closed, naming its file; one that
+  does not name it is never imported, and a direct run of the generator lists it as not
+  catalogued, output the `contracts` gate discards. The `contracts` stamp now also hashes the
+  root `package.json` and the new library. The committed `tools/generated/event-catalog.json`
+  is byte-unchanged. `update` re-plants the generator, `tools/lib/stamp-inputs.mjs`, the
+  slice skill's `scripts/scaffold-slice.mjs` and `references/dal-dto.md`, and
+  `docs/harness/gates-catalog.md`, and plants the library; the example's `client.ts`, the
+  platform events comment and the root `package.json` are seeded, so an install keeps its
+  own, and `template/migrations.json` carries nothing for this item. The `day0-empty-states`
+  factory lane gains the event-catalog leg 1.0.4 left for this release: on its scaffold the
+  generator regenerates the committed catalog with nothing else printed, writes it without
+  the example's three rows while `packages/verticals/notes` is moved aside, and in Canary 33
+  reds naming the example's `client.ts` once its `EVENT_CATALOG` is a number. No chain step,
+  gate, ramp or floor changes (#82).
+- **A double-quoted catalog key is read as the entry it is.** The installer's one catalog
+  probe, `catalogEntry` in `installer/lib/migrations.mjs`, accepted a bare or single-quoted
+  key only, so a `pnpm-workspace.yaml` a YAML formatter had rewritten to
+  `"eslint-plugin-jsx-a11y": ^6.10.2` read as having no such entry. `doctor` then reported a
+  met dependency obligation as an unmet `ERROR`, and its toolchain report named no Supabase
+  CLI pin for a double-quoted `"supabase"` key. The key may now carry either quote, as long
+  as both sides match. The catalog pin floors (see Changed) read through the same probe, and
+  for them a present key read as absent would never be judged (#83).
+- **`query-shapes` records a DAL's `rpc()` and `upsert()` calls, and judges them.** Through
+  1.0.4 the recording port `pnpm gen` drives each DAL function with had only `from()`, so a
+  probed function that called `.rpc()` threw inside generation, and `contracts` then called
+  the manifest stale and said to run the command that had crashed. `upsert` was outside the
+  reviewed method set, so an upsert recorded as a `select` with `extra: ["upsert"]` and
+  failed with advice about OFFSET pagination: no upsert could pass. `tools/lib/query-recorder.mjs`
+  now has `db.rpc(name, args)`, whose row is `op: "rpc"` with `table: null` and one new key,
+  `rpc: { name, args }`, where `args` holds the sorted argument names and never a value. An
+  upsert row is `op: "upsert"` with the payload's keys (the first element's, for an array)
+  and one new key, `onConflict`: the option split on commas and sorted, or `null` when
+  absent. A row that uses neither gains no key, so the seeded manifest, and every manifest
+  with no such call, regenerates byte-identical. `tools/lib/query-shapes.mjs` accepts both
+  ops, lets `table` be null only on an rpc row, and fails closed on an rpc row with no `rpc`
+  key or an upsert row with no `onConflict` key. `tools/check-query-shapes.mjs` gains four
+  rules, and both ops skip the served and tenant-led rules explicitly: an rpc must name a
+  function a migration creates in `public`, the schema PostgREST exposes, and must pass every
+  input parameter that has no DEFAULT and no parameter the function lacks, since PostgREST
+  answers PGRST202 otherwise; an upsert's conflict columns must equal, as a set, the columns
+  of a UNIQUE index or of the primary key, since PostgreSQL raises an error when ON CONFLICT
+  inference finds none; and a tenant upsert must write the tenant column, as an insert must.
+  An arbiter finding lists the UNIQUE indexes the table holds, and on a tenant table the
+  target or index it proposes carries the tenant column, which `tenancy` requires.
+  The unreviewed-method and `max_rows` rules still judge both. `tools/lib/sql-parse.mjs`
+  marks each index entry's `primaryKey`, named or not, which an upsert with no `onConflict`
+  needs, and splits a function's parameter list at paren depth 0, so `numeric(10,2)` is one
+  parameter. The gate's header and its catalog entry state what it does not model:
+  `DROP FUNCTION`, overloads (the last definition wins), a partial index's predicate, and
+  the arguments of a function with an unnamed input parameter. Conformance row 1.2.4's note
+  now says the rpc call is recorded and resolved, while the function body and a raw
+  `postgres()` client stay unjudged. The committed manifest is seeded, so `update` never
+  rewrites it: a DAL that calls `rpc` or `upsert` must run `pnpm gen` again (or
+  `pnpm gen:contracts`, the part that needs no database) and commit the manifest. No chain
+  step, seeded file or ramp: any install whose probed DAL makes either call fails today
+  (#79).
+- **The `web-build` and `web-e2e` jobs can build the web app from a fresh checkout.**
+  `apps/web`'s tsconfig references the composite workspace packages, and Next's own type
+  check reads each reference's emitted declarations, which `tsc -b` writes and a fresh
+  checkout does not have. Both jobs ran `next build` straight after `pnpm install` (the
+  `web-e2e` one through Playwright's webServer), so on a zero-edit scaffold each failed with
+  TS6305 on every `@app/*` import before its purity scan or its first browser assertion.
+  Each now runs `pnpm exec tsc -b apps/web` first, and a factory test holds every shipped
+  base job that builds the web app to it. The `ci-web-deploy` module's `attest-web` job has
+  the same gap and is left alone (see What stays open) (#77).
+- **The lint rules that named `supabase/functions` now reach it.** `eslint.config.mjs`
+  ignored `supabase/**`, and a later block cannot reach anything a global ignore lists, so
+  `no-unverified-session`, `service-role-edge-functions-only` and
+  `crypto-primitives-one-door` all named Edge Functions and reached none: a `getSession()`
+  in the delete-account function passed lint, although the `getSession` block's own comment
+  cites an Edge Function as a case that "passed every layer" and the conformance map says
+  the rule covers `supabase/functions/**`. The ignore now lets `supabase/functions/` back
+  in, the type-aware block skips it (no tsconfig covers Deno code), and a new block gives it
+  the TypeScript parser with no project service, so the security rules reach it unedited
+  and unramped; `service-role-edge-functions-only` stays off, since the functions are its
+  sanctioned home. A second block holds the functions to cognitive complexity 15 and
+  `no-suppressed-complexity`, and exempts one path until 1.2.0: the delete-account
+  `index.ts` every 1.0.x install carries is seeded and measures 16, so the block would red
+  every upgraded install over a file `update` cannot rewrite (register row
+  `edge-functions-complexity-seeded-exemption`). Selftest Canary 37 appends a `getSession()`
+  to that file in a rendered scaffold and requires `lint` to red; against the 1.0.3 config
+  it stays green (#78).
 
 ### Changed
 
-- **The NOTE fleet 1.0.0 opened is now enforcing for installs below 1.0.0.** The seven
+- **The NOTE fleet 1.0.0 opened is now enforcing for installs below 1.0.0.** The six
   sites above expire at 1.1.0, as their obligations rows said they would:
-  `docs-sync-gate-list-ramp-expiry`, `suppressions-census-ramp-expiry`,
+  `suppressions-census-ramp-expiry`,
   `resilience-register-ramp-expiry`, `boundaries-anatomy-widening-ramp-expiry`,
   `exports-walls-module-closure-ramp-expiry`, `auth-posture-hook-ramp-expiry` and
   `version-sync-support-ramp-expiry`. The 1.1.0 record's `rampExpiry` names their
-  population, copied from `check-ramp-ledger`'s output at 1.1.0, and the seven rows are
-  deleted. Nothing new is demanded: the sweep is the 1.0.0 one, and the runbook's 1.1.0
+  population, copied from `check-ramp-ledger`'s output at 1.1.0, and the six rows are
+  deleted. `docs-sync-gate-list-ramp-expiry` was a seventh until this release injected a
+  chain step; its escape re-opens instead (the `docs-sync` bullet below) (#77). Nothing new is demanded: the sweep is the 1.0.0 one, and the runbook's 1.1.0
   section lists what arrives and points to it. The catalog, the conformance map and the
   gate comments that still called these ramps open are reworded (#39).
 - **The uuid 7 acceptance is re-affirmed and moved to 1.2.0, and its arrival ramp re-opens
@@ -276,6 +678,373 @@ this heading if none does. -->
   writes beside `supabase/.temp/`: an untracked file is part of the owed set, so without the
   line a clean tree with the stack up owed both whole-turn reviewers. That line reaches fresh
   scaffolds only, and the runbook gives it too (#70).
+- **`reviewer-verdicts` records the model each reviewer verdict ran on, and a security
+  reviewer's PASS counts only on a model its agent file names, behind a ramp until 2.1.0.**
+  Each agent file pins one `model:`, and nothing recorded which model a verdict actually ran
+  on, although a per-invocation `model`, `CLAUDE_CODE_SUBAGENT_MODEL` (and `_FORCE`), an
+  `availableModels` substitution and a `fallbackModel` chain can each move a subagent off
+  its pin. The step and the catalog called the model "locked" while the lock held only the
+  frontmatter pin and no gate read it. `subagent-verdict.mjs` now records `model`, read from
+  the last assistant line of the subagent's own transcript at `agent_transcript_path`, and
+  `pinned` in every ledger entry; what it cannot read is `null`, and neither the verdict nor
+  the exit code depends on it. Where the transcript holds the model was probed against
+  Claude Code 2.1.285, not read off a page (`design/CONTROL-PLANE-FACTS.md` Fact 16). An
+  agent file may carry a `harnessFallbackModels: a, b` list, which Claude Code ignores and
+  the harness reads. The eight shipped reviewers carry one, and no security reviewer's list
+  names a weaker family than its pin. `docs-sync` (and, over the source,
+  `check-plugin-manifest`) reds a list that names nothing or repeats an entry. The step
+  judges the model of the entry an owed reviewer's verdict rests on (the latest entry under
+  the 1.0.x judgement, the latest counted PASS under v2): the pin counts, an alias counting
+  for every model ID of its family, and so does a listed model. Every other verdict is named
+  on a `FALLBACK MODEL` line, which the Stop hook shows the user on a green turn too, as a
+  JSON `systemMessage`, because stderr from a hook that exits 0 reaches only the debug log.
+  For `security-reviewer`, `web-security-reviewer` and `mobile-security-reviewer`
+  (`SECURITY_REVIEWERS` in `tools/lib/agent-roster.mjs`) a model off the list, or `null`,
+  also reds: that PASS does not count. An entry with no `model` field, as every entry before
+  1.1.0 is, is judged as before. On an install whose `baseVersion` is below 1.1.0 the
+  finding prints as a NOTE until 2.1.0, because a configuration that already forces a model
+  off the list would otherwise red on the first Stop, and a re-run lands on the same model.
+  A reviewer whose pin cannot run never reaches SubagentStop, so its "did not run" red, under
+  both judgements, now says it may be dispatched with the Agent tool's `model` set to a
+  listed model. The lock's `models` map keeps the pin alone, no session fallback chain
+  ships, so `tools/cc-floor.json` does not move, and no chain step is added (#62).
+- **Reviewer bodies state which severities block, and review rounds get a budget, behind
+  two ramps until 1.2.0.** No reviewer body said which severity justifies
+  `VERDICT: BLOCK`, so a nit and a vulnerability both could, a reviewer could PASS over a
+  HIGH finding it listed itself, and a fix-and-re-review loop was bounded only by the
+  turn-wide block cap, which ends the turn with the findings standing. Each of the eight
+  reviewer bodies now states `Severities: CRITICAL, HIGH, MEDIUM, LOW` and
+  `Blocking: CRITICAL, HIGH` on lines of their own before its closing verdict paragraph,
+  and writes each finding as `- [SEVERITY] file:line — …`. `accessibility-reviewer` and
+  `design-reviewer` keep their finding shapes with a severity in front, and
+  `citation-verifier` grades an unresolvable source CRITICAL, an unsupported one and an
+  unsourced decision site HIGH and a HUMAN-VERIFY URL LOW, so `CITATIONS: REJECTED` is still
+  always `VERDICT: BLOCK`. `docs-sync` holds the two lines (each once, `Blocking:` a subset
+  of `Severities:` and holding `CRITICAL` and `HIGH`), behind a ramp: `update` parks a body
+  a project edited, which would otherwise red on this upgrade. The SubagentStop hook reads
+  the `Blocking:` line and bounces a PASS whose reply lists a finding at a blocking
+  severity, with exit 2 and the shape `pass-with-blocking-finding`; a BLOCK, and a body
+  with no `Blocking:` line, keep the 1.0.x behaviour. Each ledger entry now records
+  `blocking`, the finding lines at a blocking severity, and `round`, the verdict's round in
+  its reviewer's review loop, with `overBudget` past the budget, where the hook still exits
+  0. `reviewer-verdicts` judges the budget behind a second ramp: a BLOCK opens a loop,
+  every later verdict of that reviewer in the session is its next round, and the loop
+  closes when the same run passes over a tree that did not move under it. A loop still
+  open after three rounds reds with the recorded findings and says to hand them to the
+  human, and a PASS recorded after that never clears it. The budget judges the change set
+  v2 keys, so with no merge base it does not judge, as v2 does not. The budget is a constant
+  of the owned `tools/lib/reviewer-verdicts.mjs`, so the seeded trigger table does not
+  change.
+  The contract parser and the round count are pure helpers in `tools/lib/`, and the
+  runbook's 1.1.0 section says how to add the contract to a forked body (#71).
+- **`docs-sync` holds each reviewer body to close on the verdict demand, behind a ramp
+  until 1.2.0.** The roster check asked only whether a reviewer body contained
+  "`VERDICT: PASS` or `VERDICT: BLOCK`", while its failure text said the body must end on
+  it. v1.0.1 shipped two bodies whose closing paragraph asked for the top 3 fixes after the
+  verdict line. The SubagentStop hook, which reads a PASS only as the reply's last line,
+  bounced every review that obeyed them, and the gate passed both. Since 1.0.2 `update`
+  keeps a re-recorded fork of an owned reviewer body, so a fork can still carry that shape.
+  The new pure `verdictDemandProblem()` in `tools/lib/agent-roster.mjs` returns `absent`
+  exactly when the old presence test fails, and `not-closing` when the body's last
+  paragraph is not exactly the demand, optionally followed by the rationale sentence every
+  shipped body carries. `absent` stays a hard red on every vintage, with failure text that
+  now says what is checked. `not-closing` goes through its own `rampNote` in
+  `check-docs-sync.mjs`, opened at 1.1.0 until 1.2.0: a dated NOTE naming the file below
+  `baseVersion` 1.1.0, a plain red on a fresh scaffold, and `RAMP EXPIRED` from harness
+  1.2.0. The gate reads each roster file once and reaches the helper through the namespace
+  import the severity contract already uses, so a parked fork of the lib without it still
+  loads: presence is judged the old way, and one finding names the stale lib, through the
+  same ramp. The factory test that pinned the shipped bodies now calls the helper and keeps
+  its `follow it with` scan. The obligations row `docs-sync-verdict-demand-ramp-expiry`
+  owes the expiry, and the catalog and the `gen-agents-lock.mjs` and `guard-rules.mjs`
+  comments that said the roster check never reads the body are corrected (#72).
+- **`encryption.md` is an always-loaded stub, the full encryption rule is path-scoped, and
+  `AGENTS.md` drops what a hook already teaches.** Every session loads `AGENTS.md` and each
+  rule file without `paths:`, and `encryption.md` was one of them while the `e2ee` module its
+  envelope, wrapped-key, export and audit bullets govern is opt-in. The stub keeps what
+  applies with the module off, each item with the check that holds it in a base install: RLS
+  keyed on `auth.uid()` stays the boundary, enable the module rather than hand-roll, the
+  server holds no plaintext and no key (`crypto-primitives-one-door`,
+  `no-insecure-random-in-crypto-scope`), key material comes only from the platform CSPRNG
+  and never from a passphrase without a memory-hard KDF (`math-random-key-material`,
+  `hardcoded-key-material`), no broken constructions (`weak-crypto-algorithm`), and the
+  `iosEncryption` twin (`expo-policy`). Its seven bullets move word for word into the new
+  owned `.claude/rules/e2ee.md`, whose `paths:` YAML list covers
+  `packages/platform/crypto/**`, `apps/*/src/host/**` and `docs/modules/e2ee/**` and whose
+  opening says the load is best effort and the checks are the invariant. Those globs do not
+  reach migrations, `tools/data-flow.json` or `tools/pii-columns.json`, so Step 0 of the
+  `authoring-e2ee-feature` skill now opens by telling its reader to read `e2ee.md`. Every
+  citation of `.claude/rules/encryption.md` in the guard rules, the lint rules and the seeded
+  `tools/store-tunables.json` still points at text that states its rule. The seeded
+  `AGENTS.md` drops three rules `security-invariants.md` also states, each denied by a hook
+  whose message teaches the fix: `WITH RECURSIVE` without a cycle guard (the write guard's
+  inline check), secret-shaped `EXPO_PUBLIC_`/`NEXT_PUBLIC_` names
+  (`expo-public-secret-name`, `next-public-secret-name`) and the shell commands the bash
+  guard denies outright. The public-config sentence, the destructive-SQL clause and the
+  credentials clause stay, because their checks are partial or they call for judgement. The
+  doctrine's rule list names both encryption files, the conformance-map notes that cited
+  `encryption.md` name the file that now holds their text, and
+  `design/CONTROL-PLANE-FACTS.md` Fact 9 gains a dated note. `update` re-plants an
+  unmodified stub and skill, re-recording the skill's `tools/agents.lock.json` entry, and
+  plants `e2ee.md`; `AGENTS.md` is yours, and the runbook's 1.1.0 section says trimming it is
+  optional. No gate, hook rule, lint rule, CI lane, floor or canary changes, and no ramp
+  (#67).
+- **`essential-eight` and `conformance-map` stamp locally; CI judges both in full.** The
+  `docs-sync` step's second and third scripts graded both compliance registers in full at
+  every turn end, and `conformance-map` spawned the document generator each time. Each now
+  stamps through `stampGate`: a warm run over unchanged inputs prints
+  `<gate>: STAMPED — inputs unchanged since last green run` and exits 0. Each list in
+  `tools/lib/stamp-inputs.mjs` is what that verdict reads. `essential-eight` is keyed on its
+  register, `tools/harness.config.mjs`, `.github/workflows` and the libraries it imports;
+  `conformance-map` on its register, `tools/harness.config.mjs`, `.github/workflows`,
+  `.claude/hooks/lib/guard-rules.mjs`, `tools/modules.json`, the `docs/modules` tree (the
+  module markers), `tools/gen-conformance-docs.mjs` and its two documents, and the libraries
+  both import. Design record N19 keyed the stamp on every evidence path the registers cite,
+  but neither script opens those paths (a row's `proof` is judged as text), so they are not
+  inputs. `essential-eight`'s negative proof reads `supabase/config.toml` and the product
+  roots it scans for upload surfaces, and those are not inputs either: the proof now runs
+  first, on every run, and the script consults its stamp only when the proof finds nothing,
+  so a storage flip or an upload surface reds the turn it lands. Its findings now also join
+  the red for a missing, invalid or empty register. `CI=true` and
+  `HARNESS_REQUIRE_TOOLCHAINS=1` ignore both stamps, `update` and `graduate` delete them, and
+  a stamp register with no list for either gate (a fork `update` kept) means a full
+  judgement. The selftest's warm validate must print both stamp lines. The `docs-sync` line
+  of `harness.config.mjs` is unchanged, so the chain and both floors do not move, and there
+  is no ramp (#68).
+- **`provenance` reds only the classes that guard a security decision; three become
+  advisory.** Every decision class blocked alike: an uncited `timeoutMs` failed the gate
+  and exit-2'd the per-edit hook exactly as an uncited `CREATE POLICY` did, and the gate's
+  own documented anti-vacuity proof was the `timeoutMs`. The owned
+  `tools/lib/provenance-rules.mjs` now exports `ADVISORY_DECISION_GROUPS`: `vector-index`,
+  `llm-sampling` and `tuning-constants`. Every other class stays mandatory, the other
+  built-ins, the seeded `mobile-security`, any group a project adds and any later built-in
+  alike, and a site that matches any mandatory class is judged whole, as before.
+  `findUncitedDecisionSites` now returns each site's `groups` through the one matcher the
+  cited-site finder shares. An uncited site or a group-match miss whose classes are all
+  advisory prints `provenance: ADVISORY (n) — file:line [class]` on every run, green or
+  red, and never reds; the summary and OK lines say so instead of `0 flagged`.
+  Resolvability, the host allowlist, corpus integrity and the coverage lockstep stay hard
+  for every class. The seeded `tools/decision-groups.json` may carry a top-level
+  `"mandatory": ["<key>"]` that promotes a class back, parsed from the object the lib
+  already reads by the new pure `parseMandatoryPromotions()`; a value that is not an array
+  or a key that is not a group fails closed, and nothing in the file can demote a class.
+  `posttool-source-check` exits 2 only on a mandatory site, and its stderr then lists the
+  file's advisory sites too, marked advisory; for advisory sites alone it exits 0 with one
+  PostToolUse `additionalContext` object on stdout, which reaches the model beside the tool
+  result. Each advisory finding is counted per class in the telemetry log, as a
+  `hook-event` with `rule` `provenance/<class>` and `outcome` `advisory`. The factory's
+  PostToolUse adapter now forwards the shipped hook's stdout as well as its stderr and exit
+  code. The `citation-verifier` body lists an uncited advisory-class site at MEDIUM, so it
+  never makes the verdict `CITATIONS: REJECTED` on its own. The gate and the hook reach the
+  new exports through the rules namespace, so a parked fork of the lib keeps every class
+  mandatory. A relaxation with one new red, a malformed `mandatory` list, which no existing
+  file carries: no ramp, no chain step and no floor changes (#69).
+- **`doctor` warns when a seeded catalog pin is below a security floor, so it can exit 2
+  where it exited 0.** 1.0.3 raised the template's `vitest` and `@vitest/coverage-v8` pins
+  to 4.1.11 for GHSA-82fw-gwwq-j7x9, and nothing carried the raise to an existing install:
+  `pnpm-workspace.yaml` is seeded, no gate judges the pin, and the dependency channel asks
+  only whether a key is present, which a `vitest: 4.1.10` line answers yes. A new
+  `template/migrations.json` record kind, `catalogPinFloors` (`{ name, minVersion, advisory,
+  why }`), now carries a reviewed raise, and the 1.1.0 record floors both packages at
+  4.1.11. Every release from 0.1.3 through 1.0.2 shipped 4.1.10, checked against each tag,
+  so meeting the floor is a patch on the same major. `update` judges each floor by the lower
+  bound of the catalog value, read through the same anchored probe the dependency channel
+  uses, with one leading `^`, `~`, `>=` or `=` stripped. It names each floor that is not
+  provably met in a `CATALOG PIN FLOOR` note, parks `.harness/pending/pin-floors.json`, and
+  deletes it once every floor is met; its exit code does not change, and a dry run writes
+  nothing. `doctor` recomputes the floors from the tree and prints one warning per unmet
+  floor, so an install still on 4.1.10 exits 2 where it exited 0. It never exits 1 for a
+  floor, because an old pin stops no installed gate from running and the upgrade lane
+  permits only `doctor` exit 0 or 2, and it removes a stale parked file with an `info` line
+  instead of listing it as a parked upgrade. A value that is not a plain version (a
+  dist-tag, an `npm:` alias, a URL) is unmet, because it cannot be proven met; a key absent
+  from the catalog is not judged. Neither command writes `pnpm-workspace.yaml` or
+  `package.json`. `update --rollback` restores the parked file's pre-update state, the
+  SessionStart brief skips it as `doctor` does, and the factory's
+  `scripts/check-dependency-channel.mjs` reds a malformed floor, a floor naming a package
+  the template does not pin, and a template pin below its own floor. No gate script,
+  `tools/framework-floor.json` row, chain step or ramp (#83).
+- **The SQL gates fold `DROP TABLE` and `ALTER POLICY`, behind six ramps until 1.2.0.**
+  `tools/lib/sql-parse.mjs` read neither statement. A dropped table kept its columns,
+  indexes, triggers, RLS toggles, policies and grants in every view the SQL gates read, and
+  a re-created table of the same name inherited them. A policy rewritten by `ALTER POLICY`
+  was judged on its CREATE text. `schema-rls` also parsed `DROP POLICY` and threw the list
+  away, so a dropped policy still covered its operation. Every view now folds
+  `DROP TABLE [IF EXISTS] a, b [CASCADE|RESTRICT]`: each table and its partitions leave it,
+  foreign keys into them are cleared, and a later CREATE starts the table fresh. The new
+  `parseLivePolicies()` is the one live-policy fold, read by `schema-rls` and `tenancy`:
+  `ALTER POLICY` replaces the roles, USING and WITH CHECK clauses it names and keeps the
+  rest, and `RENAME TO` renames. `schema-rls` now reads `parseCreatedTables()` instead of
+  its own regex, and reports a `DROP TABLE` without IF EXISTS, or an `ALTER POLICY`, whose
+  target no earlier migration left in place; `DROP TABLE IF EXISTS` on an unknown table is
+  a no-op there as in the database, and a table made outside the migrations and dropped by
+  an applied one is acknowledged with a reason in `tools/rls-exempt.json`. `migrations`
+  treats `ALTER POLICY` as an authorization change that needs `-- adr:`, judged per
+  statement so that a rename alone needs none, and an applied one uses the existing
+  `authz-adr` entry in `tools/migrations-allow.json`.
+  `schema-rls`, `tenancy`, `data-flow`, `db-limits` and `query-shapes` pass a finding only
+  the folded history produces through `rampNote(GATE, '1.1.0', 'the SQL history fold (…)',
+  { until: '1.2.0' })`, and `migrations` passes its `ALTER POLICY` findings through a ramp of
+  their own. Each is a dated NOTE below `baseVersion` 1.1.0, a plain red on a fresh scaffold
+  and `RAMP EXPIRED` from harness 1.2.0. The new owned `tools/lib/sql-fold-ramp.mjs` tells a
+  fold-only finding apart by replaying the gate over the pre-fold history in a worker thread
+  and comparing the two finding lists: a finding both readings produce stays a hard red at
+  every vintage, and one only the old reading produced is gone, because it described a
+  dropped or rewritten object. The replay runs only when the history holds one of the
+  folded statements and the gate found something. `db-perf`'s static index lookup moves
+  with the parser, with no ramp, since it runs only against a live database. The shipped
+  migrations hold no top-level `DROP TABLE` or `ALTER POLICY`, so a fresh scaffold's
+  verdicts do not move, and the obligations row `sql-history-fold-ramp-expiry` owes the six
+  expiries. The sweep, before 1.2.0, is the runbook's 1.1.0 section: fix what the fold
+  exposes in a NEW migration, or add an `authz-adr` entry to `tools/migrations-allow.json`
+  for an already-applied `ALTER POLICY` (#75).
+- **`schema-rls` bounds grants by policies, holds every table to the three-role revoke, and
+  keeps a generated pgTAP privilege assertion in sync, behind a ramp until 1.2.0.** The
+  POLICY → GRANT closure only asked whether a policy had a grant behind it, and its fold of
+  the grant history started empty, so it never saw what Supabase's default privileges hand a
+  role on a new `public` table. The 1.0.2 escape was a grant wider than its policies, and no
+  static check found it: the shipped tree without
+  `20260920000000_authenticated_write_revoke.sql` passed `schema-rls`. The owned
+  `tools/lib/table-grants.mjs` now folds the history a second time, in two halves. The
+  default-seeded half starts each `public` table with every table privilege of the configured
+  major for `anon`, `authenticated` and `service_role`: eight on PostgreSQL 17, `MAINTAIN`
+  among them, and seven below it, read from `[db].major_version`. The explicit half starts it
+  with none. Three findings come of it:
+  - **the bound**: a privilege `anon` or `authenticated` holds, directly, through `PUBLIC` or
+    on columns, that no PERMISSIVE policy for that operation (or `ALL`) admits, naming the
+    role, `public` or no role, with a predicate that is not literally `false`. TRUNCATE,
+    REFERENCES, TRIGGER and MAINTAIN are never admitted. A reviewed row in the new,
+    tolerated-absent `tools/grant-bound-allow.json` (`{table, role, privilege, reason}`) lets
+    one stand, and a row naming a privilege nobody holds reds;
+  - **the doctrine** (`docs/adr/20260930-three-role-revoke.md`): for each of the three roles,
+    the default-seeded half holds nothing the explicit half does not;
+  - **the generated file**: `supabase/tests/rls_grants.generated.test.sql`, one `is_empty`
+    over `has_table_privilege(…) IS DISTINCT FROM expected` for every table a migration
+    creates, each role and each privilege, rendered by the new owned
+    `tools/gen-grant-assertions.mjs` with rows sorted by code unit, must exist and match. The
+    generator refuses while the doctrine fails, naming the tables and printing the
+    statements that clear them, so no committed row depends on whether the platform applied
+    its default.
+
+  Every finding prints the `REVOKE` and `GRANT` that clear it. The fold normalises what
+  `parseGrants` misreads, where an upper bound would fail open: `WITH GRANT OPTION`,
+  `GRANTED BY`, `CASCADE`, `GROUP`, `REVOKE GRANT OPTION FOR`, column lists and several
+  tables in one statement; a schema-wide statement reaches only the tables that exist at
+  that point; and a `GRANT` or `REVOKE` it cannot read is a finding. All three pass through
+  `rampNote('schema-rls', '1.1.0', 'the grant bound, the three-role revoke doctrine and the
+  generated grant assertions', { until: '1.2.0' })`: NOTE lines below `baseVersion` 1.1.0, a
+  plain red on a fresh scaffold, and `RAMP EXPIRED` from harness 1.2.0. The new migration
+  `20260930000000_three_role_revoke.sql` applies the doctrine to `profiles` and `notes`, and
+  the declarative twins `10_account.sql` and `20_notes.sql` and the push-notifications
+  module's migration and `30_push_tokens.sql` gain the same revoke. `update` withholds the
+  migration and the generated file (`seedOnInitOnly`), and the runbook's 1.1.0 section gives
+  the SQL, then the generator command. `pnpm gen` runs the generator (`gen:grants`), and the
+  authoring surfaces the 1.0.2 grant teaching changed now say to regenerate the file, never
+  to edit a table list or a `plan()` by hand; `AGENTS.md` and `supabase/AGENTS.md` are
+  seeded, so the runbook carries their sentences. `security-reviewer`'s
+  `table-authenticated-revoke` and `table-privilege-assertion` rows name `schema-rls` as
+  their enforcer. The allow file is registered in `ESCAPE_LISTS`, `TOLERATED_ABSENT`, the
+  proposable set and the new `grant-bound-allow` write-guard rule, and the obligations row
+  `grant-bound-ramp-expiry` owes the expiry. The swept upgrade leg runs the runbook's two
+  steps through a new `SWEEPS['1.1.0'].grantDoctrine` step and adopts neither withheld file
+  (#74).
+- **The `i18n` step walks the TypeScript syntax tree beside its regular expressions, and
+  its allowlist is keyed on content, behind two ramps until 1.2.0.** The step found copy
+  with regular expressions over comment-blanked text, one quote form each, and a JSX text
+  run could not hold `=`, `;`, a backtick or `$`. So `accessibilityLabel={'Close dialog'}`,
+  `` title: `Settings` `` and `label: "Don't have an account?"` in a `.ts` module, and
+  `<h2>Plans from $5</h2>` all passed. Its escape was keyed on `file:line`: a line inserted
+  above an allowlisted string redded the string again and left the entry muting whatever
+  now sat on that line. Five places said a stale entry failed, and nothing checked. The new
+  owned `tools/lib/i18n-tree.mjs` parses each scanned file once with the project's own
+  `typescript`, a root devDependency of every release, and reports JSX text, a listed
+  attribute or `label`/`title`/`subtitle`/`description` property whose value is a string or
+  a template literal with no substitutions, bare or inside `{…}`, and `Intl`, `toLocale*`
+  and `toFixed`, through the filters the expressions apply. The gate reports the union. A
+  finding the expressions see stays hard, and one only they see is tagged as retiring in
+  1.2.0. A finding only the walk sees goes through its own `rampNote`, opened at 1.1.0 until
+  1.2.0: a dated NOTE below `baseVersion` 1.1.0, a plain red on a fresh scaffold, and
+  `RAMP EXPIRED` from harness 1.2.0. `tools/i18n-allow.json` entries become
+  `{"key", "reason"}`: the key is 12 hex characters of a sha256 over the POSIX path, the
+  finding kind, the attribute or property name and the whitespace-collapsed text, which
+  both scans compute. Each FAIL line prints the entry to paste, and a key that matches no
+  finding reds. A 1.0.x `site` entry goes through a second ramp with the same window: below
+  1.1.0 it still mutes its line and prints the key that replaces it, and on a fresh
+  scaffold it is malformed. When `typescript` cannot load, the expressions judge alone
+  behind a loud NOTE, and in CI the step fails closed. The factory's `installer-unit` job
+  installs nothing, so the walk's tests skip there by name and run in `lint.yml`'s
+  `machinery-lint`, where a parser that cannot load fails them, under the scanner's own
+  coverage floor; Canary 34 proves the walk on the installed canary scaffold. The
+  obligations row `i18n-syntax-tree-ramp-expiry` owes both expiries and the removal of the
+  expressions and of `site` entries. No chain step, guard rule or floor entry (#76).
+- **`docs-sync`'s AGENTS.md gate-list escape re-opens at 1.1.0, until 1.2.0.** It expired
+  here, and this release injects `web-compile` after `build` through the record's
+  `configSteps`, so every existing chain grows to 37 steps while its seeded `AGENTS.md`
+  documents 36, or fewer. Opened at 1.0.0, the escape was inert for every 1.0.x install and
+  expired for every older one, so the drift the update caused would have reddened
+  `docs-sync` on every upgraded install. It now opens at minVersion 1.1.0 with a deadline of
+  1.2.0, the move recorded as the "1.1.0" record's second `rampExtensions` entry and the
+  obligations row `docs-sync-gate-list-ramp-expiry` back, targeting 1.2.0. Only additive
+  drift rides it: a documented step that no longer exists, or a reordering, stays a hard red
+  at every vintage. The README withdrew its two `pnpm validate` timings when the chain grew,
+  because `check-claims` refuses a figure whose recorded step count differs from the chain,
+  and `scripts/chain-budget.json` budgets `web-compile` as a toolchain step. They were
+  republished, with the Stop figure, only after the dispatched warm, Stop and cold re-record
+  landed and was committed (selftest run 36958995612 on the release branch, before the tag,
+  stamped from its job log with an explicit `--runner`): measure, commit, then publish, as
+  1.0.0 did (#77).
+- **`unit`, `diff-coverage` and the mutation lane reach `supabase/functions`, behind ramps
+  until 1.2.0.** `vitest.config.ts` now derives two lists from the tree: every `*.test.ts`
+  under `supabase/functions` that imports from `'vitest'` joins `unit-node` (a `deno test`
+  file is never collected, where a glob would red the whole step on one), and each
+  top-level directory there that holds one is measured. Vitest has no ramp and reports an
+  included file no test loads as 0%, so a glob would have put every untested helper an
+  install already has on the aggregate floor; an unmeasured directory stays off it. Each
+  function's `index.ts` joins `COVERAGE_EXCLUDE`. `diff-coverage`'s `SRC_RE` gains
+  `supabase/functions/`, and a changed file in a directory with no vitest suite is named as
+  absent from the map, with the one green path. The mutation floor gains the starred root
+  `supabase/functions/*/` (a tree with no functions stays green: starred roots skip the
+  zero-match alarm), with `index.ts` carved out of `MUTATE_GLOBS` and `isCritical`, which
+  now matches every root with `rootMatches`. StrykerJS's vitest runner stops with "No tests
+  were executed" and writes no report when no test relates to the files it mutates, so
+  `tools/mutation-scope.mjs` judges a changed function file whose directory holds no vitest
+  suite: a FAIL naming the suite it needs. `rampNote` takes an optional `log` for its NOTE
+  line, which the scoper points at stderr, since its stdout is Stryker's `--mutate` list. On
+  an install whose `baseVersion` predates 1.1.0, `diff-coverage`'s findings under
+  `supabase/functions`, the scoper's withheld files and the ratchet's new survivors there
+  are NOTEs until 1.2.0; a finding anywhere else is judged as before, and a fresh scaffold
+  is held at once. The obligations row `edge-functions-surface-ramp-expiry` anchors the
+  four sites with the typecheck's (#78).
+- **`gate-integrity` asks whether a harness release planted an uncommitted escape list, behind
+  a ramp until 1.2.0.** Sub-check 3 reds an escape list that is dirty at gate time, and
+  exempted one it called a harness plant: untracked, with a sha256 equal to its
+  `.harness/manifest.json` record. Its NOTE said the bytes were exactly what the installer
+  planted, but the check read one manifest field. Since 1.0.2 a human may re-record a sha to
+  keep a fork, and the manifest need not be committed, so a hand-made
+  `tools/secret-scan-allow.json` given a `files` record, or an untracked
+  `tools/approved-tools.json` with a server appended and its sha re-recorded, passed as a
+  plant. Every `template/shas/<version>.json` now carries a `planted` map beside `files`: per
+  path in `ESCAPE_LISTS`, every variant that version's commits shipped, whatever the path's
+  mode was then. `generate-released-shas.mjs --all` backfilled it from the lineage floor up,
+  and `--prove` now also requires every escape list the commit's own `init` records to be
+  explained by it. The union of the maps is the new owned, generated
+  `tools/lib/planted-shas.json`; `check-released-shas` requires it byte for byte, and
+  `gate-integrity`'s first check hash-pins it. The plant exemption now also asks that file:
+  a variant without sites matches by sha, and one with sites (`tools/rls-exempt.json` and
+  `tools/backup-posture.json` carry `SECURITY_OWNERS`) matches after the file is derendered
+  with the manifest's answers by the new owned `tools/lib/derender.mjs`, a copy of the
+  installer's `derender` that `tests/gates/derender-parity.test.mjs` pins to it. A plant's
+  NOTE now says its bytes match the manifest record and a release planted them. A list that
+  passes the two old conditions and fails only the new one is a finding (`escape hatch
+  present but not committed, and no harness release planted these bytes`) through
+  `rampNote('gate-integrity', '1.1.0', 'release provenance of an uncommitted, planted escape
+  list', { until: '1.2.0' })`, which is called only when such a list exists: NOTE lines below
+  `baseVersion` 1.1.0, a plain red on a fresh scaffold, `RAMP EXPIRED` from harness 1.2.0.
+  Every red from before keeps its outcome and its text, a fresh scaffold before its first
+  commit prints a plant NOTE for each escape list, and the gate's comments no longer say that
+  only `init` and `update` write the manifest. The sweep is the step the NOTE already asks
+  for: review the list and commit it. The obligations row
+  `gate-integrity-planted-escape-list-ramp-expiry` owes the expiry (#84).
 
 ### What stays open, honestly
 
@@ -352,8 +1121,334 @@ this heading if none does. -->
   tools, and `rls-isolation`'s runner prints its own `[rls]` lines, so none of them prints a
   note. When a failed Stop step's output is long, the Stop hook keeps its head and tail, so a
   note from a gate in the middle of a `validate --report-all` run may appear only in
-  `.harness/stop-output/<step>.log`. An agent cannot write a note, and nothing yet lets one
-  propose a note for a human to apply; that is #65's to add (#61).
+  `.harness/stop-output/<step>.log`. An agent cannot write a note; it can stage one in
+  `harness-proposals/` for a human to apply with `apply-proposal` (see Added, #65) (#61).
+- **The model record was probed in print mode only.** `design/CONTROL-PLANE-FACTS.md` Fact 16
+  observed, at Claude Code 2.1.285, that each assistant line of the subagent's transcript
+  carries its model at `message.model`, and that a green Stop's `systemMessage` surfaces as
+  a notice in the stream-json output. How the interactive terminal, the VS Code extension
+  and the desktop app show that notice, whether the plugin loader accepts the
+  `harnessFallbackModels` key, and whether the main agent may edit a transcript were not
+  observed; the obligations row `control-plane-facts-reviewer-model-probe` holds them. If a
+  later Claude Code moves the model, every entry records `model: null`, and where the check
+  is live every security reviewer's PASS reds with a finding that names Fact 16 (#62).
+- **The model record catches configuration, not forgery.** The transcript lives under
+  `~/.claude/projects/`, outside the project, where the write guard does not reach, so a
+  session could edit it before the hook reads it. A value not spelled like a model ID is
+  recorded as `null`, so it cannot write lines into the Stop output. What the record catches is a reviewer
+  moved off its pin by an override, a substitution or a chain. The model judged is the one
+  that wrote the verdict: an earlier line of the same run on another model is not judged. A
+  full model ID in a pin or a list matches only itself, so a provider-prefixed ID or a
+  Bedrock inference profile ARN has to be listed as itself (#62).
+- **The budget is per session and not tunable.** A spent budget stays spent for the rest of
+  the session; a new session, a human's act, starts every budget afresh. Three rounds is a
+  constant of the owned lib: a project that needs another number has no field to set, and
+  moving it into the seeded trigger table later is additive. The count is per review loop,
+  not per change set: rounds of clean PASSes spend nothing, so a long session is held to the
+  budget only where a BLOCK stands (#71).
+- **Only line-anchored findings are read.** The hook finds a finding by a `[SEVERITY]` tag at
+  the start of a line. A reviewer that reports a blocking finding only inside a table cell
+  or a sentence is not bounced for its PASS, and its BLOCK records no finding lines; the
+  bodies ask for the line format, and the transcript keeps the reply either way (#71).
+- **1.2.0 arrives at 2.0.0 in this lineage.** Both new ramps take the deadline issue #71
+  sets, the next minor. This lineage cuts 2.0.0 directly after 1.1.0, and every comparison
+  is `>=`, so the 2.0.0 record owes both expiries, beside the `version-sync` arrival row that
+  targets the same release. The budget's deadline also comes before the reviewer ledger
+  v2's (2.1.0): at 2.0.0 an install whose `baseVersion` is below 1.1.0 meets a live budget,
+  whose loops close by v2's rule (the same run's PASS), while v2 itself still prints NOTEs
+  and the 1.0.x judgement decides. The 2.0.0 record decides whether to let it expire there
+  or to re-open it to 2.1.0 as a reviewed `rampExtensions` entry (#71).
+- **`docs-sync` judges only the last paragraph of a reviewer body.** An earlier paragraph
+  that asks for text after the verdict line is not caught: the hook still bounces a PASS
+  reply that obeys it, and only the factory test scans the shipped bodies for the phrase.
+  The verdict-demand ramp takes the deadline issue #72 proposes, the next minor, so like
+  #71's two ramps it falls due at the 2.0.0 cut, whose record owes its expiry (#72).
+- **Nothing checks that a spec citation resolves.** A `specs/<x>.md#<id>` in an ADR or a
+  reviewer brief can name a heading that does not exist, and `check-sources` still tests a
+  whole `SOURCE:` token as a file path, so an anchored spec there is not provenance. Either
+  check would change what a gate judges and needs a `gate-proposal` issue of its own. Ids
+  are GitHub's anchors for plain headings: a heading holding a link or `_emphasis_` can get
+  an id that differs from GitHub's, and only `#` headings count, not underlined ones (#63).
+- **Recording a round moves the whole-turn reviewers' binding.** Review records were meant
+  to stay off every trigger path, so that recording a round could not send that round's own
+  verdict stale, and no path in the `reviewers` list matches `docs/**`. The `wholeTurn` class
+  (#70) binds each PASS to the whole diff, though, so a record written after a
+  `torvalds-reviewer` or `citation-verifier` PASS sends it stale. `docs/reviews/README.md`
+  gives the order that ends it: record every round, then run the whole-turn reviewers once
+  more over the diff that holds the record, and leave that confirming run out of it. Keeping
+  `docs/reviews/` out of the whole-turn digest would change a verdict, so it needs its own
+  `gate-proposal` and a ramp, and this release does not do it (#64).
+- **"Never an `-- adr:` target" is prose.** The `migrations` gate checks only that the path
+  an `-- adr:` line names exists, so a review record would satisfy it. Restricting it to
+  `docs/adr/` would change a verdict, which also needs its own `gate-proposal` and a ramp
+  (#64).
+- **Two tripwires keep `apply-proposal` human-only, not a control.** Its terminal check
+  passes under anything that allocates a pseudo-terminal, and the bash-guard rule matches the
+  command's text, so an obfuscated spelling evades it, as the guard's own header says of
+  every rule. What does not depend on either: a stale `base` or a dirty target is refused,
+  so the whole-file write cannot silently revert a committed row; the written register is
+  left uncommitted, so `gate-integrity` reds on an escape list until a human commits it
+  (unless the shell has `HARNESS_ALLOW_SELF_EDIT=1`, which skips that check); and the commit
+  lands under CODEOWNERS. `tools/field-notes.json` is not an escape list, so an
+  applied note left uncommitted reds nothing; a note is print-only (#65).
+- **The proposable set is the installer's copy.** `apply-proposal` judges a proposal against
+  the list of the installer version you run, not the install's. A register a later release
+  adds is proposable only with an installer that knows it, and the runbook says to run the
+  installer of the version you installed or a later one. The content is written as given
+  and never reformatted, so a register a proposal leaves unformatted reds `format` after it
+  is applied, and the session brief does not count pending proposals yet (#65).
+- **The eval has one live run behind it, and no baseline.** `--live` ran once, on this
+  release's pins (the proof below). A model's reply is a sample, so one score is one
+  sample: nothing records it as a baseline, and nothing compares two runs. Re-running the
+  eval at each model change, as the model record (#62) invites, is a maintainer's habit,
+  not a check. A score threshold needs its own `gate-proposal` (#66).
+- **A score measures `claude -p --agent`, not a dispatched subagent.** Under `--agent` the
+  reviewer is the session, so the eval reads its final message directly. Whether that
+  session's prompt is byte-identical to the one the Agent tool gives a subagent was not
+  probed (`design/CONTROL-PLANE-FACTS.md` Fact 17, point 6) (#66).
+- **The corpus puts three of the seven reviewers on trial.** The five kinds of change are
+  judged by `security-reviewer` (a table, a function, an Edge Function),
+  `accessibility-reviewer` (a screen) and `torvalds-reviewer` (a web page). The rows of the
+  other four bodies, and `security-reviewer`'s `mutation-rate-limit`, are held to their
+  shape by the factory test, and no case scores them yet. A new case is a new directory
+  (#66).
+- **No gate reads a table in an install.** A reviewer body forked before 1.1.0 keeps its
+  own shape, gets no companion questions and reds nothing for it; `docs-sync` checks no
+  heading. Enforcing the table would change a verdict, which needs its own `gate-proposal`
+  (#66).
+- **The removal test ran on three rules, and `e2ee.md` loads only on a matching read.**
+  `AGENTS.md` lost only the rules it repeated from `security-invariants.md` whose hook deny
+  teaches the fix; every other sentence stays until a later pass names the check and its
+  proof for it. The reading counts a hook deny as a check, as the issue proposed; under the
+  narrower "a gate reds it", all three would stay. `security-invariants.md` and
+  `provenance.md` are unchanged. `e2ee.md` is dropped by compaction until a matching file is
+  read again, which its opening says; each of its bullets names a check that runs whether it
+  is loaded or not. The bullets moved word for word, so one twin they name is still
+  inaccurate: the second credits the `secrets` gate with the `EXPO_PUBLIC_`/`NEXT_PUBLIC_`
+  name shapes, which the two write-guard rules and `expo-policy` hold, and the gate reads no
+  name. Moving the full rule into the module is #86's, at 2.0.0 (#67).
+- **The register checks are stamped, not moved to release time.** Design record N19 left open
+  whether to run them only when a release is cut. They still run at every turn end, riding
+  the stamp when nothing they read changed, and `template/base` has no release checklist to
+  move them to. `check-docs-sync.mjs`, the step's first script, is not stamped (#68).
+- **An existing install's seeded files keep their old text.** The comment of
+  `tools/decision-groups.json` that documents `mandatory`, and the `citation-verifier`
+  sentence in `tools/reviewer-triggers.json`, are seeded, so `update` does not rewrite
+  them. The key works without the comment; the runbook's 1.1.0 section shows it (#69).
+- **Advisory findings reach the model, not the Stop summary.** The hook's
+  `additionalContext` and the gate's ADVISORY lines are the whole report: the Stop hook
+  does not list them on a green turn, and the telemetry counts the per-edit hook's
+  findings, not the gate's tree-wide ones (#69).
+- **The factory adapter reads template/base/ only.** It runs the shipped hook with
+  `template/base/` as its cwd, so an edit under `template/stack/`, `template/modules/` or
+  `template/presets/` is read at a path that does not exist there, and the hook exits 0.
+  Run in a copy of the layout, an uncited `jwtVerify` under `template/stack/` passed at
+  exit 0 while the same file under `template/base/` exited 2. Out of this item's scope,
+  and left for its own issue (#69).
+- **The flag still leaves no trace of its own.** The doctrine now says so instead of calling
+  it auditable. `gate-integrity`'s OK line names the commit rules the flag skipped, but a
+  green Stop hook does not show that line, so the skip is visible only in `pnpm validate`
+  output. The committed diff, reviewed under CODEOWNERS, stays the record (#80).
+- **The lane's first run is red on a real advisory, and this release does not answer it.**
+  GHSA-vcvr-r3jv-pc5j (CVE-2026-94545, Critical, published upstream on 2026-09-22) is
+  remote code execution in the Node.js `ImageResponse` of `next/og` when attacker-controlled
+  data reaches the SVG. It affects `>= 16.2.0 < 16.3.6`, is patched in 16.3.6, and so covers
+  the 16.x floor, 16.3.3, and the catalog pin, 16.3.5; OSV did not list it on 2026-09-30.
+  The template imports nothing from `next/og`, but a consumer may. Raising the floor and the
+  pin, or recording the row with its decision, changes an owned and a seeded template file,
+  and that decision is the maintainer's. Until it is made, every scheduled run of the lane
+  is red on this advisory (#81).
+- **The vendor's upstream range is read only until OSV lists the advisory.** Its
+  `vulnerable_version_range` is free text: comparators joined by spaces, commas that mean
+  "or", x-ranges, `=>`, and an open lower bound whose upper bound sits in
+  `patched_versions`. The lane reads the documented pair, space-joined comparators and
+  comma or `||` alternatives, and a bare exact version; any other shape, in an advisory OSV
+  does not list yet, reds until a person reads the advisory. Once OSV lists it, OSV's
+  normalised ranges decide, and the vendor's text is not read again. An advisory OSV holds
+  only under another id is looked up by its GHSA id, so it is judged on its own range until
+  OSV lists it under that id (#81).
+- **A red lands in the factory, not in an install.** The lane judges the seeds. An
+  existing install learns of a new floor through a harness release, where `update`
+  re-plants the owned `framework-floor.json` and a runbook note carries the seeded pin,
+  and its own `osv-scan` lane covers only its own lockfile (#81).
+- **Each floored package needs a canary and an upstream repository in the lane's map.**
+  `next` has both. A package added to the floor reds the lane until both are added to
+  `scripts/lib/floor-advisories.mjs` (#81).
+- **Nothing checks that a vertical opts in.** A vertical whose `./client` does not name
+  `EVENT_CATALOG` is never imported, and its events stay out of the catalog. A direct run of
+  the generator names it as not catalogued, and `contracts` discards that output. Making the
+  export mandatory would be a new check, which needs a `gate-proposal` of its own (#82).
+- **The compatibility entry lasts until the example leaves.** While an install's root
+  `package.json` lists `@app/notes` and that vertical has not opted in, the generator reads
+  `noteEvents` from `@app/notes/client` as 1.0.x did, with no new check. #85 deletes the
+  entry with the example at 2.0.0. Pulling the new root `package.json` alone with
+  `--refresh-seeded` drops the example's three rows at the next `pnpm gen`, so the runbook's
+  1.1.0 section says to take the `client.ts` line in the same change (#82).
+- **The committed event catalog is still owned.** `update` re-plants
+  `tools/generated/event-catalog.json` wherever an install's copy matches a released sha, so
+  a new platform event would reach installs whose seeded `@app/events` lacks it. Its two
+  generated siblings were made seeded for that reason; doing the same here is a separate
+  item (#82).
+- **A range is judged by its lower bound, not by the lockfile.** `vitest: ^4.1.10` warns
+  even where the lockfile resolved 4.1.12, and nothing reads the lockfile for a floor. The
+  error is always in the safe direction, and the daily `osv-scan` job still judges what was
+  resolved (#83).
+- **A floor is written by hand, one reviewed raise at a time.** Nothing derives a floor from
+  a pin bump, so a later security raise of a seeded pin reaches existing installs only if
+  its release records one. The factory check holds the template's side of each floor, not
+  the decision to write it (#83).
+- **The upgrade lane does not raise a floored pin.** `scripts/ci/upgrade-lane.sh` leaves a
+  pin below a floor as it is, and its legs stay within `doctor` exit 0 or 2. A later change
+  that makes the lane apply floors must rewrite the existing catalog line, not insert a
+  second one as the dependency-obligation applier does (#83).
+- **The workflow rules read YAML's shape, not YAML.** A flow mapping (`jobs: {}`,
+  `steps: []`, an inline `defaults:`), a YAML anchor or alias, or a job key outside
+  `[A-Za-z_][A-Za-z0-9_-]*` is reported as unreadable rather than parsed, so a valid workflow
+  written that way reds until it is written in block style. A runner that comes from an
+  expression other than a literal matrix value (`${{ inputs.os }}`, a `fromJSON` matrix) is
+  not read as Windows, and only Windows is held to audit mode (#73).
+- **`graduate` does not run `workflow-hardening`.** The gate is CI-only, like `web-e2e`, so a
+  project can graduate past 1.1.0 with a workflow finding standing. The job runs when
+  `.harness/manifest.json` changes, so the graduation pull request shows it, and the runbook
+  says to run the gate by hand first (#73).
+- **1.2.0 arrives at 2.0.0 for `workflow-hardening` too.** The deadline is the one #73 fixes,
+  and the 2.0.0 record owes this expiry beside #71's two and #72's. The new job has run
+  under actionlint and zizmor and the gate in rendered scaffolds; no repository has run the
+  job on GitHub yet (#73).
+- **The fold ramp compares finding text.** Numbers are masked, so the policy count in
+  `schema-rls`' missing-`mfa_aal2.test.sql` finding, which moves when a `DROP POLICY` is
+  folded, does not lift that finding. A finding both readings make in other words would read
+  as fold-only and ride the ramp until 1.2.0, and nothing checks for one. A message quoting a
+  predicate an `ALTER POLICY` replaced is a different finding by design: the old one
+  described text the database no longer runs (#75).
+- **`DROP TABLE … CASCADE` clears foreign keys, not every dependent object.** PostgreSQL
+  also drops views, and policies on other tables whose expressions read the dropped table;
+  the fold removes the table's own objects and the foreign keys into it (#75).
+- **Dynamic SQL stays out of reach.** `EXECUTE format('DROP TABLE …')` inside a function
+  body is part of its CREATE FUNCTION statement and folds nothing. That is how the shipped
+  audit and auth-trail partition pruners drop tables (#75).
+- **A renamed table is not followed.** The parser reads no `ALTER TABLE … RENAME TO`, as
+  through 1.0.x, so a later `DROP TABLE` of the new name reads as a drop of a table no
+  migration created and `schema-rls` reports it; a reviewed `tools/rls-exempt.json` entry
+  acknowledges it, as for a table made outside the migrations. That entry exempts the name,
+  so a table a later migration creates under the same name is exempt too, and nothing reds
+  on it; the runbook says to give a new table a new name (#75).
+- **An applied `ALTER POLICY` of a policy made outside the migrations has no escape.**
+  `schema-rls` cannot place it, and no reviewed list acknowledges one before the ramp
+  expires; an exemption keyed on the table would lift every rule for that table. The
+  record that owes this ramp's expiry has to answer it (#75).
+- **The six new ramps also end at 2.0.0 in this lineage.** 1.2.0 is the deadline issue #75
+  fixes, and every comparison is `>=`, so the 2.0.0 record owes these expiries beside #71's
+  two, #72's and #73's (#75).
+- **The grant bound assumes the platform default, and some objects stay outside it.**
+  Sequences, custom roles and views are not folded. `ALTER DEFAULT PRIVILEGES` is not read:
+  an install that narrowed its defaults sees extra findings, and one that WIDENED them in a
+  schema other than `public` holds more than the bound sees, which only the generated pgTAP
+  assertion catches, against a running database (#74).
+- **Column privileges are bounded but not asserted.** The bound counts a column-level grant
+  as held; `has_table_privilege` does not see one, so the generated file has no row for it
+  (#74).
+- **The closure still misreads `WITH GRANT OPTION`.** The POLICY → GRANT closure keeps its
+  own reading of `parseGrants`, which takes `… TO authenticated WITH GRANT OPTION` as a grant
+  to a role of that name, so it reds the policies' grants as missing. That fails closed, and
+  only the bound normalises the statement (#74).
+- **A local stack that has not run the doctrine migration reds the generated assertion.**
+  `supabase start` on an existing volume applies no new migration, so the first `pnpm
+  db:test` after pulling the change reds until `pnpm db:reset`: in the live proof it named
+  the four privileges on `profiles` and `notes`. The red is accurate (#74).
+- **The grant bound's ramp also ends at 2.0.0 in this lineage.** 1.2.0 is the deadline issue
+  #74 fixes, so the 2.0.0 record owes this expiry beside the other 1.2.0-dated ones (#74).
+- **The census records an rpc call, not what the function does.** The body an rpc runs, a
+  raw `postgres()` client beside a builder chain, and the payload of an inserted array,
+  whose keys still read as its indices so that existing manifests keep their bytes, are
+  judged by no rule here (#79).
+- **Four parser limits stand behind the rpc and upsert rules.** `DROP FUNCTION` is not
+  modelled, so a dropped function still resolves; overloads collapse to the last definition;
+  a partial UNIQUE index reads as an arbiter, although ON CONFLICT cannot infer it without an
+  index predicate; and a function with an unnamed input parameter resolves with its
+  arguments unjudged. A quoted mixed-case parameter name reads folded, because the statement
+  splitter drops the quotes. `parseFunctions`' own `name` still reads the `IN` of `INOUT x`,
+  or of a name such as `invite_rank`, as a mode; the gate reads each declaration itself, and
+  the gates that read `name` are unchanged (#79).
+- **No shipped manifest carries an rpc or upsert row.** The web app's two tenancy RPCs are
+  called from Server Actions, not from a vertical's DAL, and the push-notifications slice
+  that upserts has no query-probes file, so the rules are proven on fixtures (#79).
+- **The expressions and `site` entries leave at 1.2.0, which arrives at 2.0.0 here.** Both
+  i18n ramps take the deadline issue #76 fixes, the next minor. This lineage cuts 2.0.0
+  directly after 1.1.0, so the 2.0.0 record owes both expiries, and that release removes
+  the regular expressions, once the scanner's fixture-parity test is still green, and the
+  `site` shape, or re-opens the ramps as reviewed `rampExtensions` entries (#76).
+- **The walk reads literals, not values.** A string reached through a variable, a
+  conditional, a concatenation or a helper is invisible to both scans, as it was to one;
+  the pseudo-locale lane is still the check that is complete (#76).
+- **Without `typescript` the walk does not run.** Locally the step says so, judges with
+  the expressions alone, and cannot tell a key that matches none of their findings from a
+  stale one; only CI fails closed. Every release's root `package.json` lists `typescript`,
+  so an installed tree has it (#76).
+- **A key names its text.** Editing an allowlisted string, or moving it to another file,
+  reds the old key as stale and the string as new, by design: the entry was reviewed for
+  that text in that file (#76).
+- **The web-e2e lane is still red on a zero-edit scaffold, on a spec this release did not
+  touch.** Run against a local stack with the declarations built, the lane passed 14 of 15:
+  both new specs and the three authenticated ones, but `security-headers.spec.ts`'s "the CSP
+  does not block the page it protects" collected `script-src blocked eval` twice. zod 4's
+  `allowsEval` probe calls `Function("")` inside a `try`, and the browser reports the
+  blocked call as a CSP violation even though zod catches it (zod's own source says so:
+  `z.config({ jitless: true })` skips the probe). The fix is a decision about the seeded app
+  and its CSP suite, not about this step, so it is left open (#77).
+- **The `ci-web-deploy` module's `attest-web` job cannot build either.** It has the TS6305
+  gap the two base jobs had, and it also publishes only the `NEXT_PUBLIC_*` half of the
+  environment `next build` parses. Fixing one without the other would not make that lane
+  pass, so the new factory rule covers base workflows only and names this job (#77).
+- **The browser closure reads text.** It proves a spec names one state test id per route,
+  not that the spec asserts that state or that it passes; the `web-e2e` lane runs every
+  spec, and is path-filtered. A route needs one named id, not all of them (#77).
+- **deno is a prerequisite the job installs, not a dependency.** It is not in the catalog,
+  so no install carries its binary and `doctor` asks for nothing, and locally the gate
+  SKIPS until you install deno yourself. The binary comes from the SHA-pinned
+  `denoland/setup-deno` action, not from a lockfile hash, and its version lives in
+  `quality-gate.yml` (and, for the factory's own lanes, in `selftest.yml`, which a test
+  holds equal) (#78).
+- **A handler's test file is typechecked by nothing.** `deno check` follows `index.ts`'s
+  graph, which reaches the handler and not its suite, `tsc -b` does not reach
+  `supabase/`, and vitest strips types (#78).
+- **Your own Edge Functions meet the new lint rules at once.** The dated exemption covers
+  only the seeded delete-account `index.ts`. A function you wrote that calls
+  `getSession()`, reaches `crypto.subtle`, or has a function over complexity 15 reds `lint`
+  on the first run after `update`. The first two are the rules working; for a webhook that
+  verifies an HMAC signature, `crypto-primitives-one-door` has no sanctioned home in
+  `supabase/functions` yet, so such a function reds with no escape but an inline
+  suppression the census must accept (#78).
+- **Only `deno.json` is held to exact versions.** An inline `jsr:`/`npm:` specifier with a
+  range in a function's source, like the 1.0.x `jsr:@supabase/supabase-js@2`, is pinned
+  only by the frozen lock (#78).
+- **A function directory is measured only once it holds a vitest suite.** A helper tested
+  only through a handler in another directory (a `_shared/` file with no suite of its own)
+  is named by `diff-coverage` and refused by the mutation scoper until `_shared/` has a
+  suite (#78).
+- **The four new ramps and the lint exemption end at 2.0.0 too.** The deadline is the one
+  issue #78 fixes; the 2.0.0 record owes the four expiries and the removal of the exemption
+  line, beside the other 1.1.0 ramps due at 1.2.0. The `edge-functions` job itself runs only
+  in a project's own CI; the factory runs its gate through Canary 38 and the `bootstrap-linux`
+  check in `selftest.yml` (#78).
+- **Two records written together still vouch for each other.** Anyone who can rewrite both
+  the manifest and an owned `tools/` file can forge both witnesses of a plant; that is the
+  trust level of `gate-integrity`'s hash check (#84).
+- **A placeholder-bearing list is derendered with the manifest's own answers.** They come
+  from the file the plant check distrusts, the limit 1.0.2 states for `update` (#84).
+- **Any release's variant counts.** An older and wider list that a past release planted is
+  still a plant, and commits below the lineage floor have no table at all (#84).
+- **The threshold-config rule still trusts the record alone.** Sub-check 3b reads a dirty
+  config whose sha matches its manifest record as a harness refresh, so a re-recorded sha
+  over a lowered floor passes it as before (#84).
+- **The newest planted maps hold the trees they were built from.** 1.0.4's comes from the
+  v1.0.4 tag's tree and 1.1.0's from the `--current` run of the change that added the map. An
+  escape list that an earlier commit of either release planted and a later one changed is
+  missing from them until `--all` runs over `main` after these changes merge. Today that is
+  the `tools/reviewer-triggers.json` that #70 shipped and #69 replaced: an install scaffolded
+  between those two merges that never committed the file would read it as unplanted (#84).
+- **The planted-list ramp also ends at 2.0.0 in this lineage.** 1.2.0 is the deadline issue
+  #84 fixes, so the 2.0.0 record owes this expiry beside the other 1.2.0-dated ones (#84).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -362,8 +1457,9 @@ this heading if none does. -->
   `SWEEPS` had no `'1.1.0'` entry. After the fixed cost each is clean. `upgrade-linux` ran
   locally four times, on three legs. Leg A, from v1.0.3 and from v1.0.4, parked the uuid
   fix, took the harness's register and graduated un-swept to 1.1.0. Leg M, from v0.11.0,
-  met the seven expiries and nothing older: `docs-sync`'s gate list printed `RAMP EXPIRED`,
-  the other five gates had nothing to withhold, and `graduate` refused on the red chain.
+  met the seven expiries and nothing older: `docs-sync`'s gate list printed `RAMP EXPIRED`
+  (at the release it prints a NOTE instead, because #77 re-opens that site), the other five
+  gates had nothing to withhold, and `graduate` refused on the red chain.
   Leg E, from v0.3.0, ran the 1.0.0 sweep and `graduate` moved it to 1.1.0. A v1.0.4
   scaffold updated without the register pull printed the arrival as a NOTE that expires in
   1.2.0, and at a simulated harness 1.2.0 as `RAMP EXPIRED`; `update --refresh-seeded
@@ -456,6 +1552,418 @@ this heading if none does. -->
   for `gate-integrity` printed one line after its FIX line, its newline collapsed and its
   ESC bytes removed, and an invalid file printed the one invalid-JSON line there instead;
   each run's output was otherwise byte-identical to the run without a file (#61).
+  For the model record, the Fact 16 probe ran first, in six print-mode runs against Claude
+  Code 2.1.285: an alias pin, a per-invocation `model` and `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`
+  each left the model that ran at `message.model` on the transcript's assistant lines; a
+  pin that answered HTTP 404 ended the subagent with no SubagentStop, and under a fallback
+  chain the same pin produced an ordinary PASS from the fallback. Then 25 new cases were red
+  before the change: the hook's entry carried no `model` or `pinned`, the step passed a
+  security reviewer's PASS on a model off its list and named nothing, the lib helpers and
+  the roster exports did not exist, `docs-sync` and the plugin-manifest mirror had no list to
+  judge, and a green Stop printed nothing on stdout; two more asked the "did not run" red to
+  name the list, and two asked that a model value with a newline, a space or over 200
+  characters be no model at all. After the change each security-reviewer red runs, under both judgements, as
+  a plain red on a fresh or 1.1.0 manifest, a NOTE on 1.0.3 and `RAMP EXPIRED` at harness
+  2.1.0, and the three `ramp-ledger` pins that read the current fleet name the new site. A
+  listed fallback and another reviewer's PASS off its list are green and named, a re-run on
+  the pin clears an off-list PASS, a transcript in the observed shape records the model that
+  ran even when its model attachment names the pin, and a green Stop's `systemMessage`
+  carries each line (#62).
+  For the severity contract and the round budget, the tests-only commit was red on 28
+  cases. The thirteen helper cases of `tests/gates/severity-contract.test.mjs` could not
+  reach the helpers (`roster.severityContract is not a function`); `docs-sync` printed OK
+  over a `security-reviewer.md` with no `Blocking:` line; the hook exited 0 on a PASS that
+  listed `- [HIGH] supabase/migrations/x.sql:3 — …`, and its ledger entry had no `round` or
+  `blocking`; and with three BLOCKs from one run and then its PASS, the Stop step printed
+  "OK — 3 owed reviewer(s) each have a counted PASS at the current tree". After the change
+  each case is green: the hook exits exactly 2 on that PASS and 0 on the same reply once
+  the body's `Blocking:` line is gone, each budget red runs as a plain red where it is live,
+  a NOTE on a 1.0.3 manifest and `RAMP EXPIRED` at harness 1.2.0, and the three
+  `ramp-ledger` cases that read the current fleet at older versions name the two new sites.
+  Two more cases were red first on top of the model record: with no merge base the budget
+  reded a loop the 1.0.x judgement had closed (a BLOCK, then two fresh runs' PASSes on
+  later prompts), and a spent budget left the reviewer's model finding beside its own; both
+  are green once the budget judges only v2's change set and replaces that finding too
+  (#71). For the verdict demand, the tests-only commit was red on 10 cases: the v1.0.1
+  shape and a paragraph after the demand each exited 0 with `docs-sync: OK`, a body with no
+  demand printed the old failure text, the ramp printed neither its NOTE nor its
+  `RAMP EXPIRED` banner and the same shape on a 1.1.0 base passed, a parked fork of the lib
+  named only the severity contract, and the helper did not exist, so its two table tests and
+  the factory test failed (`rosterLib.verdictDemandProblem is not a function`). After the
+  change every case passes, `check-ramp-ledger` and `check-obligations` are clean with the
+  new site and its row, and the `ramp-ledger` pins that read the current fleet at older
+  versions name the new site (#72). For the spec anchors,
+  `tests/gates/spec-anchor.test.mjs` could not load before `tools/lib/spec-anchor.mjs`
+  existed. With the resolver in and the old template, the template's id list held only
+  `spec-feature`, and the cases for the prompts, the SOP and the conformance-map notes were
+  red. A case added in review was red first as well: a heading inside an HTML comment got an
+  id. After the change every case passes, a symlink out of `specs/` included on POSIX, and
+  the lib's line, branch and function coverage is complete. In a zero-edit core scaffold
+  whose `validate --report-all` passed, `node tools/spec-anchor.mjs specs/_template.md`
+  printed the index, `#security-invariants` printed that section, `#no-such-id` exited 1,
+  `../package.json` exited 2, and the tree stayed clean (#63).
+  For review records, the new `fileMode` assertion was red first, and so were both new
+  lifecycle cases, before the README existed and again with it in the template but not in
+  `SEEDED_FILES`: `update` then recorded the planted copy `owned`, and over a project's own
+  copy with no record it exited 2 and parked the incoming one. Four of the six cases of
+  `tests/gates/review-records.test.mjs` were red before the README and the pointers existed,
+  and `check-seeded-migrations` reported the README neither withheld nor planted until its
+  `DELIBERATE_PLANT` entry. A v1.0.3 and a v1.0.4 install updated by this installer each
+  exited 0 with the README planted byte-identical to the template and recorded `seeded`, the
+  four owned files naming `docs/reviews/` and `AGENTS.md` untouched; `prompts`, `docs-sync`,
+  `gate-integrity` and `provenance` were green on both. A v1.0.3 install holding its own
+  `docs/reviews/README.md` kept it byte-identical through `update`, which exited 0 and parked
+  nothing. In a zero-edit core scaffold, which carries the README, `validate --report-all`
+  exited 0 with no step left unrun, `secrets` and `provenance` among its green steps (#64).
+  For the proposal flow, `tests/installer/apply-proposal.test.mjs` could not load before
+  `installer/commands/apply-proposal.mjs` existed; the bash guard let every
+  `apply-proposal-invocation` deny canary through, and the canary closure named a canary
+  with no rule; the write guard's tamper deny named no flow; `cli-docs-sync` with its
+  command class widened to `[a-z][a-z-]*` found no hyphenated command, then, with the verb
+  dispatched, reported that `docs/cli.md` never mentioned it; and
+  `check-escape-registry.test.mjs` could not import `reconcileProposable`. After the change
+  each is green: every refusal writes nothing, asks nothing and keeps the proposal, an edit
+  or a proposal rewrite made while the prompt waits is neither overwritten nor applied,
+  `doctor` names a staged and a broken proposal as `info` with its exit code unchanged, the
+  fourth list reds on drift in each direction and on a generator-written baseline, and an
+  agent's Write of `harness-proposals/<id>.json` passes the write guard and matches no
+  settings deny. In a zero-edit core scaffold, a proposal for `tools/i18n-allow.json`
+  written the way the docs say, left untracked, kept `validate --report-all` at exit 0 and
+  `doctor` at exit 0, which listed it as `info`. With no terminal the verb refused it; run
+  through `script` for a pseudo-terminal it printed the reason and the diff, wrote the
+  register once its path was typed, and deleted the proposal. With
+  `HARNESS_ALLOW_SELF_EDIT` unset, `validate --report-all` then failed on `gate-integrity`
+  alone, naming the uncommitted register. After the commit, with a second proposal staged
+  for `tools/field-notes.json`, it exited 0 with no step left unrun (#65).
+  For the companion tables and the eval, the tests-only commit was red on 29 of the 31
+  cases of `tests/gates/reviewer-companions.test.mjs`: no in-scope body had the heading, and
+  `security-reviewer` had no `table-authenticated-revoke` row and still said "Two sections."
+  `tests/gates/reviewer-eval.test.mjs` could not load, because `scripts/reviewer-eval.mjs`
+  did not exist. After the change the 43 cases of the two files pass, beside
+  `check-reviewer-verdicts.test.mjs` and `check-docs-sync.test.mjs`, and `node
+  scripts/reviewer-eval.mjs --check` applies all ten cases to a fresh core-tier install and
+  prints OK. The Fact 17 probe ran first, in five print-mode runs against Claude Code
+  2.1.285. A pinned agent ran as the session, with its body, its tool list and its pin; a
+  `--model` flag overrode the pin; an install's hooks fired until `disableAllHooks` stopped
+  them; and an agent that does not exist ended the run with exit 1. A v1.0.4 install updated
+  by this installer re-planted the seven bodies and `docs/harness/README.md`, re-recorded
+  the lock entries of every agent-surface file it rewrote, and stayed green on `prompts`.
+  One whose `security-reviewer.md` had been edited kept that copy, got the new one under
+  `.harness/pending/`, and `update` exited 2. Copying the section into the fork as the
+  runbook says, then re-locking, turned `prompts` green with the fork's own line kept.
+  One `--live` run on this release's pins, against Claude Code 2.1.285, scored 10/10:
+  each reply ran on its reviewer's pin, every absence case ended `VERDICT: BLOCK` and named
+  its row id, and every control twin ended `VERDICT: PASS` (#66). For the always-loaded
+  context, `tests/installer/rule-files.test.mjs` was red on three of its six cases before
+  the change: `encryption.md` named no scoped rule, `.claude/rules/e2ee.md` did not exist,
+  and the skill's Step 0 named neither file. With the stub, the scoped rule, the skill
+  pointer and the doctrine line in, all six pass, and with `encryption.md` moved aside the
+  citation case reds naming `guard-rules.mjs`. The seven bullets in `e2ee.md` diff clean
+  against the ones they replaced, and `gen-conformance-docs --check` reported the crosswalk
+  and the threat model in sync after the notes changed. An `update` from a v1.0.4 core
+  install planted `e2ee.md`, re-planted the stub and the skill, re-recorded the skill's
+  `tools/agents.lock.json` entry with `prompts` green, and left `AGENTS.md` as it was. With
+  `encryption.md` edited and a file of the project's own at `e2ee.md`, both were kept, the
+  incoming copies were parked, and `update` exited 2. A zero-edit core scaffold and one made
+  with `--modules e2ee` each validated green (#67).
+  For the register stamps, the tests-only commit was red on 33 cases: over a seeded stamp
+  and an empty register each script still printed `declares no requirements` and exited 1,
+  a green run over the shipped register recorded no `.harness/<gate>.ok`, and the
+  membership test in `tests/gates/gate-helpers.test.mjs` found no list for either gate. The
+  `CI=true` cases were green before and after, as they must be. After the change every case
+  is green. Consulting the stamp before the negative proof turns the storage, upload and
+  green-run cases red again, and dropping the guard for a register with no list for the
+  gate throws `TypeError: paths is not iterable`. In a zero-edit core scaffold the first
+  `validate --report-all` judged both scripts and the second printed both `STAMPED` lines;
+  with `HARNESS_REQUIRE_TOOLCHAINS=1` each printed its full summary, and on the warm stamp
+  an `expo-document-picker` import under `apps/mobile/src`, and then
+  `[storage] enabled = true`, each made `essential-eight` exit 1 naming the finding. A
+  v1.0.4 core install updated by this installer exited 0 and stamped both on the second
+  run; one whose `tools/lib/stamp-inputs.mjs` had been edited kept it, parked the new one,
+  exited 2, and judged both scripts in full on every run (#68).
+  For the provenance advisory split, the tests-only commit was red on 12 cases. The three
+  advisory greens printed `3 decision site(s) lack an inline` and exited 1, a wrong-group
+  cite on a `timeoutMs` red naming `decision group 'tuning-constants' is not justified`,
+  and `"mandatory": ["x"]` and a non-array `mandatory` each printed `provenance: OK`,
+  because the key was ignored. `tests/gates/provenance-rules.test.mjs` could not load
+  (`does not provide an export named 'ADVISORY_DECISION_GROUPS'`). The hook exited 2 on an
+  uncited `USING hnsw`, wrote no advisory event, and did not mark the advisory site in a
+  mixed file; and the new `tests/hooks/posttool-factory-check.test.mjs` showed the adapter
+  dropping a stub hook's stdout (`stdout: ''` for `OUT apps/server/src/x.ts`) while it
+  forwarded the stderr and exit 3. After the change each case is green, and so are the
+  reds that were already red and must stay so: `runtimeVersion`, `jwtVerify` beside
+  `timeoutMs` on one line, a promoted `timeoutMs`, a project-added group with its corpus
+  coverage in place, and `// SOURCE: trust me` above a `timeoutMs`. The rendered scaffold
+  in `check-sources.test.mjs` passes and prints no `ADVISORY` line. The channel the hook
+  now speaks on was probed first (`design/CONTROL-PLANE-FACTS.md` Fact 18): in print mode
+  against Claude Code 2.1.285, a PostToolUse hook's `additionalContext` at exit 0 reached
+  the model, which quoted it, and the 2.0.0 bundle validates and applies the field, below
+  the 2.1.163 floor, so `tools/cc-floor.json` does not move. In a zero-edit core scaffold
+  `validate --report-all` was green and printed no `ADVISORY` line, and the issue's probes
+  ran there: an uncited `timeoutMs` in `apps/web/lib/n20a.ts` printed
+  `provenance: ADVISORY (1) — apps/web/lib/n20a.ts:1 [tuning-constants]` and exited 0, the
+  hook answered the same file with the `additionalContext` object at exit 0, an uncited
+  `jwtVerify` beside it exited 1, and `"mandatory": ["tuning-constants"]` made the
+  `timeoutMs` alone exit 1. Canary 4, stripping the citations from the notes migration, still
+  reds. A v1.0.4 core install updated by this installer exited 0 and behaved the same with
+  its seeded `tools/decision-groups.json` still carrying the old comment; adding
+  `"mandatory": ["x"]` to that file failed the gate and the hook closed. One whose
+  `tools/lib/provenance-rules.mjs` had been edited kept it, parked the new copy and exited 2,
+  and there the same `timeoutMs` still failed the gate and made the hook exit 2: under a
+  parked fork every class stays mandatory (#69).
+  For the self-edit flag, the tests-only commit was red on 8 cases. The four
+  section cases of `tests/gates/self-edit-docs.test.mjs` found no section, the Stop-hook
+  cost case found no heading of that name, and the pointer case found no pointer in the
+  catalog. On a git-backed scaffold with the flag set, the OK line read `baseVersion 1.1.0
+  never regressed; 42 escape list(s) clean; 25 threshold config(s) committed`, and the
+  shared fixture, with no git work tree, printed the same three clauses. The case that pins
+  today's behaviour was green before and after: under the flag an uncommitted
+  `tools/rls-exempt.json` widening and `vitest.config.ts` edit pass, while an appended line
+  in `tools/check-migrations.mjs` and a floored step deleted from `STOP_HOOK_STEPS` each
+  exit 1. With v1.0.3's `tools/check-gate-integrity.mjs` swapped in, that case was green
+  too, and the two OK-line cases red. After the change the 23 cases of the two files pass,
+  and dropping `apply-proposal-invocation` from the section, or adding a reader of the flag
+  to a shipped gate, turns the docs test red. A zero-edit core scaffold validated green, and
+  run from a session that had the flag set, its OK line named both commit rules `not run`.
+  A v1.0.4 core install updated by this installer exited 0 with the four files re-planted,
+  and its OK line read `41 escape list(s) clean` without the flag and named both rules
+  `not run` with it; one whose `docs/harness/README.md` had been edited kept it, parked the
+  new copy and exited 2 (#80).
+  For the advisory lane, `tests/gates/floor-advisories.test.mjs` could not load before
+  `scripts/lib/floor-advisories.mjs` existed. With the script and the lib in, its one
+  remaining red was the job-shape case, until `hygiene.yml` had the job. The first
+  dispatched run of the job on the branch (hygiene run 36711735348) then read the vendor's
+  listing and failed on every advisory whose range was free text, on those whose open lower
+  bound read as covering patched probes, and on GHSA-vcvr-r3jv-pc5j. OSV listed every one
+  of them except the last, and matched none of them to a probe. The cases for letting OSV
+  decide what it lists were red before that change. After it every case passes, and
+  `check-canary-coverage` runs the file for both registry entries. Against live OSV and
+  the listing rebuilt from that run's log, the one failure left was GHSA-vcvr-r3jv-pc5j on
+  16.3.3 and 16.3.5, and the second dispatched run (hygiene run 36713025908) failed on that
+  advisory alone, naming its CVE alias, its date after `reviewedOn`, the floor and the pin,
+  while every other job of the workflow passed. The third (hygiene run 36714772895), after
+  one listing's OSV lookups were sent together, printed the same single failure (#81).
+  For the event-catalog discovery, the tests-only commit was red on 12 cases.
+  `tests/gates/event-catalogs.test.mjs` could not load before `tools/lib/event-catalogs.mjs`
+  existed. `tests/gates/gen-event-catalog.test.mjs`, which runs the shipped generator with
+  plain node over fixture installs, passed only on the 1.0.x shape: the fresh-scaffold tree,
+  the adopted tree, proofs B, C and D and a newly opted-in vertical each threw on the
+  hard-coded `@app/notes/client` import, and its four source pins failed. The contracts case
+  of `tests/gates/gate-helpers.test.mjs` found no `package.json` among the stamp inputs.
+  After the change the 42 cases of the two new files pass. All three kinds of tree
+  regenerate the committed five rows byte for byte, a vertical whose `EVENT_CATALOG` is `42`
+  fails closed naming its file, one that names it only in a comment is listed as not
+  catalogued, a tree without the example writes the two platform rows, and a vertical that
+  opts in is catalogued with no edit to the generator. On a core-tier scaffold rendered by
+  v1.0.3, `--check` was in sync, and proof D, the example moved aside, threw
+  `Cannot find package '@app/notes'`. On a fresh core-tier scaffold rendered from this tree,
+  `--check` printed `tools/generated/event-catalog.json: in sync (5 events)` and nothing
+  else, and a zero-edit `validate --report-all` was green, `format`, `contracts` and
+  `dead-code` included. Proof A: with `client.ts` back on `export { noteEvents }` and
+  `@app/notes` in the root devDependencies, `--check` and `contracts` stayed in sync, and
+  with the `EVENT_CATALOG` line restored beside that dependency `--check` stayed in sync
+  with no duplicate. Proof B, a probe vertical whose `EVENT_CATALOG` is `42`, exited 1
+  naming `packages/verticals/probe/src/client.ts`; proof C, the name only in a comment,
+  printed `@app/probe is not catalogued` and stayed in sync; proof D wrote the catalog with
+  exactly the three `notes.*` rows removed. Proof D runs the generator directly: through
+  `pnpm exec`, pnpm's pre-run dependency check re-installs the changed workspace, and that
+  install fails while `packages/api` and `apps/web` depend on the missing vertical. The two
+  new `day0-empty-states` steps, replayed on that scaffold, passed, and with the v1.0.3
+  generator swapped in both failed. `update` from the v1.0.3 render exited 0, wrote the
+  generator, the library, `tools/lib/stamp-inputs.mjs`, the scaffolder and `dal-dto.md`, and
+  parked none of them. On the updated tree, whose `client.ts` and root `package.json` kept
+  their 1.0.3 bytes, the compatibility entry applied, `--check` was in sync, `contracts`
+  passed and `knip --strict` exited 0. There, moving the example aside still threw on the
+  old import, as under 1.0.x, and dropping `@app/notes` from the root in the same change
+  wrote the two platform rows. The same render with its generator edited kept the edit,
+  parked the new one at `.harness/pending/tools/gen-event-catalog.mjs` and exited 2.
+  `scripts/ci/upgrade-lane.sh` from v1.0.3 and from v1.0.4 each ended OK on 36 steps with
+  `contracts` and `dead-code` green, the generator delivered at this tree's bytes and
+  nothing parked (#82).
+  For the catalog pin floors, the tests-only commit was red on 22 cases.
+  `tests/installer/catalog-pin-floors.test.mjs` found no `unmetCatalogPinFloors` or
+  `applyCatalogPinFloors` export and no 1.1.0 floor, and on a real scaffold with both pins
+  lowered to 4.1.10, `doctor` printed `doctor: CLEAN` and exited with 0. The rollback snapshot
+  had no entry for `.harness/pending/pin-floors.json`, `check-dependency-channel` exited 0
+  over a malformed floor and over a template pin below its floor, and the SessionStart brief
+  counted the parked file as an upgrade (`parked: 1001`). After the change each case is
+  green, and so are the dependency and source-fix channel suites beside them. A v1.0.2 core
+  install updated by this installer exited 0, printed a `CATALOG PIN FLOOR (1.1.0)` note for
+  each package and parked both floors; `doctor` then warned on both with no `ERROR`, and with
+  the pins raised by hand it removed the parked file. A v1.0.3 install updated the same way
+  got no note and no file. Through the probe as 1.0.4 shipped it, a double-quoted
+  `"@vitest/coverage-v8": 4.1.10` read as absent, so no floor was judged, and a double-quoted
+  obligation key read as unmet; both cases, and the one-home anchor case, were red until
+  `catalogEntry` took either quote. A `catalogPinFloors` value that was not a list crashed
+  `check-dependency-channel` with a `TypeError` until it was named as a problem (#83).
+  For the project workflow rules, the tests-only commit could not load the missing library;
+  with a stub that exported its names and no rules, 25 of the 35 cases in the two workflow
+  test files failed while both bash controls passed: the shipped `harden-runner-coverage`
+  loop exited 0 on the issue's fixture, with no output, and on each of the seven shapes it
+  misses. After the change the 47 cases of the issue's three test files pass. `init` of each
+  tier followed by `node tools/check-workflow-hardening.mjs` printed OK over 9, 14 and 19
+  workflows (32, 42 and 49 jobs). In the core scaffold, moving harden-runner below
+  `checkout` in `gitleaks.yml`, deleting `quality-gate.yml`'s `defaults:` block, or deleting
+  `adr-guard.yml`'s `timeout-minutes` each exited 1 naming the file or `<file>#<job>`, and
+  actionlint and zizmor report nothing on the rendered `actions-lint.yml`. A v1.0.4 core
+  install updated by this installer exited 0 with both files planted and the new job in
+  place; with the issue's fixture added the gate printed four `NOTE — (ramp)` lines that
+  expire in 1.2.0 and exited 0, and at a simulated harness 1.2.0 it printed `RAMP EXPIRED`
+  and exited 1. One whose `actions-lint.yml` had been edited and its sha re-recorded kept it,
+  parked the new copy and exited 2 (#73).
+  For the history fold, the tests-only commit was red on 51 cases. All 18 of the new
+  `tests/gates/sql-parse.test.mjs` failed (`sql.parseLivePolicies is not a function`, and a
+  `RESTRICT` drop and a partitioned parent left their tables in place). `schema-rls` printed
+  OK over `ALTER POLICY thing_select_own ON public.thing USING (true)`, reded a created then
+  dropped table as undeclared, and passed a dropped and re-created table on its old
+  policies, grant and index; `tenancy` passed an `ALTER POLICY` to `org_id = (SELECT
+  auth.uid())` and a dropped table's `untenantedTables` entry; `migrations` passed an
+  `ALTER POLICY` with no ADR; `data-flow`, `db-limits` and `query-shapes` passed a dropped
+  table's reviewed entries, triggers and index. After the change every case is green, each
+  fold-only red runs as a NOTE on a 1.0.3 manifest at harness 1.1.0, `RAMP EXPIRED` at
+  1.2.0 and a plain red with no manifest, and a red both readings make stays hard on the
+  1.0.3 manifest. Cases added with the two refinements pin them: an applied drop of a table
+  made outside the migrations, exempted with a reason, is green, and in
+  `tests/gates/sql-fold-ramp.test.mjs` a finding whose count the fold moved stays hard while
+  a twin that exits before reporting lifts nothing. One existing red changed its text and
+  not its exit: the shipped-tree case that deletes the notes grant now names
+  `notes_select_org`, because the shipped `notes_org_scope` migration drops
+  `notes_select_own`. `check-ramp-ledger` and
+  `check-obligations` are clean with the six sites and their row, and the `ramp-ledger` pins
+  that read the current fleet at older versions name them. On PostgreSQL 17.6 (the
+  `supabase/postgres` 17.6.1.171 image), each clause of `ALTER POLICY` alone kept the
+  others, `RENAME TO` changed only the name, an `ALTER POLICY` of a missing policy and a bare
+  `DROP TABLE` of a missing table failed, a `RESTRICT` drop of a referenced table failed, a
+  `CASCADE` drop removed the referencing foreign key and kept its `NOT NULL` column, a
+  partitioned parent took its partition, and a re-created table had no policies; the parser
+  read the same history to the same state. A zero-edit core scaffold rendered from this tree
+  passed `validate --report-all` with all six gates OK (#75).
+  For the grant bound, the tests-only commit was red on 42 cases: all 25 of the new
+  `tests/gates/table-grants.test.mjs`, and 17 in `tests/gates/check-rls-manifest.test.mjs`.
+  `schema-rls` printed OK over the shipped tree without
+  `20260920000000_authenticated_write_revoke.sql`, over `GRANT ALL`, a grant behind a deny-all
+  policy, a schema-wide `REVOKE` before a later `CREATE TABLE`, a table that never revoked
+  from `service_role` and a stale allow row, and over the `TO PUBLIC` grant it now reports
+  for `anon`; `WITH GRANT OPTION` redded only as four missing grants, the closure reading the
+  role list as one role. After the change every case is green: the shipped tree without the
+  new migration names `profiles` and `notes` and nothing else, and without the 1.0.2 one
+  names the seven read-only tables. Against a local stack of Supabase CLI 2.118.0
+  (PostgreSQL 17), after `pnpm db:reset`, the generated assertion passed over 312 rows
+  (13 tables, three roles, eight privileges); with an injected
+  `GRANT TRUNCATE ON public.notes TO authenticated` it failed naming exactly
+  `(public.notes,authenticated,TRUNCATE,f)`, and without the new migration it failed on the
+  four privileges of `profiles` and `notes`, which shows the local stack applies the default.
+  The upgrade lane's swept leg from v0.3.0 met the bound and the doctrine as 16 `NOTE —
+  (ramp)` findings on eight tables; its sweep wrote the printed statements into a migration
+  of the leg's own and ran the generator, and `graduate` advanced `baseVersion` 0.3.0 to
+  1.1.0. A zero-edit core scaffold rendered from this tree passed `validate --report-all` with
+  `schema-rls` OK (#74).
+  For the rpc and upsert rows, the tests-only commit was red on 18 of the 45 cases of
+  `tests/gates/check-query-shapes.test.mjs`: ten threw `db.rpc is not a function`, the two
+  upsert recorder cases found `op: "select"` and an empty payload, `parseIndexes` marked no
+  primary key, and each of the five upsert gate fixtures redded with `uses .upsert()` and
+  OFFSET advice, the tenant ones also with `select on tenant table "notes" with no org_id
+  equality`. The arbiter finding's advice was red on three more assertions before it was
+  fixed: on `notes` it proposed `CREATE UNIQUE INDEX notes_id_key ON public.notes (id)`,
+  which `tenancy` reds. After the change the file's 47 cases pass: an rpc row carries its
+  argument names and not the value, the four 1.0.x row kinds keep their exact key list,
+  renaming the function in the fixture migration reds naming `public.accept_invitation` and
+  PGRST202, a missing or unknown argument name reds naming it, dropping the unique index an
+  upsert names reds naming `ON CONFLICT (handle)`, and an upsert with no `onConflict` on a
+  table whose primary key is the named constraint `notes_pk` passes, served by `notes_pk`.
+  In a rendered core scaffold, a scratch vertical whose DAL calls
+  `rpc('accept_invitation', { p_token })` and upserts into `notes` twice made
+  `tsx tools/gen-query-shapes.mjs` throw `TypeError: db.rpc is not a function` with the
+  recorder as it stood before this change. With it, the manifest gained those three rows,
+  no notes row changed, and `query-shapes` passed with
+  `-> rpc public.accept_invitation` and `-> ON CONFLICT notes_pkey`. It then redded on each
+  injected fault: `{ token }` for `{ p_token }`, an upsert with no `org_id`, and
+  `onConflict: 'id'`, for which it named `notes_pkey (org_id, id)`. A zero-edit core
+  scaffold rendered from this tree passed `validate --report-all` on 36 steps, where
+  `contracts` regenerated its seeded manifest byte-identical and `query-shapes` was OK (#79).
+  For the i18n syntax-tree walk, the tests-only commit was red on 14 cases. The four shapes
+  each printed `i18n: OK … no hardcoded copy`, a `key` entry was refused as malformed
+  (`every entry must be { "site": "file:line", … }`), a `site` entry muted its line on a
+  fresh tree, no output said the walk had not run, and `tests/gates/i18n-tree.test.mjs`
+  could not load the lib. After the change each case is green: the walk alone finds every
+  string the gate's fixtures red and none of its not-copy fixtures, each ramp runs as a NOTE
+  on a 1.0.3 manifest, a plain red with none and `RAMP EXPIRED` at harness 1.2.0, and a
+  copy of the gate where `typescript` cannot resolve reds on the expressions, says the walk
+  did not run, and exits 1 under `CI=true`. In a checkout with no install, as
+  `installer-unit` runs, the walk's 25 tests skip by name and the `template/base/tools/lib/**`
+  floor holds. The walk finds nothing in the template's `apps/` source, nor in that of any
+  tag from v0.6.0 through v1.0.4; with both surfaces' catalogs adopted, every string it finds
+  in v0.1.3 through v0.5.0 is one the expressions already report. On a zero-edit core
+  scaffold the step passed with the walk run, and Canary 34's file made it exit 1 naming
+  `"Close dialog" (accessibilityLabel attribute)` where the 1.0.x step printed OK. On a
+  v1.0.4 install updated by this tree, the same file and a `site` entry on its line printed
+  the two ramp NOTEs and exited 0 (#76).
+  For the web compile step, the tests-only commit was red on 22 cases: fourteen of the new
+  `tests/gates/check-web-build.test.mjs`, all but the placeholder table's own (the script did
+  not exist), seven new cases of `tests/gates/check-web-routes.test.mjs` (a route no spec
+  names and a spec that names an id only in a comment each printed `route-manifest: OK`), and the
+  `gate-helpers` membership case (no `web-compile` entry). The `workflow-lanes` rule for the
+  two web jobs was red on the old `quality-gate.yml`, naming `web-e2e`. After the change
+  every case passes, `check-ramp-ledger` and `check-obligations` are clean with the two new
+  sites, the moved gate-list site and their three rows, and the `ramp-ledger` pins that read
+  the current fleet at older versions name them. A case added while integrating the item
+  was red first too: with a kept `tools/lib/stamp-inputs.mjs` that has no `web-compile`
+  list, the step crashed with `TypeError: paths is not iterable`; it now builds in full and
+  records no stamp. On a zero-edit core scaffold rendered from this tree,
+  `node tools/check-web-build.mjs` run first, before any `tsc -b`, filled all six
+  placeholder keys, failed with TS6305 and printed the `tsc -b` command that fixes it.
+  `validate --report-all` then passed on 37 steps with nothing unrun, `web-compile` taking
+  49 s; the second run printed `web-compile: STAMPED` and took 38 s in all; `git status
+  --porcelain` was empty; and `HARNESS_REQUIRE_TOOLCHAINS=1 node tools/validate.mjs
+  --min-floor` passed with a real build. With `import '../lib/auth/session'` under
+  `'use client'` in `app/providers.tsx`, `tsc -b` stayed green and the step failed carrying
+  Next's `You're importing a module that depends on "server-only"`; with the baseVersion set
+  to 1.0.4, the same failure was a NOTE, exit 0, with no stamp recorded, and `apps/web` was
+  clean after both failed builds. With the three `'orgs-empty'` literals renamed,
+  `check-web-routes.mjs` failed naming `orgs (/o)` and both of its non-null ids. On a local
+  Supabase stack (CLI 2.118.0), Playwright ran `notes.spec.ts`, `security.spec.ts` and
+  `authenticated.spec.ts` against a production build: 5 of 5 passed. `upgrade-linux` leg A,
+  from v1.0.4, ended with validate exit 0 on 37 steps: `web-compile` OK, and the closure
+  (naming `notes` and `security`) and the gate list as NOTEs that expire in 1.2.0, so
+  `graduate` refused. Leg E, from v0.3.0, compiled the old web app, adopted the two specs in
+  its sweep and graduated to 1.1.0 (#77).
+  For the Edge Functions, the tests-only commit, on the tree #77 left, was red on 29 of 90
+  cases in six files: `check-edge-functions.test.mjs` on 13 of 14 (the gate absent; the
+  real-deno case skips without deno), `diff-coverage` on seven, the ratchet on its three ramp
+  cases and the Edge Function drift case, `workflow-lanes` on three, and
+  `tests/gates/mutation-scope.test.mjs` and `tests/gates/edge-function-split.test.mjs` would
+  not load (`edgeSuiteDirs` did not exist). In a rendered core scaffold, with `deleteUser`
+  moved ahead of the verified sweep (steps 3 and 4 swapped), 7 of the handler suite's 30
+  cases went red, among them "returns 500 and never calls deleteUser when the swept count
+  does not match the lookup"; with `readKey` taking the first of several keys, 2 went red,
+  among them "refuses to pick when there are several and none is named 'default'"; the
+  shipped handler passes all 30, and Stryker over `handler.ts` killed all 174 mutants, with
+  the ratchet OK. With deno 2.9.6 the real-deno case typechecks the shipped function and
+  reds on `const n: number = 'x'`; the binary is a 42 MB download, a cold check fills a 13 MB
+  module cache in 2 to 2.5 s, and a warm one takes under 0.2 s. In the same scaffold the
+  gate printed OK over the seeded function, Canary 38's edit redded it with `TS2322`, and
+  Canary 37's `getSession()` redded `eslint` on `local/no-unverified-session`, where both
+  the 1.0.3 config and the config before this change exited 0 on the same edit. Set to a
+  1.0.3 `baseVersion` with the v1.0.3 `index.ts`, no handler, `deno.json` or `deno.lock`,
+  and an untested `supabase/functions/_shared/cors.ts`, the scaffold stayed green on
+  `eslint .` and on vitest with coverage, and `diff-coverage`, the mutation scoper and
+  `edge-functions` (with deno and without, under `CI=true`) each printed their NOTEs and
+  exited 0; at harness 1.2.0 `edge-functions` and `diff-coverage` printed RAMP EXPIRED and
+  failed. A zero-edit core scaffold rendered from this tree passed `validate --report-all`
+  on all 37 steps (#78).
+  For the planted-list provenance, the tests-only commit was red on injections A and B, each
+  of which exited 0 with the plant NOTE, on the ramp, placeholder and fresh-scaffold cases of
+  `tests/gates/check-gate-integrity.test.mjs`, and on the new `check-released-shas` and
+  `derender-parity` cases, which could not load. After the change every case is green.
+  `generate-released-shas.mjs --all --prove` backfilled every table's `planted` map with each
+  historical `init` explained, a second run left `template/shas/` unchanged, and
+  `check-released-shas --verify-tags` verified every local tag's owned and planted maps. The
+  issue's manual injection A, on a core scaffold rendered from this tree, printed a plant NOTE
+  for each escape list before the first commit and exited 1 naming
+  `tools/secret-scan-allow.json` after it. A scaffold initialised at every upgrade-lane leg's
+  baseline, committed and updated to this tree ran `gate-integrity` green with no planted-list
+  finding and no 1.1.0 ramp line; on the 0.x baselines, every list the update planted printed
+  the release-plant NOTE (#84).
 
 ## [1.0.4] — 2026-10-01
 

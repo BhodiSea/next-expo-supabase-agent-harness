@@ -222,6 +222,21 @@ export const BASH_RULES = [
     allowWhen: (_cmd, ctx) => ctx.selfEdit,
   },
   {
+    // 1.1.0. An agent may STAGE a register edit (the whole proposed file, under
+    // harness-proposals/) but not apply it: applying is the decision the write guard
+    // reserves for a human. The installer verb refuses without a terminal on stdin and
+    // stdout; this is the second layer, denying the INVOCATION, in the shape of
+    // gen-lock-writer. `apply-proposal` must be a WHOLE argument (after whitespace, an
+    // optional quote, and ending at whitespace, a quote, a separator or the end), so a
+    // command that only names the verb's files, such as its test or a lint of it, is not
+    // matched.
+    id: 'apply-proposal-invocation',
+    re: /\b(?:node|pnpm|npx|tsx)\b[^|;&]*\s["']?apply-proposal["']?(?=[\s"'|;&]|$)/,
+    message:
+      'Blocked: `apply-proposal` writes a staged register edit into place, and applying it is the decision the write guard reserves for a human. Leave the proposal in harness-proposals/ and tell the user its id; they review the diff and apply it in their own terminal (HARNESS_ALLOW_SELF_EDIT=1 lifts this).',
+    allowWhen: (_cmd, ctx) => ctx.selfEdit,
+  },
+  {
     id: 'git-hookspath-repoint',
     re: /git\s+(?:-[a-zA-Z]+\s+)*config\b[^|;&]*core\.hooksPath|git\s+-c\s*core\.hooksPath/,
     message: 'Blocked: repointing core.hooksPath disables the lefthook commit-time layer.',
@@ -464,6 +479,11 @@ export const WRITE_PROTECTED = [
   // pair — so it is exactly the class this block exists for, and it shipped without a
   // rule for the same reason security-headers.json did: nothing compared the lists.
   { id: 'migrations-allow', re: /^tools\/migrations-allow\.json$/ },
+  // 1.1.0 (#74), tolerated-absent the same way. schema-rls' grant bound demands that every
+  // privilege anon or authenticated holds is admitted by a policy; a row here lets one stand
+  // without a policy. CREATING the file is the widening, so an agent must not be able to
+  // write its own allowance mid-turn — a human reviews the (table, role, privilege, reason).
+  { id: 'grant-bound-allow', re: /^tools\/grant-bound-allow\.json$/ },
   // The framework SECURITY floor (0.5.0). Unlike its neighbours in this block it is
   // harness-OWNED rather than seeded — `update` must be able to carry a new advisory to
   // an existing install — but the agent-time hazard is identical and sharper: the file
@@ -504,8 +524,9 @@ export const WRITE_PROTECTED = [
   // least protected. `.claude/rules/` is loaded into every turn; `.claude/agents/` decides
   // which reviewers exist and what they may touch; `.claude/commands/` and
   // `.claude/skills/` are the recipes a turn follows. An agent that can edit these can
-  // rewrite its own instructions, and the `docs-sync` roster check reads only frontmatter
-  // (name, model, tools) — never the body, where the instructions actually are. Layer 3
+  // rewrite its own instructions, and the `docs-sync` roster check reads frontmatter
+  // (name, model, tools) and, of a reviewer's body, only the closing verdict demand and the
+  // `Severities:`/`Blocking:` lines — never the instructions themselves. Layer 3
   // (prevention) did not exist for any of them.
   { id: 'claude-rules', re: /^\.claude\/rules\// },
   { id: 'claude-agents', re: /^\.claude\/agents\// },

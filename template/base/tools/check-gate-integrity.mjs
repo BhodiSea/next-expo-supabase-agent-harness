@@ -8,17 +8,27 @@
 // the RLS and migration runners). 'config' entries are skipped — they are
 // human-tunable, and `update` re-records their hashes on sanctioned changes.
 //
-// Three sub-checks, because the manifest cannot be its own root of trust:
-//   1. owned-file hashes      — the surface matches what the installer wrote
-//   2. baseVersion monotonic  — the version-ramp bar can never be rolled BACK
-//   3. escape lists undirty   — widening a security/budget escape is a reviewed commit
-// Static and fast: sha256 recompute + two cheap git reads.
+// The checks, because the manifest cannot be its own root of trust:
+//   1.  owned-file hashes     — the surface matches what the installer wrote
+//   1a. retrofit conflicts    — a target config the install kept is merged or accepted
+//   1b. hook commands         — every hook command runs `node` on a file that exists
+//   1c. the Stop floor        — STOP_HOOK_STEPS keeps every floored step, command unchanged
+//   2.  baseVersion monotonic — the version-ramp bar can never be rolled BACK (git history)
+//   3.  escape lists undirty  — widening a security/budget escape is a reviewed commit; an
+//                               untracked list is a plant only when a RELEASE planted its
+//                               bytes (tools/lib/planted-shas.json, 1.1.0, #84)
+//   3b. threshold configs     — the same commit rule for the configs that carry the numbers
+// HARNESS_ALLOW_SELF_EDIT=1 lifts 3 and 3b and nothing else; with no git work tree, 2, 3 and
+// 3b cannot run. The OK line names each check that did not run and why (1.1.0, #80), because
+// a skip that prints a clean count reads as a pass.
+// Static and fast: sha256 recompute + a few cheap git reads.
 // SOURCE: docs/harness/README.md (tamper evidence) [corpus: harness/doctrine]
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
+import { derender } from './lib/derender.mjs'
 import { CONFIG_COMMIT, ESCAPE_LISTS } from './lib/enforcement-surface.mjs'
 import { walkFiles } from './lib/fs-walk.mjs'
 import { fail, failures, ok, rampNote, runCmd, skipOrFail } from './lib/gate.mjs'
@@ -99,6 +109,13 @@ const RAMPED_SURFACE_030 = [
   /^\.github\/zizmor\.yml$/,
 ]
 const SURFACE_RAMP_030 = '0.3.0'
+
+// RAMPED TIGHTENING (1.1.0, #84) — who planted an untracked escape list. Rule 3's plant
+// exemption now also asks tools/lib/planted-shas.json, the generated union of the released-sha
+// tables' `planted` maps. An install below baseVersion 1.1.0 meets the new finding as a NOTE
+// until harness 1.2.0; the remedy is the step the NOTE already asks for: commit the file.
+const PLANTED_SHAS = 'tools/lib/planted-shas.json'
+const PLANT_RAMP = '1.1.0'
 
 // CONFIG_COMMIT (tools/lib/enforcement-surface.mjs) is judged by COMMIT rather than by
 // hash, and the reason is the reason CODEOWNERS is not hash-pinned either: human tuning is
@@ -397,6 +414,10 @@ function git(cmd) {
   }
 }
 const hasGit = git('rev-parse --is-inside-work-tree') === 'true'
+// The exact string '1', like every other reader of the flag. It lifts the two commit rules
+// (3 and 3b) and nothing else; docs/harness/README.md, "What `HARNESS_ALLOW_SELF_EDIT=1`
+// relaxes", lists every check it lifts across the harness.
+const selfEdit = process.env.HARNESS_ALLOW_SELF_EDIT === '1'
 
 // ── 2. the version-ramp bar can never be rolled BACK ─────────────────────────────
 // rampNote() downgrades a not-yet-graduated check to a NOTE — including in CI. It reads
@@ -481,21 +502,36 @@ if (hasGit) {
 // they have never seen, on the very run that delivered it. Found by upgrade-lane.sh, which
 // is the second time this release that the lane caught the harness redding an install for
 // the harness's own act; the first was `docs-sync`, and the fix is the same shape:
-// CLASSIFY, do not blanket-ramp. The discriminator is exact and holds at every vintage —
-// untracked AND byte-identical to the sha the installer recorded when it wrote the file
-// means nobody has tuned it yet. A hand-created escape list has no manifest entry and a
-// tuned one no longer matches, so both keep the hard red they had before.
+// CLASSIFY, do not blanket-ramp. The discriminator is three facts at once:
+// untracked, byte-identical to the manifest record, AND bytes a harness release planted
+// (tools/lib/planted-shas.json). The record alone stopped being enough in 1.0.2, when
+// re-recording a sha became the supported way to keep a fork.
+// A hand-created list has no manifest entry (or, re-recorded, no release variant), and a
+// tuned one matches neither, so each keeps a red — the unplanted kind behind a 1.1.0 ramp.
 const present = ESCAPE_LISTS.filter((p) => existsSync(p))
-if (hasGit && present.length > 0 && process.env.HARNESS_ALLOW_SELF_EDIT !== '1') {
+/** @type {Record<string, unknown> | null | undefined} tools/lib/planted-shas.json's `files`: undefined until read, null when unusable */
+let plantedEvidence
+// The OK line's escape-list clause. It says `clean` unless the 1.1.0 ramp withheld a finding,
+// because a NOTE-only rule reported as clean is the skip-read-as-a-pass #80 removed.
+let escapeListSummary = `${String(present.length)} escape list(s) clean`
+if (hasGit && present.length > 0 && !selfEdit) {
   // Ask per path rather than parsing porcelain status columns — the path is then the one
   // we already hold, so no slicing can mangle it and a path with spaces cannot confuse us.
+  const unplanted = []
   for (const p of present) {
     const status = git(`status --porcelain -- ${p}`)
     if (!status) continue // empty output = clean (or untracked-but-ignored)
-    if (isUntouchedPlant(p, status)) {
+    const verdict = plantVerdict(p, status)
+    if (verdict === 'plant') {
       console.log(
-        `${GATE}: NOTE — ${p} is present but not yet committed, and its bytes are exactly what the installer planted. ` +
+        `${GATE}: NOTE — ${p} is present but not yet committed, its bytes match the manifest record, and a harness release planted exactly these bytes (${PLANTED_SHAS}). ` +
           'That is a harness plant, not a widening, so it is not a finding — commit it along with the rest of the upgrade.',
+      )
+      continue
+    }
+    if (verdict === 'unplanted') {
+      unplanted.push(
+        `${p}: escape hatch present but not committed, and no harness release planted these bytes. Its sha256 matches the ${MANIFEST} record, but a record can be written by hand. Commit it so the widening appears in the PR diff under CODEOWNERS (or export HARNESS_ALLOW_SELF_EDIT=1 for a deliberate local edit).`,
       )
       continue
     }
@@ -504,30 +540,103 @@ if (hasGit && present.length > 0 && process.env.HARNESS_ALLOW_SELF_EDIT !== '1')
         'commit it so the widening appears in the PR diff under CODEOWNERS (or export HARNESS_ALLOW_SELF_EDIT=1 for a deliberate local edit).',
     )
   }
+  // rampNote PRINTS on every armed call, so it is asked only when there is something to
+  // withhold: a clean or fully planted tree names no 1.1.0 ramp at all.
+  if (unplanted.length > 0) {
+    const plantRamped = rampNote(
+      GATE,
+      PLANT_RAMP,
+      'release provenance of an uncommitted, planted escape list',
+      { until: '1.2.0' },
+    )
+    if (plantRamped) {
+      for (const f of unplanted) console.log(`${GATE}: NOTE — (ramp ${PLANT_RAMP}) ${f}`)
+      escapeListSummary = `escape-list commit rule NOTE-only for ${String(unplanted.length)} untracked list(s) no release planted (withheld by the ${PLANT_RAMP} ramp)`
+    } else {
+      errs.push(...unplanted)
+    }
+  }
 }
 
 /**
- * Is this dirty escape list one the installer planted and nobody has touched since?
- * Both halves are required: untracked (so there is no prior committed version a diff
- * could review) AND byte-identical to the installer's recorded hash (so it carries no
- * exemption a human chose). Either alone is not enough — an untracked file a human wrote
- * by hand is a widening with no diff, and a tracked-but-modified one is the original case.
+ * What an untracked-or-dirty escape list is, by the three facts the plant rule turns on.
+ *   'plant'     untracked (no prior committed version a diff could review), byte-identical to
+ *               the manifest record (no exemption chosen since the record was written), AND
+ *               explained by a variant a harness release planted (1.1.0) — not a finding;
+ *   'unplanted' the first two hold and the third does not — the record vouches for bytes no
+ *               release shipped, and since 1.0.2 a human may write that record (ramped);
+ *   'widening'  anything else — tracked and modified, untracked with no record, or untracked
+ *               with a different sha: the original red, unchanged.
  * @param {string} p @param {string} status porcelain output for exactly this path
+ * @returns {'plant' | 'unplanted' | 'widening'}
+ */
+function plantVerdict(p, status) {
+  if (!status.startsWith('??') || !matchesRecordedHash(p)) return 'widening'
+  return plantedByRelease(p) ? 'plant' : 'unplanted'
+}
+
+/**
+ * The variants tools/lib/planted-shas.json lists for `p`. Read once per run. A missing or
+ * unparseable file lists nothing, so every untracked escape list reads as unplanted —
+ * never as a plant nobody can vouch for.
+ * @param {string} p @returns {Array<{ sha256?: unknown, sites?: unknown }>}
+ */
+function plantedVariants(p) {
+  if (plantedEvidence === undefined) {
+    try {
+      const files = JSON.parse(readFileSync(PLANTED_SHAS, 'utf8'))?.files
+      plantedEvidence = files !== null && typeof files === 'object' ? files : null
+    } catch {
+      plantedEvidence = null
+    }
+  }
+  const variants = plantedEvidence?.[p]
+  return Array.isArray(variants) ? variants : []
+}
+
+/**
+ * Did a harness release plant exactly these bytes at `p`? A variant without `sites` matches
+ * by sha256; one with `sites` (a list carrying a placeholder such as SECURITY_OWNERS) matches
+ * after the file is derendered with the manifest's answers, which rebuilds the template
+ * source the variant's sha was taken over.
+ * @param {string} p @returns {boolean}
+ */
+function plantedByRelease(p) {
+  const variants = plantedVariants(p)
+  if (variants.length === 0) return false
+  const bytes = readFileSync(p)
+  const sha = createHash('sha256').update(bytes).digest('hex')
+  const recorded = manifest.answers
+  const answers = recorded !== null && typeof recorded === 'object' ? recorded : {}
+  return variants.some((v) => explainedBy(v, bytes, sha, answers))
+}
+
+/**
+ * Does ONE planted variant explain these bytes? A variant that cannot be read (a `sites`
+ * entry that is not an [offset, token] pair) explains nothing: the evidence file is owned and
+ * sub-check 1 already reds an edited copy, and a malformed one must read as "not planted",
+ * never crash the gate before it reports.
+ * @param {{ sha256?: unknown, sites?: unknown }} v @param {Buffer} bytes @param {string} sha
+ * @param {Record<string, unknown>} answers
  * @returns {boolean}
  */
-function isUntouchedPlant(p, status) {
-  if (!status.startsWith('??')) return false
-  return matchesRecordedHash(p)
+function explainedBy(v, bytes, sha, answers) {
+  if (!Array.isArray(v?.sites)) return v?.sha256 === sha
+  try {
+    const source = derender(bytes.toString('utf8'), v.sites, answers)
+    return source !== null && createHash('sha256').update(source).digest('hex') === v.sha256
+  } catch {
+    return false
+  }
 }
 
 /**
  * Byte-identical to what the installer recorded for this path in the manifest.
  *
- * The manifest is rewritten by `init`/`update` and by nothing else, so a match means the
- * bytes on disk are the ones the HARNESS last wrote — no human has tuned them since. That
- * is the fact both dirty-file rules actually turn on, in opposite directions: an escape
- * list matching its record carries no exemption anybody chose, and a threshold config
- * matching its record carries no threshold anybody moved.
+ * `init`/`update`/`enable` write the manifest, and since 1.0.2 a human may re-record a sha
+ * to keep a fork (docs/runbooks/harness-upgrade.md, "Forking an owned file"). A match says
+ * the bytes are the ones last RECORDED, not who wrote them. The escape-list plant rule (3)
+ * also asks plantedByRelease(); the threshold-config rule (3b) still reads the record alone.
  * @param {string} p @returns {boolean}
  */
 function matchesRecordedHash(p) {
@@ -547,7 +656,7 @@ function matchesRecordedHash(p) {
 // release to adopt the habit rather than a red on the update that shipped it.
 const configCommitPaths = [...CONFIG_COMMIT, ...tsconfigPaths()].filter((p) => existsSync(p))
 let configCommitSummary = `${String(configCommitPaths.length)} threshold config(s) committed`
-if (hasGit && configCommitPaths.length > 0 && process.env.HARNESS_ALLOW_SELF_EDIT !== '1') {
+if (hasGit && configCommitPaths.length > 0 && !selfEdit) {
   const dirty = []
   for (const p of configCommitPaths) {
     if (!git(`status --porcelain -- ${p}`)) continue
@@ -555,9 +664,9 @@ if (hasGit && configCommitPaths.length > 0 && process.env.HARNESS_ALLOW_SELF_EDI
     // has not touched it. vitest.config.ts and eslint.config.mjs are harness-OWNED, so any
     // release that changes them leaves this rule accusing the install of "modifying" a file
     // the harness modified, on the very run that delivered it. Found by the upgrade lane,
-    // and it is the same shape as the escape-list plant discriminator above: the manifest is
-    // written by init/update alone, so bytes matching the recorded hash mean nobody has
-    // tuned them since. A hand-tuned config no longer matches and keeps its finding.
+    // and it reads the same manifest record as the escape-list plant rule above. Since 1.0.2
+    // a human may re-record a sha, so a match means the bytes are the ones last RECORDED, and
+    // this rule still trusts it (a stated 1.1.0 limit). A hand-tuned config no longer matches.
     if (matchesRecordedHash(p)) {
       console.log(
         `${GATE}: NOTE — ${p} differs from the last commit but is byte-identical to what the installer recorded, so it is a harness refresh rather than a tuned threshold. Commit it along with the rest of the upgrade.`,
@@ -578,12 +687,41 @@ if (hasGit && configCommitPaths.length > 0 && process.env.HARNESS_ALLOW_SELF_EDI
   }
 }
 
+// ── what did NOT run (1.1.0, #80) ────────────────────────────────────────────────
+// Until 1.1.0 the OK line printed `escape list(s) clean` and `threshold config(s) committed`
+// when the flag had skipped both commit rules, and `never regressed` when there was no git
+// work tree for the history check to read. A skip read as a pass. Each clause below now
+// names a check that did not run and says why. Exit codes are unchanged: these skips were
+// never reds, and they do not become reds here.
+/**
+ * Why a git-reading check did not run, or null when it ran.
+ * @param {boolean} liftedByFlag the check is one HARNESS_ALLOW_SELF_EDIT=1 lifts
+ * @returns {string | null}
+ */
+function notRunBecause(liftedByFlag) {
+  const why = []
+  if (!hasGit) why.push('no git work tree')
+  if (liftedByFlag && selfEdit) why.push('HARNESS_ALLOW_SELF_EDIT=1 is set')
+  return why.length > 0 ? why.join('; ') : null
+}
+
+/** @returns {string} the OK line's summary, one clause per check */
+function okSummary() {
+  const history = notRunBecause(false)
+  const commit = notRunBecause(true)
+  return [
+    `${checked} harness-owned enforcement file(s) match their recorded hashes`,
+    history === null
+      ? `baseVersion ${currentBase} never regressed`
+      : `baseVersion ${currentBase}: history check not run (${history})`,
+    commit === null ? escapeListSummary : `escape-list commit rule not run (${commit})`,
+    commit === null ? configCommitSummary : `threshold-config commit rule not run (${commit})`,
+  ].join('; ')
+}
+
 failures(
   GATE,
   errs,
   'Restore the file(s) from git; if the change came from a sanctioned harness upgrade, re-run `npx next-expo-supabase-agent-harness update` (it re-records the hashes). A DELIBERATE fork of a harness-owned file is supported too: a human re-records its sha256 in .harness/manifest.json in a reviewed commit, this gate goes green, and from harness 1.0.2 `update` sees a recorded sha no release shipped, keeps your file and parks the incoming version under .harness/pending/ instead of overwriting it (docs/runbooks/harness-upgrade.md, "Forking an owned file").',
 )
-ok(
-  GATE,
-  `${checked} harness-owned enforcement file(s) match their recorded hashes; baseVersion ${currentBase} never regressed; ${present.length} escape list(s) clean; ${configCommitSummary}`,
-)
+ok(GATE, okSummary())

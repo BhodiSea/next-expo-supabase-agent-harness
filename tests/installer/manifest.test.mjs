@@ -55,6 +55,9 @@ test('fileMode: exact seeded-file matches classify as seeded', () => {
   assert.equal(fileMode('CLAUDE.md'), 'seeded')
   assert.equal(fileMode('tools/perf-budget.json'), 'seeded')
   assert.equal(fileMode('tests/rls/db-context.ts'), 'seeded')
+  // 1.1.0 (#64): the review-record README under docs/, where every other file is owned. A
+  // new owned path would overwrite a consumer's own docs/reviews/README.md on `update`.
+  assert.equal(fileMode('docs/reviews/README.md'), 'seeded')
 })
 
 test('fileMode: seeded-prefix matches classify as seeded', () => {

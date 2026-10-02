@@ -158,7 +158,15 @@ export function parseCollectCoverageFrom(configText) {
 //       Actions and route handlers are the browser lane's proof and remain a declared tier
 //       in docs/harness/enforcement-tiers.md, so they must not match: a file this gate
 //       demands coverage for but no runner measures reports 0% with no green path.
-const SRC_RE = /^(?:apps\/web\/lib|apps\/[^/]+\/src|packages\/[^/]+(?:\/[^/]+)?\/src)\//
+//
+// 1.1.0 ADDS supabase/functions/, the Edge Functions. vitest.config.ts measures a directory
+// there (a function, or _shared/) once it holds a vitest suite (EDGE_MEASURED, derived from
+// the tree), and each function's Deno.serve shell (index.ts) is in COVERAGE_EXCLUDE. So a
+// changed file in a directory with no vitest suite has no green path but ONE — adding the
+// suite — and the finding below says exactly that.
+const SRC_RE =
+  /^(?:apps\/web\/lib|apps\/[^/]+\/src|packages\/[^/]+(?:\/[^/]+)?\/src|supabase\/functions)\//
+const EDGE_RE = /^supabase\/functions\//
 const MOBILE_RE = /^apps\/mobile\//
 const CODE_RE = /\.[cm]?[jt]sx?$/
 const NON_UNIT_RE = /[.-](?:test|spec)\.[cm]?[jt]sx?$|\.d\.ts$/
@@ -339,6 +347,17 @@ export function evaluateDiffCoverage({
   return { findings, checked, missing }
 }
 
+/** One finding as the line the gate prints. */
+function describeFinding(f) {
+  if (f.kind !== 'uncovered') {
+    return `${f.file}: ${f.metric} ${String(f.actual)}% is below the ${f.runner} per-file floor ${String(f.floor)}% (${RUNNERS[f.runner].floorsIn})`
+  }
+  if (EDGE_RE.test(f.file)) {
+    return `${f.file}: absent from every coverage map — an Edge Function directory is measured only once it holds a vitest suite (a *.test.ts importing from 'vitest' in that function's directory, or in _shared/ for shared code; EDGE_MEASURED in ${VITEST_CONFIG})`
+  }
+  return `${f.file}: absent from every coverage map (vitest + jest-expo) — no unit test imports it (a new module must land with tests)`
+}
+
 // ---- CLI wrapper (git plumbing) — only when executed directly ------------------
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (!existsSync(VITEST_CONFIG)) {
@@ -457,17 +476,30 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       { until: '0.5.0' },
     )
   const reportable = rampedAway ? preExisting : findings
+  // THE 1.1.0 EDGE FUNCTION RAMP. supabase/functions/ joined SRC_RE in 1.1.0, and an install
+  // whose baseVersion predates it has function code no test was ever asked to cover, so a
+  // finding THERE is a NOTE with the deadline until 1.2.0. Anywhere else is judged as before.
+  const edgeFindings = reportable.filter((f) => EDGE_RE.test(f.file))
+  const edgeRamped =
+    edgeFindings.length > 0 &&
+    rampNote(
+      GATE,
+      '1.1.0',
+      `${String(edgeFindings.length)} finding(s) on the Edge Function surface (supabase/functions/, measured since 1.1.0)`,
+      { until: '1.2.0' },
+    )
+  if (edgeRamped) {
+    for (const f of edgeFindings) console.log(`${GATE}: NOTE — (ramp) ${describeFinding(f)}`)
+  }
   failures(
     GATE,
-    reportable.map((f) =>
-      f.kind === 'uncovered'
-        ? `${f.file}: absent from every coverage map (vitest + jest-expo) — no unit test imports it (a new module must land with tests)`
-        : `${f.file}: ${f.metric} ${String(f.actual)}% is below the ${f.runner} per-file floor ${String(f.floor)}% (${RUNNERS[f.runner].floorsIn})`,
+    (edgeRamped ? reportable.filter((f) => !EDGE_RE.test(f.file)) : reportable).map(
+      describeFinding,
     ),
     `Cover every changed source file to the PER_FILE_FLOORS blocks (${VITEST_CONFIG} for server/packages/pure-mobile; ${JEST_CONFIG} for the mobile tree) — reproduce with \`${RUNNERS.vitest.cmd}\` and \`${RUNNERS.jest.cmd}\` (they rewrite the maps), then re-run this gate.`,
   )
   ok(
     GATE,
-    `${String(checked.length)} changed source file(s) clear the per-file floors (vitest ${METRICS.map((m) => vitestFloors[m]).join('/')}; jest ${METRICS.map((m) => (jestFloors ?? vitestFloors)[m]).join('/')})`,
+    `${String(checked.length - (edgeRamped ? new Set(edgeFindings.map((f) => f.file)).size : 0))} changed source file(s) clear the per-file floors (vitest ${METRICS.map((m) => vitestFloors[m]).join('/')}; jest ${METRICS.map((m) => (jestFloors ?? vitestFloors)[m]).join('/')})${edgeRamped ? `; ${String(edgeFindings.length)} Edge Function finding(s) are NOTE-only on this pre-1.1.0 install` : ''}`,
   )
 }

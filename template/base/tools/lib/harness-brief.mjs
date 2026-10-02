@@ -176,8 +176,9 @@ const MANIFEST = '.harness/manifest.json'
 const PENDING = '.harness/pending'
 const SETTINGS = '.claude/settings.json'
 const TRIGGERS = 'tools/reviewer-triggers.json'
-// Not parked FILES awaiting a merge: obligations `doctor` classifies apart, as it lists them.
-const NOT_PARKED = new Set(['dependencies.json', 'source-fixes.json'])
+// Not parked FILES awaiting a merge: obligations `doctor` classifies apart, as it lists them
+// (pin-floors.json since 1.1.0, #83).
+const NOT_PARKED = new Set(['dependencies.json', 'source-fixes.json', 'pin-floors.json'])
 
 // The reviewer ledger v2's ramp, as tools/check-reviewer-verdicts.mjs opens it. The step is a
 // script that runs on import, so the brief carries the two versions and

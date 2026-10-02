@@ -106,6 +106,13 @@ export const SEEDED_FILES = new Set([
   'CITATION.cff',
   'LICENSE',
   'SECURITY.md',
+  // 1.1.0 (#64): the review-record README, the one seeded file under docs/, where every
+  // other path is owned. Seeded so that `update` plants it only where it is absent: as an
+  // owned path, a consumer's own docs/reviews/README.md (bytes no release shipped) would be
+  // kept with the incoming copy parked under .harness/pending/ and `update` exiting 2. No
+  // gate reads it (scripts/check-seeded-migrations.mjs plants it deliberately, on the
+  // SECURITY.md precedent).
+  'docs/reviews/README.md',
   '.env.example',
   '.gitignore',
   'package.json',

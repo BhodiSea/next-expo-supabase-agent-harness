@@ -63,14 +63,14 @@ supabase-js 2, tRPC 11, zod 4.
 ## How it works
 
 - **PreToolUse guards.** Hooks check every shell command, file write and MCP
-  call against a data table of 144 guard-rule ids before the agent's tool runs.
+  call against a data table of 146 guard-rule ids before the agent's tool runs.
   Nine hooks are wired: seven guards, a launcher that fails closed if a hook
   cannot load, and a session-start brief.
 - **Stop hook.** The agent cannot end a turn until `pnpm validate`, the RLS
   isolation tests against a real Postgres, both unit suites with coverage,
   per-file diff coverage, duplication, i18n, test quality, the mobile perf
   closure and the reviewer verdicts all pass.
-- **`pnpm validate`.** One chain of 36 gates, ordered cheap to expensive, driven
+- **`pnpm validate`.** One chain of 37 gates, ordered cheap to expensive, driven
   by `tools/harness.config.mjs`. Each gate is documented with a proof that it
   can fail in the [gates catalog](template/base/docs/harness/gates-catalog.md).
 - **CI.** The same chain runs against a frozen copy of the step list
@@ -93,6 +93,7 @@ scaffold.
 | `doctor` | Report whether an install is healthy. |
 | `enable <module>` / `disable <module>` | Add or remove an opt-in module. |
 | `graduate` | Advance the install's base version once ramped checks are clean. |
+| `apply-proposal [<id>]` | Apply, as a human in a terminal, a register edit an agent staged in `harness-proposals/`: it shows the reason and the diff and writes the file once you type its path. No id lists them. `--dry-run`. |
 
 Full flag and placeholder reference: [docs/cli.md](docs/cli.md), or `--help`.
 
@@ -125,15 +126,15 @@ The longer list is kept per release under "What stays open" in the
 
 ## Measured cost
 
-Recorded by CI on a GitHub-hosted Linux x64 runner on 2026-08-16 and committed
+Recorded by CI on a GitHub-hosted Linux x64 runner on 2026-10-02 and committed
 in `scripts/chain-budget.json`. They are that runner's numbers, not a promise
 about your machine.
 
 | Run | Wall time |
 |---|---|
-| `pnpm validate`, warm | warm ≈ 23 s (23030 ms) |
-| `pnpm validate`, cold | cold ≈ 110 s (110224 ms) |
-| Stop hook, full turn end | 52.7 s (52665 ms) |
+| `pnpm validate`, warm | warm ≈ 27 s (26881 ms) |
+| `pnpm validate`, cold | cold ≈ 145 s (145363 ms) |
+| Stop hook, full turn end | 54.8 s (54815 ms) |
 
 ## Compliance mappings
 

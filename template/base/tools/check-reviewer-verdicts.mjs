@@ -44,15 +44,59 @@
 // and v2's digests live in fields of their own, so a pre-1.1.0 judge never meets a digest it
 // cannot reproduce.
 //
+// THE MODEL A VERDICT RAN ON (1.1.0, #62), behind a ramp of its own opened at 1.1.0, until
+// 2.1.0. The hook records `model` (read from the subagent's own transcript; null when it
+// cannot) and `pinned` beside each verdict, because a reviewer can run off its pin: a
+// per-invocation model, CLAUDE_CODE_SUBAGENT_MODEL(_FORCE), an availableModels substitution,
+// a fallbackModel chain (design/CONTROL-PLANE-FACTS.md, Fact 16). The step judges the model of
+// the entry each owed reviewer's verdict rests on (the latest entry of the turn under the
+// 1.0.x judgement, the one the stale class judges; the latest counted PASS under v2) against
+// the reviewer's hash-locked agent file: its `model` pin, or an entry of its
+// `harnessFallbackModels` list, an alias matching every model ID of its family
+// (tools/lib/reviewer-verdicts.mjs modelMatches). A verdict on any other model is NAMED, on a
+// `FALLBACK MODEL` line the Stop hook shows the user on a green run too. For the three
+// security reviewers (SECURITY_REVIEWERS in tools/lib/agent-roster.mjs) a model off the list,
+// or `model: null`, is also a finding: that PASS does not count. An entry with no `model`
+// field, as every entry a pre-1.1.0 hook wrote is, is judged exactly as before. Below
+// baseVersion 1.1.0 the findings print as NOTEs until 2.1.0: an install whose configuration
+// already forces a model off the list would otherwise red on the first Stop after `update`,
+// with a re-run that lands on the same model. And the list is how a reviewer whose pin
+// cannot run still runs: that run never reaches SubagentStop (Fact 16, observed), so it
+// writes no entry, and every "did not run" finding of both judgements, the one for a ledger
+// that does not exist yet included, ends with fallbackHint(): dispatch the reviewer with the
+// Agent tool's `model` set to a listed model.
+// Nothing ramps that sentence; it changes no verdict.
+//
+// THE ROUND BUDGET (1.1.0, #71), behind a second ramp opened at 1.1.0, until 1.2.0. Nothing
+// else bounds a fix-and-re-review loop: the turn-wide block cap counts every kind of block,
+// and when it is spent the turn ends with the findings standing. The hook records each
+// verdict's `round` and its `blocking` finding lines. This step counts each owed reviewer's
+// rounds over the session's entries, the change set v2 judges, with tools/lib/
+// reviewer-verdicts.mjs judgeRoundBudget: a BLOCK opens a review loop, each later verdict of
+// that reviewer is its next round, and the loop closes when the same run passes over a tree
+// that did not move under it. A loop still open after ROUND_BUDGET rounds is SPENT: a verdict
+// past the budget never clears it, and the step reds with the recorded findings and says to
+// stop and hand them to the human. That finding replaces the reviewer's own v1 or v2 finding,
+// which would say to run it again. An entry an earlier or parked hook wrote counts as one
+// round, with no recorded findings. With no merge base there is no change set, so the budget,
+// like v2, does not judge, and the no-merge-base NOTE says so: its loops close only on the
+// same run's PASS, the v2 rule, and under the 1.0.x judgement a later prompt's PASS from any
+// run clears a BLOCK, so judging it there would red a loop the verdict calls closed. The hook
+// cannot carry this ramp, because a hook has no NOTE channel, so the ramp lives here.
+//
 // WHAT IT DELIBERATELY DOES NOT DO: judge the CONTENT of a review. A PASS is an attestation by
-// a read-only agent whose tools, model and body are locked in tools/agents.lock.json. This
-// step verifies the attestation exists and belongs to this turn. Whether it was a GOOD review
-// is not a property any file can hold, and pretending otherwise would be the same "reads as
-// coverage" mistake this release has spent itself deleting.
+// a read-only agent whose tools, pinned model, fallback list and body are hashed in
+// tools/agents.lock.json (its `models` map records the pin alone), and since 1.1.0 the model it
+// RAN on is recorded and judged as above. This step verifies the attestation exists, belongs to
+// this turn and ran on a model its file names. Whether it was a GOOD review is not a property
+// any file can hold, and pretending otherwise would be the same "reads as coverage" mistake this
+// release has spent itself deleting.
 // SOURCE: design/CONTROL-PLANE-FACTS.md (the observed SubagentStop payload)
 // SOURCE: CHANGELOG 0.3.0 (process-verified reviewers, deferred with the reason)
 import { existsSync, readFileSync } from 'node:fs'
 import process from 'node:process'
+// The roster as a NAMESPACE too (1.1.0, #62): SECURITY_REVIEWERS and modelPolicy are new.
+import * as roster from './lib/agent-roster.mjs'
 import { fail, failures, ok, rampNote, skipOrFail } from './lib/gate.mjs'
 // NAMESPACE imports for the 1.1.0 surface, the hook's 1.0.2 rule applied to the step: an
 // install may carry a forked copy of either lib that `update` parked rather than refreshed,
@@ -103,6 +147,95 @@ const rawLedger = existsSync(LEDGER) ? readFileSync(LEDGER, 'utf8') : null
 const turnRead = rawLedger === null ? null : readLedger(rawLedger, sessionId, promptId, LEDGER)
 for (const s of turnRead?.skipped ?? []) console.log(`${GATE}: NOTE — ${s}`)
 
+// ── THE MODEL A VERDICT RAN ON (1.1.0, #62) ──────────────────────────────────────────────
+
+/** @type {Map<string, {pin: string|null, fallbacks: string[]}|null>} */
+const policies = new Map()
+
+/**
+ * An agent's pin and fallback list, read from its hash-locked file once per run: one read
+ * per owed reviewer. Null when the file or its frontmatter cannot be read.
+ * @param {string} agent
+ */
+function policyOf(agent) {
+  if (!policies.has(agent)) {
+    let policy = null
+    try {
+      policy = roster.modelPolicy(readFileSync(`.claude/agents/${agent}.md`, 'utf8'))
+    } catch {
+      policy = null
+    }
+    policies.set(agent, policy)
+  }
+  return policies.get(agent) ?? null
+}
+
+const MODEL_LIB_STALE = (agent) =>
+  `${agent}'s verdict carries the model it ran on, but tools/lib/reviewer-verdicts.mjs or tools/lib/agent-roster.mjs predates 1.1.0, so the model cannot be judged. It is an owned file you forked: \`update\` kept your copy and parked the 1.1.0 one under .harness/pending/. Merge the parked copy into yours, then re-record the sha (docs/runbooks/harness-upgrade.md, 1.0.2 section, "Forking an owned file").`
+
+/**
+ * The model half of one owed reviewer's verdict, on the entry the verdict rests on.
+ * @param {string} agent @param {Record<string, unknown>|undefined} e
+ * @returns {{ finding: string|null, line: string|null }}
+ */
+function modelOf(agent, e) {
+  if (e === undefined || !Object.hasOwn(e, 'model')) return { finding: null, line: null }
+  const ready =
+    typeof verdicts.judgeModel === 'function' &&
+    typeof roster.modelPolicy === 'function' &&
+    Array.isArray(roster.SECURITY_REVIEWERS)
+  if (!ready) return { finding: MODEL_LIB_STALE(agent), line: null }
+  return verdicts.judgeModel(
+    { agent, security: roster.SECURITY_REVIEWERS.includes(agent) },
+    e,
+    policyOf(agent),
+  )
+}
+
+/**
+ * Print the verdicts a non-pinned model produced, one tagged line each, and return the model
+ * findings that red: all of them where the model check is live, none on an install below
+ * 1.1.0 (the ramp prints them as NOTEs). The tag is what .claude/hooks/stop-validate-gate.mjs
+ * collects and shows the user on a green run, so it goes to stdout, the channel a green step's
+ * output is read from.
+ * @param {{ findings: string[], lines: string[] }} m
+ * @returns {string[]}
+ */
+function modelVerdict(m) {
+  for (const line of m.lines) console.log(`${GATE}: FALLBACK MODEL — ${line}`)
+  if (m.findings.length === 0) return []
+  const noted = rampNote(
+    GATE,
+    '1.1.0',
+    'the security-reviewer model check (a PASS from a security reviewer counts only on its pinned model or on a model its harnessFallbackModels list names)',
+    { until: '2.1.0' },
+  )
+  if (!noted) return m.findings
+  console.log(
+    `${GATE}: NOTE — ${String(m.findings.length)} model finding(s) withheld by the 1.1.0 model ramp:`,
+  )
+  for (const f of m.findings) console.log(`  - ${f}`)
+  return []
+}
+
+/**
+ * Fold one reviewer's model judgement into the running lists.
+ * @param {{ findings: string[], lines: string[] }} into
+ * @param {{ finding: string|null, line: string|null }} one
+ */
+function collectModel(into, one) {
+  if (one.finding !== null) into.findings.push(one.finding)
+  if (one.line !== null) into.lines.push(one.line)
+}
+
+/**
+ * The fallback-list sentence for a reviewer that never ran (1.1.0, #62), with its leading
+ * space, or nothing when a parked pre-1.1.0 lib lacks the helper.
+ * @param {string} agent
+ */
+const hintFor = (agent) =>
+  typeof verdicts.fallbackHint === 'function' ? ` ${verdicts.fallbackHint(agent)}` : ''
+
 const TORN_REMEDY =
   "this turn's own verdict lines must be readable, so it fails CLOSED. Run the reviewer again: the ledger is append-only and the LATEST entry is the one judged, so a fresh well-formed PASS supersedes the torn line. (The file is write-guard-protected — clearing it wholesale is a human act under HARNESS_ALLOW_SELF_EDIT=1, and re-running the reviewer makes that unnecessary.)"
 
@@ -118,13 +251,13 @@ const TORN_REMEDY =
  * @param {{agent: string, because: string, why?: string}} o
  * @param {Array<Record<string, unknown>>} entries
  * @param {string[]} files
- * @returns {{ err?: string, stale?: string }}
+ * @returns {{ err?: string, stale?: string, model?: { finding: string|null, line: string|null } }}
  */
 function judgeOneV1(o, entries, files) {
   const mine = entries.filter((e) => e.agent_type === o.agent)
   if (mine.length === 0) {
     return {
-      err: `${o.agent} did not run this turn, and \`${o.because}\` is why it is owed. ${o.why ?? ''} Run it, then end the turn.`,
+      err: `${o.agent} did not run this turn, and \`${o.because}\` is why it is owed. ${o.why ?? ''} Run it, then end the turn.${hintFor(o.agent)}`,
     }
   }
   if (mine.some((e) => e.verdict === 'BLOCK')) {
@@ -153,38 +286,44 @@ function judgeOneV1(o, entries, files) {
       stale: `${o.agent} returned PASS for a different tree than the one this turn is shipping — the paths that summoned it (\`${o.because}\` among them) changed after its PASS was recorded. A stale verdict attests to nothing: run ${o.agent} again, then end the turn.`,
     }
   }
-  return {}
+  // THE MODEL (1.1.0, #62), on the same latest entry the binding above judged.
+  return { model: modelOf(o.agent, latest) }
 }
 
 /**
  * @param {Array<{agent: string, because: string, why?: string}>} owed
  * @param {string[]} files
- * @returns {{ errs: string[], stale: string[] }}
+ * @returns {{ errs: string[], stale: string[], model: { findings: string[], lines: string[] } }}
  */
 function judgeV1(owed, files) {
-  if (owed.length === 0) return { errs: [], stale: [] }
+  const model = { findings: [], lines: [] }
+  if (owed.length === 0) return { errs: [], stale: [], model }
   if (turnRead === null) {
     return {
       errs: [
-        `${owed.length} reviewer(s) are owed a verdict by this diff and ${LEDGER} does not exist — no reviewer ran at all this turn. The ledger is written by .claude/hooks/subagent-verdict.mjs on SubagentStop; if it is missing entirely, check that the hook is wired in .claude/settings.json.`,
+        `${owed.length} reviewer(s) are owed a verdict by this diff and ${LEDGER} does not exist — no reviewer ran at all this turn. The ledger is written by .claude/hooks/subagent-verdict.mjs on SubagentStop; if it is missing entirely, check that the hook is wired in .claude/settings.json.${owed.map((o) => hintFor(o.agent)).join('')}`,
       ],
       stale: [],
+      model,
     }
   }
-  if (turnRead.error !== null) return { errs: [`${turnRead.error} — ${TORN_REMEDY}`], stale: [] }
+  if (turnRead.error !== null) {
+    return { errs: [`${turnRead.error} — ${TORN_REMEDY}`], stale: [], model }
+  }
   const errs = []
   const stale = []
   for (const o of owed) {
     const r = judgeOneV1(o, turnRead.entries, files)
     if (r.err !== undefined) errs.push(r.err)
     if (r.stale !== undefined) stale.push(r.stale)
+    if (r.model !== undefined) collectModel(model, r.model)
   }
-  return { errs, stale }
+  return { errs, stale, model }
 }
 
 const files = changedFiles()
 const owed = owedBy(files, cfg.reviewers ?? [])
-const { errs, stale } = judgeV1(owed, files)
+const { errs, stale, model: v1Model } = judgeV1(owed, files)
 
 // THE RAMP. An install that predates 0.6.0 has no ledger, no wired SubagentStop hook, and a
 // turn already in progress when the step arrives. Every finding above would land at once on an
@@ -223,7 +362,11 @@ const V1_HINT = `Each finding names a reviewer whose own definition says it MUST
 
 /** The 1.0.x verdict, when it is the one that decides. @returns {never} */
 function v1Verdict() {
-  failures(GATE, v1Findings, V1_HINT)
+  failures(
+    GATE,
+    [...budgetLive, ...withoutSpent([...v1Findings, ...modelVerdict(v1Model)])],
+    V1_HINT,
+  )
   if (rosterNoted || bindingNoted) {
     ok(GATE, 'NOTE-only on this pre-ramp install (each ramp names its deadline above)')
   }
@@ -242,23 +385,38 @@ function v1Verdict() {
 const firstLineOf = (e) => String(e instanceof Error ? e.message : e).split('\n')[0]
 
 /**
+ * The v2 findings, and the model judgement of each SATISFIED reviewer's latest counted PASS
+ * (1.1.0, #62): a reviewer with a v2 finding is already red, and its model adds nothing.
  * @param {Array<{agent: string, because: string, why?: string, wholeTurn?: boolean}>} owed2
  * @param {string[]} reviewFiles
- * @returns {string[]}
+ * @returns {{ findings: string[], model: { findings: string[], lines: string[] } }}
  */
 function v2Findings(owed2, reviewFiles) {
+  const model = { findings: [], lines: [] }
   const read =
     rawLedger === null
       ? { entries: [], error: null }
       : verdicts.readSessionLedger(rawLedger, sessionId, promptId, LEDGER)
-  if (read.error !== null) return [`${read.error} — ${TORN_REMEDY}`]
+  if (read.error !== null) return { findings: [`${read.error} — ${TORN_REMEDY}`], model }
   const findings = []
   for (const o of owed2) {
     const current = verdicts.reviewStateDigest(o.agent, cfg, reviewFiles, readFileOrNull)
     const finding = verdicts.judgeReviewerV2(o, read.entries, current)
     if (finding !== null) findings.push(finding)
+    else collectModel(model, modelOf(o.agent, countedPassOf(o.agent, read.entries, current)))
   }
-  return findings
+  return { findings, model }
+}
+
+/**
+ * The entry a satisfied v2 reviewer's verdict rests on: its latest counted PASS. A lib that
+ * predates the helper falls back to the latest PASS, which modelOf then names as stale.
+ * @param {string} agent @param {Array<Record<string, unknown>>} entries @param {string|null} current
+ */
+function countedPassOf(agent, entries, current) {
+  return typeof verdicts.latestCountedPass === 'function'
+    ? verdicts.latestCountedPass(agent, entries, current)
+    : entries.filter((e) => e.agent_type === agent && e.verdict === 'PASS').at(-1)
 }
 
 /** A v2 judgement that could not run at all: one finding, subject to the ramp like any other. */
@@ -268,11 +426,12 @@ const v2Broken = (finding) => ({
   owed: [],
   fileCount: 0,
   findings: [finding],
+  model: { findings: [], lines: [] },
 })
 
 /**
  * The v2 judgement, or `{ ran: false }` when this branch has no merge base.
- * @returns {{ ran: boolean, base?: string|null, owed?: Array<{agent: string}>, fileCount?: number, findings?: string[] }}
+ * @returns {{ ran: boolean, base?: string|null, owed?: Array<{agent: string}>, fileCount?: number, findings?: string[], model?: { findings: string[], lines: string[] } }}
  */
 function judgeV2() {
   const lib = [
@@ -297,18 +456,81 @@ function judgeV2() {
   }
   if (review.base === null) return { ran: false }
   const owed2 = verdicts.owedByTurn(review.files, cfg)
+  const judged =
+    owed2.length === 0
+      ? { findings: [], model: { findings: [], lines: [] } }
+      : v2Findings(owed2, review.files)
   return {
     ran: true,
     base: review.base,
     owed: owed2,
     fileCount: review.files.length,
-    findings: owed2.length === 0 ? [] : v2Findings(owed2, review.files),
+    findings: judged.findings,
+    model: judged.model,
   }
 }
 
 const v2 = judgeV2()
 const v2Owed = v2.owed ?? []
 const v2Found = v2.findings ?? []
+
+// ── THE ROUND BUDGET (1.1.0, #71): judged over the session, behind its own ramp ─────────
+
+/**
+ * One finding per owed reviewer whose round budget is spent with a BLOCK standing, over this
+ * session's entries, each with the reviewer it names. A lib without the judge (a parked fork)
+ * is ONE finding naming the lib, never a pass: the budget cannot be judged, and saying so is
+ * the ramp's business.
+ * @param {string[]} agents the owed reviewers, from the judgement that decides the owed set
+ * @returns {Array<{ agent: string|null, finding: string }>}
+ */
+function budgetFindings(agents) {
+  if (agents.length === 0) return []
+  if (
+    typeof verdicts.judgeRoundBudget !== 'function' ||
+    typeof verdicts.readSessionLedger !== 'function'
+  ) {
+    return [
+      {
+        agent: null,
+        finding:
+          'tools/lib/reviewer-verdicts.mjs has no judgeRoundBudget export, so the per-reviewer round budget cannot be judged. It is an owned file you forked: `update` kept your copy and parked the 1.1.0 one under .harness/pending/. Merge the parked copy into yours, then re-record the sha (docs/runbooks/harness-upgrade.md, 1.0.2 section, "Forking an owned file").',
+      },
+    ]
+  }
+  if (rawLedger === null) return []
+  const read = verdicts.readSessionLedger(rawLedger, sessionId, promptId, LEDGER)
+  // A torn line of this turn is already a finding of both judgements, and fails closed there.
+  if (read.error !== null) return []
+  return agents
+    .map((agent) => ({ agent, finding: verdicts.judgeRoundBudget({ agent }, read.entries) }))
+    .filter((b) => b.finding !== null)
+}
+
+// The change set is v2's owed set. With no merge base there is none, and the budget does not
+// judge: it clears a loop by v2's rule, and the 1.0.x judgement that decides there does not.
+const budgetFound = v2.ran ? budgetFindings(v2Owed.map((o) => o.agent)) : []
+const budgetNoted =
+  budgetFound.length > 0 &&
+  rampNote(GATE, '1.1.0', 'the per-reviewer round budget', { until: '1.2.0' })
+if (budgetNoted) {
+  console.log(
+    `${GATE}: NOTE — ${String(budgetFound.length)} round-budget finding(s) withheld by the 1.1.0 ramp:`,
+  )
+  for (const b of budgetFound) console.log(`  - ${b.finding}`)
+}
+const budgetSpent = budgetNoted ? [] : budgetFound
+const budgetLive = budgetSpent.map((b) => b.finding)
+
+/**
+ * A finding list without the other findings of a reviewer whose budget is spent (its v1 or
+ * v2 finding, and its model finding): they say to run it again, and a round past the budget
+ * clears nothing. Every per-reviewer finding opens with the reviewer's name and a space,
+ * which is what this matches.
+ * @param {string[]} list
+ */
+const withoutSpent = (list) =>
+  list.filter((f) => !budgetSpent.some((b) => b.agent !== null && f.startsWith(`${b.agent} `)))
 
 // DECISION 1 (1.1.0): NO MERGE BASE, NO v2. A fresh `git init` with no remote, or a branch
 // with no upstream configured, has nothing to key the owed set on, and the uncommitted-only
@@ -318,7 +540,7 @@ const v2Found = v2.findings ?? []
 // untracked pnpm-lock.yaml the v2 set would owe both whole-turn reviewers for.
 if (!v2.ran) {
   console.log(
-    `${GATE}: NOTE — no merge base: this branch has no upstream and this is not a CI pull-request run, so the reviewer ledger v2 did not judge it, and the 1.0.x judgement below is the verdict (it owes reviewers on uncommitted changes only). Set the branch's upstream to the branch it will merge into (\`git branch --set-upstream-to=origin/main\`, say) and v2 judges everything since the merge base with it.`,
+    `${GATE}: NOTE — no merge base: this branch has no upstream and this is not a CI pull-request run, so the reviewer ledger v2 did not judge it, nor did the per-reviewer round budget, and the 1.0.x judgement below is the verdict (it owes reviewers on uncommitted changes only). Set the branch's upstream to the branch it will merge into (\`git branch --set-upstream-to=origin/main\`, say) and v2 judges everything since the merge base with it.`,
   )
   v1Verdict()
 }
@@ -352,7 +574,10 @@ if (v1Findings.length > 0) {
 }
 failures(
   GATE,
-  v2Found,
+  [
+    ...budgetLive,
+    ...withoutSpent([...v2Found, ...modelVerdict(v2.model ?? { findings: [], lines: [] })]),
+  ],
   `Each finding names a reviewer this branch's diff owes a verdict: the merge-base diff against ${String(v2.base)}, deletions included, and every non-empty diff for a whole-turn reviewer. A BLOCK stands until the same reviewer passes, and a PASS counts when the tree at its dispatch, at its verdict and now are the same. The triggers are reviewed data in ${TRIGGERS}; the ledger is written by .claude/hooks/subagent-verdict.mjs on SubagentStart and SubagentStop.`,
 )
 ok(

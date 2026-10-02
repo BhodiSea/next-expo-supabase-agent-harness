@@ -133,7 +133,8 @@ export function listEvents(
 //
 // These are the events the PLATFORM owns — the ones both surfaces emit and no
 // feature does. Verticals declare their own catalogs beside their own code
-// (`@app/notes` and its successors) and the generator walks each one. Nothing
+// (`@app/notes` and its successors) and export them from `./client` as
+// EVENT_CATALOG, which is how the generator finds each one. Nothing
 // domain-shaped belongs here: an event declared far from the code that emits it
 // is an event that outlives its emitter.
 // ---------------------------------------------------------------------------

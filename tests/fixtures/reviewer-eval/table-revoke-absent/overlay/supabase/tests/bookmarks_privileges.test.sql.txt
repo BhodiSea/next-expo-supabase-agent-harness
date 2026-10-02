@@ -1,0 +1,24 @@
+-- supabase/tests/bookmarks_privileges.test.sql — the privilege set `authenticated` holds
+-- on public.bookmarks, exactly: the four verbs its policies admit and nothing else. The
+-- sibling, for a table clients write, of the privilege-exactness assertion in
+-- rls_structure.test.sql, and like it one row per (privilege) where what authenticated
+-- HOLDS differs from what it SHOULD hold, so a stray TRUNCATE reds here exactly as a
+-- missing SELECT does.
+BEGIN;
+
+CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+
+SELECT plan(1);
+
+SELECT is_empty(
+  $$ SELECT priv
+       FROM unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE',
+                         'TRUNCATE', 'REFERENCES', 'TRIGGER']) AS priv
+      WHERE has_table_privilege('authenticated'::name, 'public.bookmarks', priv)
+            IS DISTINCT FROM (priv IN ('SELECT', 'INSERT', 'UPDATE', 'DELETE')) $$,
+  'authenticated holds exactly SELECT, INSERT, UPDATE and DELETE on public.bookmarks'
+);
+
+SELECT * FROM finish();
+
+ROLLBACK;

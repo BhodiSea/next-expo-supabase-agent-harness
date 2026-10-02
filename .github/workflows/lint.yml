@@ -249,5 +249,27 @@ jobs:
         run: node scripts/check-released-shas.mjs --verify-tags
       - name: machinery-types (tsc --noEmit, allowJs+checkJs over the same globs)
         run: pnpm exec tsc --noEmit
+      # The i18n gate's syntax-tree walk (1.1.0, #76) loads the project's own `typescript`,
+      # which selftest.yml's installer-unit never installs: there the tests that need the
+      # walk SKIP loudly by name, and only the regular-expression half and the absent-parser
+      # path run. This job has the root toolchain, so it runs them for real.
+      # HARNESS_TEST_REQUIRE_TYPESCRIPT=1 turns a parser that cannot load into a failure, never a
+      # skip, and the floor is the scanner's own (measured 100/96.1/100; floors sit ~6 under).
+      - name: machinery-i18n-tree (the i18n syntax-tree walk's proofs, with the parser installed)
+        env:
+          HARNESS_TEST_REQUIRE_TYPESCRIPT: '1'
+        run: >-
+          node --test --experimental-test-coverage
+          --test-coverage-include='template/base/tools/lib/i18n-tree.mjs'
+          --test-coverage-lines=94 --test-coverage-branches=90 --test-coverage-functions=94
+          tests/gates/i18n-tree.test.mjs tests/gates/check-i18n.test.mjs
+      # The Edge Function split's static proofs (1.1.0, #78) read handler.ts, index.ts and the
+      # evaluated vitest.config.ts through the root's own `typescript`, which installer-unit
+      # never installs: there those cases SKIP loudly by name. This job has the root toolchain,
+      # and HARNESS_TEST_REQUIRE_TYPESCRIPT=1 turns a compiler that cannot load into a failure.
+      - name: machinery-edge-function-split (the Edge Function split's proofs, with the compiler installed)
+        env:
+          HARNESS_TEST_REQUIRE_TYPESCRIPT: '1'
+        run: node --test tests/gates/edge-function-split.test.mjs
       - name: machinery-knip (dead exports/files/deps across installer, scripts, tools)
         run: pnpm exec knip

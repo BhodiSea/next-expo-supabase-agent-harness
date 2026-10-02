@@ -1,0 +1,21 @@
+# maestro/flows/identities.yaml — device flow for ROUTES id `identities` (path `/identities`).
+#
+# The route sits outside the tab bar, so the deep link is the deterministic reach, as for
+# security. The router must be live before the link fires: `open-actions` is the home header
+# leaf that exists in every data state, so the flow waits for it first.
+#
+# `identities-screen` is the Screen container's testID, a STYLED SafeAreaView the New
+# Architecture does not flatten. A freshly installed app is signed out, so the identity read
+# lands on whatever state the missing session produces, and the container exists in each.
+appId: com.example.fixtureapp
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+        id: "open-actions"
+    timeout: 90000
+- openLink: "fixtureapp://identities"
+- extendedWaitUntil:
+    visible:
+        id: "identities-screen"
+    timeout: 30000
