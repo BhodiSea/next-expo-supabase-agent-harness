@@ -22,7 +22,10 @@ Shape (mirror `packages/verticals/notes/src/*`):
   IDENTIFIERS, never content; constructors are PURE (`occurredAt` is a parameter, the row's
   own timestamp, never `Date.now()`).
 - `src/client.ts` — the METRO-SAFE barrel: pure domain + zod + the DIRECT RLS READS a phone
-  performs against its own scoped client.
+  performs against its own scoped client. It also exports the catalog as `EVENT_CATALOG`
+  (`export { <slice>Events as EVENT_CATALOG } from './events.js'`): that name in this file is
+  how `tools/gen-event-catalog.mjs` finds the vertical, and a vertical without it is not
+  catalogued.
 - `src/index.ts` — re-exports `./client` and adds the SERVER-ONLY surface (the writes).
 
 ### The three DAL laws (visible in every `data/<slice>.ts` function)

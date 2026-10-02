@@ -1752,7 +1752,12 @@ its `tools/agents.lock.json` entry), `docs/harness/gates-catalog.md` and
 documentation re-plants `docs/harness/README.md` (a section, "What
 `HARNESS_ALLOW_SELF_EDIT=1` relaxes", under Tamper evidence),
 `docs/harness/gates-catalog.md` and `tools/check-gate-integrity.mjs` (its OK line); no
-verdict changes. What you may notice afterwards:
+verdict changes. The event-catalog discovery adds `tools/lib/event-catalogs.mjs`, and
+re-plants `tools/gen-event-catalog.mjs`, `tools/lib/stamp-inputs.mjs`, the vertical-slice
+skill's `scripts/scaffold-slice.mjs` and `references/dal-dto.md` (`update` re-records their
+`tools/agents.lock.json` entries) and `docs/harness/gates-catalog.md`; the example's
+`client.ts` and your root `package.json` are seeded and stay as they are (its subsection
+below). What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1869,6 +1874,15 @@ verdict changes. What you may notice afterwards:
   doctrine's new section lists everything the flag relaxes, and its Stop-hook cost section
   no longer suggests commenting `build` or `e2e` out, which the floors and `gate-integrity`
   refuse.
+- **`contracts` re-runs locally after an edit to your root `package.json`, and `pnpm gen`
+  may name a vertical as not catalogued.** The event-catalog generator now reads the root
+  `package.json` to decide whether the example's old export still applies, so the file joins
+  the `contracts` stamp; CI never honoured a stamp. `tools/generated/event-catalog.json`
+  regenerates unchanged. A direct run of the generator prints `<package> is not catalogued`
+  for each other vertical whose `./client` does not export `EVENT_CATALOG`; those were not
+  catalogued under 1.0.x either, and the gate prints nothing new. If you forked the
+  generator, your copy stays, the new one is parked under `.harness/pending/`, and `update`
+  exits 2 while it stays there: the subsection on the event catalog below says what to do.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -2606,6 +2620,38 @@ Copy either from the template if you want the text.
 one under `.harness/pending/` and exits 2 while it stays there. The re-planted gate and
 hook find the split only in the new copy, so until you merge it every class stays
 mandatory, exactly as before 1.1.0, and nothing turns red that was green.
+
+### The event catalog: a vertical opts in from its `./client`
+
+`tools/gen-event-catalog.mjs` no longer imports the example by name. It walks the platform
+catalog plus each `packages/verticals/*` whose `./client` entry exports its catalog as
+`EVENT_CATALOG`, and it still reads the example's `noteEvents` export, as 1.0.x did, for as
+long as your root `package.json` lists `@app/notes` and that vertical has not opted in.
+**Your catalog regenerates unchanged, and nothing is yours to do.** A fresh 1.1.0 scaffold's
+`packages/verticals/notes/src/client.ts` carries the line below where yours has
+`export { noteEvents } from './events.js'`, and its root `package.json` no longer lists
+`@app/notes`. Adopting the line is optional:
+
+```ts
+export { noteEvents as EVENT_CATALOG } from './events.js'
+```
+
+To catalogue one of your own verticals, add the same line to its `src/client.ts`, naming its
+own catalog, then run `pnpm gen:contracts`, the part of `pnpm gen` that needs no database,
+and commit the regenerated `tools/generated/event-catalog.json`. The generator looks for the
+name in the file's code, not in its comments, and a vertical that names it without exporting
+a catalog fails the generator with an error naming the file. If you later remove the
+example, drop `@app/notes` from the root `package.json` in the same change: while the root
+lists it and the vertical has not opted in, the generator still takes the old import, which
+fails once the vertical is gone, as it did under 1.0.x. The reverse holds too: pulling the
+new root `package.json` with `update --refresh-seeded package.json` without the `client.ts`
+line drops the example's three rows at the next regeneration, so take both together.
+
+If you forked `tools/gen-event-catalog.mjs` to add your own verticals' imports, your copy is
+kept and the new one is parked at `.harness/pending/tools/gen-event-catalog.mjs`. Add the
+export to each vertical your fork imported, take the parked file, re-record it as "Forking
+an owned file" in the 1.0.2 section describes, and delete the parked copy. Then
+`pnpm gen:contracts` leaves `tools/generated/event-catalog.json` unchanged.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

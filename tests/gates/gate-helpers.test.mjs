@@ -713,6 +713,13 @@ test('expo-policy stamp: the tunables, both mobile source roots and every Edge F
 
 test('contracts stamp: declared inputs and the manifest invalidate; excluded churn dirs do not', () => {
   const inputs = STAMP_INPUTS.contracts
+  // 1.1.0 (#82). The event-catalog generator the gate spawns reads the root package.json
+  // (the 1.0.x compatibility entry applies while it lists @app/notes) and imports
+  // lib/event-catalogs.mjs, which imports lib/source-text.mjs. The closure test above sees
+  // only the gate script's own imports, not a spawned generator's, so these are named here.
+  for (const p of ['package.json', 'tools/lib/event-catalogs.mjs', 'tools/lib/source-text.mjs']) {
+    assert.ok(inputs.includes(p), `contracts: ${p} must be a declared stamp input — the event-catalog generator reads it`)
+  }
   const dir = mkdtempSync(join(tmpdir(), 'epah-stampreg-'))
   const prev = process.cwd()
   process.chdir(dir)

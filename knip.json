@@ -45,10 +45,11 @@
     "@stryker-mutator/api",
     "@app/api",
     "@app/events",
-    "@app/notes",
     "postgres"
   ],
   // `mkfifo` is a POSIX system utility, not a package: tests/installer/rollback.test.mjs
-  // spawns it to plant a FIFO candidate, and skips when it is missing.
-  "ignoreBinaries": ["vitest", "stryker", "supabase", "mkfifo"]
+  // spawns it to plant a FIFO candidate, and skips when it is missing. `tsx` is the
+  // scaffold's: selftest.yml's day0-empty-states lane runs ./node_modules/.bin/tsx inside a
+  // rendered scaffold, never in this repository (1.1.0, #82).
+  "ignoreBinaries": ["vitest", "stryker", "supabase", "mkfifo", "tsx"]
 }

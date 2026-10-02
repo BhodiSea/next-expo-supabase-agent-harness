@@ -350,6 +350,34 @@ this heading if none does. -->
   with no git work tree for the history check to read. Each clause now says the check did
   not run, and why. Exit codes are unchanged. No chain step, gate, guard rule, seeded file or
   ramp (#80).
+- **The event-catalog generator finds each vertical's catalog in the vertical.** A vertical
+  opts in by exporting its catalog from `./client` as `EVENT_CATALOG`. Adding a vertical no
+  longer means editing a harness-owned, hash-pinned file, and the generator no longer imports
+  the worked example by name. New scaffolds' root `package.json` drops `@app/notes`.
+  Existing installs regenerate the same catalog: until 2.0.0 the generator still reads
+  `noteEvents` from `@app/notes/client` while the root `package.json` lists `@app/notes` and
+  that vertical has not opted in. Through 1.0.4 `tools/gen-event-catalog.mjs` imported
+  `@app/notes/client` by name, so a tree without the example threw on the import and
+  reddened `contracts`, following its header's advice to add one import line per vertical
+  reddened `gate-integrity`, and a vertical left off the list dropped out of both the
+  generated and the committed catalog while the regen-diff passed. The new owned
+  `tools/lib/event-catalogs.mjs` reads each `packages/verticals/*/package.json` for its
+  `./client` entry and looks for the name in that file's code with its comments blanked, so
+  the slice scaffolder's `client.ts` stub, which shows the line commented out, opts nothing
+  in. A vertical that names it and exports no catalog fails closed, naming its file; one that
+  does not name it is never imported, and a direct run of the generator lists it as not
+  catalogued, output the `contracts` gate discards. The `contracts` stamp now also hashes the
+  root `package.json` and the new library. The committed `tools/generated/event-catalog.json`
+  is byte-unchanged. `update` re-plants the generator, `tools/lib/stamp-inputs.mjs`, the
+  slice skill's `scripts/scaffold-slice.mjs` and `references/dal-dto.md`, and
+  `docs/harness/gates-catalog.md`, and plants the library; the example's `client.ts`, the
+  platform events comment and the root `package.json` are seeded, so an install keeps its
+  own, and `template/migrations.json` carries nothing for this item. The `day0-empty-states`
+  factory lane gains the event-catalog leg 1.0.4 left for this release: on its scaffold the
+  generator regenerates the committed catalog with nothing else printed, writes it without
+  the example's three rows while `packages/verticals/notes` is moved aside, and in Canary 33
+  reds naming the example's `client.ts` once its `EVENT_CATALOG` is a number. No chain step,
+  gate, ramp or floor changes (#82).
 
 ### Changed
 
@@ -833,6 +861,21 @@ this heading if none does. -->
 - **Each floored package needs a canary and an upstream repository in the lane's map.**
   `next` has both. A package added to the floor reds the lane until both are added to
   `scripts/lib/floor-advisories.mjs` (#81).
+- **Nothing checks that a vertical opts in.** A vertical whose `./client` does not name
+  `EVENT_CATALOG` is never imported, and its events stay out of the catalog. A direct run of
+  the generator names it as not catalogued, and `contracts` discards that output. Making the
+  export mandatory would be a new check, which needs a `gate-proposal` of its own (#82).
+- **The compatibility entry lasts until the example leaves.** While an install's root
+  `package.json` lists `@app/notes` and that vertical has not opted in, the generator reads
+  `noteEvents` from `@app/notes/client` as 1.0.x did, with no new check. #85 deletes the
+  entry with the example at 2.0.0. Pulling the new root `package.json` alone with
+  `--refresh-seeded` drops the example's three rows at the next `pnpm gen`, so the runbook's
+  1.1.0 section says to take the `client.ts` line in the same change (#82).
+- **The committed event catalog is still owned.** `update` re-plants
+  `tools/generated/event-catalog.json` wherever an install's copy matches a released sha, so
+  a new platform event would reach installs whose seeded `@app/events` lacks it. Its two
+  generated siblings were made seeded for that reason; doing the same here is a separate
+  item (#82).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -1126,6 +1169,43 @@ this heading if none does. -->
   advisory alone, naming its CVE alias, its date after `reviewedOn`, the floor and the pin,
   while every other job of the workflow passed. The third (hygiene run 36714772895), after
   one listing's OSV lookups were sent together, printed the same single failure (#81).
+  For the event-catalog discovery, the tests-only commit was red on 12 cases.
+  `tests/gates/event-catalogs.test.mjs` could not load before `tools/lib/event-catalogs.mjs`
+  existed. `tests/gates/gen-event-catalog.test.mjs`, which runs the shipped generator with
+  plain node over fixture installs, passed only on the 1.0.x shape: the fresh-scaffold tree,
+  the adopted tree, proofs B, C and D and a newly opted-in vertical each threw on the
+  hard-coded `@app/notes/client` import, and its four source pins failed. The contracts case
+  of `tests/gates/gate-helpers.test.mjs` found no `package.json` among the stamp inputs.
+  After the change the 42 cases of the two new files pass. All three kinds of tree
+  regenerate the committed five rows byte for byte, a vertical whose `EVENT_CATALOG` is `42`
+  fails closed naming its file, one that names it only in a comment is listed as not
+  catalogued, a tree without the example writes the two platform rows, and a vertical that
+  opts in is catalogued with no edit to the generator. On a core-tier scaffold rendered by
+  v1.0.3, `--check` was in sync, and proof D, the example moved aside, threw
+  `Cannot find package '@app/notes'`. On a fresh core-tier scaffold rendered from this tree,
+  `--check` printed `tools/generated/event-catalog.json: in sync (5 events)` and nothing
+  else, and a zero-edit `validate --report-all` was green, `format`, `contracts` and
+  `dead-code` included. Proof A: with `client.ts` back on `export { noteEvents }` and
+  `@app/notes` in the root devDependencies, `--check` and `contracts` stayed in sync, and
+  with the `EVENT_CATALOG` line restored beside that dependency `--check` stayed in sync
+  with no duplicate. Proof B, a probe vertical whose `EVENT_CATALOG` is `42`, exited 1
+  naming `packages/verticals/probe/src/client.ts`; proof C, the name only in a comment,
+  printed `@app/probe is not catalogued` and stayed in sync; proof D wrote the catalog with
+  exactly the three `notes.*` rows removed. Proof D runs the generator directly: through
+  `pnpm exec`, pnpm's pre-run dependency check re-installs the changed workspace, and that
+  install fails while `packages/api` and `apps/web` depend on the missing vertical. The two
+  new `day0-empty-states` steps, replayed on that scaffold, passed, and with the v1.0.3
+  generator swapped in both failed. `update` from the v1.0.3 render exited 0, wrote the
+  generator, the library, `tools/lib/stamp-inputs.mjs`, the scaffolder and `dal-dto.md`, and
+  parked none of them. On the updated tree, whose `client.ts` and root `package.json` kept
+  their 1.0.3 bytes, the compatibility entry applied, `--check` was in sync, `contracts`
+  passed and `knip --strict` exited 0. There, moving the example aside still threw on the
+  old import, as under 1.0.x, and dropping `@app/notes` from the root in the same change
+  wrote the two platform rows. The same render with its generator edited kept the edit,
+  parked the new one at `.harness/pending/tools/gen-event-catalog.mjs` and exited 2.
+  `scripts/ci/upgrade-lane.sh` from v1.0.3 and from v1.0.4 each ended OK on 36 steps with
+  `contracts` and `dead-code` green, the generator delivered at this tree's bytes and
+  nothing parked (#82).
 
 ## [1.0.4] — 2026-10-01
 

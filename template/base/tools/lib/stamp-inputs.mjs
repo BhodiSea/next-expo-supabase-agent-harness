@@ -62,11 +62,16 @@ export const STAMP_INPUTS = {
   // input: narrowing an entry must re-arm the gate on the very next validate, never ride
   // a warm stamp). `apps`/`packages` cover the tsconfig topology + the router/catalog/DTO
   // sources; the generators + their shared serializer + the committed inventories are named
-  // so a generator edit or a hand-edit to an inventory also re-arms the stamp.
+  // so a generator edit or a hand-edit to an inventory also re-arms the stamp. From 1.1.0
+  // the event-catalog generator also reads the root package.json (its 1.0.x compatibility
+  // entry applies while that lists the example) and imports lib/event-catalogs.mjs, which
+  // imports lib/source-text.mjs: the gate spawns the generator, so the import-closure test
+  // cannot see these, and they are named here by hand.
   contracts: withMachinery('tools/check-contract-drift.mjs', [
     'apps',
     'packages',
     'pnpm-workspace.yaml',
+    'package.json',
     'tsconfig.json',
     'knip.json',
     'tools/dto-bounds-allow.json',
@@ -74,6 +79,7 @@ export const STAMP_INPUTS = {
     'tools/gen-event-catalog.mjs',
     'tools/gen-query-shapes.mjs',
     'tools/lib/inventory.mjs',
+    'tools/lib/event-catalogs.mjs',
     'tools/lib/query-recorder.mjs',
     'tools/generated/action-inventory.json',
     'tools/generated/event-catalog.json',

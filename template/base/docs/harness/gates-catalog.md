@@ -1337,12 +1337,14 @@ PostgREST rather than merely present in the catalog.
 
 (1) Contract-inventory regen-diff: regenerate the three committed inventories —
 `tools/generated/action-inventory.json` (every tRPC procedure `appRouter` exposes),
-`tools/generated/event-catalog.json` (every event the platform + vertical
-catalogs declare) and `tools/generated/query-shapes.json` (every statement the DALs
-issue, recorded by driving them through the harness-owned recording port) — from the
-LIVE values and diff against the committed copies, so adding OR removing an action,
-event or query without `pnpm gen` reds. Needs an install (tsx, to walk the runtime
-router/catalogs/DALs); skips loudly without one, fails closed in CI.
+`tools/generated/event-catalog.json` (every event the platform + vertical catalogs
+declare; a vertical is catalogued when its `./client` entry exports its catalog as
+`EVENT_CATALOG`, from 1.1.0) and `tools/generated/query-shapes.json` (every
+statement the DALs issue, recorded by driving them through the harness-owned
+recording port) — from the LIVE values and diff against the committed copies, so
+adding OR removing an action, event or query without `pnpm gen` reds. Needs an
+install (tsx, to walk the runtime router/catalogs/DALs); skips loudly without one,
+fails closed in CI.
 (2) tsconfig project references mirror the pnpm workspace dependency graph —
 parallel topologies desynchronize into confusing type errors otherwise. (3) Bounded
 wire strings (G18): every `z.string()` in `@app/contracts` carries `.max(N)`, or a
