@@ -68,7 +68,7 @@ supabase-js 2, tRPC 11, zod 4.
   isolation tests against a real Postgres, both unit suites with coverage,
   per-file diff coverage, duplication, i18n, test quality, the mobile perf
   closure and the reviewer verdicts all pass.
-- **`pnpm validate`.** One chain of 36 gates, ordered cheap to expensive, driven
+- **`pnpm validate`.** One chain of 37 gates, ordered cheap to expensive, driven
   by `tools/harness.config.mjs`. Each gate is documented with a proof that it
   can fail in the [gates catalog](template/base/docs/harness/gates-catalog.md).
 - **CI.** The same chain runs against a frozen copy of the step list
@@ -130,9 +130,14 @@ about your machine.
 
 | Run | Wall time |
 |---|---|
-| `pnpm validate`, warm | warm ≈ 23 s (23030 ms) |
-| `pnpm validate`, cold | cold ≈ 110 s (110224 ms) |
+| `pnpm validate`, warm | not yet re-measured for the 37-step chain |
+| `pnpm validate`, cold | not yet re-measured for the 37-step chain |
 | Stop hook, full turn end | 52.7 s (52665 ms) |
+
+The two `pnpm validate` figures were measured before 1.1.0 grew the chain: it adds
+`web-compile`, a stamped `next build`, so they no longer describe the chain;
+they are re-recorded from a selftest dispatch before the 1.1.0 tag, and until
+then `check-claims` refuses to publish either.
 
 ## Compliance mappings
 

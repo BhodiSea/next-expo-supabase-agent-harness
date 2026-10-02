@@ -14,24 +14,26 @@ This lineage's own history starts at 0.1.3.
 ## [1.1.0] — 2026-09-29
 
 **A minor, the sharper verdicts release: the notes 1.0.0 opened become verdicts, and the
-checks that land after them judge more precisely.** Seven of the eight ramp sites 1.0.0
+checks that land after them judge more precisely.** Six of the eight ramp sites 1.0.0
 opened reach their deadline, so an install whose `baseVersion` is below 1.0.0 now gets a
 hard failure where it got a dated NOTE: `auth-posture`'s `[auth.hook]` trail posture (only
 where the trail is adopted), `boundaries`' anatomy widening and its census module-name
-closure, `docs-sync`'s AGENTS.md gate list, `resilience`, `suppressions`, and
-`version-sync`'s vendor-support register. A 1.0.x install meets none of them. The eighth
-site, `version-sync`'s eol arrival, re-opens until 1.2.0 instead (see Changed). Each item
+closure, `resilience`, `suppressions`, and `version-sync`'s vendor-support register. A
+1.0.x install meets none of them. The other two re-open until 1.2.0 instead (see Changed):
+`version-sync`'s eol arrival, and `docs-sync`'s AGENTS.md gate list, because this release
+injects a chain step of its own (#77). Each item
 that lands after this bump either ships behind a ramp of its own, opened at 1.1.0, or
 tightens nothing for an existing install, and adds its entry below.
 The `template/migrations.json` record for 1.1.0 carries `rampExpiry` (fifteen vintages,
 0.1.3 through 0.11.1: 1.0.4's thirteen plus 0.11.0 and 0.11.1), one `seededSourceFixes`
-set, one `rampExtensions` entry and three `seedOnInitOnly` paths (`tools/surfaces.json`, see
-Added, and the grant bound's migration and generated test, see Changed), and injects no chain
-step. `scripts/lib/ramp-sites.mjs`
-`VINTAGES` grows by `1.0.4`. The obligations register loses seven release rows and
-re-targets the eighth to 1.2.0. The reviewer ledger v2 (see Changed) is the first item
-behind a ramp of its own: it opens at 1.1.0 with a deadline of 2.1.0, and adds one release
-row and one condition row to the register (#70). One new seeded file is planted
+set, two `rampExtensions` entries, five `seedOnInitOnly` paths (`tools/surfaces.json` and
+the two browser specs, see Added, and the grant bound's migration and generated test, see
+Changed) and one `configSteps` injection, `web-compile` after `build` (#77).
+`scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `1.0.4`. The obligations register loses six
+release rows and re-targets the arrival row to 1.2.0; the gate-list row, the seventh, comes
+back targeting 1.2.0 with its re-opened escape (#77). The reviewer ledger v2 (see Changed)
+is the first item behind a ramp of its own: it opens at 1.1.0 with a deadline of 2.1.0, and
+adds one release row and one condition row to the register (#70). One new seeded file is planted
 rather than withheld: `update` writes the empty `tools/field-notes.json` (see Added) where an
 install has none, and it changes no verdict (#61). The security-reviewer model check (see
 Changed) opens a second ramp in the step the reviewer ledger v2 ramp sits in, with the same
@@ -62,6 +64,10 @@ probed DAL that made either call could not pass before (#79).
 The `i18n` step's syntax-tree walk (see Changed) opens the gate's first two ramps at 1.1.0,
 each with a deadline of 1.2.0, and adds one release row: copy only the walk finds, and the
 1.0.x `site` entries its content keys replace (#76).
+The chain grows to 37 steps: `web-compile` compiles the web app (see Added) and opens a ramp
+at 1.1.0 until 1.2.0, `route-manifest`'s new per-route browser closure opens another with the
+same window, and `docs-sync`'s gate-list escape re-opens for the step itself; each adds one
+release row (#77).
 
 ### Security
 
@@ -371,8 +377,47 @@ this heading if none does. -->
   finding is a NOTE until 1.2.0; a fresh scaffold is held to the rules at once, and every
   shipped workflow passes in every tier. `update` plants the two files and re-plants
   `actions-lint.yml`, `zizmor.yml` and the catalog where they are sha-unmodified, and keeps a
-  forked `actions-lint.yml`, parking the new one. Not a chain step: the chain stays at 36
-  (#73).
+  forked `actions-lint.yml`, parking the new one. Not a chain step (#73).
+- **The chain compiles the web app: `web-compile`, and a browser spec per web route.**
+  Nothing in the chain ran `next build`: `types` typechecks without bundling, `build` is the
+  mobile export, and the web build ran only in the path-filtered `web-build` job and the
+  `web-e2e` server start. So a Client Component importing a `server-only` module, which
+  `tsc` accepts, passed the whole chain and `static`. The new step (owned
+  `tools/check-web-build.mjs`, chain step 31, after `build`) runs
+  `pnpm --filter web exec next build --webpack`, through the binary as `build` runs `expo`,
+  on a stamp miss: its inputs are `apps/web`, `packages`, `tsconfig.base.json`,
+  `pnpm-workspace.yaml` and `pnpm-lock.yaml` plus the machinery, `.next` and `dist` are never
+  hashed, and CI never honours a stamp, so `static` builds on every pull request. It compiles
+  only; the purity scan stays in `web-build`. For each Supabase key the build needs that
+  neither the caller nor an `apps/web/.env*` file sets, it supplies the `web-build` job's
+  placeholder byte for byte and prints the keys it filled, so a zero-edit scaffold compiles;
+  it restores the committed `apps/web/next-env.d.ts` the build rewrites, so the tree stays
+  clean and a second run stamp-hits; it runs after `types`, whose `tsc -b` emits the
+  declarations Next's own type check reads, and names that command when a standalone run
+  reds with TS6305. It skips loudly without `apps/web` or `node_modules` and fails closed in
+  CI. `route-manifest`'s web half now also requires, for every registered route, a
+  `*.spec.*` under `apps/web/e2e` naming one of its non-null declared state test ids as a
+  quoted literal, with comments blanked; a route whose every state is null has no id a spec
+  can name. The seeded suite had one of three: `orgs` rendered, `notes` visited only as an
+  anonymous redirect, `security` never. It gains `apps/web/e2e/notes.spec.ts` (a new
+  identity creates its workspace and lands on `notes-empty`, then a reload renders it again)
+  and `apps/web/e2e/security.spec.ts` (a fresh account's factor list settles on
+  `security-empty` and offers to enrol), each minting its own user as
+  `authenticated.spec.ts` does. Both are `seedOnInitOnly`, so an existing install keeps a
+  spec for `orgs` only. Both findings go through their own `rampNote` at 1.1.0 until 1.2.0,
+  consulted only once findings exist: below that `baseVersion` a failed build is a NOTE
+  carrying the output and recording no stamp, so it repeats and `graduate` stays refused
+  until the app compiles, and an unrendered route is a NOTE naming its id, path and test ids.
+  The "1.1.0" record injects the step after `build`, withholds the two specs, and carries
+  the gate-list escape's move (see Changed); `SWEEPS['1.1.0']` adopts the two specs. The
+  gates catalog gains section 31 and renumbers the old 31 to 36 as 32 to 37,
+  `enforcement-tiers.md` gains a `web-compile` row and updates the `build` and
+  `route-manifest` rows, and the seeded `AGENTS.md` lists 37 gates. Selftest Canary 35 adds
+  a server-only import to the client `app/providers.tsx` of a real scaffold, where `types`
+  stays green and `web-compile` must red carrying Next's error, and Canary 36 removes every
+  `orgs` state test id from the specs, where `route-manifest` must red naming `orgs`; the
+  bootstrap job's warm run must print `web-compile: STAMPED` and leave `apps/web` clean
+  (#77).
 
 ### Fixed
 
@@ -468,17 +513,27 @@ this heading if none does. -->
   `pnpm gen:contracts`, the part that needs no database) and commit the manifest. No chain
   step, seeded file or ramp: any install whose probed DAL makes either call fails today
   (#79).
+- **The `web-build` and `web-e2e` jobs can build the web app from a fresh checkout.**
+  `apps/web`'s tsconfig references the composite workspace packages, and Next's own type
+  check reads each reference's emitted declarations, which `tsc -b` writes and a fresh
+  checkout does not have. Both jobs ran `next build` straight after `pnpm install` (the
+  `web-e2e` one through Playwright's webServer), so on a zero-edit scaffold each failed with
+  TS6305 on every `@app/*` import before its purity scan or its first browser assertion.
+  Each now runs `pnpm exec tsc -b apps/web` first, and a factory test holds every shipped
+  base job that builds the web app to it. The `ci-web-deploy` module's `attest-web` job has
+  the same gap and is left alone (see What stays open) (#77).
 
 ### Changed
 
-- **The NOTE fleet 1.0.0 opened is now enforcing for installs below 1.0.0.** The seven
+- **The NOTE fleet 1.0.0 opened is now enforcing for installs below 1.0.0.** The six
   sites above expire at 1.1.0, as their obligations rows said they would:
-  `docs-sync-gate-list-ramp-expiry`, `suppressions-census-ramp-expiry`,
+  `suppressions-census-ramp-expiry`,
   `resilience-register-ramp-expiry`, `boundaries-anatomy-widening-ramp-expiry`,
   `exports-walls-module-closure-ramp-expiry`, `auth-posture-hook-ramp-expiry` and
   `version-sync-support-ramp-expiry`. The 1.1.0 record's `rampExpiry` names their
-  population, copied from `check-ramp-ledger`'s output at 1.1.0, and the seven rows are
-  deleted. Nothing new is demanded: the sweep is the 1.0.0 one, and the runbook's 1.1.0
+  population, copied from `check-ramp-ledger`'s output at 1.1.0, and the six rows are
+  deleted. `docs-sync-gate-list-ramp-expiry` was a seventh until this release injected a
+  chain step; its escape re-opens instead (the `docs-sync` bullet below) (#77). Nothing new is demanded: the sweep is the 1.0.0 one, and the runbook's 1.1.0
   section lists what arrives and points to it. The catalog, the conformance map and the
   gate comments that still called these ramps open are reworded (#39).
 - **The uuid 7 acceptance is re-affirmed and moved to 1.2.0, and its arrival ramp re-opens
@@ -860,6 +915,19 @@ this heading if none does. -->
   coverage floor; Canary 34 proves the walk on the installed canary scaffold. The
   obligations row `i18n-syntax-tree-ramp-expiry` owes both expiries and the removal of the
   expressions and of `site` entries. No chain step, guard rule or floor entry (#76).
+- **`docs-sync`'s AGENTS.md gate-list escape re-opens at 1.1.0, until 1.2.0.** It expired
+  here, and this release injects `web-compile` after `build` through the record's
+  `configSteps`, so every existing chain grows to 37 steps while its seeded `AGENTS.md`
+  documents 36, or fewer. Opened at 1.0.0, the escape was inert for every 1.0.x install and
+  expired for every older one, so the drift the update caused would have reddened
+  `docs-sync` on every upgraded install. It now opens at minVersion 1.1.0 with a deadline of
+  1.2.0, the move recorded as the "1.1.0" record's second `rampExtensions` entry and the
+  obligations row `docs-sync-gate-list-ramp-expiry` back, targeting 1.2.0. Only additive
+  drift rides it: a documented step that no longer exists, or a reordering, stays a hard red
+  at every vintage. The README's two `pnpm validate` timings are withdrawn until the 37-step
+  chain is re-measured: `check-claims` refuses a figure whose recorded step count differs
+  from the chain, and `scripts/chain-budget.json` budgets `web-compile` as a toolchain step
+  with no measurement yet (#77).
 
 ### What stays open, honestly
 
@@ -1203,6 +1271,24 @@ this heading if none does. -->
 - **A key names its text.** Editing an allowlisted string, or moving it to another file,
   reds the old key as stale and the string as new, by design: the entry was reviewed for
   that text in that file (#76).
+- **The web-e2e lane is still red on a zero-edit scaffold, on a spec this release did not
+  touch.** Run against a local stack with the declarations built, the lane passed 14 of 15:
+  both new specs and the three authenticated ones, but `security-headers.spec.ts`'s "the CSP
+  does not block the page it protects" collected `script-src blocked eval` twice. zod 4's
+  `allowsEval` probe calls `Function("")` inside a `try`, and the browser reports the
+  blocked call as a CSP violation even though zod catches it (zod's own source says so:
+  `z.config({ jitless: true })` skips the probe). The fix is a decision about the seeded app
+  and its CSP suite, not about this step, so it is left open (#77).
+- **The `ci-web-deploy` module's `attest-web` job cannot build either.** It has the TS6305
+  gap the two base jobs had, and it also publishes only the `NEXT_PUBLIC_*` half of the
+  environment `next build` parses. Fixing one without the other would not make that lane
+  pass, so the new factory rule covers base workflows only and names this job (#77).
+- **The browser closure reads text.** It proves a spec names one state test id per route,
+  not that the spec asserts that state or that it passes; the `web-e2e` lane runs every
+  spec, and is path-filtered. A route needs one named id, not all of them (#77).
+- **The two `pnpm validate` timings are not re-measured yet.** The re-record is a selftest
+  `workflow_dispatch` on the release branch before the tag, as 1.0.0's was; until then the
+  README says so instead of printing a figure (#77).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -1211,8 +1297,9 @@ this heading if none does. -->
   `SWEEPS` had no `'1.1.0'` entry. After the fixed cost each is clean. `upgrade-linux` ran
   locally four times, on three legs. Leg A, from v1.0.3 and from v1.0.4, parked the uuid
   fix, took the harness's register and graduated un-swept to 1.1.0. Leg M, from v0.11.0,
-  met the seven expiries and nothing older: `docs-sync`'s gate list printed `RAMP EXPIRED`,
-  the other five gates had nothing to withhold, and `graduate` refused on the red chain.
+  met the seven expiries and nothing older: `docs-sync`'s gate list printed `RAMP EXPIRED`
+  (at the release it prints a NOTE instead, because #77 re-opens that site), the other five
+  gates had nothing to withhold, and `graduate` refused on the red chain.
   Leg E, from v0.3.0, ran the 1.0.0 sweep and `graduate` moved it to 1.1.0. A v1.0.4
   scaffold updated without the register pull printed the arrival as a NOTE that expires in
   1.2.0, and at a simulated harness 1.2.0 as `RAMP EXPIRED`; `update --refresh-seeded
@@ -1651,6 +1738,35 @@ this heading if none does. -->
   `"Close dialog" (accessibilityLabel attribute)` where the 1.0.x step printed OK. On a
   v1.0.4 install updated by this tree, the same file and a `site` entry on its line printed
   the two ramp NOTEs and exited 0 (#76).
+  For the web compile step, the tests-only commit was red on 22 cases: fourteen of the new
+  `tests/gates/check-web-build.test.mjs`, all but the placeholder table's own (the script did
+  not exist), seven new cases of `tests/gates/check-web-routes.test.mjs` (a route no spec
+  names and a spec that names an id only in a comment each printed `route-manifest: OK`), and the
+  `gate-helpers` membership case (no `web-compile` entry). The `workflow-lanes` rule for the
+  two web jobs was red on the old `quality-gate.yml`, naming `web-e2e`. After the change
+  every case passes, `check-ramp-ledger` and `check-obligations` are clean with the two new
+  sites, the moved gate-list site and their three rows, and the `ramp-ledger` pins that read
+  the current fleet at older versions name them. A case added while integrating the item
+  was red first too: with a kept `tools/lib/stamp-inputs.mjs` that has no `web-compile`
+  list, the step crashed with `TypeError: paths is not iterable`; it now builds in full and
+  records no stamp. On a zero-edit core scaffold rendered from this tree,
+  `node tools/check-web-build.mjs` run first, before any `tsc -b`, filled all six
+  placeholder keys, failed with TS6305 and printed the `tsc -b` command that fixes it.
+  `validate --report-all` then passed on 37 steps with nothing unrun, `web-compile` taking
+  49 s; the second run printed `web-compile: STAMPED` and took 38 s in all; `git status
+  --porcelain` was empty; and `HARNESS_REQUIRE_TOOLCHAINS=1 node tools/validate.mjs
+  --min-floor` passed with a real build. With `import '../lib/auth/session'` under
+  `'use client'` in `app/providers.tsx`, `tsc -b` stayed green and the step failed carrying
+  Next's `You're importing a module that depends on "server-only"`; with the baseVersion set
+  to 1.0.4, the same failure was a NOTE, exit 0, with no stamp recorded, and `apps/web` was
+  clean after both failed builds. With the three `'orgs-empty'` literals renamed,
+  `check-web-routes.mjs` failed naming `orgs (/o)` and both of its non-null ids. On a local
+  Supabase stack (CLI 2.118.0), Playwright ran `notes.spec.ts`, `security.spec.ts` and
+  `authenticated.spec.ts` against a production build: 5 of 5 passed. `upgrade-linux` leg A,
+  from v1.0.4, ended with validate exit 0 on 37 steps: `web-compile` OK, and the closure
+  (naming `notes` and `security`) and the gate list as NOTEs that expire in 1.2.0, so
+  `graduate` refused. Leg E, from v0.3.0, compiled the old web app, adopted the two specs in
+  its sweep and graduated to 1.1.0 (#77).
 
 ## [1.0.4] — 2026-10-01
 

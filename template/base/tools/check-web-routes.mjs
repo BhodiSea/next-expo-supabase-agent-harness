@@ -24,12 +24,19 @@
 //   5. ids, URLs and state test ids are globally unique;
 //   6. the committed apps/web/lib/routes.generated.ts matches what the file tree implies;
 //   7. app/not-found.tsx exists — without it an unmatched URL renders Next's built-in 404,
-//      which is unbranded, untranslated, and outside every lane this repo runs.
+//      which is unbranded, untranslated, and outside every lane this repo runs;
+//   8. (1.1.0) every registered route is RENDERED by a browser test: some spec under
+//      apps/web/e2e names one of its declared state test ids as a quoted literal. Mobile
+//      closes every route through a Maestro flow to a startup budget; until this check the
+//      web lane was judged on aggregates only, and the seeded suite rendered one of its
+//      three routes. Its findings are a list of their own with a ramp of their own.
 // SOURCE: https://nextjs.org/docs/app/api-reference/file-conventions/not-found (the built-in
 // not-found UI is used when no not-found.js is provided)
 // SOURCE: docs/harness/README.md (skip-local / fail-closed-CI asymmetry) [corpus: harness/doctrine]
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { walkFiles } from './lib/fs-walk.mjs'
 import { fail, failures, ok, rampNote, skipOrFail } from './lib/gate.mjs'
+import { blankComments } from './lib/source-text.mjs'
 import {
   discoverPages,
   META_FILE,
@@ -44,6 +51,9 @@ const APP_DIR = 'apps/web/app'
 const REGISTRY = 'apps/web/lib/routes.generated.ts'
 const ALLOWLIST = 'tools/web-route-allowlist.json'
 const CATALOG_FILE = 'apps/web/lib/i18n/catalog.ts'
+const E2E_DIR = 'apps/web/e2e'
+// What Playwright runs, and what tools/check-web-e2e.mjs counts as a spec.
+const SPEC_FILE_RE = /\.spec\.(ts|tsx|js|mjs)$/
 
 if (!existsSync(APP_DIR)) {
   skipOrFail(GATE, `${APP_DIR} not found (no web surface yet)`)
@@ -216,6 +226,74 @@ if (errs.length === 0) {
   }
 }
 
+// ── the per-route browser closure (1.1.0) ────────────────────────────────────────────
+// For every registered route, some spec under apps/web/e2e must contain one of its non-null
+// declared state test ids as a QUOTED literal. State test ids are globally unique (checked
+// above), so a literal names exactly one route. Comments are blanked first: a spec that only
+// mentions an id in prose renders nothing. A null state is never required — it has a reviewed
+// reason for being unreachable — but a route must declare at least one real id to be closed.
+// The check reads text, so what it proves is that a spec NAMES the state; that the spec
+// passes is the web-e2e lane's job, which runs every spec it finds.
+
+/** Every spec's source under apps/web/e2e, comments blanked. */
+function specSources() {
+  if (!existsSync(E2E_DIR)) return []
+  return walkFiles(E2E_DIR, { filter: (rel) => SPEC_FILE_RE.test(rel) })
+    .sort()
+    .map((rel) => blankComments(readFileSync(`${E2E_DIR}/${rel}`, 'utf8')))
+}
+
+/** Is `id` a quoted literal in any of `sources`? */
+const namedIn = (sources, id) =>
+  sources.some((src) => [`'${id}'`, `"${id}"`, `\`${id}\``].some((q) => src.includes(q)))
+
+/**
+ * One finding per registered route no spec renders.
+ * @param {Array<{ id: string, path: string, states: Record<string, string | null | undefined> }>} routes
+ * @returns {string[]}
+ */
+function browserClosure(routes) {
+  const sources = specSources()
+  const findings = []
+  for (const route of routes) {
+    const ids = STATE_KEYS.map((k) => route.states[k]).filter(
+      (id) => typeof id === 'string' && id !== '',
+    )
+    if (ids.some((id) => namedIn(sources, id))) continue
+    const named =
+      ids.length > 0 ? ids.map((id) => `'${id}'`).join(', ') : 'none: every state is null'
+    findings.push(
+      `${route.id} (${route.path}): no spec under ${E2E_DIR} names one of its state test ids (${named}) as a quoted literal — no browser test renders this route`,
+    )
+  }
+  return findings
+}
+
+let closureErrs = browserClosure(entries)
+let closureSummary = `${String(entries.length)} route(s) each named by a spec under ${E2E_DIR}`
+// ITS OWN RAMP, opened at 1.1.0 until 1.2.0, and consulted only once findings exist: rampNote
+// prints its NOTE on every armed call, and a NOTE over a clean tree would refuse `graduate`
+// for nothing (the 0.6.0 ramp below records the wave that shipped exactly that). The specs
+// this closure asks for are seeded, and `update` does not plant them into an existing
+// install, so below baseVersion 1.1.0 the findings are NOTEs; a fresh scaffold ships the
+// specs and is held to the check at once.
+if (
+  closureErrs.length > 0 &&
+  rampNote(
+    GATE,
+    '1.1.0',
+    'the per-route browser closure (a spec under apps/web/e2e naming a state test id of every registered web route)',
+    { until: '1.2.0' },
+  )
+) {
+  console.log(
+    `${GATE}: NOTE — ${String(closureErrs.length)} web route(s) no spec renders, withheld by the 1.1.0 ramp:`,
+  )
+  for (const e of closureErrs) console.log(`  - ${e}`)
+  closureSummary = `the browser closure NOTE-only on this pre-1.1.0 install (${String(closureErrs.length)} route(s) listed above)`
+  closureErrs = []
+}
+
 // THE RAMP. An install created before 0.6.0 has pages and no page.meta.ts anywhere, so every
 // finding above would land at once on an upgrade the consumer did not ask for. Projects grow
 // into gates; gates never ambush an update. It expires at 0.7.0, after which the same findings
@@ -246,12 +324,14 @@ if (
   )
 }
 
-failures(
-  GATE,
-  errs,
-  `Give the page a ${APP_DIR}/<segment>/page.meta.ts ({id, titleKey, states}) and regenerate with \`pnpm gen\` — or (human decision) allowlist the chrome page, or document a provably-unreachable state, with a reason in ${ALLOWLIST}.`,
-)
+const hints = [
+  errs.length > 0 &&
+    `Give the page a ${APP_DIR}/<segment>/page.meta.ts ({id, titleKey, states}) and regenerate with \`pnpm gen\` — or (human decision) allowlist the chrome page, or document a provably-unreachable state, with a reason in ${ALLOWLIST}.`,
+  closureErrs.length > 0 &&
+    `A route no spec renders: add a *.spec.ts under ${E2E_DIR} that visits it and asserts one of its declared state test ids (\`page.getByTestId('<id>')\`), or (human decision) allowlist the page as chrome in ${ALLOWLIST}.`,
+].filter(Boolean)
+failures(GATE, [...errs, ...closureErrs], hints.join('\n'))
 ok(
   GATE,
-  `web: ${String(entries.length)} route(s), ${String(pages.length)} page file(s), ${String(allow.size)} reviewed chrome — ids and URLs unique, every titleKey resolves, every declared state test id rendered, ${REGISTRY} in sync, not-found present`,
+  `web: ${String(entries.length)} route(s), ${String(pages.length)} page file(s), ${String(allow.size)} reviewed chrome — ids and URLs unique, every titleKey resolves, every declared state test id rendered, ${REGISTRY} in sync, not-found present; ${closureSummary}`,
 )

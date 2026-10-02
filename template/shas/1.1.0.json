@@ -787,6 +787,15 @@
         ]
       },
       {
+        "sha256": "4f881c3322fbd868100278f71f29063ab3acadae2e0bcb39bf5b3a48c1457e85",
+        "sites": [
+          [
+            2223,
+            "DEFAULT_BRANCH"
+          ]
+        ]
+      },
+      {
         "sha256": "7224484b0a8a30b3953ffc75214df8250cdc09828e2cc56287cf13797df3386d",
         "sites": [
           [
@@ -961,6 +970,9 @@
     "docs/compliance/controls-crosswalk.md": [
       {
         "sha256": "6f95432e85772c6dfe90e528d7d29a630b759b0dcc76ed1329d9d17d8d178957"
+      },
+      {
+        "sha256": "760ec03abea335ce048bf314812a7db7d1fdece149132f0b4afcfd948349b988"
       }
     ],
     "docs/compliance/essential-eight.md": [
@@ -992,6 +1004,15 @@
         "sites": [
           [
             17834,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "373bb8fe1873c6b7cbe4c865b34f5cd0735a5b9c29103a9aceb3d8e551d3242b",
+        "sites": [
+          [
+            20134,
             "SECURITY_OWNERS"
           ]
         ]
@@ -1089,6 +1110,9 @@
     ],
     "docs/harness/enforcement-tiers.md": [
       {
+        "sha256": "1c55a3ac4d9a9667d98eb871a980f23c350b7896764cc2813f4bb4637ba87d17"
+      },
+      {
         "sha256": "1f3cd7e83a49682abbfa6255ea1588dfe27471a1d5258afc3ac6d5c7fe16baa3"
       },
       {
@@ -1119,6 +1143,15 @@
         "sites": [
           [
             125469,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
+        "sha256": "371becc5f361568d8fb57b6f42fc9040eea298d156d52fa48e4f38e4fd5fe007",
+        "sites": [
+          [
+            141952,
             "SECURITY_TXT_EXPIRES"
           ]
         ]
@@ -1477,6 +1510,15 @@
       },
       {
         "sha256": "21a7c4c1cf38843078b25cf3ec09b9d374be0abd7aaa1db086e8ae200de78138",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "2927234b9aa35bd018fc379ead84029a8cb613497a48df77bc424961962e1d1e",
         "sites": [
           [
             14115,
@@ -1917,6 +1959,9 @@
     "tools/build-check.mjs": [
       {
         "sha256": "9edff9d8e2a6377e52ef9fa9380fef18dbaa4a54a704bcdfe34293ffb1d276e3"
+      },
+      {
+        "sha256": "bb71c35888f67771545a3bb7fd103df3bc9601b4cb809aac28a95dfd9ff637da"
       }
     ],
     "tools/cc-floor.json": [
@@ -1985,6 +2030,9 @@
       },
       {
         "sha256": "861a8d834cb89d1b476ee809a78efec190e3ed411de4fb6a2606a68717492693"
+      },
+      {
+        "sha256": "cf8c7f08d5c199d096db9777e8a313821e393c98bbc0ffeee75c2f9472eadd73"
       }
     ],
     "tools/check-duplication.mjs": [
@@ -2242,6 +2290,11 @@
         "sha256": "02ed356309051110ea7385f5b36abd2ccf00645fab047099d2f3ae7b84893332"
       }
     ],
+    "tools/check-web-build.mjs": [
+      {
+        "sha256": "df9dee15b5cadaa4fb66dccf7984241b029e5d0b1e2ebd27d031049e82285876"
+      }
+    ],
     "tools/check-web-e2e.mjs": [
       {
         "sha256": "4e305dae7e38279be51141e106da5f2360482d79fe7a8d25ace4750993a2974a"
@@ -2250,6 +2303,9 @@
     "tools/check-web-routes.mjs": [
       {
         "sha256": "4201ef3b1e1f5c8f8e9907e319b119d361a035265d35e8ad030b7ae7acf50fbb"
+      },
+      {
+        "sha256": "a6077344fc17e35418da9ee7cfadfac138286dee7ee1a661ab828d060c63be80"
       }
     ],
     "tools/check-wiring.mjs": [
@@ -2372,6 +2428,19 @@
           ],
           [
             699560,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "67c674d73ee45ef11fd960db671c09be03aa0388aeb310af9e4881dae841e29d",
+        "sites": [
+          [
+            641566,
+            "APP_SCHEME"
+          ],
+          [
+            701410,
             "SECURITY_OWNERS"
           ]
         ]
@@ -2785,6 +2854,9 @@
       },
       {
         "sha256": "a1ba024008cec30e9b8ee1abfd32e90ea731fc877278446b3d10e381db79af00"
+      },
+      {
+        "sha256": "f783e10bcf311dcded7270d40b5e84a1ab353f6a7438b849a89cc40f01f1c4dd"
       }
     ],
     "tools/lib/standards-claim.mjs": [
@@ -2902,10 +2974,16 @@
     ],
     "tools/validate.floor.json": [
       {
+        "sha256": "cf843fcfb625f7a4c51a017db1abbcd14c3e2f5a97b2ed48d684793030769aa2"
+      },
+      {
         "sha256": "fec7856f80699432a9a13f3f2a7a3d32ee3088a73a66abac7767dcb8a42cdd5f"
       }
     ],
     "tools/validate.mjs": [
+      {
+        "sha256": "2005523b1b08223850f5c9362f671b5d8bae48026847cc7a126aa0b712986989"
+      },
       {
         "sha256": "26c31d7617ad698834d7468b32a0cafed0fac914b017ec5b0bc9b6bce3260b77"
       }

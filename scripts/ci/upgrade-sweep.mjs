@@ -334,7 +334,7 @@ const SWEEPS = {
   // re-date on tools/eol.json (the harness moved its own removalTarget from 1.1.0 to
   // 1.2.0), and the DERIVED pass already adopts that path from HEAD, which is the whole
   // remedy: the copied register carries the re-affirmed row, so the re-opened version-sync
-  // arrival ramp has nothing to NOTE. The seven 1.0.0-opened sites that expire here need no
+  // arrival ramp has nothing to NOTE. The six 1.0.0-opened sites that expire here need no
   // step of their own: '1.0.0' above is their sweep, and every leg that meets them crosses
   // 1.0.0 too. Empty, and written down, because computeSweepSet asks every version that
   // withholds a path or parks a seeded-source fix for a reviewed posture. The reviewer ledger
@@ -377,7 +377,20 @@ const SWEEPS = {
   // consumer runs them: the doctrine SQL the gate prints, derived from the leg's OWN
   // migrations by the leg's own tools/lib/table-grants.mjs, in a NEW migration of the leg's
   // own that sorts after its history, then `node tools/gen-grant-assertions.mjs`.
-  '1.1.0': { grantDoctrine: true },
+  //
+  // THE BROWSER SPECS (#77) are two more withheld paths, apps/web/e2e/notes.spec.ts and
+  // apps/web/e2e/security.spec.ts, and a swept leg ADOPTS both: route-manifest's per-route
+  // browser closure NOTEs on every install below 1.1.0 that has no spec naming a state test
+  // id of `notes` and `security`, and copying the two seeded specs is exactly the runbook's
+  // remedy. They are named in extraAdopt rather than through adoptSeedOnInitOnly, which would
+  // also plant tools/surfaces.json and #74's two paths. Nothing else of #77 needs a step:
+  // web-compile is quiet on a leg whose web app compiles under the placeholder env, and
+  // docs-sync's re-opened gate-list escape is cleared by the sweep's own §3 AGENTS.md
+  // rewrite, derived from the install's chain (36 → 37).
+  '1.1.0': {
+    grantDoctrine: true,
+    extraAdopt: ['apps/web/e2e/notes.spec.ts', 'apps/web/e2e/security.spec.ts'],
+  },
 }
 
 /**

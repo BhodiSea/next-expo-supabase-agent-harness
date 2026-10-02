@@ -364,6 +364,52 @@ jobs:
           fi
           git checkout -q -- tools/perf-baseline.json
           echo 'canary OK: the build ratchet went red'
+      - name: 'Canary 35: a server-only import in a client module → web-compile must FAIL on the build error while types stays green'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          # 1.1.0 (#77). app/providers.tsx is a 'use client' module; lib/auth/session.ts opens
+          # with `import 'server-only'`. A side-effect import of it typechecks (tsc knows nothing
+          # of the RSC boundary), so `types` stays green, and only a real `next build` refuses
+          # it. CI=true here, so the step ignores any stamp the baseline recorded and builds.
+          before=$(git hash-object apps/web/app/providers.tsx)
+          sed -i "s#^'use client'\$#'use client'\nimport '../lib/auth/session'#" apps/web/app/providers.tsx
+          if [ "$(git hash-object apps/web/app/providers.tsx)" = "$before" ]; then
+            echo '::error::CANARY SETUP: the server-only import never reached app/providers.tsx — the injection is stale, not the gate'; exit 1
+          fi
+          pnpm exec tsc -b . apps/web apps/mobile \
+            || { echo '::error::CANARY SETUP: types reddened on the injection — this canary needs a tree only a bundler can refuse'; exit 1; }
+          if env -u GITHUB_BASE_REF node tools/check-web-build.mjs > canary35.log 2>&1; then
+            cat canary35.log
+            echo '::error::CANARY: web-compile PASSED a client module that imports server-only code — the step does not compile the app'; exit 1
+          fi
+          if ! grep -q '^web-compile: FAIL' canary35.log || ! grep -q 'server-only' canary35.log; then
+            cat canary35.log
+            echo "::error::CANARY: web-compile reddened WITHOUT carrying Next's server-only error — wrong failure path (log above)"; exit 1
+          fi
+          git checkout -q -- apps/web/app/providers.tsx
+          [ -z "$(git status --porcelain apps/web)" ] \
+            || { git status --porcelain apps/web; echo '::error::CANARY: a failed web build left apps/web dirty — the committed next-env.d.ts must be restored'; exit 1; }
+          echo 'canary OK: web-compile went red on a server-only import types could not see'
+      - name: 'Canary 36: every orgs state test id removed from apps/web/e2e → route-manifest must FAIL naming orgs'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          # 1.1.0 (#77): the per-route browser closure. Today the three `'orgs-empty'` lines in
+          # authenticated.spec.ts are the only literals of an orgs state test id in the suite.
+          before=$(cat apps/web/e2e/*.spec.ts | git hash-object --stdin)
+          sed -i "s/'orgs-empty'/'orgs-renamed'/g; s/'orgs-loading'/'orgs-renamed'/g" apps/web/e2e/*.spec.ts
+          if [ "$(cat apps/web/e2e/*.spec.ts | git hash-object --stdin)" = "$before" ]; then
+            echo '::error::CANARY SETUP: no orgs state test id was removed from apps/web/e2e — the injection is stale, not the gate'; exit 1
+          fi
+          if env -u GITHUB_BASE_REF node tools/check-web-routes.mjs > canary36.log 2>&1; then
+            cat canary36.log
+            echo '::error::CANARY: route-manifest PASSED a registered route no spec renders — the browser closure cannot fail'; exit 1
+          fi
+          if ! grep -qF 'orgs (/o): no spec under apps/web/e2e' canary36.log; then
+            cat canary36.log
+            echo '::error::CANARY: route-manifest reddened WITHOUT naming orgs — wrong failure path (log above)'; exit 1
+          fi
+          git checkout -q -- apps/web/e2e
+          echo 'canary OK: route-manifest went red naming the route no spec renders'
       - name: 'Canary 13: remove a numbered gates-catalog section → docs-sync must FAIL'
         working-directory: ${{ runner.temp }}/canary
         run: |
@@ -1046,6 +1092,26 @@ jobs:
             echo '::error::warm validate did not skip e2e via its stamp — the warm-path win regressed'
             exit 1
           fi
+      - name: Warm-lane positive control — the web-compile stamp engaged, and the build left apps/web clean
+        working-directory: .selftest/boot
+        # 1.1.0 (#77): the cold --min-floor run above ran a real `next build` and recorded the
+        # web-compile stamp, so the warm run must ride it instead of building again. `next build`
+        # rewrites the committed apps/web/next-env.d.ts and the step restores it; a dirty
+        # apps/web would be a defect of its own and would also miss this stamp on every run.
+        run: |
+          if grep -E '^web-compile: STAMPED.*inputs unchanged' warm-validate.log; then
+            echo 'web-compile stamp engaged on the warm run: OK'
+          else
+            echo '::error::warm validate did not skip web-compile via its stamp — a stamp input churns between two runs over an unchanged tree'
+            exit 1
+          fi
+          dirty="$(git status --porcelain apps/web)"
+          if [ -n "$dirty" ]; then
+            echo "$dirty"
+            echo '::error::two validate runs left apps/web dirty — the web build must restore the committed next-env.d.ts'
+            exit 1
+          fi
+          echo 'apps/web is clean after two validate runs: OK'
       - name: Warm-lane positive control — the essential-eight and conformance-map stamps engaged
         working-directory: .selftest/boot
         # 1.1.0: the docs-sync step's two register scripts are stamped too. The cold run above

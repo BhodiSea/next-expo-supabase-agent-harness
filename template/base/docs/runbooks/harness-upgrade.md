@@ -1604,8 +1604,9 @@ naming the parked copy.
 
 **If your `baseVersion` is 1.0.0 or later, nothing expires for you.** Every ramp 1.0.0
 opened carries `minVersion 1.0.0`, so none of them has ever been live on your install. What
-the version bump itself brings a 1.0.x install is the uuid arrival NOTE below; each ramp a
-later 1.1.0 change opens has its own part of this section. Read what applies
+the version bump itself brings a 1.0.x install is the uuid arrival NOTE below, and the new
+`web-compile` chain step brings the gate-list NOTE beside it; each ramp a later 1.1.0 change
+opens has its own part of this section. Read what applies
 to YOUR `baseVersion` off `node scripts/ci/ramp-expectations.mjs <your base> 1.1.0` in a
 harness checkout, and off `pnpm validate 2>&1 | grep -E 'NOTE — \(ramp\)|RAMP EXPIRED'` in
 your own tree, never off this page.
@@ -1616,30 +1617,29 @@ more than one release behind, read the sections above in order before crossing t
 
 ### What ARRIVES (hard) — for installs below 1.0.0
 
-The six-gate NOTE fleet 1.0.0 opened, less its re-opened eol arrival. Each finding that
-printed as `NOTE — (ramp)` with `expires in 1.1.0` now prints under a `RAMP EXPIRED`
-banner and reds its step. The numbers are the items of the 1.0.0 section's "What OPENS"
-list, which says what to do for each:
+The NOTE fleet 1.0.0 opened, less its two re-opened sites (the eol arrival and
+`docs-sync`'s gate list, both below). Each finding that printed as `NOTE — (ramp)` with
+`expires in 1.1.0` now prints under a `RAMP EXPIRED` banner and reds its step. The numbers
+are the items of the 1.0.0 section's "What OPENS" list, which says what to do for each:
 
 1. **`suppressions`** (item 1). Reconcile `tools/suppressions-allow.json` to your tree: a
    directive with no row, and a row naming a directive your tree lacks, both red.
 2. **`resilience`** (item 2). Every outbound seam your tree added needs its
    `tools/resilience.json` row.
-3. **`docs-sync`'s gate list** (item 3). Your seeded `AGENTS.md` must list every step the
-   chain runs. Paste the names the finding prints.
-4. **`boundaries`, two sites.** The behavior-keyed anatomy widening (item 4), and the
+3. **`boundaries`, two sites.** The behavior-keyed anatomy widening (item 4), and the
    census module-name closure: an entry in `tools/exports-walls.json` whose `module` is not
    in the owned `tools/modules.json` reds. Fix the name, or remove the entry's sanction.
-5. **`version-sync`'s vendor-support register** (item 5, its first half):
+4. **`version-sync`'s vendor-support register** (item 5, its first half):
    `tools/support-register.json` and its platform-fact closure against your Postgres and
    Node pins.
-6. **`auth-posture`'s `[auth.hook.*]` floors** (item 6), and only if the auth-event trail
+5. **`auth-posture`'s `[auth.hook.*]` floors** (item 6), and only if the auth-event trail
    migration is in your tree. With neither the migration nor the config sections, nothing
    is demanded, exactly as before.
 
 `scripts/ci/upgrade-sweep.mjs` `SWEEPS['1.0.0']` is what the upgrade lane's swept leg runs
-before it requires `graduate` to succeed, and it adds no step for this release
-(`SWEEPS['1.1.0']` is empty, and says why).
+before it requires `graduate` to succeed. For these sites `SWEEPS['1.1.0']` adds no step
+(it says why); what it does carry belongs to later subsections of this section: the grant
+bound's `grantDoctrine` step, and the two seeded browser specs it adopts.
 
 ### What re-OPENS (a dated NOTE, until 1.2.0) — for every install below 1.1.0
 
@@ -1668,6 +1668,16 @@ git add tools/eol.json
 That pull replaces the whole file, your own rows included, so read the diff before you
 commit it. The parked fix clears itself once your file no longer says `"1.1.0"`.
 `graduate` refuses while this NOTE stands.
+
+**`docs-sync`'s `AGENTS.md` gate list.** 1.1.0 injects a chain step, `web-compile`, directly
+after `build` (the last subsection of this section), so your chain has 37 steps while your
+seeded `AGENTS.md` still lists 36, or fewer. The escape that covered this drift reached its
+deadline at this very release, so it re-opens at minVersion 1.1.0: while every step your
+`AGENTS.md` lists still exists in the same order, the drift prints as `NOTE — (ramp)` with
+`expires in 1.2.0`, and the NOTE ends by telling you to paste the chain's names. Do exactly
+that: put the 37 names it prints into the "The N gates, in order:" sentence, and change the
+"N-step chain" line to 37. A listed step that no longer exists, or a reordering, is your
+own drift and stays a hard red. `graduate` refuses while this NOTE stands.
 
 ### What `update` plants, and what else moved
 
@@ -1784,8 +1794,16 @@ for `rpc()` and `upsert()` re-plant `tools/lib/query-recorder.mjs`, `tools/lib/q
 and stays as it is (its subsection below). The i18n syntax-tree walk adds
 `tools/lib/i18n-tree.mjs` and re-plants `tools/check-i18n.mjs` and
 `docs/harness/gates-catalog.md`; your `tools/i18n-allow.json` is seeded and stays as it is,
-and a `site` entry in it has a key to take instead (its subsection below). What you may
-notice afterwards:
+and a `site` entry in it has a key to take instead (its subsection below).
+The web compile step adds `tools/check-web-build.mjs` and injects it into your
+`tools/harness.config.mjs` as `web-compile`, after `build`, and re-plants
+`tools/check-web-routes.mjs`, `tools/check-docs-sync.mjs`, `tools/lib/stamp-inputs.mjs`,
+`tools/validate.floor.json`, `tools/build-check.mjs` (comments),
+`.github/workflows/quality-gate.yml`, `docs/harness/gates-catalog.md`,
+`docs/harness/enforcement-tiers.md`, `docs/harness/README.md`, `tools/conformance-map.json`
+and `docs/compliance/controls-crosswalk.md`; the two new browser specs are withheld, and
+your `AGENTS.md` is yours to update (its subsection below).
+What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1955,6 +1973,14 @@ notice afterwards:
   report says it retires with them in 1.2.0. Without an installed `typescript` the step
   says the walk did not run, and in CI it fails. The subsection on the i18n syntax-tree
   walk below says what to do.
+- **Your chain has a 37th step, `web-compile`, and it builds your web app.** The first
+  validate after `update` runs `next build` over `apps/web`, which takes tens of seconds,
+  and prints `web-compile: STAMPED` on every later run until something under `apps/web`,
+  `packages`, the base tsconfig, the workspace file or the lockfile changes. `static` runs
+  it on every pull request. `route-manifest` may print a NOTE naming `notes` and `security`,
+  and `docs-sync` a NOTE about your gate list. Your quality-gate workflow's `web-build` and
+  `web-e2e` jobs gain one step that builds the workspace declarations first. The subsection
+  on the web compile step below says what each NOTE asks of you.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -3096,6 +3122,55 @@ finds, so an install that never edited its copy or its screens' copy sees nothin
 alone, and cannot tell whether a key that matches none of their findings is stale. Run
 `pnpm install`. In CI, where the quality gate installs before it runs the step, a walk that
 did not run is a failure.
+
+### The web app compiles in the chain, and each web route needs a browser spec (NOTEs until 1.2.0)
+
+Through 1.0.x nothing in your chain compiled the web app: `types` typechecks and does not
+bundle, and `build` is the mobile export. A Client Component that imports a server-only
+module, or an import only the bundler cannot resolve, passed the whole chain and `static`,
+and only the path-filtered `web-build` job ran `next build`. The new step, `web-compile`
+(`node tools/check-web-build.mjs`), runs `pnpm --filter web exec next build --webpack` when
+its inputs changed and prints `STAMPED` when they did not; CI never uses the stamp.
+
+**What it needs.** `node_modules` and `apps/web`: without either it skips loudly on your
+machine and fails in CI, like every toolchain step. It runs after `types`, whose `tsc -b`
+writes the declarations Next's type check reads; run on its own on a fresh clone it fails
+with TS6305 and prints `pnpm exec tsc -b . apps/web apps/mobile`, which is the fix. Your
+environment is used as it is. For each Supabase key the build needs that you have not set
+and no `apps/web/.env*` file defines, it uses the placeholder your `web-build` job builds
+with and prints which keys it filled, so a scaffold with no local stack compiles. It
+restores the committed `apps/web/next-env.d.ts` that `next build` rewrites, so the build
+leaves your tree clean.
+
+**If your web app does not compile.** On an install whose `baseVersion` is below 1.1.0 the
+step prints `web-compile: NOTE — the web compile step (next build over apps/web)` with
+`expires in 1.2.0`, followed by the build's output, and passes. It records no stamp, so the
+NOTE comes back on every run, and `graduate` refuses, until the build is green. Reproduce it
+with `node tools/check-web-build.mjs` and fix what Next reports.
+
+**Each registered web route needs a spec that renders it.** `route-manifest` now also asks,
+for every route in `apps/web/lib/routes.generated.ts`, that some `*.spec.ts` under
+`apps/web/e2e` names one of the route's declared state test ids as a quoted string, outside
+a comment. A fresh scaffold ships `apps/web/e2e/notes.spec.ts` and
+`apps/web/e2e/security.spec.ts` for the two seeded routes that had none; `update` does not
+plant them, so your install has a spec for `orgs` only. Below `baseVersion` 1.1.0 the
+finding is a NOTE, `route-manifest: NOTE — the per-route browser closure (…)`, naming each
+route, its path and its state test ids. Copy the two specs from the harness's
+`template/stack/apps/web/e2e/` if your `notes` and `security` routes are the seeded ones,
+or write a spec per route that signs in, visits it and asserts one of its ids with
+`page.getByTestId('<id>')`. Each seeded spec mints its own user through
+`SUPABASE_SERVICE_ROLE_KEY`, as `authenticated.spec.ts` does, so it runs in the `web-e2e`
+job with no new setup. A route that is chrome rather than content belongs in
+`tools/web-route-allowlist.json` instead.
+
+**Your `AGENTS.md` gate list.** Add `web-compile` after `build` and change 36 to 37 in both
+places (the "What re-OPENS" part above).
+
+**If you edited an owned file.** Your copy of `tools/check-web-routes.mjs`,
+`tools/check-docs-sync.mjs`, `tools/lib/stamp-inputs.mjs` or `quality-gate.yml` is kept,
+the new one is parked under `.harness/pending/`, and `update` exits 2 while it stays there.
+Until you merge a parked `tools/lib/stamp-inputs.mjs`, your copy has no list for
+`web-compile`, so the step builds on every run and records no stamp.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

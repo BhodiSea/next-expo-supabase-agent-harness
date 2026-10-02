@@ -418,6 +418,45 @@
       ],
       "reason": "OPENED AT 1.1.0 (#76, R07). The i18n Stop step now walks the TypeScript syntax tree (template/base/tools/lib/i18n-tree.mjs, the project's own `typescript`) beside its 1.0.x regular expressions and reports the union, and tools/i18n-allow.json entries are keyed on content ({\"key\": 12 hex characters of a sha256 over the POSIX path, the finding kind, the attribute or property name and the whitespace-collapsed text, \"reason\"}) instead of file:line. Two rampNote calls, both opened at minVersion 1.1.0 until 1.2.0, the deadline issue #76 fixes: a finding only the tree walk sees is a NOTE on an install seeded before 1.1.0 and hard on a fresh one, and a 1.0.x {\"site\"} entry still mutes its line there, naming the key that replaces it, and is malformed on a fresh install. A finding only the regular expressions see is hard and tagged as retiring in 1.2.0. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes both expiries, beside the other 1.2.0-dated rows above (#71, #72, #73, #75, #74) and the version-sync arrival row. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming both sites' population (every vintage below 1.1.0 whose tree holds a tree-only finding or a site entry), with its sweep in that release's runbook section (convert each site entry to the key its NOTE prints; catalog or key each tree-only string), AND that release REMOVES what the ramp retires: the regular expressions in check-i18n.mjs (ATTR_LITERAL, OBJECT_LITERAL, JSX_TEXT, INTL_USE with intlText, regexScan and the union in unite, and the regex-only tag), after tests/gates/i18n-tree.test.mjs's fixture parity shows the walk alone reds every red fixture string and none of the not-copy ones, and the site entry shape (allowSites, SITE_SHAPE and the second rampNote), leaving the tree walk and key entries; this row is deleted in the same diff. OR the ramp is extended by a reviewed rampExtensions entry and this row re-targeted.",
       "reviewedOn": "2026-09-30"
+    },
+    {
+      "id": "web-compile-ramp-expiry",
+      "kind": "release",
+      "target": "1.2.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-web-build.mjs",
+          "mustContain": "the web compile step (next build over apps/web)"
+        }
+      ],
+      "reason": "OPENED AT 1.1.0 (#77, R08). The new chain step web-compile (tools/check-web-build.mjs) runs `pnpm --filter web exec next build --webpack` on a stamp miss, and the 1.1.0 record's configSteps injects it into every existing chain after `build`. A web app that stopped compiling before its install upgraded would otherwise red on a check it never had, so below baseVersion 1.1.0 a failed build is a NOTE carrying the output; a ramped failure records no stamp, so the NOTE repeats and graduate stays refused until the app compiles. The deadline is the one issue #77 sets, the next minor. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes this expiry, as it owes the other 1.1.0 ramps that target the same release. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming this site's population (every vintage below 1.1.0 whose web app does not compile under the placeholder env), with its sweep in that release's runbook section (make `pnpm --filter web exec next build --webpack` green, then graduate), and this row is deleted in the same diff; OR the ramp is extended by a reviewed rampExtensions entry and this row re-targeted.",
+      "reviewedOn": "2026-09-30"
+    },
+    {
+      "id": "route-manifest-browser-closure-ramp-expiry",
+      "kind": "release",
+      "target": "1.2.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-web-routes.mjs",
+          "mustContain": "the per-route browser closure"
+        }
+      ],
+      "reason": "OPENED AT 1.1.0 (#77, R08). route-manifest's web half now requires, for every registered web route, a spec under apps/web/e2e naming one of its non-null declared state test ids as a quoted literal (comments blanked). The seeded suite gains apps/web/e2e/notes.spec.ts and apps/web/e2e/security.spec.ts, but both are seedOnInitOnly, so an install scaffolded before 1.1.0 carries a spec for `orgs` only and would red on `notes` and `security` the first validate after update. Below baseVersion 1.1.0 the findings are NOTEs; a fresh scaffold ships the specs and is held to the check at once. The deadline is the one issue #77 sets, the next minor. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes this expiry, as it owes the other 1.1.0 ramps that target the same release. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming this site's population (every vintage below 1.1.0 with a registered web route no spec names), with its sweep in that release's runbook section (copy the two seeded specs, or write a spec per route), and this row is deleted in the same diff; OR the ramp is extended by a reviewed rampExtensions entry and this row re-targeted.",
+      "reviewedOn": "2026-09-30"
+    },
+    {
+      "id": "docs-sync-gate-list-ramp-expiry",
+      "kind": "release",
+      "target": "1.2.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-docs-sync.mjs",
+          "mustContain": "AGENTS.md gate-list lockstep after an injected chain step"
+        }
+      ],
+      "reason": "RE-OPENED AT 1.1.0 (#77), the fourth move of this escape (0.6.0, 0.8.0 and 1.0.0 before it). The 1.1.0 record's configSteps injects web-compile, so every existing chain grows to 37 steps while the seeded AGENTS.md documents 36 (or fewer); the 1.0.0-opened escape reached its until at 1.1.0, inert for every 1.0.x install and expired for every older one. It re-opens at minVersion 1.1.0 with the byte-matched rampExtensions entry in the \"1.1.0\" record, and only ADDITIVE drift rides it. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes this expiry, as it owes the other 1.1.0 ramps that target the same release. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming this site's population (every vintage below 1.1.0 whose AGENTS.md still documents fewer steps than its chain), with its sweep in that release's runbook section (paste the chain's names into the \"The N gates, in order:\" sentence and the N-step chain line; upgrade-lane leg E's §3 rewrite performs exactly that), and this row is deleted in the same diff; OR the ramp is extended again by a reviewed rampExtensions entry and this row re-targeted.",
+      "reviewedOn": "2026-09-30"
     }
   ]
 }

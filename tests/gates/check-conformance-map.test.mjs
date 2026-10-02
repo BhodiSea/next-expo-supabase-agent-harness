@@ -344,7 +344,9 @@ test('the shipped map places every chain step exactly once — named as a contro
       `${step} must be exactly one of named | unmapped`,
     )
   }
-  assert.equal(STEPS.length, 46, '36 validate + 10 Stop steps')
+  // 47 since 1.1.0 (#77): web-compile joined the validate chain, keyed as unmapped.
+  assert.equal(STEPS.length, 47, '37 validate + 10 Stop steps')
+  assert.ok(unmapped.has('web-compile'), 'web-compile is keyed as unmapped, with its reason')
 })
 
 test('a chain step that is neither named nor listed reds', () => {
