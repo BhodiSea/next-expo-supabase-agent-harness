@@ -153,7 +153,7 @@ export async function init(opts) {
   }
   plan.push(...planModules(modules, answers))
 
-  const report = { title: `harness init (${det.mode})`, written: [], skipped: [], conflicts: [], drift: [], notes: [] }
+  const report = { title: `harness init (${det.mode})`, written: [], skipped: [], conflicts: [], drift: [], notes: [], steps: [] }
   // A module that plants a workspace package must appear in the root solution file, or
   // `contracts` reds on a scaffold that was never edited. It cannot be listed in the
   // template — a core-tier install has no such directory and `tsc -b` fails on a
@@ -327,8 +327,13 @@ export async function init(opts) {
     report.notes.push('consumed template checkout in place — installer/template trees removed')
   }
 
-  report.notes.push(
-    'next: git init (if new), then pnpm install, then COMMIT — git first because the prepare script (`lefthook install`) needs a repository, and the first commit must include pnpm-lock.yaml (the shipped workflows run `pnpm install --frozen-lockfile`, which hard-fails without it, and the version-sync gate reds an absent lockfile) — then `pnpm validate` must be green before any agent turn ends',
+  if (!existsSync(join(targetDir, '.git'))) {
+    report.steps.push('git init — the prepare script (`lefthook install`) needs a repository')
+  }
+  report.steps.push(
+    'pnpm install',
+    'git add -A && git commit — the first commit must include pnpm-lock.yaml (the shipped workflows run `pnpm install --frozen-lockfile`, which hard-fails without it, and the version-sync gate reds an absent lockfile)',
+    'pnpm validate — must be green before any agent turn ends',
   )
   if (det.mode === 'retrofit') {
     report.notes.push('review .harness sibling configs and merge them into your existing configs')

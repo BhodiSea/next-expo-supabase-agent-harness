@@ -76,6 +76,27 @@ test('human mode: written/skipped/notes without conflicts or drift stays exit 0,
   ])
 })
 
+test('human mode: steps render as a numbered list', (t) => {
+  const report = {
+    title: 'harness init (bootstrap)',
+    written: [],
+    skipped: [],
+    conflicts: [],
+    drift: [],
+    notes: [],
+    steps: ['git init', 'pnpm install'],
+  }
+  const { code, lines } = capture(t, () => printReport(report))
+  assert.equal(code, 0)
+  assert.deepEqual(lines, [
+    '\nharness init (bootstrap)',
+    '  written: 0 file(s)',
+    '  next steps:',
+    '    1. git init',
+    '    2. pnpm install',
+  ])
+})
+
 test('human mode: conflict label prefers path over name when both are present', (t) => {
   const report = {
     title: 't',
@@ -131,6 +152,7 @@ test('json mode: single pretty-printed JSON dump, exit 0 when clean', (t) => {
     conflicts: [],
     drift: [],
     notes: ['n1'],
+    steps: ['git init', 'pnpm install'],
   }
   const { code, lines } = capture(t, () => printReport(report, { json: true }))
   assert.equal(code, 0)

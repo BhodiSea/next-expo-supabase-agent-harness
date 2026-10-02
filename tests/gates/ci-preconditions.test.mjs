@@ -20,10 +20,10 @@ import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import { ciPreconditionProblems } from '../../scripts/lib/ci-preconditions.mjs'
 
-const INIT_NOTE_OK =
-  "report.notes.push(\n  'next: git init (if new), then pnpm install, then COMMIT — the first commit must include pnpm-lock.yaml — then validate',\n)"
-const INIT_NOTE_REGRESSED =
-  "report.notes.push(\n  'next: git init, then pnpm install, then commit, then validate',\n)"
+const INIT_STEPS_OK =
+  "report.steps.push(\n  'pnpm install',\n  'git add -A && git commit — the first commit must include pnpm-lock.yaml',\n  'pnpm validate — must be green before any agent turn ends',\n)"
+const INIT_STEPS_REGRESSED =
+  "report.steps.push(\n  'pnpm install',\n  'git add -A && git commit',\n  'pnpm validate — must be green before any agent turn ends',\n)"
 
 const wf = (file, text) => ({ file, text })
 const PINNED = 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0'
@@ -43,13 +43,13 @@ const CLEAN_WF = wf(
   ].join('\n'),
 )
 
-test('the clean shape: frozen installs, cache: pnpm backed by the init note, pinned actions', () => {
-  const problems = ciPreconditionProblems({ workflows: [CLEAN_WF], initSource: INIT_NOTE_OK })
+test('the clean shape: frozen installs, cache: pnpm backed by init steps, pinned actions', () => {
+  const problems = ciPreconditionProblems({ workflows: [CLEAN_WF], initSource: INIT_STEPS_OK })
   assert.deepEqual(problems, [])
 })
 
 test('anti-vacuity: an empty workflow universe is a broken scan, never a clean one', () => {
-  const problems = ciPreconditionProblems({ workflows: [], initSource: INIT_NOTE_OK })
+  const problems = ciPreconditionProblems({ workflows: [], initSource: INIT_STEPS_OK })
   assert.equal(problems.length, 1)
   assert.match(problems[0], /no shipped workflows/i)
 })
@@ -57,7 +57,7 @@ test('anti-vacuity: an empty workflow universe is a broken scan, never a clean o
 test('a workflow set with zero pnpm install invocations and zero uses: is a parse failure, not a pass', () => {
   const problems = ciPreconditionProblems({
     workflows: [wf('empty.yml', 'jobs:\n  a:\n    steps:\n      - run: echo hi\n')],
-    initSource: INIT_NOTE_OK,
+    initSource: INIT_STEPS_OK,
   })
   assert.ok(problems.some((p) => /no `pnpm install` invocation/i.test(p)))
   assert.ok(problems.some((p) => /no `uses:` reference/i.test(p)))
@@ -69,7 +69,7 @@ test('a BARE `pnpm install` reds — its lockfile posture flips on the CI env va
       CLEAN_WF,
       wf('extra.yml', `jobs:\n  j:\n    steps:\n      - uses: ${PINNED}\n      - run: pnpm install\n`),
     ],
-    initSource: INIT_NOTE_OK,
+    initSource: INIT_STEPS_OK,
   })
   assert.equal(problems.length, 1)
   assert.match(problems[0], /extra\.yml:5/)
@@ -85,7 +85,7 @@ test('an explicit --no-frozen-lockfile is a DECLARED divergence, not a finding',
         `jobs:\n  j:\n    steps:\n      - uses: ${PINNED}\n      - run: pnpm install --no-frozen-lockfile\n`,
       ),
     ],
-    initSource: INIT_NOTE_OK,
+    initSource: INIT_STEPS_OK,
   })
   assert.deepEqual(problems, [])
 })
@@ -99,28 +99,28 @@ test('prose in comments is not an invocation — the ADOPTION-note shape must no
         `jobs:\n  j:\n    steps:\n      # it runs BEFORE \`pnpm install\` so a pre-0.2.0 install is cheap\n      - uses: ${PINNED}\n      - run: pnpm install --frozen-lockfile\n`,
       ),
     ],
-    initSource: INIT_NOTE_OK,
+    initSource: INIT_STEPS_OK,
   })
   assert.deepEqual(problems, [])
 })
 
-test('cache: pnpm with an init note that stopped naming pnpm-lock.yaml reds — the cross-file closure', () => {
+test('cache: pnpm with init steps that stop naming pnpm-lock.yaml reds — the cross-file closure', () => {
   const problems = ciPreconditionProblems({
     workflows: [CLEAN_WF],
-    initSource: INIT_NOTE_REGRESSED,
+    initSource: INIT_STEPS_REGRESSED,
   })
   assert.equal(problems.length, 1)
   assert.match(problems[0], /pnpm-lock\.yaml/)
   assert.match(problems[0], /next-steps/i)
 })
 
-test('no `next:` note at all fails closed — a closure that cannot find its anchor must say so', () => {
+test('no structured next steps fail closed — a closure that cannot find its anchor must say so', () => {
   const problems = ciPreconditionProblems({
     workflows: [CLEAN_WF],
     initSource: 'export async function init() {}\n',
   })
   assert.equal(problems.length, 1)
-  assert.match(problems[0], /no 'next:' note/i)
+  assert.match(problems[0], /no structured next-steps guidance/i)
 })
 
 test('a tag-pinned action reds — a movable ref is not a pin', () => {
@@ -132,7 +132,7 @@ test('a tag-pinned action reds — a movable ref is not a pin', () => {
         'jobs:\n  j:\n    steps:\n      - uses: actions/checkout@v4\n      - run: pnpm install --frozen-lockfile\n',
       ),
     ],
-    initSource: INIT_NOTE_OK,
+    initSource: INIT_STEPS_OK,
   })
   assert.equal(problems.length, 1)
   assert.match(problems[0], /extra\.yml:4/)
@@ -148,7 +148,7 @@ test('a SHA pin with no version comment reds — an unlabelled pin is unreviewab
         'jobs:\n  j:\n    steps:\n      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0\n      - run: pnpm install --frozen-lockfile\n',
       ),
     ],
-    initSource: INIT_NOTE_OK,
+    initSource: INIT_STEPS_OK,
   })
   assert.equal(problems.length, 1)
   assert.match(problems[0], /comment/)
@@ -165,7 +165,7 @@ test('a `uses:`-shaped string inside a run block is shell, not an action referen
         `jobs:\n  j:\n    steps:\n      - uses: ${PINNED}\n      - run: |\n          reusable=$(grep -cE '^    uses: .+/\\.github/workflows/' "$wf" || true)\n          pnpm install --frozen-lockfile\n`,
       ),
     ],
-    initSource: INIT_NOTE_OK,
+    initSource: INIT_STEPS_OK,
   })
   assert.deepEqual(problems, [])
 })

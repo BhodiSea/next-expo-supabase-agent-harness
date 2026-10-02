@@ -7,7 +7,7 @@ export function printReport(report, { json = false, list = false } = {}) {
     console.log(JSON.stringify(report, null, 2))
     return report.conflicts.length === 0 && report.drift.length === 0 ? 0 : 2
   }
-  const { written = [], skipped = [], conflicts = [], drift = [], notes = [] } = report
+  const { written = [], skipped = [], conflicts = [], drift = [], notes = [], steps = [] } = report
   console.log(`\n${report.title}`)
   console.log(`  written: ${written.length} file(s)`)
   for (const w of list ? written : []) console.log(`    would write ${w}`)
@@ -19,6 +19,10 @@ export function printReport(report, { json = false, list = false } = {}) {
     console.log(`  DRIFT ${d.path}: local edits preserved; incoming saved to ${d.pending}`)
   }
   for (const n of notes) console.log(`  note: ${n}`)
+  if (steps.length) {
+    console.log('  next steps:')
+    for (const [index, step] of steps.entries()) console.log(`    ${index + 1}. ${step}`)
+  }
   if (conflicts.length || drift.length) {
     console.log('\nResolve the items above, then run `doctor` to confirm a clean install.')
     return 2
