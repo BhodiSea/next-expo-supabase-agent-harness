@@ -1,15 +1,3 @@
-# pnpm-workspace.yaml — workspace layout + THE version catalog.
-# Every external version number in this monorepo lives HERE; workspace
-# package.json files reference "catalog:" so upgrades are one-line diffs and
-# version drift between workspaces is structurally impossible.
-#
-# The layering law (design/W1-STACK-SPEC.md §2) groups packages into NESTED
-# directories — packages/platform/*, packages/verticals/*, packages/shared/*,
-# packages/config/* — so the second glob is load-bearing, not decorative. With
-# `packages/*` alone, pnpm silently resolves NOTHING under those groups: the
-# workspace deps fail to link, `tsc -b` cannot find the projects, and vitest
-# collects no suites from them. A missing glob here fails as "package not
-# found" three layers away from its cause.
 packages:
   - apps/*
   - packages/*
@@ -113,7 +101,7 @@ catalog:
   # images.remotePatterns, a Linux deploy target), and the floor moves anyway: the
   # /_next/image endpoint exists by default and consumers extend these apps.
   # SOURCE: https://nextjs.org/blog/august-2026-security-release
-  next: 16.3.5
+  next: 16.3.6
   next-safe-action: ^8.5.3
   tailwindcss: ^4.3.0 # v4 CSS-first, WEB ONLY — mobile pins v3 in apps/mobile (see below)
   '@tailwindcss/postcss': ^4.3.0
