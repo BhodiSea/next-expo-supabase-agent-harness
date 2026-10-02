@@ -83,6 +83,22 @@ components. Check:
   pseudo-RTL sweep catches regressions, but flag hardcoded left/right that will
   fail it.
 
+## WHAT MUST ACCOMPANY IT
+
+The rubric above judges the lines a diff contains. This table judges the ones it should
+contain and does not: what a diff introduces decides what else must land with it, and a
+missing companion shows on no line of the diff. For every row whose second column the diff
+introduces, report one line, `<id>: present (file:line)` or `<id>: absent`. An absence is a
+finding at the severity this body already gives the rule the row restates. `Enforced by`
+names the chain step that reds the absence, or says `review only`; a row a step enforces
+still gets its line, because the step may not have run on the tree you were given.
+
+| id | The diff introduces | It must also bring | Stated in | Enforced by |
+| --- | --- | --- | --- | --- |
+| `screen-route-states` | a screen (a route file under `apps/mobile/app/`) | its `src/routes.ts` entry, with the `loading`, `empty` and `error` test ids the screen renders | `docs/harness/gates-catalog.md` | `route-manifest` |
+| `screen-error-retry` | a screen | an error state that contains its retry affordance and is announced, not only shown | `apps/mobile/src/routes.ts` | `review only` |
+| `web-page-meta` | a web page (`apps/web/app/**/page.tsx`), which widens this body's scope from the native app to that page, judged by the same criteria | a `page.meta.ts` beside it with an `id`, a `titleKey` the web catalog resolves, and the three state test ids the page renders | `docs/harness/gates-catalog.md` | `route-manifest` |
+
 Report each violation by WCAG success criterion with a `file:line` reference. You
 CANNOT run tests — the primitives a11y suite and the per-route states sweep run
 inside `pnpm test:mobile` (jest-expo); recommend the main thread run them as

@@ -1,0 +1,23 @@
+import { Skeleton } from '@app/design-system'
+import type { ReactNode } from 'react'
+import { t } from '../../../lib/i18n'
+
+// The workspaces page's loading UI: the heading and the two rows the list is about to paint,
+// so the content lands without a layout shift.
+// SOURCE: https://nextjs.org/docs/app/api-reference/file-conventions/loading
+export default function WorkspacesLoading(): ReactNode {
+  return (
+    <output
+      aria-busy="true"
+      aria-label={t('workspaces.loading')}
+      data-testid="workspaces-loading"
+      className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-10"
+    >
+      <Skeleton width={220} height={32} rounded="md" />
+      <div className="flex flex-col gap-3">
+        <Skeleton fullWidth height={54} rounded="lg" />
+        <Skeleton fullWidth height={54} rounded="lg" />
+      </div>
+    </output>
+  )
+}

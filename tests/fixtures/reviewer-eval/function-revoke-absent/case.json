@@ -1,0 +1,22 @@
+{
+  "reviewer": "security-reviewer",
+  "kind": "function",
+  "expect": "BLOCK",
+  "mustName": [
+    "definer-function-execute-revoke"
+  ],
+  "twin": "function-complete",
+  "why": "A SECURITY DEFINER function, allowlisted, with SET search_path and an owner that holds only SELECT, whose migration never revokes EXECUTE from PUBLIC and anon: PostgreSQL granted it to PUBLIC at creation, so an unauthenticated caller can reach it.",
+  "edits": [
+    {
+      "path": "tools/security-definer-allow.json",
+      "after": "  \"allow\": [",
+      "lines": [
+        "    {",
+        "      \"function\": \"public.org_audit_summary\",",
+        "      \"reason\": \"Per-action counts of an org's audit trail over a clamped window, for the admin activity card: the sibling of public.org_audit_events, with the same owner (app_audit_reader, SELECT and nothing else) and the same rule. Schema `audit` grants USAGE to no client role, so a count is reachable only through a definer function; `_org` is a selector, and the SELECT policy on audit.events (rank >= 30) decides what is counted, so an org the caller does not administer counts nothing.\"",
+        "    },"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+-- 20261003000000_email_bounces_grant — what the email-bounces Edge Function may reach:
+-- SELECT and DELETE on public.invitations, for service_role, and nothing else.
+--
+-- adr: docs/adr/20261003-email-bounces.md
+--
+-- APPLIED HISTORY, NOT DESIRED STATE. The seeded migrations REVOKE ALL from
+-- service_role on every table, so the function reaches nothing until this grant. It is
+-- per table and per operation: DELETE retires the invitations a bounce names, and SELECT
+-- is what a DELETE ... WHERE needs to read the column it filters on. Never
+-- GRANT ALL ON ALL TABLES.
+-- SOURCE: supabase/functions/README.md (grants are per table, per ADR)
+-- SOURCE: https://www.postgresql.org/docs/17/sql-delete.html (SELECT privilege on columns read in WHERE)
+GRANT SELECT, DELETE ON TABLE public.invitations TO service_role;

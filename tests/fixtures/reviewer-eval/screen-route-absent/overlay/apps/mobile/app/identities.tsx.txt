@@ -1,0 +1,155 @@
+import { useEffect, useState } from 'react'
+import { View } from 'react-native'
+import { AppText } from '../src/components/AppText'
+import { Button } from '../src/components/Button'
+import { Card } from '../src/components/Card'
+import { EmptyState } from '../src/components/EmptyState'
+import { Screen } from '../src/components/Screen'
+import { Skeleton } from '../src/components/Skeleton'
+import { useI18n } from '../src/i18n'
+import { useSupabase } from '../src/lib/supabase/provider'
+import { type Palette, radius, space, useThemedStyles } from '../src/theme/theme'
+
+// The sign-in methods route: every identity linked to this account (the email identity, and
+// each provider a user linked), read from the auth server. Read-only here: linking and
+// unlinking are a web flow.
+// The data-state test ids.
+const STATES = {
+  loading: 'identities-loading',
+  empty: 'identities-empty',
+  error: 'identities-error',
+} as const
+
+interface IdentityRow {
+  readonly id: string
+  readonly provider: string
+  readonly email: string | null
+}
+
+type IdentitiesState =
+  | { readonly status: 'loading' }
+  | { readonly status: 'error' }
+  | { readonly status: 'ready'; readonly identities: readonly IdentityRow[] }
+
+/** The address an identity carries, when its provider recorded one as a string. */
+function emailOf(data: Record<string, unknown> | undefined): string | null {
+  const email = data?.['email']
+  return typeof email === 'string' ? email : null
+}
+
+const identityStyles = (palette: Palette) => ({
+  row: {
+    backgroundColor: palette.canvas,
+    borderColor: palette.edge,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    gap: space[1],
+    paddingHorizontal: space[3],
+    paddingVertical: space[2],
+  },
+  list: {
+    gap: space[2],
+  },
+})
+
+export default function IdentitiesScreen() {
+  const { t } = useI18n()
+  const supabase = useSupabase()
+  const styles = useThemedStyles(identityStyles)
+  const [state, setState] = useState<IdentitiesState>({ status: 'loading' })
+  // Bumping this re-runs the read: the effect keys on intent (mount, retry), and every
+  // setState happens in the resolve callback, never synchronously in the effect body.
+  const [reloadToken, setReloadToken] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    void supabase.auth.getUserIdentities().then(({ data, error }) => {
+      // A stale resolve must not write state over a newer load's result.
+      if (cancelled) return
+      if (error !== null) {
+        setState({ status: 'error' })
+        return
+      }
+      setState({
+        status: 'ready',
+        identities: data.identities.map((identity) => ({
+          id: identity.identity_id,
+          provider: identity.provider,
+          email: emailOf(identity.identity_data),
+        })),
+      })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [supabase, reloadToken])
+
+  const reload = (): void => {
+    setState({ status: 'loading' })
+    setReloadToken((token) => token + 1)
+  }
+
+  return (
+    <Screen testID="identities-screen">
+      <AppText variant="title">{t('route.identities')}</AppText>
+      <AppText variant="muted">{t('identities.body')}</AppText>
+      <IdentitiesBody state={state} styles={styles} onRetry={reload} />
+    </Screen>
+  )
+}
+
+// The three canonical states, split out so each surface stays small enough to read.
+function IdentitiesBody({
+  state,
+  styles,
+  onRetry,
+}: {
+  readonly state: IdentitiesState
+  readonly styles: ReturnType<typeof identityStyles>
+  readonly onRetry: () => void
+}) {
+  const { t } = useI18n()
+  if (state.status === 'loading') {
+    // A skeleton that mirrors the rows about to paint, announced as a progressbar.
+    return <Skeleton lines={2} testID={STATES.loading} />
+  }
+  if (state.status === 'error') {
+    return (
+      // The error test id sits on a surface CONTAINING its retry.
+      <Card tone="danger" testID={STATES.error}>
+        <AppText variant="label" role="alert">
+          {t('identities.error.title')}
+        </AppText>
+        <Button variant="outline" label={t('common.retry')} onPress={onRetry} />
+      </Card>
+    )
+  }
+  if (state.identities.length === 0) {
+    return (
+      <EmptyState
+        testID={STATES.empty}
+        title={t('identities.empty.title')}
+        description={t('identities.empty.description')}
+        cta={{ label: t('common.retry'), onPress: onRetry }}
+      />
+    )
+  }
+  return (
+    <View style={styles.list}>
+      {state.identities.map((identity) => (
+        // One element per row: the provider and the address announce together, and the row
+        // holds no control a grouped container could swallow.
+        <View
+          key={identity.id}
+          style={styles.row}
+          accessible
+          accessibilityLabel={[identity.provider, identity.email].filter(Boolean).join(', ')}
+          testID="identities-row"
+        >
+          <AppText variant="label">{identity.provider}</AppText>
+          {identity.email === null ? null : <AppText variant="muted">{identity.email}</AppText>}
+        </View>
+      ))}
+    </View>
+  )
+}

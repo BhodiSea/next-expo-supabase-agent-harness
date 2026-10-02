@@ -1,0 +1,56 @@
+import { Card, Text } from '@app/design-system'
+import Link from 'next/link'
+import type { ReactNode } from 'react'
+import { resolveOrgs } from '../../../lib/auth/session'
+import { t } from '../../../lib/i18n'
+import { createRequestScopedClient } from '../../../lib/supabase/server'
+import { meta } from './page.meta'
+
+// Every workspace the signed-in user holds a seat in, with the role they hold there. The
+// org picker at /o redirects straight through when there is exactly one; this page never
+// does, so a user always has one place that lists every seat.
+//
+// The signed-in check is the (protected) layout's. The read is resolveOrgs(), the seam the
+// picker uses, so the two pages cannot disagree about which orgs a user holds.
+// The title and the empty state's test id come from the route's OWN meta, so the browser tab,
+// the registry and the rendered page cannot say different things about it.
+export const metadata = { title: t(meta.titleKey) }
+
+export default async function WorkspacesPage(): Promise<ReactNode> {
+  const orgs = await resolveOrgs(await createRequestScopedClient())
+
+  return (
+    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-10">
+      <Text as="h1" size="2xl" weight="semibold">
+        {t(meta.titleKey)}
+      </Text>
+
+      {orgs.length === 0 ? (
+        <Card testID={meta.states.empty}>
+          <div className="flex flex-col items-start gap-3">
+            <Text weight="medium">{t('workspaces.empty.title')}</Text>
+            <Text tone="muted" size="sm">
+              {t('workspaces.empty.description')}
+            </Text>
+            <Link href="/o" className="text-sm font-medium text-ink underline">
+              {t('workspaces.empty.action')}
+            </Link>
+          </div>
+        </Card>
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {orgs.map((org) => (
+            <li
+              key={org.id}
+              className="rounded-lg border border-line px-4 py-3"
+              data-testid={`workspace-${org.slug}`}
+            >
+              <span className="font-medium text-ink">{org.name}</span>
+              <span className="ml-2 text-sm text-ink-muted">{org.role}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </main>
+  )
+}

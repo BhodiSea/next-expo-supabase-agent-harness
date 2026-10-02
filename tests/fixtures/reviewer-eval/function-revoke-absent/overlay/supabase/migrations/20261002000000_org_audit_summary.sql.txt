@@ -1,0 +1,35 @@
+-- 20261002000000_org_audit_summary — per-action counts of an org's audit trail, for the
+-- admin dashboard's activity card.
+--
+-- APPLIED HISTORY, NOT DESIRED STATE. Append-only like every other migration here.
+--
+-- WHY A DEFINER FUNCTION. Schema `audit` grants USAGE to no client role, so no
+-- authenticated caller reads audit.events by any route; public.org_audit_events is the
+-- one read path, and it returns rows, not counts. This is its sibling, with the same
+-- owner (app_audit_reader, a NOLOGIN role holding SELECT and nothing else) and the same
+-- rule: `_org` is a selector, not an authorization. The SELECT policy on audit.events
+-- (rank >= 30, evaluated with the caller's identity still resolving through the JWT
+-- claims) decides what is counted, so naming an org the caller does not administer
+-- counts nothing. The window is clamped to 90 days, because a caller-supplied window is
+-- a caller-supplied amount of work.
+-- SOURCE: docs/adr/20260202-audit-trail.md (the trail's read path)
+CREATE FUNCTION public.org_audit_summary(_org uuid, _since timestamptz DEFAULT NULL)
+RETURNS TABLE (action text, events bigint)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $summary$
+  SELECT e.action, pg_catalog.count(*)
+    FROM audit.events e
+   WHERE e.org_id = _org
+     AND e.occurred_at >= greatest(
+       coalesce(_since, pg_catalog.now() - interval '30 days'),
+       pg_catalog.now() - interval '90 days'
+     )
+   GROUP BY e.action
+   ORDER BY e.action;
+$summary$;
+
+ALTER FUNCTION public.org_audit_summary(uuid, timestamptz) OWNER TO app_audit_reader;
+GRANT EXECUTE ON FUNCTION public.org_audit_summary(uuid, timestamptz) TO authenticated;

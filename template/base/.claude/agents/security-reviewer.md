@@ -27,7 +27,7 @@ files it touches. The `schema-rls` gate (`tools/check-rls-manifest.mjs`), the
 client suite via `node tests/rls/run-rls.mjs`) enforce a mechanical floor; you judge on top of it.
 Report by severity with `file:line` refs. When the local Supabase stack is up you may
 probe mid-turn with `rls_verify { table, userA, userB }` (optional `ownerColumn`) — it
-returns `ISOLATED / LEAK / SKIPPED`, and `SKIPPED` is NO evidence, never a pass. Two
+returns `ISOLATED / LEAK / SKIPPED`, and `SKIPPED` is NO evidence, never a pass. Three
 sections.
 
 ## INVARIANTS
@@ -148,6 +148,36 @@ If the local stack is up, corroborate a policy claim with `rls_verify` on the ch
 table (userA sees zero of userB's rows; `SKIPPED` proves nothing). If the diff touches
 the Next host or the Expo host beyond the policies, require the `web-security-reviewer` /
 `mobile-security-reviewer` to run as well.
+
+## WHAT MUST ACCOMPANY IT
+
+The two sections above judge the lines a diff contains. This one judges the lines it should
+contain and does not: what a diff introduces decides what else must land with it, and a
+missing companion shows on no line of the diff. For every row whose second column the diff
+introduces, report one line, `<id>: present (file:line)` or `<id>: absent`. An absence is a
+finding at the severity this body already gives the rule the row restates. `Enforced by`
+names the chain step that reds the absence, or says `review only`. A row a step enforces
+still gets its line: the database-backed proofs (`rls-isolation`, the pgTAP suite among
+them) skip loudly when no local stack is up, and 1.0.2's missing `authenticated` revoke was
+found by a CI lane, not by review.
+
+| id | The diff introduces | It must also bring | Stated in | Enforced by |
+| --- | --- | --- | --- | --- |
+| `table-force-rls` | a table (`CREATE TABLE` in `supabase/schemas/*.sql` and the migration that applies it) | `ENABLE` and `FORCE ROW LEVEL SECURITY` in that same migration | `.claude/rules/security-invariants.md` | `schema-rls` |
+| `table-policies` | a table | four per-operation policies `TO authenticated`, one each for SELECT, INSERT, UPDATE and DELETE, never `FOR ALL` | `.claude/rules/security-invariants.md` | `schema-rls` |
+| `table-grant` | a table | a `GRANT` to `authenticated` behind every operation a policy admits, in the same migration | `.claude/rules/security-invariants.md` | `schema-rls` |
+| `table-authenticated-revoke` | a table | `REVOKE ALL ON TABLE public.<t> FROM authenticated` beside the `anon` and `service_role` revokes and before the grant, with a resolvable `-- adr:` marker in the file | `.claude/rules/security-invariants.md` | `review only` |
+| `table-privilege-assertion` | a table | the exact privilege set `authenticated` holds on it, asserted by a pgTAP suite under `supabase/tests/` (a table list of `rls_structure.test.sql`'s privilege-exactness assertion, or a sibling of it for a table clients write) | `.claude/rules/security-invariants.md` | `review only` |
+| `table-isolation-targets` | a table | a row in `tests/rls/db-context.ts`'s `ISOLATION_TARGETS` and one in `supabase/tests/rls_structure.test.sql`'s `rls_targets` | `.claude/agents/migration-rls-author.md` | `schema-rls` |
+| `table-owner-index` | a table | an index whose leading column is its owner (tenant) column | `.claude/rules/security-invariants.md` | `schema-rls` |
+| `table-audit-trigger` | an org-scoped table (one carrying `org_id`) | an `AFTER INSERT OR UPDATE OR DELETE` row trigger calling `audit.write_row(…)`, with no `WHEN` clause, in the migration that creates it | `.claude/rules/security-invariants.md` | `tenancy` |
+| `definer-function-allowlist` | a `SECURITY DEFINER` function | a row with a reason in `tools/security-definer-allow.json`, `SET search_path = ''`, and no identity-shaped parameter | `docs/harness/gates-catalog.md` | `schema-rls` |
+| `definer-function-execute-revoke` | a `SECURITY DEFINER` function | `REVOKE EXECUTE ON FUNCTION … FROM PUBLIC` and `FROM anon` in a migration, and `EXECUTE` to `authenticated` only for a function the allowlist names | `docs/harness/gates-catalog.md` | `schema-rls` |
+| `edge-function-adr` | an Edge Function (`supabase/functions/<name>/index.ts`) | an ADR, `docs/adr/<date>-<slug>.md`, merged in the same change and answering the five questions the functions README lists | `supabase/functions/README.md` | `review only` |
+| `edge-function-config` | an Edge Function | a `[functions.<name>]` block in `supabase/config.toml` that states `verify_jwt`, and a signature check of its own when that is `false` | `supabase/functions/README.md` | `review only` |
+| `edge-function-config-census` | an Edge Function's `[functions.<name>]` block | the section named in `tools/auth-tunables.json` `additionalSections` | `tools/auth-tunables.json` | `auth-posture` |
+| `edge-function-grant` | an Edge Function that reads or writes a table | a later, ADR'd migration granting `service_role` exactly those operations, per table, never `GRANT ALL ON ALL TABLES`, and the same pairs in the `service_role_grant_allow` list of `supabase/tests/rls_structure.test.sql` | `supabase/functions/README.md` | `review only` |
+| `mutation-rate-limit` | a tRPC mutation (`packages/api/src/**`) | a bucket for it in `tools/rate-limit-budget.json` `procedures`, or an `exemptProcedures` entry with a reason, over a regenerated action inventory | `docs/harness/gates-catalog.md` | `rate-limits`, `contracts` |
 
 Flag ONLY gaps that affect correctness or these invariants; a new table with FORCE RLS,
 four keyed policies, the three REVOKEs and the exact GRANT, and an owner-leading index is

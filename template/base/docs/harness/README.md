@@ -580,6 +580,28 @@ nothing or repeats an entry.
 Author agents (`dal-author`, `migration-rls-author`, `test-author`) keep their write
 tools; only the universal frontmatter fields apply to them.
 
+**What a change must bring (1.1.0).** A reviewer body's rubric asks about the lines a diff
+contains, and a missing companion is on no line of it. So every reviewer body except
+`citation-verifier`'s carries a `## WHAT MUST ACCOMPANY IT` table before its closing
+paragraphs, with one row per companion that a rule the harness already states requires:
+`id | The diff introduces | It must also bring | Stated in | Enforced by`. A new table must
+bring its three revokes, its isolation-register rows and its audit trigger. A definer
+function must bring its `REVOKE … FROM PUBLIC` and `FROM anon`, and an Edge Function its
+ADR. A tRPC mutation or a Server Action must bring its rate-limit bucket, a screen its
+`src/routes.ts` entry, and a web page its `page.meta.ts`. A permission or a config plugin
+must bring its register row, and a new interface its second consumer. The reviewer reports
+each row that applies as `<id>: present (file:line)` or `<id>: absent`, and an absence is a
+finding at the severity the body already gives that rule. `Stated in` names the file that
+states the rule. `Enforced by` names the chain step that reds the absence, or says
+`review only`. A row that a step enforces stays in the table, because the database-backed
+proofs skip when no local stack is running. The web-page rows of `accessibility-reviewer`
+and `design-reviewer` widen those two bodies past the mobile UI, because
+`tools/reviewer-triggers.json` summons both on `apps/web/app/**/page.tsx`. No gate reads the
+tables. The harness repository's own tests hold the shipped bodies to them, and its
+maintainers score the reviewers with a factory eval when a body or a model pin changes:
+seeded changes, one absence case and one complete twin for each kind of change, so a
+reviewer that always answers the same verdict scores at most half.
+
 **Which model a verdict ran on (1.1.0).** Each agent file pins one `model:`, and a
 reviewer can still run on another: a per-invocation `model` parameter,
 `CLAUDE_CODE_SUBAGENT_MODEL` (with `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`), an

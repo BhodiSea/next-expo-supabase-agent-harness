@@ -1,0 +1,84 @@
+// supabase/functions/email-bounces/index.ts — the email provider's hard-bounce webhook.
+//
+// WHAT IT DOES THAT RLS CANNOT. A bounce arrives from the provider with a signature and
+// no session: no user is present to run as, and the invitations it retires belong to
+// orgs the provider knows nothing about. It deletes every pending invitation addressed to
+// the bounced address, so an admin sees the invite gone instead of waiting a week for it
+// to expire, and the provider stops retrying a dead address.
+//
+// WHO CAN CALL IT. verify_jwt = false (supabase/config.toml): the provider cannot mint a
+// Supabase JWT. Every request instead carries `x-bounce-timestamp` and
+// `x-bounce-signature`, an HMAC-SHA256 over `<timestamp>.<raw body>` keyed with
+// EMAIL_BOUNCE_WEBHOOK_SECRET, compared in constant time; a request more than five
+// minutes old is refused, so a captured one cannot be replayed later.
+//
+// BLAST RADIUS IF THE KEY LEAKS. The service role reaches SELECT and DELETE on
+// public.invitations (migration 20261003000000_email_bounces_grant.sql) and nothing else.
+//
+// SOURCE: supabase/functions/README.md (Edge Functions are the one sanctioned home for
+// service-role code) · docs/adr/20261003-email-bounces.md
+import { createClient } from 'jsr:@supabase/supabase-js@2'
+
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
+const SECRET_KEY = Deno.env.get('SUPABASE_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+const WEBHOOK_SECRET = Deno.env.get('EMAIL_BOUNCE_WEBHOOK_SECRET')
+const MAX_SKEW_MS = 5 * 60 * 1000
+
+const encoder = new TextEncoder()
+
+async function signatureOf(secret: string, payload: string): Promise<Uint8Array> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  return new Uint8Array(await crypto.subtle.sign('HMAC', key, encoder.encode(payload)))
+}
+
+function fromHex(hex: string): Uint8Array | null {
+  if (!/^[0-9a-f]{64}$/.test(hex)) return null
+  return Uint8Array.from(hex.match(/../g) ?? [], (pair) => Number.parseInt(pair, 16))
+}
+
+// Constant time: the comparison must not tell a forger how many leading bytes were right.
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i += 1) diff |= (a[i] ?? 0) ^ (b[i] ?? 0)
+  return diff === 0
+}
+
+function bouncedAddress(body: string): string | null {
+  try {
+    const email: unknown = JSON.parse(body)?.email
+    return typeof email === 'string' && email.length >= 3 && email.length <= 320 ? email : null
+  } catch {
+    return null
+  }
+}
+
+Deno.serve(async (req) => {
+  if (req.method !== 'POST') return new Response('method not allowed', { status: 405 })
+  if (!SUPABASE_URL || !SECRET_KEY || !WEBHOOK_SECRET) {
+    return new Response('not configured', { status: 500 })
+  }
+  const timestamp = req.headers.get('x-bounce-timestamp') ?? ''
+  const signature = fromHex(req.headers.get('x-bounce-signature') ?? '')
+  const sentAt = Number(timestamp)
+  if (signature === null || !Number.isFinite(sentAt) || Math.abs(Date.now() - sentAt) > MAX_SKEW_MS) {
+    return new Response('unauthorized', { status: 401 })
+  }
+  const body = await req.text()
+  if (!sameBytes(signature, await signatureOf(WEBHOOK_SECRET, `${timestamp}.${body}`))) {
+    return new Response('unauthorized', { status: 401 })
+  }
+  const email = bouncedAddress(body)
+  if (email === null) return new Response('bad request', { status: 400 })
+
+  const admin = createClient(SUPABASE_URL, SECRET_KEY, { auth: { persistSession: false } })
+  const { error } = await admin.from('invitations').delete().eq('email', email)
+  if (error !== null) return new Response('could not retire invitations', { status: 500 })
+  return new Response(null, { status: 204 })
+})

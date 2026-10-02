@@ -1,0 +1,30 @@
+{
+  "reviewer": "torvalds-reviewer",
+  "kind": "web-page",
+  "expect": "BLOCK",
+  "mustName": [
+    "web-page-meta"
+  ],
+  "twin": "web-page-complete",
+  "why": "A new web page and its loading UI with literal state test ids and a literal title key, and no page.meta.ts beside it: the page has no id, no declared states and no registry entry, so nothing holds it to rendering the states it claims.",
+  "edits": [
+    {
+      "path": "apps/web/lib/i18n/catalog.ts",
+      "after": "  'route.security': 'Security',",
+      "lines": [
+        "  'route.workspaces': 'Your workspaces',"
+      ]
+    },
+    {
+      "path": "apps/web/lib/i18n/catalog.ts",
+      "after": "  'orgs.loading': 'Loading your organizations',",
+      "lines": [
+        "  'workspaces.loading': 'Loading your workspaces',",
+        "  'workspaces.empty.title': 'You hold no seat in any workspace yet.',",
+        "  'workspaces.empty.description':",
+        "    'Open an invitation link someone sent you, or create your own workspace from the organizations page.',",
+        "  'workspaces.empty.action': 'Go to organizations',"
+      ]
+    }
+  ]
+}

@@ -1732,7 +1732,10 @@ subsection below). The proposal flow re-plants `.claude/hooks/lib/guard-rules.mj
 `apply-proposal-invocation` rule), `.claude/hooks/pretool-write-guard.mjs` (its tamper deny
 names the flow), `docs/harness/README.md` and `docs/security/threat-model.md` (generated; it
 lists the new rule). The verb itself is the installer's, so nothing else lands in your tree
-(its subsection below). What you may notice afterwards:
+(its subsection below). The companion tables re-plant the seven reviewer bodies under
+`.claude/agents/` other than `citation-verifier.md` (`update` re-records their
+`tools/agents.lock.json` entries) and `docs/harness/README.md`; a reviewer body you edited
+is kept and the new one parked (its subsection below). What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1811,6 +1814,13 @@ lists the new rule). The verb itself is the installer's, so nothing else lands i
   `harness-proposals/<id>.json` can appear in your tree. `doctor` lists it as `info`, and it
   changes nothing until you apply it. The bash guard denies an agent the `apply-proposal`
   command. The subsection on proposals below says how to review and apply one.
+- **Reviewer replies carry `<id>: present (file:line)` and `<id>: absent` lines.** Every
+  reviewer body but `citation-verifier`'s now lists what a change must bring, and its
+  reviewer accounts for each row that applies. An absence is a finding at the severity the
+  body already gives that rule, so a reviewer can now BLOCK on a revoke, a register row or a
+  `page.meta.ts` that the diff never mentions. No gate changes. If you edited a reviewer
+  body, your copy stays and the new one is parked under `.harness/pending/`; the subsection
+  on companion tables below says how to take the table.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -2434,6 +2444,44 @@ reads it. `format` checks it like any other file, so the agent writes it the way
   has a field the format does not have, or its text carries a control or
   bidirectional-format character that could make the terminal show something other than
   the bytes written.
+
+### Reviewer bodies list what a change must bring: `## WHAT MUST ACCOMPANY IT`
+
+A reviewer body's rubric asks about the lines a diff contains. A companion the diff should
+have brought and did not, such as the `REVOKE ALL … FROM authenticated` that 1.0.2 found
+missing on seven tables, is on no line of it. From 1.1.0 every reviewer body except
+`citation-verifier`'s carries a table of those companions, placed before its `Flag ONLY`
+paragraph where it has one, before its `Severities:` line, and always before its closing
+verdict demand:
+
+```
+| id | The diff introduces | It must also bring | Stated in | Enforced by |
+```
+
+Each row restates a rule the harness already states in the file its `Stated in` cell names,
+so the table adds questions, not rules. The reviewer reports each row that applies as
+`<id>: present (file:line)` or `<id>: absent`, and an absence is a finding at the severity
+the body already gives that rule, so it BLOCKs when that severity is on the body's
+`Blocking:` line. `Enforced by` names the chain step that reds the absence, or says
+`review only`. A row that a step enforces stays in the table, because the database-backed
+proofs skip when no local stack is running. The web-page rows of `accessibility-reviewer`
+and `design-reviewer` widen those two bodies past the mobile UI: `tools/reviewer-triggers.json`
+already summons both on `apps/web/app/**/page.tsx`.
+
+**Who has to act.** Only an install that forked a reviewer body. No gate reads a table, so a
+fork without one reds nothing and simply gets no companion questions. To take the table:
+
+1. **Copy the section.** Take `## WHAT MUST ACCOMPANY IT`, its paragraph and its table from
+   the parked copy at `.harness/pending/.claude/agents/<name>.md` into your body where the
+   parked copy has it: after the rubric, before the `Flag ONLY` paragraph where your body has
+   one, before the `Severities:` line where it has one, and always before the closing
+   verdict demand, which stays the body's last paragraph.
+2. **Re-lock the agent surface and re-record the body's sha**, as steps 2 and 3 of "Adding
+   the contract to a forked reviewer body" describe, in the severity-contract subsection
+   above, and delete the parked copy.
+
+A row of your own is welcome in a fork: keep the five columns, a backticked kebab-case id,
+and a `Stated in` path that exists in your tree.
 
 ## RECOVERY — when an `update` is interrupted or fails
 
