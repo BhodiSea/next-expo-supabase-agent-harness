@@ -113,7 +113,7 @@ catalog:
   # images.remotePatterns, a Linux deploy target), and the floor moves anyway: the
   # /_next/image endpoint exists by default and consumers extend these apps.
   # SOURCE: https://nextjs.org/blog/august-2026-security-release
-  next: 16.3.5
+  next: 16.3.6
   next-safe-action: ^8.5.3
   tailwindcss: ^4.3.0 # v4 CSS-first, WEB ONLY — mobile pins v3 in apps/mobile (see below)
   '@tailwindcss/postcss': ^4.3.0
