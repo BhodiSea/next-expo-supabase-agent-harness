@@ -367,9 +367,10 @@ function withPartitions(created, tables) {
  * every statement but a DROP TABLE. `unresolved` names a table a DROP TABLE without IF EXISTS
  * targets although no earlier CREATE TABLE made it (or a later drop already removed it): the
  * fold cannot place it, and schema-rls reports it rather than guess. With IF EXISTS such a drop
- * is a no-op, as it is in the database.
+ * is a no-op, as it is in the database. Exported for tools/lib/table-grants.mjs, whose
+ * privilege fold (1.1.0, #74) walks the history in this same order, drops included.
  */
-function withTableDrops(statements) {
+export function withTableDrops(statements) {
   const created = new Map()
   return statements.map((stmt) => {
     const drop = tableDropOf(stmt)

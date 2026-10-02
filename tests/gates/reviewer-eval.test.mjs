@@ -115,6 +115,21 @@ test('every overlay applies to a fresh core-tier install, and each case owes its
   }
 })
 
+test('the table control twin carries the generated grant assertions exactly as the generator renders them', async () => {
+  // 1.1.0 (#74): security-reviewer's table-privilege-assertion row now asks for
+  // supabase/tests/rls_grants.generated.test.sql regenerated in the same change. A control
+  // twin whose inserted rows differ from what tools/gen-grant-assertions.mjs renders would
+  // teach a correct reviewer to BLOCK the one case that must PASS.
+  const control = cases.find((c) => c.name === 'table-complete')
+  assert.ok(control)
+  const dir = await freshInstall('reviewer-eval-grants-')
+  made.push(dir)
+  const { problems } = evalLib.applyCase(control, dir)
+  assert.deepEqual(problems, [])
+  const check = spawnSync(process.execPath, ['tools/gen-grant-assertions.mjs', '--check'], { cwd: dir, encoding: 'utf8' })
+  assert.equal(check.status, 0, `${check.stdout}${check.stderr}`)
+})
+
 test('an overlay that would overwrite a file, or an anchor that is missing or repeated, does not apply', async () => {
   const dir = await freshInstall('reviewer-eval-bad-')
   made.push(dir)

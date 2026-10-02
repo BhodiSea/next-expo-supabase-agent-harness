@@ -49,7 +49,10 @@ missing any of these arrives pre-red):
   ADR-governed Edge Function needs a per-table grant.
 - **RLS tests** — the table joins the `rls_targets` list and the pgTAP suites under
   `supabase/tests/*.sql` (structure + cross-user isolation) AND the live isolation matrix
-  in `tests/rls/`. `pnpm db:reset` then `pnpm db:test` must pass before the slice is done.
+  in `tests/rls/`; `node tools/gen-grant-assertions.mjs` (`pnpm gen` runs it) regenerates
+  `supabase/tests/rls_grants.generated.test.sql`, the exact privileges of every table, and
+  nobody edits its rows or its `plan()` by hand. `pnpm db:reset` then `pnpm db:test` must
+  pass before the slice is done.
 - **./client data fn** — a read lands on the vertical's Metro-safe `./client` barrel; a
   write (sets an ownership column, emits an event) lands on the `.` server barrel. It
   TAKES an RLS-scoped client, never constructs one; returns `ActionOutcome<T>` from

@@ -1767,7 +1767,17 @@ seeded (its subsection below). The SQL history fold re-plants `tools/lib/sql-par
 `tools/lib/stamp-inputs.mjs`, `tools/check-rls-manifest.mjs`, `tools/check-tenancy.mjs`,
 `tools/check-migrations.mjs`, `tools/check-data-flow.mjs`, `tools/check-db-limits.mjs`,
 `tools/check-query-shapes.mjs` and `docs/harness/gates-catalog.md`, and adds
-`tools/lib/sql-fold-ramp.mjs`; nothing of it is seeded (its subsection below). What you may
+`tools/lib/sql-fold-ramp.mjs`; nothing of it is seeded (its subsection below). The grant
+bound re-plants `tools/lib/table-grants.mjs`, `tools/lib/sql-parse.mjs`,
+`tools/check-rls-manifest.mjs`, `tools/lib/enforcement-surface.mjs`,
+`.claude/hooks/lib/guard-rules.mjs` (the `grant-bound-allow` rule),
+`docs/security/threat-model.md`, the `migration-rls-author` and `security-reviewer` agents,
+the `/new-migration`, `/new-feature` and `/rls-check` commands, both authoring skills and
+the vertical-slice skill's `references/migration-rls.md` and `references/tests.md` (`update`
+re-records their `tools/agents.lock.json` entries), `.claude/rules/security-invariants.md`
+and `docs/harness/gates-catalog.md`, and adds `tools/gen-grant-assertions.mjs` and
+`docs/adr/20260930-three-role-revoke.md`; its migration and its generated test are withheld,
+and its three seeded texts are yours to copy (its subsection below). What you may
 notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
@@ -1913,6 +1923,15 @@ notice afterwards:
   `baseVersion` is below 1.1.0 each such finding reads `NOTE — (ramp)` under a NOTE that
   expires in 1.2.0. A table created and later dropped no longer reds `schema-rls` as
   undeclared. The subsection on the SQL history fold below says what to sweep.
+- **`schema-rls` prints NOTEs about your grants, naming `profiles` and `notes` at least.**
+  It now reds a table privilege `anon` or `authenticated` holds that no policy admits, a
+  table that keeps the platform's default privileges for any of `anon`, `authenticated` or
+  `service_role`, and a missing or stale `supabase/tests/rls_grants.generated.test.sql`.
+  Every install below 1.1.0 meets the first two on `profiles` and `notes`, and an install
+  that never applied 1.0.2's migration meets them on seven more tables. On an install whose
+  `baseVersion` is below 1.1.0 each reads `NOTE — (ramp)` under a NOTE that expires in
+  1.2.0, and `graduate` refuses while they stand. The subsection on the grant bound below
+  gives the SQL, then the command.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -2851,6 +2870,125 @@ graduate as the section on graduating says.
 created (one made in the dashboard) stays unresolved for `schema-rls`, and nothing
 acknowledges it before the ramp expires. Report it; the release that owes this ramp's
 expiry has to answer it.
+
+### What OPENS: `schema-rls` bounds grants by policies and holds every table to the three-role revoke (a NOTE until 1.2.0)
+
+Supabase's default privileges grant ALL on every new `public` table to `anon`,
+`authenticated` and `service_role`, and a GRANT removes nothing. Until 1.0.2 the harness's
+own migrations revoked the default from `anon` and `service_role` only, then granted four
+verbs to `authenticated`, which kept TRUNCATE, REFERENCES, TRIGGER and (on PostgreSQL 17)
+MAINTAIN. Row security does not apply to those four, so no policy narrows them. 1.0.2
+closed that on the seven tables `authenticated` only reads; `profiles` and `notes`, the two
+it writes, kept it. And `schema-rls` only ever checked that a policy had a grant behind it,
+never that a grant had a policy behind it, so nothing found any of it. From 1.1.0
+(`docs/adr/20260930-three-role-revoke.md`) `schema-rls` reds three things:
+
+1. **A grant wider than the table's policies.** Every privilege `anon` or `authenticated`
+   holds, counting the platform default, a grant to `PUBLIC` and column grants, needs a
+   PERMISSIVE policy for that operation (or `ALL`) naming the role, `public` or no role,
+   whose predicate is not literally `false`. TRUNCATE, REFERENCES, TRIGGER and MAINTAIN are
+   never admitted: revoke them.
+2. **A table that keeps the platform default** for any of the three roles: the doctrine is
+   `REVOKE ALL` from all three, then the exact grants. This is what makes the privileges the
+   same on every database, including a project created on or after 2026-10-30, which gets
+   no default at all.
+3. **A missing or stale `supabase/tests/rls_grants.generated.test.sql`**, the pgTAP
+   assertion of the exact privileges every table's three roles hold. It is generated from
+   your migrations by `node tools/gen-grant-assertions.mjs` and never edited by hand.
+
+Each finding prints the `REVOKE` and `GRANT` statements that clear it.
+
+**Who sees a NOTE.** Every install whose `baseVersion` is below 1.1.0, because its
+`profiles` and `notes` predate the doctrine:
+
+```
+schema-rls: NOTE — the grant bound, the three-role revoke doctrine and the generated grant assertions (ramp: live from baseVersion 1.1.0; this install's baseVersion is <yours>; expires in 1.2.0). …
+schema-rls: NOTE — (ramp) notes: `authenticated` holds TRUNCATE, REFERENCES, TRIGGER, MAINTAIN on public.notes, which no policy admits — … Clear it in a NEW migration: REVOKE ALL ON TABLE public.notes FROM authenticated; GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.notes TO authenticated; …
+schema-rls: NOTE — (ramp) notes: the platform default still reaches `authenticated` — … Clear it in a NEW migration: REVOKE ALL ON TABLE public.notes FROM authenticated; GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.notes TO authenticated; …
+```
+
+From harness 1.2.0 they print under `RAMP EXPIRED` and red the step, and on an install
+whose `baseVersion` is 1.1.0 or later they red from the start. `graduate` refuses while one
+stands.
+
+**The sweep: the SQL first, then the generator.** A fresh scaffold gets
+`supabase/migrations/20260930000000_three_role_revoke.sql` and the generated test.
+**`update` plants neither**: `supabase/migrations/` is your applied history, and a file
+with the harness's timestamp could sort ahead of migrations you have already applied; the
+harness's generated test describes the harness's tables, not yours.
+
+1. Create a migration of your own:
+
+   ```
+   supabase migration new three_role_revoke
+   ```
+
+   and put in it the statements your findings print. For the two tables the harness
+   shipped, keeping the four verbs their policies admit, that is:
+
+   ```sql
+   -- adr: docs/adr/20260930-three-role-revoke.md
+   -- SOURCE: https://www.postgresql.org/docs/17/ddl-priv.html
+   REVOKE ALL ON TABLE public.profiles FROM authenticated;
+   REVOKE ALL ON TABLE public.notes FROM authenticated;
+
+   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.profiles TO authenticated;
+   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.notes TO authenticated;
+   ```
+
+   If you never applied 1.0.2's migration, add its SQL for the seven read-only tables (the
+   1.0.2 section above). For a table of your own, add the lines its findings print, or
+   run `node tools/gen-grant-assertions.mjs`: while any table fails the doctrine it
+   refuses, names the tables and prints every statement your tree needs at once. The
+   `-- adr:` line is required, because your `migrations` gate treats a `REVOKE … FROM
+   authenticated` as a change to an authorization control; the ADR is the one this update
+   plants. Then `pnpm db:reset && pnpm db:test`.
+2. Generate the assertion and commit it:
+
+   ```
+   node tools/gen-grant-assertions.mjs
+   git add supabase/tests/rls_grants.generated.test.sql
+   ```
+
+   It reads `[db].major_version` from `supabase/config.toml`: eight table privileges on
+   PostgreSQL 17, seven on 15 and 16. Run it again after every grant change; `schema-rls`
+   reds a stale copy. `pnpm db:test` then runs it against your local stack.
+3. **A privilege you mean to keep that no policy admits** (a TRIGGER an owner-side process
+   needs, say) goes in `tools/grant-bound-allow.json`, one row per table, role and
+   privilege, with a reason. The file is write-guarded like the other allow lists, and a row
+   naming a privilege nobody holds reds:
+
+   ```json
+   { "allow": [{ "table": "<table>", "role": "authenticated", "privilege": "TRIGGER", "reason": "<why>" }] }
+   ```
+
+Three seeded texts are yours to copy. `package.json` gains the generator in `pnpm gen`:
+
+```json
+"gen": "… && pnpm gen:routes && pnpm gen:grants",
+"gen:grants": "node tools/gen-grant-assertions.mjs",
+```
+
+`AGENTS.md`'s RLS bullet gains, after "(a GRANT removes nothing; the default leaves it
+TRUNCATE).":
+
+> `pnpm gen` regenerates the exact-privilege pgTAP file, never a hand edit.
+
+And `supabase/AGENTS.md`'s grant bullet ends:
+
+> That revoke needs an `-- adr:` marker (the `migrations` gate). Then `pnpm gen` (or
+> `node tools/gen-grant-assertions.mjs`) regenerates `tests/rls_grants.generated.test.sql`,
+> the exact privileges of every table; never edit its rows or its `plan()` by hand.
+
+The schema files `supabase/schemas/10_account.sql` and `20_notes.sql` gained the same
+`REVOKE ALL … FROM authenticated` line in a fresh scaffold; add it to yours so the
+declarative schema matches the history. The hand-written assertions in
+`rls_structure.test.sql` stay: they state intent (the `service_role` allowlist, the seat and
+quota shapes) that a file generated from the migrations cannot.
+
+The harness's upgrade lane runs exactly these two steps on its swept leg
+(`scripts/ci/upgrade-sweep.mjs` `SWEEPS['1.1.0']`): the statements the gate prints, in a
+migration of the leg's own, then the generator. It copies neither withheld file.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

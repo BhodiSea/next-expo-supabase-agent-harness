@@ -63,9 +63,11 @@ sections.
   verbs leaves `authenticated` holding TRUNCATE — which row security never sees — plus
   REFERENCES and TRIGGER, and on a read-only table every write verb too. RLS still refuses
   the rows, so this is a missing layer rather than an open door; flag it as one. The
-  `authenticated` revoke needs a resolvable `-- adr:` marker (the `migrations` gate), and
-  the table belongs in the privilege-exactness assertion in
-  `supabase/tests/rls_structure.test.sql`. `service_role` bypasses RLS by role attribute, so the grant is the ONLY
+  `authenticated` revoke needs a resolvable `-- adr:` marker (the `migrations` gate). Since
+  1.1.0 `schema-rls` holds all of this (`docs/adr/20260930-three-role-revoke.md`), and the
+  privilege-exactness assertion is GENERATED: `supabase/tests/rls_grants.generated.test.sql`,
+  rewritten by `node tools/gen-grant-assertions.mjs`. Flag a hand edit to its rows or its
+  `plan()`, and a change to a table's grants that does not regenerate it. `service_role` bypasses RLS by role attribute, so the grant is the ONLY
   control over it — a table stays unreachable by an Edge Function until a later, ADR'd
   migration grants it explicitly, per table. Flag any `GRANT … TO service_role` or
   `GRANT ALL ON ALL TABLES` (the shape a generated `supabase db diff` draft hands you,
@@ -166,8 +168,8 @@ found by a CI lane, not by review.
 | `table-force-rls` | a table (`CREATE TABLE` in `supabase/schemas/*.sql` and the migration that applies it) | `ENABLE` and `FORCE ROW LEVEL SECURITY` in that same migration | `.claude/rules/security-invariants.md` | `schema-rls` |
 | `table-policies` | a table | four per-operation policies `TO authenticated`, one each for SELECT, INSERT, UPDATE and DELETE, never `FOR ALL` | `.claude/rules/security-invariants.md` | `schema-rls` |
 | `table-grant` | a table | a `GRANT` to `authenticated` behind every operation a policy admits, in the same migration | `.claude/rules/security-invariants.md` | `schema-rls` |
-| `table-authenticated-revoke` | a table | `REVOKE ALL ON TABLE public.<t> FROM authenticated` beside the `anon` and `service_role` revokes and before the grant, with a resolvable `-- adr:` marker in the file | `.claude/rules/security-invariants.md` | `review only` |
-| `table-privilege-assertion` | a table | the exact privilege set `authenticated` holds on it, asserted by a pgTAP suite under `supabase/tests/` (a table list of `rls_structure.test.sql`'s privilege-exactness assertion, or a sibling of it for a table clients write) | `.claude/rules/security-invariants.md` | `review only` |
+| `table-authenticated-revoke` | a table | `REVOKE ALL ON TABLE public.<t> FROM authenticated` beside the `anon` and `service_role` revokes and before the grant, with a resolvable `-- adr:` marker in the file | `.claude/rules/security-invariants.md` | `schema-rls` |
+| `table-privilege-assertion` | a table | `supabase/tests/rls_grants.generated.test.sql` regenerated with `node tools/gen-grant-assertions.mjs` in the same change, so the exact privilege set each of the three roles holds on the table is asserted — never a hand-edited row, table list or `plan()` | `.claude/rules/security-invariants.md` | `schema-rls` |
 | `table-isolation-targets` | a table | a row in `tests/rls/db-context.ts`'s `ISOLATION_TARGETS` and one in `supabase/tests/rls_structure.test.sql`'s `rls_targets` | `.claude/agents/migration-rls-author.md` | `schema-rls` |
 | `table-owner-index` | a table | an index whose leading column is its owner (tenant) column | `.claude/rules/security-invariants.md` | `schema-rls` |
 | `table-audit-trigger` | an org-scoped table (one carrying `org_id`) | an `AFTER INSERT OR UPDATE OR DELETE` row trigger calling `audit.write_row(…)`, with no `WHEN` clause, in the migration that creates it | `.claude/rules/security-invariants.md` | `tenancy` |

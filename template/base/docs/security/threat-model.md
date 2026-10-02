@@ -86,6 +86,7 @@ Rule tables from `.claude/hooks/lib/guard-rules.mjs`, in source order. Each rule
 - `essential-eight-register` — protected path `^tools\/essential-eight\.json$`
 - `conformance-map-register` — protected path `^tools\/conformance-map\.json$`
 - `migrations-allow` — protected path `^tools\/migrations-allow\.json$`
+- `grant-bound-allow` — protected path `^tools\/grant-bound-allow\.json$`
 - `framework-floor` — protected path `^tools\/framework-floor\.json$`
 - `cc-floor` — protected path `^tools\/cc-floor\.json$`
 - `db-perf-baseline` — protected path `^tools\/db-perf-baseline\.json$`

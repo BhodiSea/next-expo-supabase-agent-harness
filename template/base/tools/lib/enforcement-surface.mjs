@@ -113,6 +113,12 @@ export const ESCAPE_LISTS = [
   // is what keeps this an acknowledgement of the past rather than a way to write around
   // the rule — but the entry itself is still a widening, and belongs in a reviewed commit.
   'tools/migrations-allow.json',
+  // 1.1.0 (#74), same tolerated-absent shape. Allowing a table privilege no policy admits —
+  // TRUNCATE, REFERENCES, TRIGGER or MAINTAIN, or a DML verb with no policy behind it — past
+  // schema-rls' grant bound, one (table, role, privilege) at a time. The gate reads it
+  // absent-as-empty and reds a row naming a privilege nobody holds, so CREATING it is the
+  // widening.
+  'tools/grant-bound-allow.json',
 ]
 
 // The threshold-bearing configs (0.3.0). Judged by COMMIT, never by hash: raising a

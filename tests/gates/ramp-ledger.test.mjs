@@ -749,10 +749,12 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
   // carries no other ramp. THIRTY-SIX since 1.1.0 added SIX for the SQL history fold (#75), all
   // minVersion 1.1.0 due 1.2.0, one per gate that reads the folded parser: schema-rls, tenancy,
   // data-flow, db-limits, query-shapes and migrations' ALTER POLICY rule. Five of them WIDEN the
-  // set below; data-flow already carried its 0.6.0 closure ramp at this vintage.
+  // set below; data-flow already carried its 0.6.0 closure ramp at this vintage. THIRTY-SEVEN
+  // since 1.1.0 added schema-rls' grant bound, doctrine and generated assertions (#74,
+  // minVersion 1.1.0, due 1.2.0), which does not widen it: schema-rls carries the fold's.
   const fresh = classifyForInstall('0.6.0', '0.7.0', sites)
   assert.equal(fresh.expired.length, 0)
-  assert.equal(fresh.noting.length, 36)
+  assert.equal(fresh.noting.length, 37)
   assert.deepEqual(
     [...new Set(fresh.noting.map((s) => s.gate))].sort(),
     [
@@ -1041,6 +1043,10 @@ const WORKFLOW_HARDENING =
 const SQL_FOLD = 'the SQL history fold (DROP TABLE and ALTER POLICY)'
 const SQL_FOLD_RLS = 'the SQL history fold (DROP TABLE, ALTER POLICY and DROP POLICY)'
 const ALTER_POLICY_ADR = 'ALTER POLICY as an authorization change'
+// The grant bound (1.1.0, #74): one schema-rls site, opened at minVersion 1.1.0 and due 1.2.0,
+// for the bound, the three-role revoke doctrine and the generated grant assertions. It sits
+// after the fold's ramp in check-rls-manifest.mjs.
+const GRANT_BOUND = 'the grant bound, the three-role revoke doctrine and the generated grant assertions'
 /** The 1.1.0-opened sites, in the order the scanner lists them. */
 const OPENED_110 = [
   `'${SQL_FOLD}'`, // check-data-flow.mjs
@@ -1053,6 +1059,7 @@ const OPENED_110 = [
   `'${ROUND_BUDGET}'`,
   `'${LEDGER_V2}'`,
   `'${SQL_FOLD_RLS}'`, // check-rls-manifest.mjs
+  `'${GRANT_BOUND}'`, // check-rls-manifest.mjs
   `'${SQL_FOLD}'`, // check-tenancy.mjs
   `"${ARRIVAL}"`,
   `'${WORKFLOW_HARDENING}'`,
@@ -1219,12 +1226,12 @@ test('the SHIPPED 1.0.1 rampExpiry record equals what the shipped call sites com
   // as advisory for a 1.0.0 base at every version below its 1.2.0 deadline, and so do the
   // reviewer ledger v2 and the security-reviewer model check 1.1.0 opened, below their 2.1.0
   // deadline, and the severity contract's two sites (#71), docs-sync's verdict-demand
-  // position (#72), workflow-hardening's rules (#73) and the SQL history fold's six (#75), below
-  // their 1.2.0 deadline; nothing else.
+  // position (#72), workflow-hardening's rules (#73), the SQL history fold's six (#75) and
+  // schema-rls' grant bound (#74), below their 1.2.0 deadline; nothing else.
   assert.deepEqual(
     at100.noting.map((s) => s.detail),
     OPENED_110,
-    '1.0.0 meets only the thirteen 1.1.0-opened sites under the current fleet',
+    '1.0.0 meets only the fourteen 1.1.0-opened sites under the current fleet',
   )
   assert.match(record.why, /ramp-expectations\.mjs/)
 })
@@ -1298,10 +1305,11 @@ test('the SHIPPED 1.1.0 rampExpiry record equals what the shipped call sites com
       OPENED_110,
     )
   }
-  // Every 1.0.x vintage meets NOTHING expired and exactly the thirteen 1.1.0-opened NOTEs, the
+  // Every 1.0.x vintage meets NOTHING expired and exactly the fourteen 1.1.0-opened NOTEs, the
   // re-opened arrival, the reviewer ledger v2, the security-reviewer model check, the
   // severity contract's two sites, docs-sync's verdict-demand position,
-  // workflow-hardening's rules (#73) and the SQL history fold's six (#75) — the inverse proof
+  // workflow-hardening's rules (#73), the SQL history fold's six (#75) and schema-rls' grant
+  // bound (#74) — the inverse proof
   // that the wave is dated, not blanket. Filtered by the minVersion that names them first, so
   // a site opened at any other version fails here on its own line, and each later 1.1.0 ramp
   // joins OPENED_110 in the diff that opens it.
@@ -1315,7 +1323,7 @@ test('the SHIPPED 1.1.0 rampExpiry record equals what the shipped call sites com
     assert.deepEqual(
       at.noting.map((s) => s.detail),
       OPENED_110,
-      `${base} meets only the thirteen 1.1.0-opened sites`,
+      `${base} meets only the fourteen 1.1.0-opened sites`,
     )
   }
   assert.match(record.why, /SWEEPS\['1\.0\.0'\]/)

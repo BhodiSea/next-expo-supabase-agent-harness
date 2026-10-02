@@ -577,6 +577,14 @@ const RULE_CANARIES = {
     pathDeny('tools/migrations-allow.json'),
     pathAllow('docs/runbooks/expand-contract.md'),
   ],
+  // 1.1.0 (#74), tolerated-absent (grounded in check-canary-coverage.mjs#GROUNDED_ELSEWHERE):
+  // CREATING this file lets a privilege no policy admits stand past schema-rls' grant bound.
+  // The allow-case keeps the rule scoped to the list, never the generated pgTAP file the
+  // same gate regen-diffs.
+  'grant-bound-allow': [
+    pathDeny('tools/grant-bound-allow.json'),
+    pathAllow('supabase/tests/rls_grants.generated.test.sql'),
+  ],
   // 0.5.0, and the only harness-OWNED file in this block. Lowering one `minPatchByMajor`
   // turns a `version-sync` red naming four HIGH CVEs into a green, and the diff reads
   // like an ordinary version edit — which is why the deny has to land before the write,

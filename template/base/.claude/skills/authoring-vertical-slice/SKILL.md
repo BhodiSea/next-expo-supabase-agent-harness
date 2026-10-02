@@ -50,7 +50,8 @@ Only when nothing covers the need do you scaffold a new slice.
    supabase-js client suite under `tests/rls/` (the same boundary through the real PostgREST
    + GoTrue transport a Class-A mobile write takes — tenant B cannot read A). Add the table
    to BOTH registries: `rls_targets` in `supabase/tests/rls_structure.test.sql` AND
-   `ISOLATION_TARGETS` in `tests/rls/db-context.ts`.
+   `ISOLATION_TARGETS` in `tests/rls/db-context.ts`, then regenerate the exact-privilege
+   assertions with `node tools/gen-grant-assertions.mjs` (never by hand).
 3. **`./client` data function** — read `references/dal-dto.md`. The vertical's Metro-safe
    barrel (`packages/verticals/<slice>/src/client.ts`) exports the DIRECT RLS READ: it TAKES
    a per-request Supabase client, returns zod DTOs from `@app/contracts` wrapped in the

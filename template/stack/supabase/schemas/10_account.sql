@@ -52,7 +52,7 @@ ALTER TABLE public.profiles FORCE ROW LEVEL SECURITY;
 
 -- GRANTS ARE THE OUTER GATE, POLICIES THE INNER ONE. Supabase's default
 -- privileges hand every new table in `public` to anon, authenticated and
--- service_role; both revokes below undo that deliberately.
+-- service_role; the three revokes below undo that deliberately, for each role.
 --   anon         — nothing in this domain is public, so the anon role has no
 --                  business reaching the table at all. With the grant gone, a
 --                  policy accidentally written `TO public` in some future
@@ -62,8 +62,14 @@ ALTER TABLE public.profiles FORCE ROW LEVEL SECURITY;
 --                  lever that exists over it. Revoking it here means an Edge
 --                  Function cannot read this table until an ADR'd migration
 --                  grants it, per table, deliberately.
+--   authenticated — a GRANT adds a privilege and removes none, so without its
+--                  own revoke the role keeps the default's TRUNCATE, REFERENCES,
+--                  TRIGGER and MAINTAIN beside the four verbs its policies admit
+--                  (1.1.0: supabase/migrations/20260930000000_three_role_revoke.sql,
+--                  docs/adr/20260930-three-role-revoke.md).
 REVOKE ALL ON TABLE public.profiles FROM anon;
 REVOKE ALL ON TABLE public.profiles FROM service_role;
+REVOKE ALL ON TABLE public.profiles FROM authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.profiles TO authenticated;
 
 -- FOUR PER-OPERATION POLICIES, NEVER `FOR ALL`. A blanket policy makes read

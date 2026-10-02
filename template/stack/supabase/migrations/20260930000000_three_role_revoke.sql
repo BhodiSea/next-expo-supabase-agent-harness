@@ -1,0 +1,34 @@
+-- 20260930000000_three_role_revoke — take the platform's default privileges back from
+-- `authenticated` on the two tables it writes, then grant exactly the four verbs their
+-- policies admit.
+--
+-- APPLIED HISTORY, NOT DESIRED STATE. Append-only like every other migration here.
+--
+-- THE DOCTRINE (docs/adr/20260930-three-role-revoke.md): every table revokes ALL from anon,
+-- authenticated AND service_role, then grants exactly what each role keeps. Supabase's
+-- default privileges grant ALL on every new table in `public` to all three roles, and a
+-- GRANT adds a privilege and removes none. profiles and notes were created with the older
+-- two-revoke shape: REVOKE from anon and service_role, then a four-verb GRANT to
+-- authenticated on top of the default. So authenticated kept TRUNCATE, REFERENCES, TRIGGER
+-- and, on PostgreSQL 17, MAINTAIN on both, none of which any policy admits: row security
+-- does not apply to them at all. 20260920000000_authenticated_write_revoke.sql closed the
+-- same gap on the seven tables authenticated only reads; these are the two it writes.
+--
+-- WHY IT MATTERS BEYOND THE FOUR PRIVILEGES. With the default still standing, what
+-- authenticated holds on these tables depends on whether the platform applied its default
+-- when the table was created, which differs between local CLI versions (1.0.2) and stops
+-- for projects created on or after 2026-10-30. After this migration it does not: the
+-- privileges are exactly the ones granted below, on every database this history runs on,
+-- which is what lets supabase/tests/rls_grants.generated.test.sql commit one expectation.
+-- `schema-rls` holds every table to the doctrine from 1.1.0 (tools/lib/table-grants.mjs).
+--
+-- REVOKE ALL, then re-GRANT, in one transaction, so no reader ever sees either table
+-- without its SELECT, and no writer loses a verb its policies admit.
+-- adr: docs/adr/20260930-three-role-revoke.md
+-- SOURCE: https://www.postgresql.org/docs/17/ddl-priv.html
+-- SOURCE: https://www.postgresql.org/docs/17/ddl-rowsecurity.html
+REVOKE ALL ON TABLE public.profiles FROM authenticated;
+REVOKE ALL ON TABLE public.notes FROM authenticated;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.profiles TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.notes TO authenticated;

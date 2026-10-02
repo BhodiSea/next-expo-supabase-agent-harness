@@ -168,8 +168,9 @@ None of these tightens a gate for an existing install. Where one changes what
 - **Generated skill references.** The code blocks in the vertical-slice
   skill's references are regions cut verbatim from spans the example marks,
   and a factory check fails on drift in either direction. The table, trigger,
-  index, FORCE and grant half of the RLS skeleton stays hand-written until the
-  example grants what it teaches (the three-role revoke, #74).
+  index, FORCE and grant half of the RLS skeleton stays hand-written; since
+  1.1.0 the example grants what it teaches (the three-role revoke, #74), so
+  that half could be cut from it next.
   ([N09](design/FIELD-UPGRADES-2026-09.md#n09-skill-references-generated-from-the-example),
   issue #59)
 - **A session-start brief and `harness:status`.** A `SessionStart` hook and
@@ -305,10 +306,18 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
   reported as unreadable, and `graduate` does not run it.
   ([R04](design/FIELD-UPGRADES-2026-09.md#r04-a-ci-self-lint-job-for-shells-and-ceilings),
   issue #73)
-- **Grants bounded by policies.** A static upper bound on what `authenticated`
-  is granted, generated privilege-exactness assertions, and the three-role
-  revoke doctrine with its ADR.
-  ([R05](design/FIELD-UPGRADES-2026-09.md#r05-grants-bounded-by-policies-generated-exactness-and-a-revoke-doctrine))
+- **Grants bounded by policies.** `schema-rls` folds the grant history a
+  second time from the platform's default privileges: every privilege `anon`
+  or `authenticated` holds must be admitted by a policy, every table revokes
+  the default from all three roles (the doctrine and its ADR, applied to
+  `profiles` and `notes` by a new migration), and
+  `supabase/tests/rls_grants.generated.test.sql`, rendered by
+  `tools/gen-grant-assertions.mjs`, asserts the exact privileges of every table
+  instead of hand-counted lists. One ramp opened at 1.1.0 holds all three as
+  NOTEs below that `baseVersion` until 1.2.0. Sequences, views, custom roles
+  and `ALTER DEFAULT PRIVILEGES` stay outside the fold.
+  ([R05](design/FIELD-UPGRADES-2026-09.md#r05-grants-bounded-by-policies-generated-exactness-and-a-revoke-doctrine),
+  issue #74)
 - **`sql-parse` learns `DROP TABLE` and `ALTER POLICY`.** Seven gates stop
   reasoning about tables that are gone and predicates that were replaced.
   ([R06](design/FIELD-UPGRADES-2026-09.md#r06-the-sql-parser-learns-drop-table-and-alter-policy))

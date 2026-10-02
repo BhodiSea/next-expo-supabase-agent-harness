@@ -111,7 +111,8 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   per-operation policies (`TO authenticated`, `WITH CHECK` on INSERT/UPDATE) keyed
   on `auth.uid()`, a leading-column owner index, `REVOKE ALL` from `anon`, `service_role`
   AND `authenticated`, then the EXACT grants its policies admit (a GRANT removes nothing;
-  the default leaves it TRUNCATE). Web and mobile hit the SAME policies, so isolation
+  the default leaves it TRUNCATE). `pnpm gen` regenerates the exact-privilege pgTAP
+  file, never a hand edit. Web and mobile hit the SAME policies, so isolation
   is enforced in ONE place; `supabase/tests/**` (pgTAP) + `tests/rls/` (supabase-js)
   prove tenant B cannot read A on every `db reset`. **The owner index must carry the
   ORDERING, not just the filter** — `(owner_id, <ORDER BY columns, direction>)` so

@@ -72,6 +72,7 @@ export const PROPOSABLE = Object.freeze([
   'tools/retrofit-accept.json',
   'tools/secret-scan-allow.json',
   'tools/migrations-allow.json',
+  'tools/grant-bound-allow.json',
   'tools/field-notes.json',
 ])
 
