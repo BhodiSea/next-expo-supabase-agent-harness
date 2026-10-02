@@ -3328,6 +3328,36 @@ comparison is `>=`, so each deadline dated 1.2.0 arrives here. The 1.1.0 section
 sweep, and nothing in it changed. If you are more than one release behind, read the sections
 above in order before crossing this one.
 
+### Expect `version-sync` to red on the `next` floor, whatever your `baseVersion`
+
+This one is not a ramp, and no `baseVersion` is exempt from it. The `next` floor on the 16
+line moves from 16.3.3 to **16.3.6**, for
+[GHSA-vcvr-r3jv-pc5j](https://github.com/vercel/next.js/security/advisories/GHSA-vcvr-r3jv-pc5j)
+(CVE-2026-94545, Critical): remote code execution in the Node.js `ImageResponse` of
+`next/og` when an app passes attacker-controlled values into the SVG content, attributes or
+styles it renders. It affects 16.2.0 up to but not including 16.3.6, so it covers 16.3.5, the
+pin every release from 1.0.2 to 1.1.0 shipped. The 15 line is outside its range, and its
+floor stays **15.5.24**.
+
+`tools/framework-floor.json` is harness-owned, so `update` refreshes it. `pnpm-workspace.yaml`
+is seeded, so `update` does not touch your pins, and the first `pnpm validate` after the
+upgrade reds `version-sync` on a `next` pin below 16.3.6, naming the pin, the floor and the
+advisory. Raise the pin yourself:
+
+```
+# in the pnpm-workspace.yaml catalog: next: 16.3.6
+pnpm install && git add pnpm-lock.yaml pnpm-workspace.yaml
+pnpm validate
+```
+
+From 16.3.5 this is a patch on the same minor. The scaffold imports nothing from `next/og`, so
+a tree that never added an `ImageResponse` route was not exposed through one, and the floor
+moves anyway, because an Open Graph image route is one import away. Until you can raise the
+pin, the advisory's workaround is to keep attacker-controlled values out of everything the
+Node.js `ImageResponse` renders; the Edge `ImageResponse` is not affected. No flag lowers the
+floor. Do not use `update --refresh-seeded pnpm-workspace.yaml` to take the pin: it replaces
+your whole catalog with the template's.
+
 ### What ARRIVES (hard) — for installs below 1.1.0
 
 Eighteen of the ramp sites 1.1.0 opened, across fifteen gates. Each finding that printed as
@@ -3424,9 +3454,10 @@ re-opened arrival ramp), `tools/check-reviewer-verdicts.mjs` (the round budget's
 `tools/check-i18n.mjs` and `tools/lib/i18n-tree.mjs` (the retired regular expressions),
 `eslint.config.mjs` (the retired exemption), `tools/deferrals.json`, `tools/auth-posture.json`,
 `tools/check-auth-posture.mjs` and `docs/harness/gates-catalog.md` (the census date and the
-sentences that called the 1.1.0 ramps open). The seeded `tools/eol.json` and
-`tools/i18n-allow.json` change for fresh scaffolds only: the first reaches you through the
-parked fix above, and the second changes only its comment.
+sentences that called the 1.1.0 ramps open), and `tools/framework-floor.json` (the `next`
+floor above). The seeded `tools/eol.json`, `tools/i18n-allow.json` and `pnpm-workspace.yaml`
+change for fresh scaffolds only: the first reaches you through the parked fix above, the
+second changes only its comment, and the third carries the `next` pin you raise yourself.
 
 ### The full encryption rule ships with the `e2ee` module
 
