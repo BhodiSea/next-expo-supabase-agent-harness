@@ -1757,7 +1757,9 @@ re-plants `tools/gen-event-catalog.mjs`, `tools/lib/stamp-inputs.mjs`, the verti
 skill's `scripts/scaffold-slice.mjs` and `references/dal-dto.md` (`update` re-records their
 `tools/agents.lock.json` entries) and `docs/harness/gates-catalog.md`; the example's
 `client.ts` and your root `package.json` are seeded and stay as they are (its subsection
-below). What you may notice afterwards:
+below). The catalog pin floors re-plant `tools/lib/harness-brief.mjs`; the floors are the
+installer's own, and your `pnpm-workspace.yaml` is never written (its subsection below).
+What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1883,6 +1885,12 @@ below). What you may notice afterwards:
   catalogued under 1.0.x either, and the gate prints nothing new. If you forked the
   generator, your copy stays, the new one is parked under `.harness/pending/`, and `update`
   exits 2 while it stays there: the subsection on the event catalog below says what to do.
+- **`doctor` may warn that a catalog pin is below a security floor, and exit 2.** If your
+  `pnpm-workspace.yaml` still pins `vitest` or `@vitest/coverage-v8` at 4.1.10, as every
+  release from 0.1.3 through 1.0.2 scaffolded it, `doctor` prints one warning per package
+  and exits 2 where it exited 0, and `update` prints a `CATALOG PIN FLOOR` note per package
+  and parks `.harness/pending/pin-floors.json`. No gate reds on it, and `update`'s exit code
+  does not move. The subsection on catalog pin floors below says what to do.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -2652,6 +2660,37 @@ kept and the new one is parked at `.harness/pending/tools/gen-event-catalog.mjs`
 export to each vertical your fork imported, take the parked file, re-record it as "Forking
 an owned file" in the 1.0.2 section describes, and delete the parked copy. Then
 `pnpm gen:contracts` leaves `tools/generated/event-catalog.json` unchanged.
+
+### A catalog pin below a security floor: `.harness/pending/pin-floors.json`
+
+A release can now record a security floor for a pin in your seeded catalog. 1.1.0 records
+two: `vitest` and `@vitest/coverage-v8` at 4.1.11, for GHSA-82fw-gwwq-j7x9, the raise the
+1.0.3 section above asks you to make by hand. `update` still never edits
+`pnpm-workspace.yaml`, so it tells you instead, once per package:
+
+```
+CATALOG PIN FLOOR (1.1.0): raise `vitest` from 4.1.10 to at least 4.1.11 in the pnpm-workspace.yaml catalog, then `pnpm install` and commit pnpm-lock.yaml. WHY: … (parked at .harness/pending/pin-floors.json)
+```
+
+and `doctor` warns with the same finding (`catalog pin below a security floor (since
+1.1.0)`) and exits 2 until the pin meets the floor. It never exits 1 for a floor: an old
+pin stops no gate from running, and your daily `osv-scan` job is still what judges the
+version your lockfile resolved. To clear it, raise both pins together, exactly as the 1.0.3
+section shows, then run `doctor` again:
+
+```
+# in the pnpm-workspace.yaml catalog: vitest: 4.1.11 and '@vitest/coverage-v8': 4.1.11
+pnpm install && git add pnpm-lock.yaml pnpm-workspace.yaml
+npx next-expo-supabase-agent-harness doctor
+```
+
+`doctor` deletes `.harness/pending/pin-floors.json` once every floor is met and says so in
+an `info` line; it is an instruction, not a parked upgrade, so there is nothing to merge
+from it. A pin is judged by the lower bound of its catalog value: `^4.1.11` and `>=4.1.11`
+meet the floor, `^4.1.10` does not, even where your lockfile resolved something newer, and a
+value that is not a version (a dist-tag, an `npm:` alias, a URL) cannot be proven to meet
+it, so it warns too. The key is found whether it is bare, single-quoted or double-quoted,
+and a package you removed from the catalog is not judged.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

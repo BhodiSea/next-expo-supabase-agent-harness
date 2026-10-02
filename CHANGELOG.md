@@ -44,6 +44,10 @@ A second new seeded file is planted the same way as `tools/field-notes.json`: `u
 `provenance` relaxes rather than tightens (see Changed): three decision classes become
 advisory, so it needs no ramp, and its one new red is a malformed promotion list that no
 install carries yet (#69).
+`doctor` gains one warning (see Changed): an install whose catalog pins `vitest` or
+`@vitest/coverage-v8` below 4.1.11 now exits 2 where it exited 0. The record carries the two
+floors as a new kind, `catalogPinFloors`; no gate verdict, chain step or `update` exit code
+changes (#83).
 
 ### Security
 
@@ -378,6 +382,14 @@ this heading if none does. -->
   the example's three rows while `packages/verticals/notes` is moved aside, and in Canary 33
   reds naming the example's `client.ts` once its `EVENT_CATALOG` is a number. No chain step,
   gate, ramp or floor changes (#82).
+- **A double-quoted catalog key is read as the entry it is.** The installer's one catalog
+  probe, `catalogEntry` in `installer/lib/migrations.mjs`, accepted a bare or single-quoted
+  key only, so a `pnpm-workspace.yaml` a YAML formatter had rewritten to
+  `"eslint-plugin-jsx-a11y": ^6.10.2` read as having no such entry. `doctor` then reported a
+  met dependency obligation as an unmet `ERROR`, and its toolchain report named no Supabase
+  CLI pin for a double-quoted `"supabase"` key. The key may now carry either quote, as long
+  as both sides match. The catalog pin floors (see Changed) read through the same probe, and
+  for them a present key read as absent would never be judged (#83).
 
 ### Changed
 
@@ -632,6 +644,31 @@ this heading if none does. -->
   new exports through the rules namespace, so a parked fork of the lib keeps every class
   mandatory. A relaxation with one new red, a malformed `mandatory` list, which no existing
   file carries: no ramp, no chain step and no floor changes (#69).
+- **`doctor` warns when a seeded catalog pin is below a security floor, so it can exit 2
+  where it exited 0.** 1.0.3 raised the template's `vitest` and `@vitest/coverage-v8` pins
+  to 4.1.11 for GHSA-82fw-gwwq-j7x9, and nothing carried the raise to an existing install:
+  `pnpm-workspace.yaml` is seeded, no gate judges the pin, and the dependency channel asks
+  only whether a key is present, which a `vitest: 4.1.10` line answers yes. A new
+  `template/migrations.json` record kind, `catalogPinFloors` (`{ name, minVersion, advisory,
+  why }`), now carries a reviewed raise, and the 1.1.0 record floors both packages at
+  4.1.11. Every release from 0.1.3 through 1.0.2 shipped 4.1.10, checked against each tag,
+  so meeting the floor is a patch on the same major. `update` judges each floor by the lower
+  bound of the catalog value, read through the same anchored probe the dependency channel
+  uses, with one leading `^`, `~`, `>=` or `=` stripped. It names each floor that is not
+  provably met in a `CATALOG PIN FLOOR` note, parks `.harness/pending/pin-floors.json`, and
+  deletes it once every floor is met; its exit code does not change, and a dry run writes
+  nothing. `doctor` recomputes the floors from the tree and prints one warning per unmet
+  floor, so an install still on 4.1.10 exits 2 where it exited 0. It never exits 1 for a
+  floor, because an old pin stops no installed gate from running and the upgrade lane
+  permits only `doctor` exit 0 or 2, and it removes a stale parked file with an `info` line
+  instead of listing it as a parked upgrade. A value that is not a plain version (a
+  dist-tag, an `npm:` alias, a URL) is unmet, because it cannot be proven met; a key absent
+  from the catalog is not judged. Neither command writes `pnpm-workspace.yaml` or
+  `package.json`. `update --rollback` restores the parked file's pre-update state, the
+  SessionStart brief skips it as `doctor` does, and the factory's
+  `scripts/check-dependency-channel.mjs` reds a malformed floor, a floor naming a package
+  the template does not pin, and a template pin below its own floor. No gate script,
+  `tools/framework-floor.json` row, chain step or ramp (#83).
 
 ### What stays open, honestly
 
@@ -876,6 +913,18 @@ this heading if none does. -->
   a new platform event would reach installs whose seeded `@app/events` lacks it. Its two
   generated siblings were made seeded for that reason; doing the same here is a separate
   item (#82).
+- **A range is judged by its lower bound, not by the lockfile.** `vitest: ^4.1.10` warns
+  even where the lockfile resolved 4.1.12, and nothing reads the lockfile for a floor. The
+  error is always in the safe direction, and the daily `osv-scan` job still judges what was
+  resolved (#83).
+- **A floor is written by hand, one reviewed raise at a time.** Nothing derives a floor from
+  a pin bump, so a later security raise of a seeded pin reaches existing installs only if
+  its release records one. The factory check holds the template's side of each floor, not
+  the decision to write it (#83).
+- **The upgrade lane does not raise a floored pin.** `scripts/ci/upgrade-lane.sh` leaves a
+  pin below a floor as it is, and its legs stay within `doctor` exit 0 or 2. A later change
+  that makes the lane apply floors must rewrite the existing catalog line, not insert a
+  second one as the dependency-obligation applier does (#83).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -1206,6 +1255,22 @@ this heading if none does. -->
   `scripts/ci/upgrade-lane.sh` from v1.0.3 and from v1.0.4 each ended OK on 36 steps with
   `contracts` and `dead-code` green, the generator delivered at this tree's bytes and
   nothing parked (#82).
+  For the catalog pin floors, the tests-only commit was red on 22 cases.
+  `tests/installer/catalog-pin-floors.test.mjs` found no `unmetCatalogPinFloors` or
+  `applyCatalogPinFloors` export and no 1.1.0 floor, and on a real scaffold with both pins
+  lowered to 4.1.10, `doctor` printed `doctor: CLEAN` and exited with 0. The rollback snapshot
+  had no entry for `.harness/pending/pin-floors.json`, `check-dependency-channel` exited 0
+  over a malformed floor and over a template pin below its floor, and the SessionStart brief
+  counted the parked file as an upgrade (`parked: 1001`). After the change each case is
+  green, and so are the dependency and source-fix channel suites beside them. A v1.0.2 core
+  install updated by this installer exited 0, printed a `CATALOG PIN FLOOR (1.1.0)` note for
+  each package and parked both floors; `doctor` then warned on both with no `ERROR`, and with
+  the pins raised by hand it removed the parked file. A v1.0.3 install updated the same way
+  got no note and no file. Through the probe as 1.0.4 shipped it, a double-quoted
+  `"@vitest/coverage-v8": 4.1.10` read as absent, so no floor was judged, and a double-quoted
+  obligation key read as unmet; both cases, and the one-home anchor case, were red until
+  `catalogEntry` took either quote. A `catalogPinFloors` value that was not a list crashed
+  `check-dependency-channel` with a `TypeError` until it was named as a problem (#83).
 
 ## [1.0.4] — 2026-10-01
 

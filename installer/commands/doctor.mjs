@@ -4,13 +4,13 @@
 // improvements are discoverable. So is the toolchain report (1.0.4): the node, pnpm,
 // Supabase CLI and psql binaries a local run reaches, their versions and their pins.
 //
-// What it writes: it deletes .harness/pending/dependencies.json and source-fixes.json once
-// the tree meets every entry in them, and with `--clean` (1.0.4) it deletes the ignored
-// residue in installer/lib/toolchain.mjs CLEAN_LIST — .harness/stop-output/,
-// apps/mobile/dist/ and the ignored build output and tool caches (apps/web/.next/,
-// apps/mobile/.expo/, coverage/, .stryker-tmp/, .eslintcache) — after checking each one is
-// inside the install, not reached through a symlink, ignored by git and holds no tracked
-// file. `--clean --dry-run` only lists them.
+// What it writes: it deletes .harness/pending/dependencies.json, source-fixes.json and
+// pin-floors.json (1.1.0) once the tree meets every entry in them, and with `--clean`
+// (1.0.4) it deletes the ignored residue in installer/lib/toolchain.mjs CLEAN_LIST —
+// .harness/stop-output/, apps/mobile/dist/ and the ignored build output and tool caches
+// (apps/web/.next/, apps/mobile/.expo/, coverage/, .stryker-tmp/, .eslintcache) — after
+// checking each one is inside the install, not reached through a symlink, ignored by git
+// and holds no tracked file. `--clean --dry-run` only lists them.
 // Nothing else is written, and neither changes the exit code. Neither does the list of
 // register proposals staged under harness-proposals/ (1.1.0, #65), which is `info`.
 import { spawnSync } from 'node:child_process'
@@ -22,10 +22,12 @@ import { walkFiles } from '../lib/fs-walk.mjs'
 import { RETIRED_MODULES } from '../lib/layout.mjs'
 import { installerVersion, readManifest, sha256 } from '../lib/manifest.mjs'
 import {
+  pinnedLowerBound,
   readTemplateMigrations,
   requiredConfigSteps,
   treeFileReader,
   unappliedSeededSourceFixes,
+  unmetCatalogPinFloors,
   unmetDependencyObligations,
 } from '../lib/migrations.mjs'
 import { proposalLines } from '../lib/proposals.mjs'
@@ -94,10 +96,10 @@ function classifyPending({ targetDir, errors, warnings, infos }) {
   // silently stop reaching a project.
   const pendingRoot = join(targetDir, '.harness', 'pending')
   for (const rel of walkFiles(pendingRoot)) {
-    // dependencies.json and source-fixes.json are not parked FILES awaiting a merge into a
-    // same-named path — they are obligations, classified below (an ERROR and a warning
-    // respectively, and the asymmetry is deliberate).
-    if (rel === 'dependencies.json' || rel === 'source-fixes.json') continue
+    // dependencies.json, source-fixes.json and pin-floors.json are not parked FILES awaiting
+    // a merge into a same-named path — they are obligations, classified below (an ERROR, a
+    // warning and a warning respectively, and the asymmetry is deliberate).
+    if (rel === 'dependencies.json' || rel === 'source-fixes.json' || rel === 'pin-floors.json') continue
     warnings.push(
       `parked upgrade awaiting merge: .harness/pending/${rel} — reconcile it into ${rel}, then delete the parked copy`,
     )
@@ -141,6 +143,37 @@ function classifyPending({ targetDir, errors, warnings, infos }) {
   if (fixes.length === 0 && existsSync(join(pendingRoot, 'source-fixes.json'))) {
     infos.push('every seeded source fix is applied — removing the stale .harness/pending/source-fixes.json')
     rmSync(join(pendingRoot, 'source-fixes.json'), { force: true })
+  }
+
+  classifyPinFloors({ targetDir, migrations, warnings, infos })
+}
+
+// Seeded catalog pins below a security floor a release recorded (1.1.0). A WARNING, never an
+// error: a pin below an advisory floor stops no installed gate from running, and the upgrade
+// lane permits only doctor exit 0 or 2, so an error would fail every leg whose baseline sits
+// below a floor. Recomputed from the TREE like the two channels above, never trusted from
+// the parked file, so raising the pin and re-running `doctor` clears it without another
+// `update`. Hoisted out of classifyPending for the complexity ratchet, like its neighbours.
+/**
+ * @param {{ targetDir: string, migrations: object, warnings: string[], infos: string[] }} args
+ */
+function classifyPinFloors({ targetDir, migrations, warnings, infos }) {
+  const floors = unmetCatalogPinFloors(migrations, installerVersion(), {
+    workspaceYaml: readIfPresent(join(targetDir, 'pnpm-workspace.yaml')),
+  })
+  for (const f of floors) {
+    const finding =
+      pinnedLowerBound(f.found) === null
+        ? `\`${f.name}: ${f.found}\` in the pnpm-workspace.yaml catalog cannot be proven at or above ${f.minVersion}`
+        : `\`${f.name}\` is ${f.found} in the pnpm-workspace.yaml catalog, below ${f.minVersion}`
+    warnings.push(
+      `catalog pin below a security floor (since ${f.since}): ${finding} (${f.advisory}). WHY: ${f.why} Raise it to at least ${f.minVersion}, run \`pnpm install\`, commit pnpm-lock.yaml, then re-run \`doctor\` — \`update\` never edits the catalog, which is seeded.`,
+    )
+  }
+  const parked = join(targetDir, '.harness', 'pending', 'pin-floors.json')
+  if (floors.length === 0 && existsSync(parked)) {
+    infos.push('every catalog pin meets its security floor — removing the stale .harness/pending/pin-floors.json')
+    rmSync(parked, { force: true })
   }
 }
 
