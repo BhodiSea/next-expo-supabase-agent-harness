@@ -19,7 +19,8 @@ when they fall due.
   night since 2026-08-11, which hid the lapse of the Next.js security floor
   review in September (see the 1.0.2 CHANGELOG entry). The first half is done:
   the two overdue calendar rows behind its last red job, `obligations-clockful`,
-  were re-read on 2026-09-29 and re-dated (issue #54). They are
+  were re-read on 2026-09-29 and re-dated (issue #54), and the maintainer
+  accepted the re-dating on 2026-10-02. They are
   `conformance-play-target-api-window` (Google Play target API level) and
   `conformance-cra-art14-application` (EU Cyber Resilience Act Article 14
   reporting). The second half is done in 1.1.0 (issue #81): the scheduled
@@ -437,7 +438,7 @@ proposed again.
 | 2026-12-02 | EU AI Act Article 50 transitional period ends. The recorded disposition is a confirmed negative, to be re-read. | `conformance-ai-act-transitional` |
 | 2026-12-31 | Re-check whether a harmonised standard for the Cyber Resilience Act has been cited. The CRA rows of the conformance map have a shelf life tied to this. | `conformance-cra-hens-citation` |
 | 2027-05-31 | Google Play has raised the target API level it requires on 31 August in each of the last two years, and no 2027 level is published yet. This date is three months before the next 31 August. A level above 36 would raise the scaffold's floor, which needs a ramp in a minor release, so the question is asked early. | `conformance-play-target-api-window` |
-| 2027-06-11 | Six months before 2027-12-11, when the EU Cyber Resilience Act's reporting duties reach open-source software stewards (Article 24(3)). Whether this project has a steward is an open question for the maintainer. | `conformance-cra-art14-application` |
+| 2027-06-11 | Six months before 2027-12-11, when the EU Cyber Resilience Act's reporting duties reach open-source software stewards (Article 24(3)). The maintainer decided on 2026-10-02 that Cogvera Labs is this project's open-source software steward, so its cybersecurity policy and its reporting route have to be ready by 2027-12-11. | `conformance-cra-art14-application` |
 | 2027-06-15 | ASD is consulting on replacing the Essential Eight. The Essential Eight register gets re-based or retired depending on the outcome. | `conformance-e8-retirement` |
 
 ## When something outside this project changes
