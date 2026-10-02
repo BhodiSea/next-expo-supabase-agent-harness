@@ -113,7 +113,16 @@ catalog:
   # images.remotePatterns, a Linux deploy target), and the floor moves anyway: the
   # /_next/image endpoint exists by default and consumers extend these apps.
   # SOURCE: https://nextjs.org/blog/august-2026-security-release
-  next: 16.3.5
+  #
+  # 2.0.0: the floor moves to 16.3.6 for GHSA-vcvr-r3jv-pc5j (CVE-2026-94545, Critical,
+  # published upstream 2026-09-22): remote code execution in the Node.js ImageResponse of
+  # next/og when attacker-controlled values reach the SVG it renders, through satori. It
+  # affects >= 16.2.0 < 16.3.6, so it covered the 16.3.3 floor and the 16.3.5 pin. The
+  # scaffold imports nothing from next/og, and the floor moves anyway: an Open Graph image
+  # route is one import away. 16.3.6 is the release that fixes it, a patch on the same minor,
+  # and OSV listed no advisory against 16.3.6 on the day of review (2026-10-02).
+  # SOURCE: https://github.com/vercel/next.js/security/advisories/GHSA-vcvr-r3jv-pc5j
+  next: 16.3.6
   next-safe-action: ^8.5.3
   tailwindcss: ^4.3.0 # v4 CSS-first, WEB ONLY — mobile pins v3 in apps/mobile (see below)
   '@tailwindcss/postcss': ^4.3.0

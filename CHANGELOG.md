@@ -11,7 +11,7 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
-## [2.0.0] — 2026-10-01
+## [2.0.0] — 2026-10-02
 
 **A major, the opt-in release: what an install carries is what it opted into, and the notes
 1.1.0 opened become verdicts.** 1.2.0 is never cut: this lineage goes from 1.1.0 to 2.0.0
@@ -42,6 +42,10 @@ example: it is seeded, and `update` neither rewrites nor deletes it (#85).
 **Breaking: `reviewer-verdicts` keys the reviewer ledger on the session and a format stamp,
 not the prompt.** The step needs only the session id, and a reviewer whose verdicts in the
 current session a 1.1.x hook wrote is re-run once after `update` (see Changed) (#87).
+**This release reds every install whose `next` pin is below 16.3.6, by design.** `update`
+refreshes the owned `tools/framework-floor.json`, whose 16.x floor moves to 16.3.6 (see
+Security), and leaves the seeded catalog alone, so `version-sync` reds until the install
+raises its own pin. The runbook's 2.0.0 section gives the remedy (#81).
 
 ### Added
 
@@ -96,6 +100,27 @@ current session a 1.1.x hook wrote is re-run once after `update` (see Changed) (
   again, so the persisted session and an authenticated server read are proven on every
   scaffold. The example's mutation journey ships with the demo, and `tools/ci/device-lane.sh`
   runs every journey in the directory (#85).
+
+### Security
+
+- **The `next` floor on the 16 line moves to 16.3.6, and the catalog pins 16.3.6.**
+  GHSA-vcvr-r3jv-pc5j (CVE-2026-94545, Critical, published upstream on 2026-09-22) is remote
+  code execution in the Node.js `ImageResponse` of `next/og` when an app passes
+  attacker-controlled values into the SVG content, attributes or styles it renders, through
+  an upstream vulnerability in satori. It affects `>= 16.2.0 < 16.3.6`, so it covered the
+  16.3.3 floor and the 16.3.5 pin that every release from 1.0.2 to 1.1.0 shipped. The 15 line
+  is outside the range, and its floor stays 15.5.24. The scaffold imports nothing from
+  `next/og`, and the floor moves anyway, because an Open Graph image route is one import
+  away for a consumer. `tools/framework-floor.json` records the advisory under its GHSA id,
+  because OSV lists the CVE as related rather than as an alias, and its review window moves
+  to 2026-10-02 through 2026-11-01. The pin bump is Renovate's security update, merged with
+  the file's header comment kept where Renovate's rewrite had dropped it. Existing installs
+  red `version-sync` until they raise the seeded pin, from 16.3.5 a patch on the same minor;
+  the runbook's 2.0.0 section gives the remedy, and the `template/migrations.json` record
+  says why there is no `catalogPinFloors` entry. This is the maintainer's decision on the
+  `floor-advisories` lane's first finding, which 1.1.0 left open. The register-freshness
+  test that assumed the floor's window closes before the eol register's now derives which
+  one closes first (#81).
 
 ### Fixed
 
@@ -421,6 +446,12 @@ current session a 1.1.x hook wrote is re-run once after `update` (see Changed) (
   pinned in `tests/gates/upgrade-sweep.test.mjs`. Leg E replayed with the local tags ends on
   "graduate advancing baseVersion 0.3.0 -> 2.0.0", and leg N (v1.0.4) on its expected
   expiries (#37).
+  For the `next` floor, `check-floor-advisories` against live OSV was red on
+  GHSA-vcvr-r3jv-pc5j at the 16.3.3 floor before the change, and after it OSV names no
+  advisory on any probe. The upstream feed refused the local request, so the first scheduled
+  run after the merge is the first to read both feeds against the new floor. The two
+  register-freshness cases were red on the moved review window before the test derived which
+  register closes first, and they are red again when both windows end on the same day (#81).
 
 ## [1.1.0] — 2026-10-02
 
