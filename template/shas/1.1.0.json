@@ -112,6 +112,9 @@
     ],
     ".claude/agents/torvalds-reviewer.md": [
       {
+        "sha256": "5d6467aa41bdadfa7e99f942cdec1cd485acd381a584d38691d53e69c30247aa"
+      },
+      {
         "sha256": "c3e3b5bffde93f37dd6aaa2202b0644cf08453fe974ecff632288a13860a8d6a"
       },
       {
@@ -134,6 +137,9 @@
     ],
     ".claude/commands/adr.md": [
       {
+        "sha256": "4cccd51122404e52016f3073f72e598d426d3ea834d57d69ef73fff67a0dd97d"
+      },
+      {
         "sha256": "ba84be2b7383f7397a6147508b21a7dc54cd5f1332a77b5535d62eaeca94b2ba"
       }
     ],
@@ -143,6 +149,9 @@
       }
     ],
     ".claude/commands/new-feature.md": [
+      {
+        "sha256": "74ed5bc629959af4e6a3b1e481907116d0fdaac1ff274c015e35c1a9e253df18"
+      },
       {
         "sha256": "c69455e9c225ff1b90084aabf8783c66a7be6ff9735ce02a530afc3260109c68"
       }
@@ -759,6 +768,9 @@
     "docs/adr/0000-adr-template.md": [
       {
         "sha256": "246c293615119f51ed36110fd6a48d5321aa15f6473d11684238b77ed2e83f9d"
+      },
+      {
+        "sha256": "300379eccca48253517a71ca305877f30df657d58134691450d3b845a74e91ce"
       }
     ],
     "docs/adr/20260201-org-scoped-tenancy.md": [
@@ -868,6 +880,15 @@
         "sites": [
           [
             19030,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "bda6aa93cdccde70d2453e5a26b5aaec2fad81017e09cbc4c07002cb2ff62138",
+        "sites": [
+          [
+            19259,
             "SECURITY_OWNERS"
           ]
         ]
@@ -1208,6 +1229,15 @@
         ]
       },
       {
+        "sha256": "ab104b7c61a61fbea071d1f7f3d836f24ae251a66bfd7c6fd04752c3981000c6",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "c9e33c807a8c6d693db2f9a3b3ffa4426dd39f48d2a8854f194f39960c44b770",
         "sites": [
           [
@@ -1441,6 +1471,9 @@
       }
     ],
     "specs/_template.md": [
+      {
+        "sha256": "306670006e5d9732e3a6ffff287d925a15d29c77fce2e06a98aca1d144bcec38"
+      },
       {
         "sha256": "bd49ca9ed211e31fdcc4d607a3ab7e9601dd7ecf4d604566dc0016c88e5dcfa0"
       }
@@ -1879,6 +1912,19 @@
             "SECURITY_OWNERS"
           ]
         ]
+      },
+      {
+        "sha256": "a069bbdb3f83da61f0edf958564a4e97f433a77bfe5cf531de86a213e907671d",
+        "sites": [
+          [
+            640693,
+            "APP_SCHEME"
+          ],
+          [
+            700533,
+            "SECURITY_OWNERS"
+          ]
+        ]
       }
     ],
     "tools/deferrals.json": [
@@ -2194,6 +2240,11 @@
         "sha256": "d80d6341a3e68289daa1c0a7add7f6067fa7760dbc050e010525abb643e1a3b9"
       }
     ],
+    "tools/lib/spec-anchor.mjs": [
+      {
+        "sha256": "2895877f4aebdb78022d274f8beff72cc9b840dc38f3fd6154a72193d65fb487"
+      }
+    ],
     "tools/lib/sql-parse.mjs": [
       {
         "sha256": "fca283956393db8c89d5d72119b13db9154d649087169604190619d9dd1c766e"
@@ -2292,6 +2343,11 @@
     "tools/secret-patterns.json": [
       {
         "sha256": "e39621b254a62376e65607ff8eac24a96fafc8028a2e0bbc437b6353e3f27ffc"
+      }
+    ],
+    "tools/spec-anchor.mjs": [
+      {
+        "sha256": "d5b34a01dd4c9a5f56cbd7d844200360a879454e8c5f440b3eb4555903bc7faf"
       }
     ],
     "tools/stop.floor.json": [

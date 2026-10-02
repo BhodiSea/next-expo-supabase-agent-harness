@@ -25,8 +25,13 @@ against this rubric, ranking every finding CRITICAL / HIGH / MEDIUM / LOW with a
 `file:line` reference:
 
 (a) Spec / plan conformance — does it implement every requirement in the spec/plan?
-    Does each listed edge case have a test? You cannot run tests, so FLAG any
-    unverified "tests pass" claim as a thing the main thread must prove.
+    When the brief cites spec sections as `specs/<feature>.md#<id>`, judge against
+    those sections: Grep the spec for its `##` / `###` headings and Read each cited one
+    by line range. A section the change touches that the brief did not cite (its
+    security invariants, say) is a finding. When no section is cited (an older spec
+    with bold labels has no ids), read the whole spec. Does each listed edge case have
+    a test? You cannot run tests, so FLAG any unverified "tests pass" claim as a thing
+    the main thread must prove.
 (b) Correctness — `undefined` from `noUncheckedIndexedAccess` not branched on;
     unhandled error paths; a DOMAIN failure THROWN instead of returned as
     `outcomeErr(appError.X())` on the data channel (throwing flattens the discriminated

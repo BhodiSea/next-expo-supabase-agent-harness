@@ -83,7 +83,10 @@ surface, the API contract), write `specs/$1.md` first and get sign-off before im
 
 Before you finish (provenance is REQUIRED — the turn is not done without it):
 
-- run the `torvalds-reviewer` subagent and require `VERDICT: PASS`;
+- run the `torvalds-reviewer` subagent and require `VERDICT: PASS`. When `specs/$1.md`
+  exists, first run `node tools/spec-anchor.mjs specs/$1.md#<id>` for each section this
+  slice implements (with no `#<id>` it lists the ids), and put each id and its output in
+  the reviewer's brief, so it judges the slice against the sections it claims;
 - run the `security-reviewer` if migrations / RLS / a data function / auth changed (or run
   `/rls-check`);
 - run the `web-security-reviewer` if `apps/web/app/actions/**`, `apps/web/lib/supabase/**`,

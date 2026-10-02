@@ -508,6 +508,10 @@ For any change touching auth, RLS, migrations, the native config surface
 (`app.config.ts` / `eas.json` / config plugins / permissions), or the API contract:
 write `specs/<feature>.md` (from `specs/_template.md`), get human sign-off, **then**
 implement. The spec is necessary but not sufficient; the gate holds the line either way.
+Each `##` heading of the template is an addressable section, so a reviewer brief or an
+ADR's Traceability cites `specs/<feature>.md#<id>` rather than the whole file:
+`node tools/spec-anchor.mjs specs/<feature>.md#<id>` prints that section, and with no
+`#<id>` it lists the ids.
 
 ## Adversarial review (the agent roster)
 

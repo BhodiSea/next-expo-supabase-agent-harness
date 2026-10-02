@@ -1718,7 +1718,13 @@ subsection below). The severity contract re-plants the eight reviewer bodies und
 subsection below). The verdict-demand rule re-plants `tools/check-docs-sync.mjs`,
 `tools/lib/agent-roster.mjs`, `docs/harness/gates-catalog.md`, and the comments of
 `tools/gen-agents-lock.mjs` and `.claude/hooks/lib/guard-rules.mjs`; it changes no reviewer
-body (the last subsection before RECOVERY). What you may notice afterwards:
+body (the last subsection before RECOVERY). The spec anchors add `tools/spec-anchor.mjs` and
+`tools/lib/spec-anchor.mjs`, and re-plant `specs/_template.md`,
+`.claude/commands/new-feature.md`, `.claude/commands/adr.md` and
+`.claude/agents/torvalds-reviewer.md` (`update` re-records their `tools/agents.lock.json`
+entries), `docs/adr/0000-adr-template.md`, `docs/harness/README.md` and
+`tools/conformance-map.json`; nothing of it is seeded, and your own specs stay as they are.
+What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1778,6 +1784,16 @@ body (the last subsection before RECOVERY). What you may notice afterwards:
   verdict demand.** Only a reviewer body whose last paragraph is not the verdict demand, or
   a fork of `tools/lib/agent-roster.mjs`, produces one; every shipped body conforms. The
   last subsection before RECOVERY gives the fix.
+- **The spec template has `##` headings, and `node tools/spec-anchor.mjs` prints one
+  section.** The bold labels of `specs/_template.md` are now headings, with a new
+  `Decisions` section whose entries each take a `###` heading, and a heading's id is its
+  GitHub anchor. `node tools/spec-anchor.mjs specs/<feature>.md` lists a spec's ids, and
+  `node tools/spec-anchor.mjs specs/<feature>.md#<id>` prints one section. `/new-feature`
+  puts the sections a slice implements in the `torvalds-reviewer` brief, and `/adr` cites
+  them in Traceability. Your own specs are not rewritten: one with bold labels has no ids,
+  and the reviewer reads it whole. Nothing reads the tool's output, and no gate changes.
+  If you edited one of the owned files above, your copy stays, the new one is parked under
+  `.harness/pending/`, and `update` exits 2 while it stays there.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 

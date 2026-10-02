@@ -166,6 +166,31 @@ this heading if none does. -->
   `docs/security/threat-model.md` (generated; it lists the new rule) and the upgrade runbook
   where they are sha-unmodified, and plants the empty `tools/field-notes.json` where an
   install has none; absent, the file prints nothing. No chain step and no ramp (#61).
+- **Spec sections have ids, and `tools/spec-anchor.mjs` prints one.** `specs/_template.md`
+  was a list of bold labels under one heading, the H1, so no part of a spec could be cited
+  and no tool read `specs/`. The labels are now `##` headings: `Summary`, `Why now`,
+  `Goals`, `Non-goals`, `Files and interfaces`, `Security invariants`, `Contract impact`, a
+  new `Decisions` whose entries each take a `###` heading, `Out of scope` and
+  `Verification`; the comment block and its SOURCE line stay. A heading's id is its GitHub
+  anchor (lowercase, punctuation dropped, each space a `-`), so
+  `specs/<feature>.md#security-invariants` is also a link on GitHub. The new owned
+  `node tools/spec-anchor.mjs specs/<feature>.md#<id>` prints that heading and everything
+  under it, up to the next heading of the same or a higher level, and with no `#<id>` prints
+  an index of id, line and heading. It skips headings inside code fences and HTML comments,
+  as GitHub does, and reads CRLF as LF. An unknown id, or one that two headings produce,
+  exits 1 and lists the ids on stderr; it does not guess GitHub's `-1` suffix. A path that is not a `.md` file under `specs/`
+  exits 2 with nothing on stdout, an absolute path, one that leaves through `..` and a
+  symlink out included. It writes nothing, and the parsing is the pure
+  `tools/lib/spec-anchor.mjs`. `/new-feature` has the main thread run it for each section a
+  slice implements and put the output in the `torvalds-reviewer` brief; the reviewer judges
+  against the cited sections, reads the whole spec when none is cited, and gains no tool.
+  `/adr`'s Traceability and the ADR template cite `specs/<slice>.md#<id>`, the Spec-first
+  SOP in `docs/harness/README.md` names the command, and the two conformance-map notes that
+  quoted the old label name the new heading, with no grade change. The command is written
+  as `node tools/spec-anchor.mjs` everywhere and no `pnpm` script is added, because
+  `package.json` is seeded. A project's own specs are never rewritten: one written with bold
+  labels has no section ids, and the reviewer reads it whole. No gate, chain step, Stop
+  step, hook rule or CI job changes (#63).
 
 ### Fixed
 
@@ -462,6 +487,12 @@ this heading if none does. -->
   reply that obeys it, and only the factory test scans the shipped bodies for the phrase.
   The verdict-demand ramp takes the deadline issue #72 proposes, the next minor, so like
   #71's two ramps it falls due at the 2.0.0 cut, whose record owes its expiry (#72).
+- **Nothing checks that a spec citation resolves.** A `specs/<x>.md#<id>` in an ADR or a
+  reviewer brief can name a heading that does not exist, and `check-sources` still tests a
+  whole `SOURCE:` token as a file path, so an anchored spec there is not provenance. Either
+  check would change what a gate judges and needs a `gate-proposal` issue of its own. Ids
+  are GitHub's anchors for plain headings: a heading holding a link or `_emphasis_` can get
+  an id that differs from GitHub's, and only `#` headings count, not underlined ones (#63).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -604,7 +635,16 @@ this heading if none does. -->
   the factory test failed (`rosterLib.verdictDemandProblem is not a function`). After the
   change every case passes, `check-ramp-ledger` and `check-obligations` are clean with the
   new site and its row, and the `ramp-ledger` pins that read the current fleet at older
-  versions name the new site (#72).
+  versions name the new site (#72). For the spec anchors,
+  `tests/gates/spec-anchor.test.mjs` could not load before `tools/lib/spec-anchor.mjs`
+  existed. With the resolver in and the old template, the template's id list held only
+  `spec-feature`, and the cases for the prompts, the SOP and the conformance-map notes were
+  red. A case added in review was red first as well: a heading inside an HTML comment got an
+  id. After the change every case passes, a symlink out of `specs/` included on POSIX, and
+  the lib's line, branch and function coverage is complete. In a zero-edit core scaffold
+  whose `validate --report-all` passed, `node tools/spec-anchor.mjs specs/_template.md`
+  printed the index, `#security-invariants` printed that section, `#no-such-id` exited 1,
+  `../package.json` exited 2, and the tree stayed clean (#63).
 
 ## [1.0.4] — 2026-10-01
 
