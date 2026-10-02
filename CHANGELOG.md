@@ -968,10 +968,13 @@ a `planted` map (#84).
   1.2.0, the move recorded as the "1.1.0" record's second `rampExtensions` entry and the
   obligations row `docs-sync-gate-list-ramp-expiry` back, targeting 1.2.0. Only additive
   drift rides it: a documented step that no longer exists, or a reordering, stays a hard red
-  at every vintage. The README's two `pnpm validate` timings are withdrawn until the 37-step
-  chain is re-measured: `check-claims` refuses a figure whose recorded step count differs
-  from the chain, and `scripts/chain-budget.json` budgets `web-compile` as a toolchain step
-  with no measurement yet (#77).
+  at every vintage. The README withdrew its two `pnpm validate` timings when the chain grew,
+  because `check-claims` refuses a figure whose recorded step count differs from the chain,
+  and `scripts/chain-budget.json` budgets `web-compile` as a toolchain step. They were
+  republished, with the Stop figure, only after the dispatched warm, Stop and cold re-record
+  landed and was committed (selftest run 36958995612 on the release branch, before the tag,
+  stamped from its job log with an explicit `--runner`): measure, commit, then publish, as
+  1.0.0 did (#77).
 - **`unit`, `diff-coverage` and the mutation lane reach `supabase/functions`, behind ramps
   until 1.2.0.** `vitest.config.ts` now derives two lists from the tree: every `*.test.ts`
   under `supabase/functions` that imports from `'vitest'` joins `unit-node` (a `deno test`
@@ -1382,9 +1385,6 @@ a `planted` map (#84).
 - **The browser closure reads text.** It proves a spec names one state test id per route,
   not that the spec asserts that state or that it passes; the `web-e2e` lane runs every
   spec, and is path-filtered. A route needs one named id, not all of them (#77).
-- **The two `pnpm validate` timings are not re-measured yet.** The re-record is a selftest
-  `workflow_dispatch` on the release branch before the tag, as 1.0.0's was; until then the
-  README says so instead of printing a figure (#77).
 - **deno is a prerequisite the job installs, not a dependency.** It is not in the catalog,
   so no install carries its binary and `doctor` asks for nothing, and locally the gate
   SKIPS until you install deno yourself. The binary comes from the SHA-pinned

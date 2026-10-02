@@ -190,7 +190,7 @@ test('the wall warn band warns and the ceiling reds', () => {
 })
 
 test('the committed measurement describes THIS chain — and the published figures ARE the committed ones', () => {
-  // This pin has now flipped FIVE times, and the round-trip is the doctrine working. The
+  // This pin has now flipped SEVEN times, and the round-trip is the doctrine working. The
   // 0.7.0 recording (selftest run 31307386944) satisfied it; 0.8.0 grew the chain to 34
   // (`observability`) and the release deliberately shipped in the interim state — count
   // mismatch, hasCommittedMeasurement false, no figure licensed — until the post-release
@@ -206,28 +206,39 @@ test('the committed measurement describes THIS chain — and the published figur
   // both edges. The invariant is the same as ever: a measuredMs may exist only under a
   // count-matched provenance stamp, and never over its own ceiling.
   //
-  // 1.1.0 GREW THE CHAIN TO 37 (`web-compile`, #77), so the pin is in the INTERIM state again
-  // for the branch's middle: the 36-step measurement stays committed (deleting a true number
-  // would discard its provenance for nothing), it licenses no figure, and the README says so
-  // in prose instead of publishing one. The dispatched re-record on the release branch,
-  // before the tag, flips it FORWARD: restore the count-matched assertions below from git
-  // history in the same commit that republishes the README figures.
-  assert.equal(hasCommittedMeasurement(budget, chainSteps), false)
-  assert.equal(budget.measurement.stepsMeasured, budget.measurement.chainSteps)
-  assert.equal(budget.measurement.chainSteps, chainSteps.length - 1)
+  // 1.1.0 grew the chain to 37 (`web-compile`, #77), so the pin flipped BACK to the interim
+  // state for the branch's middle: the 36-step measurement stayed committed, licensed no
+  // figure, and the README said so in prose instead of publishing one. It flipped FORWARD
+  // again in the commit that republished the figures, once the dispatched 37/10 (+cold)
+  // re-record on the release branch (selftest run 36958995612, PRE-tag again) landed. That
+  // file was rebuilt from the run's job log with an explicit --runner, because the artifact
+  // store was unreachable from the recording machine, and each of its three RECORDED lines
+  // matched the one the run printed. The recording also gave `web-compile` its first
+  // measuredMs (the row shipped null), so no budget row is left unmeasured.
+  assert.equal(hasCommittedMeasurement(budget, chainSteps), true)
   assert.ok(budget.measurement.runner.trim(), 'a measurement with no runner is unattributed')
   assert.match(budget.measurement.recordedOn, /^\d{4}-\d{2}-\d{2}$/)
+  assert.equal(budget.measurement.stepsMeasured, chainSteps.length)
   assert.ok(budget.wall.measuredMs <= budget.wall.ceilingMs, 'a committed wall over its own ceiling')
+  for (const name of chainSteps) {
+    assert.equal(
+      typeof budget.steps[name]?.measuredMs,
+      'number',
+      `a count-matched measurement left the \`${name}\` row unmeasured`,
+    )
+  }
   const readme = readFileSync(fileURLToPath(new URL('../../README.md', import.meta.url)), 'utf8')
   assert.ok(
-    !readme.includes(`(${budget.wall.measuredMs} ms`),
-    'the 36-step warm figure must not be published while it describes a chain this tree no longer runs',
+    readme.includes(`(${budget.wall.measuredMs} ms`),
+    'the README wall figure must be the committed measurement, verbatim in milliseconds',
   )
-  assert.match(readme, /`pnpm validate`, warm \| not yet re-measured for the 37-step chain \|/)
-  // The Stop half is count-matched on its OWN chain (10 steps, unchanged), so it stays published.
   assert.ok(
     readme.includes(`(${budget.stopWall.measuredMs} ms`),
     'the README Stop turn-end figure must be the committed stopWall measurement, verbatim',
+  )
+  assert.ok(
+    !/not yet re-measured for the \d+-step chain/.test(readme),
+    'the interim sentence must not outlive the recording it was waiting for',
   )
 })
 
@@ -566,21 +577,22 @@ test('the shipped file carries the cold surface RECORDED — and the published c
   // figure is that measurement's own millisecond value — the same sentinel discipline as
   // the warm half, judged by its own licence (a warm re-record never unlocks a cold figure).
   //
-  // 1.1.0 (#77): the INTERIM state, for the reason the warm pin above records. The cold
-  // figure grows the most (a cold `next build` is exactly what `web-compile` adds to a fresh
-  // clone's first validate), so it is the last one to publish before its re-record.
-  assert.equal(hasCommittedColdMeasurement(budget, chainSteps), false)
-  assert.equal(budget.coldMeasurement.chainSteps, chainSteps.length - 1)
+  // 1.1.0 (#77) took the cold half through the interim state too, for the reason the warm
+  // pin above records, and the same pre-tag dispatch (selftest run 36958995612) flipped it
+  // forward: coldWall/coldMeasurement are re-stamped from that run's cold-validate.log,
+  // count-matched to the 37-step chain, and the README's cold figure is that measurement.
+  // It grew the most of the three (a cold `next build` is what `web-compile` adds to a
+  // fresh clone's first validate).
+  assert.equal(hasCommittedColdMeasurement(budget, chainSteps), true)
   assert.ok(budget.coldMeasurement.runner.trim(), 'a cold measurement with no runner is unattributed')
   assert.match(budget.coldMeasurement.recordedOn, /^\d{4}-\d{2}-\d{2}$/)
-  assert.equal(budget.coldMeasurement.stepsMeasured, budget.coldMeasurement.chainSteps)
+  assert.equal(budget.coldMeasurement.stepsMeasured, chainSteps.length)
   assert.ok(budget.coldMeasurement.path.trim(), 'a cold measurement must say WHICH path it timed')
   const readme = readFileSync(fileURLToPath(new URL('../../README.md', import.meta.url)), 'utf8')
   assert.ok(
-    !readme.includes(`(${budget.coldWall.measuredMs} ms`),
-    'the 36-step cold figure must not be published while it describes a chain this tree no longer runs',
+    readme.includes(`(${budget.coldWall.measuredMs} ms`),
+    'the README cold figure must be the committed coldWall measurement, verbatim in milliseconds',
   )
-  assert.match(readme, /`pnpm validate`, cold \| not yet re-measured for the 37-step chain \|/)
 })
 
 test('recordColdMeasurement stamps coldWall + coldMeasurement with provenance, purely, and touches nothing else', () => {

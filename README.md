@@ -124,20 +124,15 @@ The longer list is kept per release under "What stays open" in the
 
 ## Measured cost
 
-Recorded by CI on a GitHub-hosted Linux x64 runner on 2026-08-16 and committed
+Recorded by CI on a GitHub-hosted Linux x64 runner on 2026-10-02 and committed
 in `scripts/chain-budget.json`. They are that runner's numbers, not a promise
 about your machine.
 
 | Run | Wall time |
 |---|---|
-| `pnpm validate`, warm | not yet re-measured for the 37-step chain |
-| `pnpm validate`, cold | not yet re-measured for the 37-step chain |
-| Stop hook, full turn end | 52.7 s (52665 ms) |
-
-The two `pnpm validate` figures were measured before 1.1.0 grew the chain: it adds
-`web-compile`, a stamped `next build`, so they no longer describe the chain;
-they are re-recorded from a selftest dispatch before the 1.1.0 tag, and until
-then `check-claims` refuses to publish either.
+| `pnpm validate`, warm | warm ≈ 27 s (26881 ms) |
+| `pnpm validate`, cold | cold ≈ 145 s (145363 ms) |
+| Stop hook, full turn end | 54.8 s (54815 ms) |
 
 ## Compliance mappings
 
