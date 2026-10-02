@@ -127,8 +127,11 @@ an unrelated pull request red.
 A tag `v*` starts `release.yml`. It re-runs the gates, waits for green
 `selftest.yml` and `lint.yml` runs on the tagged commit, checks that the
 CHANGELOG has a section for the tag, runs `npm pack`, signs a build provenance
-attestation for the tarball, and publishes a GitHub Release. Nothing is
-published to the npm registry. CONTRIBUTING.md, "Releases", is the procedure.
+attestation for the tarball, and publishes a GitHub Release. Its `publish-npm`
+job then publishes that same tarball to the npm registry through trusted
+publishing (OIDC) and reads the registry back to confirm the bytes and the
+provenance (`scripts/ci/npm-publish.mjs`). CONTRIBUTING.md, "Releases", is the
+procedure.
 
 ## Further reading
 
