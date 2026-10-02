@@ -167,8 +167,95 @@ SELECT ok(
   'the test runs as a role holding BYPASSRLS (so layers 1-2 are inert here by construction)'
 );
 
--- Seed one row through the real trigger, as a real member, so the assertions below
--- have something to fail against. Written as alice (rank 40 in acme) from seed.sql.
+-- The fixture table, as the migration role. The write below lands on
+-- public.pgtap_fixture, which this transaction builds and the ROLLBACK removes, rather
+-- than on the worked example's table, so a project that deletes the example keeps this
+-- proof of audit capture. Between the markers is the RLS skeleton the
+-- authoring-vertical-slice skill teaches (references/migration-rls.md), with the table
+-- named pgtap_fixture and two slice columns added, followed by the audit trigger exactly
+-- as supabase/migrations/20260202000000_audit.sql writes it for the example, renamed.
+-- It fires the real audit.write_row(), which takes the tenant and identity columns from
+-- its arguments; nothing in this file redefines it. The coverage read above still judges
+-- the real tables' own triggers. Keep the markers, and keep the region in step with the
+-- skeleton and with that trigger.
+-- fixture:begin
+CREATE TABLE public.pgtap_fixture (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  -- THE TENANT KEY, NOT NULL with a declared FK, as the skeleton teaches.
+  org_id uuid NOT NULL REFERENCES public.orgs (id) ON DELETE CASCADE,
+  -- ATTRIBUTION, not authorization: it appears only in the delete policy's author arm.
+  owner_id uuid REFERENCES auth.users (id) ON DELETE SET NULL,
+  -- The slice columns the assertions write, as 20_notes.sql declares them.
+  title text NOT NULL,
+  body text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (org_id, id)
+);
+
+-- A row may not change tenant.
+CREATE TRIGGER pgtap_fixture_freeze_org
+  BEFORE UPDATE ON public.pgtap_fixture
+  FOR EACH ROW EXECUTE FUNCTION private.freeze_org_id();
+
+CREATE TRIGGER pgtap_fixture_set_updated_at
+  BEFORE UPDATE ON public.pgtap_fixture
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+CREATE INDEX pgtap_fixture_org_id_created_at_id_idx
+  ON public.pgtap_fixture (org_id, created_at DESC, id DESC);
+
+-- SOURCE: PostgreSQL row security — FORCE applies row security to the table owner as well
+-- [corpus: postgres/rls-force]
+ALTER TABLE public.pgtap_fixture ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pgtap_fixture FORCE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE public.pgtap_fixture FROM anon;
+REVOKE ALL ON TABLE public.pgtap_fixture FROM service_role;
+REVOKE ALL ON TABLE public.pgtap_fixture FROM authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.pgtap_fixture TO authenticated;
+
+-- Reading is MEMBERSHIP; writing is RANK.
+-- SOURCE: RLS performance — wrap the identity call in a scalar sub-select for an initPlan
+-- [corpus: postgres/rls-initplan]
+CREATE POLICY pgtap_fixture_select_org ON public.pgtap_fixture
+  AS PERMISSIVE FOR SELECT TO authenticated
+  USING (org_id = ANY((SELECT private.member_org_ids())::uuid[]));
+
+-- SOURCE: PostgreSQL row security — WITH CHECK validates the new row, so a client cannot
+-- INSERT into an org it may not write [corpus: postgres/rls-force]
+CREATE POLICY pgtap_fixture_insert_org ON public.pgtap_fixture
+  AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20);
+
+-- SOURCE: PostgreSQL row security — UPDATE evaluates USING then WITH CHECK [corpus: postgres/rls-force]
+CREATE POLICY pgtap_fixture_update_org ON public.pgtap_fixture
+  AS PERMISSIVE FOR UPDATE TO authenticated
+  USING (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20)
+  WITH CHECK (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20);
+
+-- SOURCE: PostgreSQL row security — DELETE USING restricts which rows the role may remove
+-- [corpus: postgres/rls-force]
+CREATE POLICY pgtap_fixture_delete_org ON public.pgtap_fixture
+  AS PERMISSIVE FOR DELETE TO authenticated
+  USING (
+    coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 30
+    OR (
+      owner_id = (SELECT auth.uid())
+      AND coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20
+    )
+  );
+
+-- The audit trigger, as the audit migration writes it for the example: AFTER, FOR EACH
+-- ROW, all three operations, no WHEN clause.
+CREATE TRIGGER pgtap_fixture_audit
+  AFTER INSERT OR UPDATE OR DELETE ON public.pgtap_fixture
+  FOR EACH ROW EXECUTE FUNCTION audit.write_row('org_id', 'id');
+-- fixture:end
+
+-- Seed one row through the fixture's audit trigger, which fires the real writer, as a
+-- real member, so the assertions below have something to fail against. Written as alice
+-- (rank 40 in acme) from seed.sql.
 CREATE TEMPORARY TABLE audit_probe AS
 SELECT m.user_id, m.org_id
   FROM public.memberships m
@@ -187,7 +274,7 @@ SELECT lives_ok(
     $fmt$ SELECT set_config('request.jwt.claims', %L, true);
           -- SOURCE: transaction-local GUCs — the identity must not outlive the transaction [corpus: postgres/guc-set-local]
           SET LOCAL ROLE authenticated;
-          INSERT INTO public.notes (org_id, owner_id, title, body)
+          INSERT INTO public.pgtap_fixture (org_id, owner_id, title, body)
           VALUES (%L, %L, 'audit pgtap probe', 'x'); $fmt$,
     json_build_object('sub', (SELECT user_id FROM audit_probe), 'role', 'authenticated')::text,
     (SELECT org_id FROM audit_probe),
@@ -201,20 +288,20 @@ SELECT lives_ok(
 RESET ROLE;
 
 SELECT cmp_ok(
-  (SELECT count(*)::int FROM audit.events WHERE table_name = 'public.notes' AND action = 'INSERT'),
+  (SELECT count(*)::int FROM audit.events WHERE table_name = 'public.pgtap_fixture' AND action = 'INSERT'),
   '>=', 1,
   'the write produced an audit row'
 );
 SELECT is(
-  (SELECT actor_id FROM audit.events WHERE table_name = 'public.notes' ORDER BY id DESC LIMIT 1),
+  (SELECT actor_id FROM audit.events WHERE table_name = 'public.pgtap_fixture' ORDER BY id DESC LIMIT 1),
   (SELECT user_id FROM audit_probe),
   'the audit row names the acting user, derived inside the writer rather than supplied'
 );
 -- Metadata by default: an INSERT records WHICH row, not WHAT it contained.
 SELECT is(
-  (SELECT payload FROM audit.events WHERE table_name = 'public.notes' ORDER BY id DESC LIMIT 1),
+  (SELECT payload FROM audit.events WHERE table_name = 'public.pgtap_fixture' ORDER BY id DESC LIMIT 1),
   '{}'::jsonb,
-  'notes are audited as metadata only — no value capture'
+  'a row audited with the example trigger''s arguments is metadata only — no value capture'
 );
 
 SELECT throws_ok(
@@ -291,7 +378,7 @@ SELECT set_config(
   'audit.forge_sql',
   format(
     $fmt$ INSERT INTO audit.events (occurred_at, org_id, actor_id, action, table_name, row_id, payload)
-          VALUES (now(), %L, NULL, 'INSERT', 'public.notes', gen_random_uuid(), '{}'::jsonb) $fmt$,
+          VALUES (now(), %L, NULL, 'INSERT', 'public.pgtap_fixture', gen_random_uuid(), '{}'::jsonb) $fmt$,
     (SELECT org_id FROM audit_probe)
   ),
   true

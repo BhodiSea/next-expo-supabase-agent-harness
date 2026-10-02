@@ -108,6 +108,94 @@ SELECT is(
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Fixtures
 -- ─────────────────────────────────────────────────────────────────────────────
+-- The fixture table, as the migration role. The behavioural assertions below read and
+-- write public.pgtap_fixture, which this transaction builds and the ROLLBACK removes,
+-- rather than the worked example's table, so a project that deletes the example keeps
+-- this proof of the rail. Between the markers is the RLS skeleton the
+-- authoring-vertical-slice skill teaches (references/migration-rls.md), with the table
+-- named pgtap_fixture and two slice columns added, followed by the MFA rail exactly as
+-- supabase/schemas/20_notes.sql writes it for the example, renamed. The rail calls the
+-- real private.mfa_satisfied(); nothing in this file redefines it. The shape assertions
+-- above still read the example's own policy. Keep the markers, and keep the region in
+-- step with the skeleton and with that policy.
+-- fixture:begin
+CREATE TABLE public.pgtap_fixture (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  -- THE TENANT KEY, NOT NULL with a declared FK, as the skeleton teaches.
+  org_id uuid NOT NULL REFERENCES public.orgs (id) ON DELETE CASCADE,
+  -- ATTRIBUTION, not authorization: it appears only in the delete policy's author arm.
+  owner_id uuid REFERENCES auth.users (id) ON DELETE SET NULL,
+  -- The slice columns the assertions write, as 20_notes.sql declares them.
+  title text NOT NULL,
+  body text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (org_id, id)
+);
+
+-- A row may not change tenant.
+CREATE TRIGGER pgtap_fixture_freeze_org
+  BEFORE UPDATE ON public.pgtap_fixture
+  FOR EACH ROW EXECUTE FUNCTION private.freeze_org_id();
+
+CREATE TRIGGER pgtap_fixture_set_updated_at
+  BEFORE UPDATE ON public.pgtap_fixture
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+CREATE INDEX pgtap_fixture_org_id_created_at_id_idx
+  ON public.pgtap_fixture (org_id, created_at DESC, id DESC);
+
+-- SOURCE: PostgreSQL row security — FORCE applies row security to the table owner as well
+-- [corpus: postgres/rls-force]
+ALTER TABLE public.pgtap_fixture ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pgtap_fixture FORCE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE public.pgtap_fixture FROM anon;
+REVOKE ALL ON TABLE public.pgtap_fixture FROM service_role;
+REVOKE ALL ON TABLE public.pgtap_fixture FROM authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.pgtap_fixture TO authenticated;
+
+-- Reading is MEMBERSHIP; writing is RANK.
+-- SOURCE: RLS performance — wrap the identity call in a scalar sub-select for an initPlan
+-- [corpus: postgres/rls-initplan]
+CREATE POLICY pgtap_fixture_select_org ON public.pgtap_fixture
+  AS PERMISSIVE FOR SELECT TO authenticated
+  USING (org_id = ANY((SELECT private.member_org_ids())::uuid[]));
+
+-- SOURCE: PostgreSQL row security — WITH CHECK validates the new row, so a client cannot
+-- INSERT into an org it may not write [corpus: postgres/rls-force]
+CREATE POLICY pgtap_fixture_insert_org ON public.pgtap_fixture
+  AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20);
+
+-- SOURCE: PostgreSQL row security — UPDATE evaluates USING then WITH CHECK [corpus: postgres/rls-force]
+CREATE POLICY pgtap_fixture_update_org ON public.pgtap_fixture
+  AS PERMISSIVE FOR UPDATE TO authenticated
+  USING (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20)
+  WITH CHECK (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20);
+
+-- SOURCE: PostgreSQL row security — DELETE USING restricts which rows the role may remove
+-- [corpus: postgres/rls-force]
+CREATE POLICY pgtap_fixture_delete_org ON public.pgtap_fixture
+  AS PERMISSIVE FOR DELETE TO authenticated
+  USING (
+    coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 30
+    OR (
+      owner_id = (SELECT auth.uid())
+      AND coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20
+    )
+  );
+
+-- The MFA rail, as 20_notes.sql writes it: RESTRICTIVE, no FOR clause, and both USING
+-- and WITH CHECK.
+-- SOURCE: PostgreSQL row security — a RESTRICTIVE policy is ANDed with the permissive
+-- set, so it can only ever remove rows [corpus: postgres/rls-force]
+CREATE POLICY pgtap_fixture_mfa_aal2 ON public.pgtap_fixture
+  AS RESTRICTIVE TO authenticated
+  USING ((SELECT private.mfa_satisfied()))
+  WITH CHECK ((SELECT private.mfa_satisfied()));
+-- fixture:end
+
 -- auth.users belongs to the Auth service and `authenticated` holds no grant on it, so
 -- the identities are created as the migration role and nothing else is.
 INSERT INTO auth.users (id, aud, role, email, created_at, updated_at)
@@ -161,7 +249,7 @@ BEGIN
     '{"sub": "88888888-8888-4888-8888-888888888888", "role": "authenticated", "aal": "aal1"}', true);
   PERFORM set_config('role', 'authenticated', true);
   PERFORM public.accept_invitation(v_token);
-  INSERT INTO public.notes (id, org_id, owner_id, title, body)
+  INSERT INTO public.pgtap_fixture (id, org_id, owner_id, title, body)
   VALUES ('cccc0001-0000-4000-8000-000000000001', v_org,
           '88888888-8888-4888-8888-888888888888', 'unenrolled note', 'written without a second factor');
   -- SOURCE: transaction-local GUCs — the pooling identity hazard [corpus: postgres/guc-set-local]
@@ -182,13 +270,13 @@ SET LOCAL "request.jwt.claims" TO '{"sub": "77777777-7777-4777-8777-777777777777
 SET LOCAL ROLE authenticated;
 
 SELECT is(
-  (SELECT count(*)::int FROM public.notes WHERE org_id = public.mfa_fixture('org')::uuid),
+  (SELECT count(*)::int FROM public.pgtap_fixture WHERE org_id = public.mfa_fixture('org')::uuid),
   1,
   'aal2 + enrolled: the org''s note is readable — enrolling a factor does not lock a user out'
 );
 
 SELECT lives_ok(
-  $$ INSERT INTO public.notes (id, org_id, owner_id, title, body)
+  $$ INSERT INTO public.pgtap_fixture (id, org_id, owner_id, title, body)
      VALUES ('cccc0002-0000-4000-8000-000000000002', public.mfa_fixture('org')::uuid,
              '77777777-7777-4777-8777-777777777777', 'enrolled note', 'written at aal2') $$,
   'aal2 + enrolled: a write lands'
@@ -205,14 +293,14 @@ SET LOCAL "request.jwt.claims" TO '{"sub": "77777777-7777-4777-8777-777777777777
 SET LOCAL ROLE authenticated;
 
 SELECT is_empty(
-  $$ SELECT id FROM public.notes $$,
+  $$ SELECT id FROM public.pgtap_fixture $$,
   'aal1 + enrolled: ZERO ROWS. This is the case the vendor-documented policy admits, and the only one that separates a working rail from a fail-open.'
 );
 
 -- A restrictive policy filters rows rather than rejecting statements, so a read is
 -- empty and a WRITE is the thing that raises: WITH CHECK refuses the new row.
 SELECT throws_ok(
-  $$ INSERT INTO public.notes (id, org_id, owner_id, title, body)
+  $$ INSERT INTO public.pgtap_fixture (id, org_id, owner_id, title, body)
      VALUES ('cccc0003-0000-4000-8000-000000000003', public.mfa_fixture('org')::uuid,
              '77777777-7777-4777-8777-777777777777', 'smuggled', 'written at aal1') $$,
   '42501'::char(5),
@@ -227,19 +315,19 @@ SELECT throws_ok(
 -- a stronger claim than a RETURNING count and needs no exotic syntax. (Two syntaxes
 -- were tried first and both are outright errors: a data-modifying statement is legal
 -- neither as a plain sub-select nor inside a CTE that is not at statement top level.)
-UPDATE public.notes SET title = 'rewritten' WHERE org_id = public.mfa_fixture('org')::uuid;
-DELETE FROM public.notes WHERE org_id = public.mfa_fixture('org')::uuid;
+UPDATE public.pgtap_fixture SET title = 'rewritten' WHERE org_id = public.mfa_fixture('org')::uuid;
+DELETE FROM public.pgtap_fixture WHERE org_id = public.mfa_fixture('org')::uuid;
 
 RESET ROLE;
 
 SELECT is(
-  (SELECT count(*)::int FROM public.notes WHERE title = 'rewritten'),
+  (SELECT count(*)::int FROM public.pgtap_fixture WHERE title = 'rewritten'),
   0,
   'aal1 + enrolled: the UPDATE changed nothing — asserted from OUTSIDE the policy, so an empty result cannot be the policy hiding its own damage'
 );
 
 SELECT is(
-  (SELECT count(*)::int FROM public.notes WHERE org_id = public.mfa_fixture('org')::uuid),
+  (SELECT count(*)::int FROM public.pgtap_fixture WHERE org_id = public.mfa_fixture('org')::uuid),
   2,
   'aal1 + enrolled: the DELETE removed nothing — both notes are still there'
 );
@@ -256,7 +344,7 @@ SET LOCAL "request.jwt.claims" TO '{"sub": "77777777-7777-4777-8777-777777777777
 SET LOCAL ROLE authenticated;
 
 SELECT is_empty(
-  $$ SELECT id FROM public.notes $$,
+  $$ SELECT id FROM public.pgtap_fixture $$,
   'no aal claim + enrolled: ZERO ROWS — an absent claim is not an unrestricted one'
 );
 
@@ -271,7 +359,7 @@ SET LOCAL "request.jwt.claims" TO '{"sub": "88888888-8888-4888-8888-888888888888
 SET LOCAL ROLE authenticated;
 
 SELECT is(
-  (SELECT count(*)::int FROM public.notes WHERE org_id = public.mfa_fixture('org')::uuid),
+  (SELECT count(*)::int FROM public.pgtap_fixture WHERE org_id = public.mfa_fixture('org')::uuid),
   2,
   'aal1 + NOT enrolled: both notes readable — a user with no second factor is unaffected'
 );
@@ -293,7 +381,7 @@ SET LOCAL "request.jwt.claims" TO '{"sub": "88888888-8888-4888-8888-888888888888
 SET LOCAL ROLE authenticated;
 
 SELECT is(
-  (SELECT count(*)::int FROM public.notes WHERE org_id = public.mfa_fixture('org')::uuid),
+  (SELECT count(*)::int FROM public.pgtap_fixture WHERE org_id = public.mfa_fixture('org')::uuid),
   2,
   'aal2 + NOT enrolled: still both notes — raising assurance never removes access'
 );

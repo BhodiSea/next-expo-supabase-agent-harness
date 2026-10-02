@@ -1688,7 +1688,11 @@ re-plants `.github/workflows/quality-gate.yml`, `tools/ci/summarize-gate.mjs` an
 references re-plant the vertical-slice skill's
 `.claude/skills/authoring-vertical-slice/references/dal-dto.md` and
 `references/migration-rls.md`, and the `.claude/agents/migration-rls-author.md` agent, and
-`update` re-records their `tools/agents.lock.json` entries. What you may notice afterwards:
+`update` re-records their `tools/agents.lock.json` entries. The fixture-table pgTAP suites
+re-plant `tools/conformance-map.json`, `tools/essential-eight.json` and
+`docs/harness/gates-catalog.md`, whose sentences now say where the MFA and audit proofs
+run; the suites themselves are seeded and stay as they are (the last subsection before
+RECOVERY). What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1792,6 +1796,37 @@ you:
   lane's lookup, hit-report and record steps, its `permissions:` and `outputs:` blocks and
   the `steps.reuse.outputs.hit != 'true'` condition on every step in between, then
   re-record the sha. A step you add to one of those lanes later needs the same condition.
+
+### The pgTAP suites prove the rails on a fixture table: fresh scaffolds only
+
+A fresh 1.1.0 scaffold's `supabase/tests/rls_isolation.test.sql`, `mfa_aal2.test.sql` and
+`audit_immutability.test.sql` no longer prove isolation, the aal2 rail and audit capture by
+writing to the example's table. Each builds a table of its own, `public.pgtap_fixture`,
+inside its test transaction, between `-- fixture:begin` and `-- fixture:end`, and the
+suite's ROLLBACK removes it. Its DDL is the RLS skeleton of
+`.claude/skills/authoring-vertical-slice/references/migration-rls.md` with the table
+renamed, plus the example's `title` and `body` columns; `mfa_aal2` adds the example's MFA
+rail and `audit_immutability` its audit trigger, both renamed. The fixture runs on your real
+`private.member_org_ids()`, `private.member_ranks()`, `private.mfa_satisfied()` and
+`audit.write_row()`. A project that deletes the example keeps these proofs.
+
+**Your install keeps its suites.** They are seeded: `update` does not rewrite them, and
+nothing in your chain asks for the new ones. If you never edited a suite, pull the new one
+with `npx next-expo-supabase-agent-harness update --refresh-seeded supabase/tests/<file>`,
+the channel the 1.0.2 section uses for `rls_structure.test.sql`, then run
+`pnpm db:reset && pnpm test:rls`. If you did edit it, `--refresh-seeded` keeps your copy,
+parks the new one under `.harness/pending/supabase/tests/`, and exits 2: merge by hand, by
+adding the fixture region before the suite's first role switch and pointing your
+behavioural assertions at `public.pgtap_fixture`.
+
+**The new suites still name the example.** `rls_isolation`'s recursion probe still reads
+`public.notes`, with every other RLS target, and the structural checks still name it:
+`mfa_aal2`'s shape assertions read the `notes_mfa_aal2` policy, and `audit_immutability`'s
+coverage read lists `notes` among the audited tables, as `rls_structure.test.sql` does. A
+project that removes the example still edits those lines, as it did before. What no pgTAP
+suite does any more is write to `public.notes`: the example's own rank floors, MFA policy
+and audit trigger are judged statically, by `schema-rls` and `tenancy`, and the supabase-js
+suite under `tests/rls/` still reads it across tenants.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

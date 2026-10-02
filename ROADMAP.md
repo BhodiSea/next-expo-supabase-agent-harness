@@ -143,10 +143,14 @@ None of these tightens a gate for an existing install. Where one changes what
   `pull-requests: read`, and `update` parks the new workflow beside a fork.
   ([N06](design/FIELD-UPGRADES-2026-09.md#n06-skip-a-lane-that-already-passed-on-the-same-tree),
   issue #57)
-- **Database proofs on a fixture table.** Behavioural pgTAP proofs build their
-  own table inside the transaction, so deleting the example does not delete
-  them.
-  ([N08](design/FIELD-UPGRADES-2026-09.md#n08-behavioural-database-proofs-on-a-fixture-table))
+- **Database proofs on a fixture table.** The isolation, MFA and audit pgTAP
+  suites build `public.pgtap_fixture` inside their transaction from the
+  vertical-slice skill's RLS skeleton, so deleting the example does not delete
+  them; a factory test holds each fixture to the skeleton. Structural checks
+  and the recursion probe stay on the real tables, and the suites are seeded,
+  so existing installs keep theirs.
+  ([N08](design/FIELD-UPGRADES-2026-09.md#n08-behavioural-database-proofs-on-a-fixture-table),
+  issue #58)
 - **Generated skill references.** The code blocks in the vertical-slice
   skill's references are regions cut verbatim from spans the example marks,
   and a factory check fails on drift in either direction. The table, trigger,
