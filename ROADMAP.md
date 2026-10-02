@@ -229,10 +229,15 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
   Stop.
   ([N12](design/FIELD-UPGRADES-2026-09.md#n12-a-fallback-order-for-reviewer-models),
   issue #62)
-- **A severity contract and a round budget.** Reviewer bodies say which
-  severities block, and the hook bounds rounds without ever turning a spent
-  budget into a pass.
-  ([R02](design/FIELD-UPGRADES-2026-09.md#r02-a-severity-contract-and-a-round-budget))
+- **A severity contract and a round budget.** Every reviewer body states
+  `Blocking: CRITICAL, HIGH`, and `docs-sync` holds the line. The SubagentStop
+  hook bounces a PASS that lists a finding at a blocking severity and records
+  each verdict's round. `reviewer-verdicts` reds a review loop still open after
+  three rounds with the recorded findings, for the human; a PASS past the budget
+  never clears it. Two ramps opened at 1.1.0 hold both checks as NOTEs below
+  that `baseVersion` until 1.2.0.
+  ([R02](design/FIELD-UPGRADES-2026-09.md#r02-a-severity-contract-and-a-round-budget),
+  issue #71)
 - **`docs-sync` holds the verdict demand to the end of the body.** Presence is
   checked today. Position is what #23 had to fix.
   ([R03](design/FIELD-UPGRADES-2026-09.md#r03-docs-sync-holds-the-verdict-demand-to-the-end-of-the-body))

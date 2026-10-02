@@ -27,6 +27,11 @@
       "detail": "security-reviewer model check",
       "proof": "tests/gates/check-reviewer-verdicts.test.mjs",
       "note": "The 1.1.0 security-reviewer model check ramp (#62), until 2.1.0, in the same position: it judges the model recorded on a reviewer's ledger entry, which exists only after a live SubagentStop. The proof file executes the off-list and model: null reds, under the 1.0.x judgement and under v2, on a 1.0.3 manifest at harness 2.1.0 and asserts the RAMP EXPIRED banner names this ramp, beside the NOTE on 1.0.3 at 1.1.0 and the plain red on a 1.1.0 manifest."
+    },
+    {
+      "detail": "per-reviewer round budget",
+      "proof": "tests/gates/check-reviewer-verdicts.test.mjs",
+      "note": "The 1.1.0 per-reviewer round budget ramp (#71), until 1.2.0, in the same structurally-unexecuted position: it judges the rounds a session's ledger records, which exist only after live SubagentStop verdicts. The proof file executes every budget red on a 1.0.3 manifest at harness 1.2.0 and asserts the RAMP EXPIRED banner names this ramp, beside the NOTE on 1.0.3 at 1.1.0 and the plain red on a 1.1.0 manifest. docs-sync's severity-contract ramp opened beside it is NOT registered here: docs-sync is in the validate chain, so the upgrade lane runs its expiry itself."
     }
   ],
   "web-e2e": [

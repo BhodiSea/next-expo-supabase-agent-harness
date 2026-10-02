@@ -27,7 +27,12 @@
 //      reviewer's recorded model against it. Deliberately NOT version-ramped: the agent
 //      files are harness-OWNED, so the update that delivers this check
 //      refreshes the roster with it — only a hand-widened reviewer reds, and
-//      that is the point.
+//      that is the point. The ONE ramped roster rule is 1.1.0's severity
+//      contract (#71): each reviewer body states `Severities:` and `Blocking:`
+//      on lines of their own, Blocking a subset of Severities and holding the
+//      floor (CRITICAL, HIGH). Since 1.0.2 `update` parks a locally modified
+//      owned body instead of overwriting it, so a body forked before 1.1.0 gets
+//      dated NOTEs until 1.2.0; a fresh scaffold is live from day one.
 //   3b/3c/3d (0.9.5). AGENTS.md's own line-budget sentence is checked for
 //      truth (a claims-check, not a size cap — no sentence, no check); the
 //      advertised-command closure extends from AGENTS.md into the bodies of
@@ -43,8 +48,12 @@
 // SOURCE: docs/harness/README.md (docs-sync gate) [corpus: harness/doctrine]
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { VALIDATE_STEPS } from './harness.config.mjs'
-// The roster as a NAMESPACE for the 1.1.0 surface (#62): a parked fork of the lib without
-// fallbackListProblems must still load, and then has no list to check.
+// The roster as a NAMESPACE for the 1.1.0 surface (#62, #71): an install can keep a FORK of
+// tools/lib/agent-roster.mjs that `update` parked while it re-planted this gate, and a named
+// import of an export the fork lacks fails at LINK time, before any check here runs. Through
+// the namespace a missing export is `undefined`: without fallbackListProblems there is no list
+// to check, and without severityContractProblems section 5 names the stale lib as its finding.
+// The 1.0.x names stay named.
 import * as roster from './lib/agent-roster.mjs'
 import {
   parseFrontmatter,
@@ -577,10 +586,32 @@ if (existsSync(PROBE)) {
 
 // 5. Agent roster. Every roster file must parse (fail-open here would let a
 //    malformed reviewer hide a write grant) and carry the universal fields;
-//    the seven reviewers may hold only read-only tools and must disallow
-//    Write + Edit. Author agents keep their write tools — universal fields only.
+//    the REVIEWER_AGENTS reviewers may hold only read-only tools, must disallow
+//    Write + Edit, and must state the severity contract (1.1.0, ramped). Author
+//    agents keep their write tools — universal fields only.
 const AGENTS_DIR = '.claude/agents'
 const DOCTRINE = 'reviewers are read-only by construction (README "The agent roster")'
+const ROSTER_LIB = 'tools/lib/agent-roster.mjs'
+const CONTRACT_REMEDY =
+  'the SubagentStop hook reads the `Blocking:` line to send back a PASS that lists a blocking finding. Restore the two lines from the template or from .harness/pending/, then a human re-locks the agent surface and re-records the sha — docs/runbooks/harness-upgrade.md (1.1.0)'
+// The severity-contract findings (1.1.0, #71), ramped as one set after the loop.
+const contractFindings = []
+let contractUnjudged = 0
+
+/**
+ * One reviewer body's severity-contract findings, or none; over a lib without the judge,
+ * nothing, counted so the caller names the stale lib ONCE.
+ * @param {string} path @param {string} body
+ */
+function contractProblemsOf(path, body) {
+  if (typeof roster.severityContractProblems !== 'function') {
+    contractUnjudged += 1
+    return
+  }
+  for (const p of roster.severityContractProblems(body)) {
+    contractFindings.push(`${path}: ${p} — ${CONTRACT_REMEDY}`)
+  }
+}
 const rosterFiles = existsSync(AGENTS_DIR)
   ? readdirSync(AGENTS_DIR)
       .filter((f) => f.endsWith('.md'))
@@ -631,6 +662,8 @@ for (const file of rosterFiles) {
       `${path}: reviewer does not require a machine-readable verdict — its instructions must end by demanding exactly one final line, \`VERDICT: PASS\` or \`VERDICT: BLOCK\`. A bare PASS/FAIL cannot be told apart from prose.`,
     )
   }
+  // The severity contract (1.1.0, #71): which severities the body ranks at, and which block.
+  contractProblemsOf(path, body)
   if (!fm.tools?.trim()) {
     errs.push(
       `${path}: reviewer declares no 'tools' list — an absent list inherits EVERY tool; ${DOCTRINE}. Pin tools to a subset of: ${REVIEWER_READONLY_TOOLS.join(', ')}`,
@@ -651,6 +684,23 @@ for (const file of rosterFiles) {
         `${path}: reviewer 'disallowedTools' must include ${t} (belt-and-suspenders under the tools allowlist) — ${DOCTRINE}`,
       )
     }
+  }
+}
+
+if (contractUnjudged > 0) {
+  contractFindings.push(
+    `${ROSTER_LIB} has no severityContractProblems export — it is a fork older than this gate (\`update\` parks the new copy under .harness/pending/), so the severity contract of ${String(contractUnjudged)} reviewer bod${contractUnjudged === 1 ? 'y' : 'ies'} was NOT judged. Merge the parked lib and re-record its sha — docs/runbooks/harness-upgrade.md (1.0.2, "Forking an owned file").`,
+  )
+}
+// Ramped (1.1.0, #71): `update` parks a locally modified owned body rather than overwriting
+// it, so a body forked before 1.1.0 must not red on the upgrade that delivers the contract.
+// The comment lives HERE, not between `if (` and the call: scripts/check-ramp-ledger.mjs
+// reads the text right before `rampNote(` to decide the result is consumed.
+if (contractFindings.length > 0) {
+  if (rampNote(GATE, '1.1.0', 'the reviewer severity contract', { until: '1.2.0' })) {
+    for (const f of contractFindings) console.log(`${GATE}: NOTE — (ramp) ${f}`)
+  } else {
+    errs.push(...contractFindings)
   }
 }
 

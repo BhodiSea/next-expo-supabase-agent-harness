@@ -1729,8 +1729,9 @@ test('ENV HYGIENE: the escape hatch still WORKS when a case passes it deliberate
 // ── subagent-verdict: the TURN-subject hook's refusal pair (1.0.0) ──────────────────
 // The registry pins denyToolCallSites at 0 because this hook's mechanism is EXIT 2 on
 // SubagentStop — blocking the SUBAGENT, never a tool call — and these are the executed
-// proofs behind its two denyExamples: a reviewer reply ending without a "VERDICT: PASS|BLOCK" line,
-// and an empty or unparseable SubagentStop payload. The exit code is asserted EXACTLY 2
+// proofs behind its denyExamples: a reviewer reply ending without a "VERDICT: PASS|BLOCK" line,
+// an empty or unparseable SubagentStop payload, and (1.1.0, #71, below) a reviewer PASS that
+// lists a finding at a blocking severity. The exit code is asserted EXACTLY 2
 // on every refusal path, because under Claude Code's exit-code contract any OTHER
 // nonzero is non-blocking (the fail-open hazard CONTROL-PLANE-FACTS Fact 12 documents,
 // re-probed 2026-08-15) — and each in-hook refusal must land a blocked-kind entry in
@@ -1835,6 +1836,103 @@ test('subagent-verdict CONTROL: a verdict-carrying reviewer passes with exit 0 (
   const dir = verdictFixture()
   const r = runHook('subagent-verdict.mjs', verdictPayload(), { cwd: dir })
   assert.equal(r.code, 0, `${r.stdout}${r.stderr}`)
+})
+
+// ── THE SEVERITY CONTRACT (1.1.0, #71): the third refusal ───────────────────────────
+// Every shipped reviewer body now states `Blocking: CRITICAL, HIGH`, and the hook reads that
+// line from the body of the reviewer that stopped. Its third denyExample is a reviewer PASS
+// that lists a finding at a blocking severity: the reply says PASS and, in a line of its own,
+// names a finding its own definition says blocks. The bounce moves only in the strict
+// direction — a PASS becomes a re-statement, a BLOCK is never touched — and it fires only for
+// a body that declares `Blocking:`, so a forked body without the line, a project's own
+// reviewer, and a parked lib without the reader all keep the 1.0.x behaviour.
+
+const HIGH_FINDING = '- [HIGH] supabase/migrations/x.sql:3 — the INSERT policy has no WITH CHECK'
+const passWithFinding = (over = {}) =>
+  verdictPayload({ last_assistant_message: `Reviewed.\n\n${HIGH_FINDING}\n\nVERDICT: PASS`, ...over })
+
+test('subagent-verdict REFUSAL: a reviewer PASS that lists a finding at a blocking severity exits EXACTLY 2 (1.1.0)', () => {
+  const dir = verdictFixture()
+  const r = runHook('subagent-verdict.mjs', passWithFinding(), { cwd: dir })
+  assert.equal(
+    r.code,
+    2,
+    `exit must be exactly 2 — any other nonzero is non-blocking:\n${r.stdout}${r.stderr}`,
+  )
+  assert.match(r.stderr, /security-reviewer returned VERDICT: PASS but lists a finding at a blocking severity/)
+  assert.match(r.stderr, /Blocking: CRITICAL, HIGH/)
+  assert.ok(r.stderr.includes(HIGH_FINDING), r.stderr)
+  const [block] = verdictBlocks(dir)
+  assert.equal(block.kind, 'block')
+  assert.ok(block.gates.includes('subagent-verdict/security-reviewer'), JSON.stringify(block.gates))
+  const row = JSON.parse(readFileSync(join(dir, '.harness', 'verdict-bounces.jsonl'), 'utf8').trim())
+  assert.equal(row.shape, 'pass-with-blocking-finding')
+  assert.deepEqual(row.blocking, [HIGH_FINDING])
+  assert.throws(
+    () => readFileSync(join(dir, '.harness', 'reviewer-ledger.jsonl')),
+    { code: 'ENOENT' },
+    'a bounced PASS is not a verdict: nothing reaches the ledger',
+  )
+})
+
+test('subagent-verdict CONTROL: the same PASS exits 0 when the body has no `Blocking:` line (1.1.0)', () => {
+  const dir = verdictFixture()
+  const body = join(dir, '.claude/agents/security-reviewer.md')
+  const forked = readFileSync(body, 'utf8').replace(/^Blocking:.*\n/m, '')
+  assert.ok(!/^Blocking:/m.test(forked), 'the fixture must actually drop the line')
+  writeFileSync(body, forked)
+  const r = runHook('subagent-verdict.mjs', passWithFinding(), { cwd: dir })
+  assert.equal(r.code, 0, `${r.stdout}${r.stderr}`)
+  const entry = JSON.parse(readFileSync(join(dir, '.harness', 'reviewer-ledger.jsonl'), 'utf8').trim())
+  assert.equal(entry.verdict, 'PASS')
+  assert.equal(entry.blocking, null, 'no contract: no findings are judged or recorded')
+})
+
+test('subagent-verdict CONTROL: a BLOCK listing the finding, and a PASS that only MENTIONS a severity, exit 0 (1.1.0)', () => {
+  const dir = verdictFixture()
+  const block = runHook(
+    'subagent-verdict.mjs',
+    verdictPayload({ last_assistant_message: `${HIGH_FINDING}\n\nVERDICT: BLOCK` }),
+    { cwd: dir },
+  )
+  assert.equal(block.code, 0, `the bounce never touches a BLOCK:\n${block.stdout}${block.stderr}`)
+  const mention = runHook(
+    'subagent-verdict.mjs',
+    verdictPayload({
+      last_assistant_message: 'Nothing here rose to [HIGH]; two [LOW] nits below.\n- [LOW] a.ts:1 — a nit\n\nVERDICT: PASS',
+    }),
+    { cwd: dir },
+  )
+  assert.equal(mention.code, 0, `a sentence is not a finding, and LOW does not block:\n${mention.stderr}`)
+  const rows = readFileSync(join(dir, '.harness', 'reviewer-ledger.jsonl'), 'utf8').trim().split('\n')
+  assert.deepEqual(
+    rows.map((l) => JSON.parse(l).blocking),
+    [[HIGH_FINDING], []],
+    'a BLOCK records its blocking findings; a clean PASS records none',
+  )
+})
+
+test('subagent-verdict CONTROL: a parked tools/lib/agent-roster.mjs without the contract reader is "no contract", never a crash (1.1.0)', () => {
+  // The hook reaches the reader through a NAMESPACE import: an install may keep a forked lib
+  // that `update` parked, and a named import of an export it lacks fails at LINK time, before
+  // a line of the hook runs — every SubagentStop would then die on a load error.
+  const root = mkdtempSync(join(tmpdir(), 'epah-verdict-parked-'))
+  cpSync(join(TEMPLATE, '.claude'), join(root, '.claude'), { recursive: true })
+  cpSync(join(TEMPLATE, 'tools/lib'), join(root, 'tools/lib'), { recursive: true })
+  writeFileSync(
+    join(root, 'tools/lib/agent-roster.mjs'),
+    "// a pre-1.1.0 fork: the roster lists, and no severityContract\nexport const REVIEWER_AGENTS = ['security-reviewer']\n",
+  )
+  const res = spawnSync('node', [join(root, '.claude/hooks/subagent-verdict.mjs')], {
+    input: JSON.stringify(passWithFinding()),
+    encoding: 'utf8',
+    cwd: root,
+    env: { ...cleanEnv(), CLAUDE_PROJECT_DIR: root },
+  })
+  assert.equal(res.status, 0, `${res.stdout}${res.stderr}`)
+  const entry = JSON.parse(readFileSync(join(root, '.harness', 'reviewer-ledger.jsonl'), 'utf8').trim())
+  assert.equal(entry.verdict, 'PASS')
+  assert.equal(entry.blocking, null)
 })
 
 test('subagent-verdict CONTROL: a reviewer’s SubagentStart exits 0, appends ONE dispatch record, and nothing else (1.1.0)', () => {

@@ -1709,6 +1709,12 @@ install has none (its subsection below). The reviewer model record re-plants
 `tools/lib/agent-roster.mjs`, `tools/check-docs-sync.mjs`, the eight reviewer files under
 `.claude/agents/` (and re-records their `tools/agents.lock.json` entries),
 `docs/harness/gates-catalog.md` and `docs/harness/README.md`; nothing of it is seeded (its
+subsection below). The severity contract re-plants the eight reviewer bodies under
+`.claude/agents/` (`update` re-records their `tools/agents.lock.json` entries),
+`.claude/hooks/subagent-verdict.mjs`, `tools/check-docs-sync.mjs`,
+`tools/check-reviewer-verdicts.mjs`, `tools/lib/agent-roster.mjs`,
+`tools/lib/reviewer-verdicts.mjs`, `docs/harness/gates-catalog.md` and
+`docs/harness/README.md`; a reviewer body you edited is kept and the new one parked (its
 subsection below). What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
@@ -1757,6 +1763,14 @@ subsection below). What you may notice afterwards:
   below 1.1.0, a security reviewer's PASS on a model its agent file does not name prints as
   `NOTE — the security-reviewer model check … expires in 2.1.0`. The subsection on the model
   record below says what counts.
+- **A reviewer can be sent back for a PASS that lists a blocking finding, and `docs-sync`
+  may print a NOTE about a reviewer body you forked.** Every shipped reviewer body now
+  states `Blocking: CRITICAL, HIGH`, and a PASS whose reply lists `- [HIGH] …` is bounced
+  to re-state, the way a reply with no verdict line is. A body you forked has no such line
+  until you add it, so its reviewer is not bounced on this ground, and `docs-sync` names
+  it in a NOTE that expires in 1.2.0. On a `baseVersion` below 1.1.0, `reviewer-verdicts`
+  may also print `NOTE — the per-reviewer round budget`. The subsection on the severity
+  contract below says what to do.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -2139,6 +2153,88 @@ that expires in 2.1.0. A fresh 1.1.0 scaffold is judged from the start.
    version.
 5. **Before you graduate,** read the NOTEs, fix what they name, and graduate when they are
    gone.
+
+### Reviewer bodies state which severities block, and review rounds get a budget (NOTEs until 1.2.0)
+
+Until 1.1.0 no reviewer body said which severity justifies `VERDICT: BLOCK`, so a nit and a
+vulnerability both could, and a reviewer could PASS over a HIGH finding it listed itself.
+Nothing bounded a fix-and-re-review loop either, except the turn-wide block cap that every
+kind of block spends. From 1.1.0:
+
+- **Every reviewer body states its severity contract**, on two lines of their own before its
+  closing verdict paragraph, with the finding format after them:
+
+  ```
+  Severities: CRITICAL, HIGH, MEDIUM, LOW
+  Blocking: CRITICAL, HIGH
+
+  Write each finding on a line of its own as `- [SEVERITY] file:line — …`, with a severity
+  from the `Severities:` line. Return `VERDICT: BLOCK` when a finding at a `Blocking:`
+  severity stands, and `VERDICT: PASS` otherwise: a PASS that lists a blocking finding is
+  sent back to you to re-state.
+  ```
+
+  `docs-sync` holds the two lines: each present once, `Blocking:` a subset of
+  `Severities:`, and `Blocking:` holding at least `CRITICAL` and `HIGH`.
+- **The SubagentStop hook bounces a PASS that lists a blocking finding.** It reads the
+  `Blocking:` line from the body of the reviewer that stopped. A reply that ends
+  `VERDICT: PASS` and has a line starting `- [HIGH] …` exits 2, so the reviewer re-states,
+  and `.harness/verdict-bounces.jsonl` records the shape `pass-with-blocking-finding` with
+  the finding lines. A BLOCK is never bounced on this ground, and neither is a body with no
+  `Blocking:` line, which keeps the 1.0.x behaviour.
+- **Each verdict records its round, and the Stop step holds each reviewer to a budget of 3
+  rounds per review loop.** A BLOCK opens a loop, every later verdict of that reviewer in
+  the session is its next round, and the loop closes when the same run (its `agent_id`)
+  passes over a tree that did not move under it. A loop still open after its third round
+  is spent: `reviewer-verdicts` reds with every blocking finding the reviewer recorded and
+  tells the agent to stop and hand them to you, and a PASS recorded after that never clears
+  it. The budget is judged over the change set the reviewer ledger v2 keys, so on a branch
+  with no upstream it does not judge, and `NOTE — no merge base` says so. It is a constant
+  of the owned `tools/lib/reviewer-verdicts.mjs`, not a field of the seeded
+  `tools/reviewer-triggers.json`, so there is nothing to add to your trigger table.
+
+**When a budget is spent.** The step keeps redding for as long as that reviewer is owed in
+this session, and the agent is told not to run it again. The findings are yours to decide:
+fix them yourself, or with the agent in a NEW session, where every budget starts afresh; or
+change the diff so it no longer owes that reviewer. Starting a new session is the reset, and
+it is a human's act, not the agent's.
+
+**The ramps.** If your `baseVersion` is below 1.1.0, both checks print as NOTEs that expire
+in 1.2.0:
+
+```
+docs-sync: NOTE — the reviewer severity contract (ramp: live from baseVersion 1.1.0; this install's baseVersion is <yours>; expires in 1.2.0). …
+docs-sync: NOTE — (ramp) .claude/agents/<name>.md: no `Blocking:` line — …
+reviewer-verdicts: NOTE — the per-reviewer round budget (ramp: live from baseVersion 1.1.0; …; expires in 1.2.0). …
+```
+
+From harness 1.2.0 the same findings print under `RAMP EXPIRED` and red their step, and on an
+install whose `baseVersion` is 1.1.0 or later they red from the start. The hook's bounce is
+not ramped: it fires only for a body that states `Blocking:`, and an existing install gets
+one only when `update` re-plants an unmodified body or you add the lines yourself.
+
+**Adding the contract to a forked reviewer body.** `.claude/agents/` is write-guarded and the
+lock is a human act, so each step is yours, not an agent's.
+
+1. **Add the lines.** Merge the parked copy from `.harness/pending/.claude/agents/<name>.md`
+   if `update` left one, or paste the block above into your body, just before its closing
+   `End with exactly one final line: …` paragraph, which must stay last. Keep `CRITICAL` and
+   `HIGH` on the `Blocking:` line; you may add `MEDIUM` to block on more.
+2. **Re-lock the agent surface.** `prompts` reds the edited body until the lock moves, and the
+   bash guard refuses the writer from an agent's shell, so a human runs:
+
+   ```
+   HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write
+   ```
+
+3. **Re-record the body's sha** in `.harness/manifest.json`, in a reviewed commit, as
+   "Forking an owned file" in the 1.0.2 section describes, and delete the parked copy.
+
+A reviewer of your own, outside the eight the harness ships, is not judged by `docs-sync`. Add
+the two lines to it if you want the hook to hold its PASSes to its findings. If the `docs-sync`
+finding names `tools/lib/agent-roster.mjs`, or the `reviewer-verdicts` one names
+`tools/lib/reviewer-verdicts.mjs`, your fork of that lib predates the contract: merge the
+parked copy under `.harness/pending/tools/lib/` into it and re-record its sha.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

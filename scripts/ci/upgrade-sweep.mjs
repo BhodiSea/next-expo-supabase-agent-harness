@@ -344,7 +344,11 @@ const SWEEPS = {
   // AGENTS.md sentence and the .gitignore line for supabase/.branches/, are copied by hand
   // from the runbook's 1.1.0 section. The security-reviewer model check ramp (#62) opens here
   // too and adds no step, for the same Stop-step reason; it asks for no seeded text, because
-  // the fallback lists it reads live in the OWNED agent files `update` re-plants.
+  // the fallback lists it reads live in the OWNED agent files `update` re-plants. The severity
+  // contract's two ramps (#71) add no step either: docs-sync's judges a FORKED reviewer body,
+  // a leg forks none, and `update` re-plants the shipped bodies, which all carry the contract;
+  // the round budget is a Stop step's, which no leg runs (stop-side-expiries.json names its
+  // unit proof).
   '1.1.0': {},
 }
 

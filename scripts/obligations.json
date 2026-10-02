@@ -250,6 +250,32 @@
       "reviewedOn": "2026-09-30"
     },
     {
+      "id": "docs-sync-severity-contract-ramp-expiry",
+      "kind": "release",
+      "target": "1.2.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-docs-sync.mjs",
+          "mustContain": "the reviewer severity contract"
+        }
+      ],
+      "reason": "OPENED AT 1.1.0 (#71, R02). docs-sync now holds every reviewer body in REVIEWER_AGENTS to a severity contract: a `Severities:` line and a `Blocking:` line of their own, each stated once, Blocking a subset of Severities and holding the floor, CRITICAL and HIGH (severityContractProblems in template/base/tools/lib/agent-roster.mjs). The SubagentStop hook reads the Blocking line and bounces a PASS that lists a finding at a blocking severity. Ramped because since 1.0.2 `update` parks a locally modified owned body instead of overwriting it, and re-records the agents lock only for bodies it rewrote, so a project's edited body would otherwise red on the upgrade that delivers the check. The same ramp carries the one finding a parked fork of tools/lib/agent-roster.mjs without the judge produces. The deadline is the one issue #71 fixes, the next minor. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes this expiry, as it owes the version-sync arrival row above, which targets the same release. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming this site's population (every vintage below 1.1.0 that forked a reviewer body), with its sweep in that release's runbook section (restore the two lines from the template or .harness/pending/, a human re-locks with HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write, re-record the sha), and this row is deleted in the same diff; OR the ramp is extended by a reviewed rampExtensions entry and this row re-targeted.",
+      "reviewedOn": "2026-09-30"
+    },
+    {
+      "id": "reviewer-verdicts-round-budget-ramp-expiry",
+      "kind": "release",
+      "target": "1.2.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-reviewer-verdicts.mjs",
+          "mustContain": "the per-reviewer round budget"
+        }
+      ],
+      "reason": "OPENED AT 1.1.0 (#71, R02). The SubagentStop hook records each verdict's `round` in its reviewer's review loop and the reply's `blocking` finding lines, and reviewer-verdicts judges the budget (judgeRoundBudget in template/base/tools/lib/reviewer-verdicts.mjs, ROUND_BUDGET = 3): a BLOCK opens a loop, each later verdict of that reviewer in the session is its next round, the loop closes when the same run passes over an unmoving tree, and a loop still open after the budget reds with the recorded findings and says to hand them to the human; a PASS recorded past the budget never clears it. Entries an earlier or parked hook wrote count one round each with no recorded findings. On an install whose baseVersion predates 1.1.0 the findings print as NOTEs through one rampNote call, because a session already in flight at the upgrade holds verdicts no budget was ever stated for. The hook cannot carry this ramp (a hook has no NOTE channel), so it lives in the Stop step. The deadline is the one issue #71 fixes, the next minor, and 1.2.0 arrives at this lineage's 2.0.0 cut (see the docs-sync row above). It also comes before the reviewer ledger v2 ramp's (2.1.0, the row above): the budget judges v2's change set and closes a loop by v2's rule, so at 2.0.0 an install below 1.1.0 would meet it live while v2 still prints NOTEs and the 1.0.x judgement decides; the 2.0.0 record weighs that against re-opening this ramp to 2.1.0. With no merge base the budget does not judge, as v2 does not. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming this site's population (every vintage below 1.1.0), with its sweep in that release's runbook section (nothing to edit: a spent budget clears in a new session), and this row is deleted in the same diff; OR a reviewed rampExtensions entry re-targets it. The site is Stop-only, so scripts/ci/stop-side-expiries.json names the unit proof that executes its RAMP EXPIRED branch.",
+      "reviewedOn": "2026-09-30"
+    },
+    {
       "id": "control-plane-facts-agent-id-resume-probe",
       "kind": "condition",
       "target": null,
