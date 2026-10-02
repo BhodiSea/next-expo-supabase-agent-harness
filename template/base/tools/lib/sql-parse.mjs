@@ -631,10 +631,11 @@ function constraintGroupOf(def, table) {
   const group = groupAfter(def, m[0].length - 1)
   if (group === null) return null
   const columns = columnsOf(group)
-  const fallback = /^p/i.test(m[2])
+  const primaryKey = /^p/i.test(m[2])
+  const fallback = primaryKey
     ? `${table}_pkey`
     : `${table}_${columns.map((c) => c.name).join('_')}_key`
-  return { name: (m[1] ?? fallback).toLowerCase(), columns }
+  return { name: (m[1] ?? fallback).toLowerCase(), columns, primaryKey }
 }
 
 /** An inline `<col> <type> ... PRIMARY KEY|UNIQUE` column marker, or null. */
@@ -646,9 +647,11 @@ function inlineGroupOf(def, table) {
   const marker = col[2].match(/\b(PRIMARY\s+KEY|UNIQUE)\b(?!\s*\()/i)
   if (marker === null) return null
   const name = col[1].toLowerCase()
+  const primaryKey = /^p/i.test(marker[1])
   return {
-    name: /^p/i.test(marker[1]) ? `${table}_pkey` : `${table}_${name}_key`,
+    name: primaryKey ? `${table}_pkey` : `${table}_${name}_key`,
     columns: [{ name, desc: false }],
+    primaryKey,
   }
 }
 
@@ -676,7 +679,13 @@ function indexDropsIn(stmt) {
   )
 }
 
-/** Index/constraint entries this statement CREATES. */
+/**
+ * Index/constraint entries this statement CREATES. `primaryKey` marks the table's primary
+ * key (1.1.0): it and a UNIQUE both read `unique: true`, and a named `CONSTRAINT x PRIMARY
+ * KEY` keeps its own name, so neither the flag nor the `<table>_pkey` default tells them
+ * apart. query-shapes needs it for an upsert with no onConflict, which PostgREST aims at the
+ * primary key.
+ */
 function indexAddsIn(stmt) {
   const create = stmt.match(/^CREATE TABLE (?:IF NOT EXISTS )?([a-z0-9_.]+)/i)
   if (create) {
@@ -686,6 +695,7 @@ function indexAddsIn(stmt) {
       name: g.name,
       columns: g.columns,
       unique: true,
+      primaryKey: g.primaryKey,
     }))
   }
   const idx = stmt.match(
@@ -700,6 +710,7 @@ function indexAddsIn(stmt) {
         name: idx[2].toLowerCase(),
         columns: columnsOf(group),
         unique: idx[1] !== undefined,
+        primaryKey: false,
       },
     ]
   }
@@ -720,18 +731,19 @@ function indexAddsIn(stmt) {
     const group = groupAfter(stmt, m.index + m[0].length - 1)
     if (group === null) continue
     const columns = columnsOf(group)
+    const primaryKey = /^p/i.test(m[2])
     // PostgreSQL's own default names, so a reviewed exemption can name the constraint
     // the live catalog will hold even when the DDL left it unnamed.
-    const fallback = /^p/i.test(m[2])
+    const fallback = primaryKey
       ? `${table}_pkey`
       : `${table}_${columns.map((c) => c.name).join('_')}_key`
-    out.push({ table, name: (m[1] ?? fallback).toLowerCase(), columns, unique: true })
+    out.push({ table, name: (m[1] ?? fallback).toLowerCase(), columns, unique: true, primaryKey })
   }
   return out
 }
 
 export function parseIndexes(statements) {
-  let all = [] // { table, name, columns: [{ name, desc }], unique }
+  let all = [] // { table, name, columns: [{ name, desc }], unique, primaryKey }
 
   for (const { stmt, dropped } of withTableDrops(statements)) {
     // A DROP TABLE takes every index and constraint of the table with it (1.1.0).
@@ -1038,14 +1050,12 @@ export function parseFunctions(statements) {
     const open = stmt.indexOf('(', m[0].length - 1)
     const span = matchParen(stmt, open)
     const paramText = span === null ? '' : stmt.slice(span[0], span[1])
-    const params = paramText
-      .split(',')
-      .map((p) => p.trim())
-      .filter(Boolean)
-      .map((p) => {
-        const pm = p.match(/^(?:IN|OUT|INOUT|VARIADIC)?\s*([a-z0-9_]+)\s+(.+)$/i)
-        return { name: (pm?.[1] ?? p).toLowerCase(), type: (pm?.[2] ?? '').toLowerCase(), raw: p }
-      })
+    // Split at paren depth 0 (1.1.0): `numeric(10,2)` or a DEFAULT with a comma in it is one
+    // parameter, where a plain split(',') tore it into two.
+    const params = splitTopLevelCommas(paramText).map((p) => {
+      const pm = p.match(/^(?:IN|OUT|INOUT|VARIADIC)?\s*([a-z0-9_]+)\s+(.+)$/i)
+      return { name: (pm?.[1] ?? p).toLowerCase(), type: (pm?.[2] ?? '').toLowerCase(), raw: p }
+    })
 
     const searchPath = stmt.match(/\bSET\s+search_path\s*(?:=|TO)\s*('[^']*'|[a-z0-9_."]+)/i)?.[1]
 

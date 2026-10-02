@@ -1133,6 +1133,15 @@
         ]
       },
       {
+        "sha256": "3c94f7dfbbc21fbf25904b5b4f896f0d654dc0aa4708523f5cf7618dd9c93bd3",
+        "sites": [
+          [
+            138354,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
         "sha256": "3e8228886c91cfe619936e0eb1b47c08475169057e2eecf06bbcc29d69614c9f",
         "sites": [
           [
@@ -1620,6 +1629,15 @@
         ]
       },
       {
+        "sha256": "f8108a3faa7dbae250bbf4ac144ef205c66adebd5c83e5f6518091d98582da29",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "fd32e8e7ef899b91fb05add54226148dc8ea99ded25c1ae62dcb82fdf5ccbff7",
         "sites": [
           [
@@ -2092,6 +2110,9 @@
       },
       {
         "sha256": "5a70f945d492fbc117482d42ec5c507e77d2d232b736285ea108cf4fce450626"
+      },
+      {
+        "sha256": "80f52f615cb1ebce5b4594573cacbcff15fbc9f861ce3bed92a93997277e24e3"
       }
     ],
     "tools/check-rate-limits.mjs": [
@@ -2295,6 +2316,19 @@
       }
     ],
     "tools/conformance-map.json": [
+      {
+        "sha256": "011c963f408a18f9185dd3fa81875dfb31e01cf94796bb4158133d5e4c11d28f",
+        "sites": [
+          [
+            641170,
+            "APP_SCHEME"
+          ],
+          [
+            701014,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
       {
         "sha256": "2db2fd72cb9a2a3c59a713ee6a0f5d07f91a3e6424527d602c4b38b6201f49d6",
         "sites": [
@@ -2635,12 +2669,18 @@
     ],
     "tools/lib/query-recorder.mjs": [
       {
+        "sha256": "287e18938f1fd277cc6040413b7c99f5aa6e084bf401f9465a6a17cedee2e748"
+      },
+      {
         "sha256": "e3dd3e6b73fa8da58bb652b7c1ebbde3b4ddb35dd86aba6d325f876bbcd7c11b"
       }
     ],
     "tools/lib/query-shapes.mjs": [
       {
         "sha256": "5d126e744de84357038548a84cb8bf6a2769ac272cff359f444edc9263528dd4"
+      },
+      {
+        "sha256": "8ec831df180a771a53d5a0ca7d4845e18edc20f5e79b00ea86f3cd77467d03a8"
       }
     ],
     "tools/lib/reviewer-verdicts.mjs": [
@@ -2694,6 +2734,9 @@
       }
     ],
     "tools/lib/sql-parse.mjs": [
+      {
+        "sha256": "0758bd2d7a334fda11c3e5ce38bb99e2bbd3a6e7b0a618e5205a130b3f7098cf"
+      },
       {
         "sha256": "553b5846fa5b7b16fd1c0631a0d14a08aeb2c065c3d9e5a3a39dc9ffda441368"
       },

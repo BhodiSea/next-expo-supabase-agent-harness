@@ -57,6 +57,8 @@ it moves, each with a deadline of 1.2.0, and adds one release row that anchors a
 `schema-rls`' grant bound (see Changed) opens one more at 1.1.0, with a deadline of 1.2.0, over
 three kinds of finding, and adds one release row and one guard rule. Every install below 1.1.0
 meets it on `profiles` and `notes` (#74).
+`query-shapes` judges a DAL's `rpc()` and `upsert()` calls with no ramp (see Fixed): a
+probed DAL that made either call could not pass before (#79).
 
 ### Security
 
@@ -429,6 +431,40 @@ this heading if none does. -->
   CLI pin for a double-quoted `"supabase"` key. The key may now carry either quote, as long
   as both sides match. The catalog pin floors (see Changed) read through the same probe, and
   for them a present key read as absent would never be judged (#83).
+- **`query-shapes` records a DAL's `rpc()` and `upsert()` calls, and judges them.** Through
+  1.0.4 the recording port `pnpm gen` drives each DAL function with had only `from()`, so a
+  probed function that called `.rpc()` threw inside generation, and `contracts` then called
+  the manifest stale and said to run the command that had crashed. `upsert` was outside the
+  reviewed method set, so an upsert recorded as a `select` with `extra: ["upsert"]` and
+  failed with advice about OFFSET pagination: no upsert could pass. `tools/lib/query-recorder.mjs`
+  now has `db.rpc(name, args)`, whose row is `op: "rpc"` with `table: null` and one new key,
+  `rpc: { name, args }`, where `args` holds the sorted argument names and never a value. An
+  upsert row is `op: "upsert"` with the payload's keys (the first element's, for an array)
+  and one new key, `onConflict`: the option split on commas and sorted, or `null` when
+  absent. A row that uses neither gains no key, so the seeded manifest, and every manifest
+  with no such call, regenerates byte-identical. `tools/lib/query-shapes.mjs` accepts both
+  ops, lets `table` be null only on an rpc row, and fails closed on an rpc row with no `rpc`
+  key or an upsert row with no `onConflict` key. `tools/check-query-shapes.mjs` gains four
+  rules, and both ops skip the served and tenant-led rules explicitly: an rpc must name a
+  function a migration creates in `public`, the schema PostgREST exposes, and must pass every
+  input parameter that has no DEFAULT and no parameter the function lacks, since PostgREST
+  answers PGRST202 otherwise; an upsert's conflict columns must equal, as a set, the columns
+  of a UNIQUE index or of the primary key, since PostgreSQL raises an error when ON CONFLICT
+  inference finds none; and a tenant upsert must write the tenant column, as an insert must.
+  An arbiter finding lists the UNIQUE indexes the table holds, and on a tenant table the
+  target or index it proposes carries the tenant column, which `tenancy` requires.
+  The unreviewed-method and `max_rows` rules still judge both. `tools/lib/sql-parse.mjs`
+  marks each index entry's `primaryKey`, named or not, which an upsert with no `onConflict`
+  needs, and splits a function's parameter list at paren depth 0, so `numeric(10,2)` is one
+  parameter. The gate's header and its catalog entry state what it does not model:
+  `DROP FUNCTION`, overloads (the last definition wins), a partial index's predicate, and
+  the arguments of a function with an unnamed input parameter. Conformance row 1.2.4's note
+  now says the rpc call is recorded and resolved, while the function body and a raw
+  `postgres()` client stay unjudged. The committed manifest is seeded, so `update` never
+  rewrites it: a DAL that calls `rpc` or `upsert` must run `pnpm gen` again (or
+  `pnpm gen:contracts`, the part that needs no database) and commit the manifest. No chain
+  step, seeded file or ramp: any install whose probed DAL makes either call fails today
+  (#79).
 
 ### Changed
 
@@ -1105,6 +1141,21 @@ this heading if none does. -->
   the four privileges on `profiles` and `notes`. The red is accurate (#74).
 - **The grant bound's ramp also ends at 2.0.0 in this lineage.** 1.2.0 is the deadline issue
   #74 fixes, so the 2.0.0 record owes this expiry beside the other 1.2.0-dated ones (#74).
+- **The census records an rpc call, not what the function does.** The body an rpc runs, a
+  raw `postgres()` client beside a builder chain, and the payload of an inserted array,
+  whose keys still read as its indices so that existing manifests keep their bytes, are
+  judged by no rule here (#79).
+- **Four parser limits stand behind the rpc and upsert rules.** `DROP FUNCTION` is not
+  modelled, so a dropped function still resolves; overloads collapse to the last definition;
+  a partial UNIQUE index reads as an arbiter, although ON CONFLICT cannot infer it without an
+  index predicate; and a function with an unnamed input parameter resolves with its
+  arguments unjudged. A quoted mixed-case parameter name reads folded, because the statement
+  splitter drops the quotes. `parseFunctions`' own `name` still reads the `IN` of `INOUT x`,
+  or of a name such as `invite_rank`, as a mode; the gate reads each declaration itself, and
+  the gates that read `name` are unchanged (#79).
+- **No shipped manifest carries an rpc or upsert row.** The web app's two tenancy RPCs are
+  called from Server Actions, not from a vertical's DAL, and the push-notifications slice
+  that upserts has no query-probes file, so the rules are proven on fixtures (#79).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -1513,6 +1564,29 @@ this heading if none does. -->
   of the leg's own and ran the generator, and `graduate` advanced `baseVersion` 0.3.0 to
   1.1.0. A zero-edit core scaffold rendered from this tree passed `validate --report-all` with
   `schema-rls` OK (#74).
+  For the rpc and upsert rows, the tests-only commit was red on 18 of the 45 cases of
+  `tests/gates/check-query-shapes.test.mjs`: ten threw `db.rpc is not a function`, the two
+  upsert recorder cases found `op: "select"` and an empty payload, `parseIndexes` marked no
+  primary key, and each of the five upsert gate fixtures redded with `uses .upsert()` and
+  OFFSET advice, the tenant ones also with `select on tenant table "notes" with no org_id
+  equality`. The arbiter finding's advice was red on three more assertions before it was
+  fixed: on `notes` it proposed `CREATE UNIQUE INDEX notes_id_key ON public.notes (id)`,
+  which `tenancy` reds. After the change the file's 47 cases pass: an rpc row carries its
+  argument names and not the value, the four 1.0.x row kinds keep their exact key list,
+  renaming the function in the fixture migration reds naming `public.accept_invitation` and
+  PGRST202, a missing or unknown argument name reds naming it, dropping the unique index an
+  upsert names reds naming `ON CONFLICT (handle)`, and an upsert with no `onConflict` on a
+  table whose primary key is the named constraint `notes_pk` passes, served by `notes_pk`.
+  In a rendered core scaffold, a scratch vertical whose DAL calls
+  `rpc('accept_invitation', { p_token })` and upserts into `notes` twice made
+  `tsx tools/gen-query-shapes.mjs` throw `TypeError: db.rpc is not a function` with the
+  recorder as it stood before this change. With it, the manifest gained those three rows,
+  no notes row changed, and `query-shapes` passed with
+  `-> rpc public.accept_invitation` and `-> ON CONFLICT notes_pkey`. It then redded on each
+  injected fault: `{ token }` for `{ p_token }`, an upsert with no `org_id`, and
+  `onConflict: 'id'`, for which it named `notes_pkey (org_id, id)`. A zero-edit core
+  scaffold rendered from this tree passed `validate --report-all` on 36 steps, where
+  `contracts` regenerated its seeded manifest byte-identical and `query-shapes` was OK (#79).
 
 ## [1.0.4] — 2026-10-01
 

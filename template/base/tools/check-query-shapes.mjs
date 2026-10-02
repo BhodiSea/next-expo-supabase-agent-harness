@@ -36,12 +36,44 @@
 //                   but without the leading column it filters by scanning.
 //   6. ceiling    — no LIMIT above `[api].max_rows`, which PostgREST silently truncates
 //                   to, breaking the has-more probe every keyset page depends on.
+//
+// rpc() AND upsert() (1.1.0). The recorder writes each as its own op, and four rules judge
+// what PostgREST or PostgreSQL would refuse at runtime. Both ops skip rules 3 and 5 (an rpc
+// has no table, and an upsert's lookup is its conflict arbiter); rules 1, 2, 4 and 6 still
+// apply, and an rpc or upsert is `kind: "write"`, so rule 1 never reds one.
+//   7. rpc resolves   — a migration must create `public.<name>`: `public` is the one schema
+//                       supabase/config.toml exposes, and PostgREST answers PGRST202 for a
+//                       function its schema cache does not hold.
+//   8. rpc arguments  — the recorded argument names must include every input parameter
+//                       (IN, INOUT or VARIADIC) that has no DEFAULT, and must name no
+//                       parameter the function lacks. Either mismatch is PGRST202 too.
+//   9. upsert arbiter — the conflict columns must equal, as a set, the columns of a UNIQUE
+//                       index or primary key that still exists. With no onConflict they are
+//                       the primary key's, as PostgREST resolves them. PostgreSQL raises an
+//                       error when ON CONFLICT inference finds no such index.
+//  10. upsert tenant  — on a tenant table the payload carries the tenant column, as rule 5
+//                       asks of an insert.
+// LIMITS, stated rather than hidden. The parser does not model DROP FUNCTION, so a dropped
+// function still resolves. resolveFunction matches on the name alone, so overloads collapse
+// to the last definition in migration order. Index parsing drops the predicate of a partial
+// index, so a partial UNIQUE index, which ON CONFLICT without an index predicate cannot
+// infer, still reads as an arbiter. A function with an unnamed input parameter resolves, but
+// its arguments are not judged. The function BODY an rpc runs is judged by no rule here.
 // SOURCE: docs/harness/gates-catalog.md (query-shapes) [corpus: harness/doctrine]
+// SOURCE: https://docs.postgrest.org/en/v12/references/errors.html#group-2-schema-cache
+// SOURCE: https://docs.postgrest.org/en/v12/references/api/tables_views.html#on-conflict
+// SOURCE: https://www.postgresql.org/docs/17/sql-insert.html
 import { existsSync, readFileSync } from 'node:fs'
 import { fail, failures, ok, rampNote, skipOrFail, stampGate } from './lib/gate.mjs'
 import { parseShapes, probeModules, resolveIndex } from './lib/query-shapes.mjs'
 import { foldOnlyFindings, foldTouches, historyFor, withhold } from './lib/sql-fold-ramp.mjs'
-import { parseIndexes, readSqlDir, splitStatements } from './lib/sql-parse.mjs'
+import {
+  parseFunctions,
+  parseIndexes,
+  readSqlDir,
+  resolveFunction,
+  splitStatements,
+} from './lib/sql-parse.mjs'
 import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 
 const GATE = 'query-shapes'
@@ -132,8 +164,128 @@ const maxRows = existsSync(LIMITS)
 // served only by the indexes created after it (tools/lib/sql-parse.mjs).
 const statements = historyFor(splitStatements(readSqlDir(MIGRATIONS_DIR)))
 const { all: indexes } = parseIndexes(statements)
+const functions = parseFunctions(statements)
 const errs = []
 const served = []
+
+// ---- rules 7-10: rpc() and upsert() ---------------------------------------------------
+
+const PARAM_MODE = /^(IN|OUT|INOUT|VARIADIC)\s+/i
+// Types whose first word reads like an identifier. Without them the unnamed parameter
+// `double precision` would read as one named "double".
+const MULTIWORD_TYPE =
+  /^(?:double\s+precision|character\s+varying|bit\s+varying|national\s+char|time(?:stamp)?\s+with(?:out)?\s+time\s+zone)\b/i
+const PARAM_NAME = /^([a-z_][a-z0-9_$]*)\s+\S/i
+
+/**
+ * One parameter declaration, `[mode] [name] type [DEFAULT expr | = expr]`, read from its
+ * text: parseFunctions keeps the text but not the mode or the default, and its own name
+ * reading takes the `IN` of `INOUT x` or of a name like `invite_rank` for a mode. `name` is
+ * null for an unnamed parameter, and folds to lower case as PostgreSQL folds an unquoted
+ * one (splitStatements drops the quotes of a quoted identifier, so a quoted mixed-case name
+ * reads folded too).
+ */
+function paramOf(raw) {
+  const mode = raw.match(PARAM_MODE)?.[1]?.toUpperCase() ?? 'IN'
+  const rest = raw.replace(PARAM_MODE, '')
+  const cut = rest.search(/\bDEFAULT\b|=/i)
+  const decl = (cut === -1 ? rest : rest.slice(0, cut)).trim()
+  const m = MULTIWORD_TYPE.test(decl) ? null : decl.match(PARAM_NAME)
+  const name = m === null ? null : m[1].toLowerCase()
+  return { hasDefault: cut !== -1, mode, name }
+}
+
+/** Rules 7 and 8: the function exists in `public`, and the call names its parameters. */
+function rpcFindings(shape, at) {
+  const { args, name } = shape.rpc
+  const qualified = `public.${name}`
+  const fn = resolveFunction(functions, qualified)
+  if (fn === undefined) {
+    return [
+      `${at}: calls rpc ${qualified}, which no migration creates — \`public\` is the schema PostgREST exposes, and it answers PGRST202 (not found in the schema cache) for a function it does not hold. Create it in ${MIGRATIONS_DIR}/, or call a name a migration creates.`,
+    ]
+  }
+  const inputs = fn.params.map((p) => paramOf(p.raw)).filter((p) => p.mode !== 'OUT')
+  // An unnamed input parameter cannot be matched by name: stated as a limit in the header.
+  if (inputs.some((p) => p.name === null)) return []
+  const out = []
+  const missing = inputs.filter((p) => !p.hasDefault && !args.includes(p.name)).map((p) => p.name)
+  if (missing.length > 0) {
+    out.push(
+      `${at}: calls rpc ${qualified} without its required parameter(s) ${missing.join(', ')} — every input parameter with no DEFAULT must be named, or PostgREST finds no function with that argument list and answers PGRST202.`,
+    )
+  }
+  const unknown = args.filter((a) => !inputs.some((p) => p.name === a))
+  if (unknown.length > 0) {
+    out.push(
+      `${at}: calls rpc ${qualified} and names ${unknown.join(', ')}, which ${qualified} has no input parameter called — PostgREST matches a function by its argument names, so it finds none and answers PGRST202.`,
+    )
+  }
+  return out
+}
+
+/** Order-free identity of a column set. NUL cannot appear in an identifier. */
+const columnSet = (columns) => [...new Set(columns)].sort().join('\u0000')
+
+/** Rule 9's arbiter: the UNIQUE index or primary key ON CONFLICT would infer, or null. */
+function arbiterOf(shape) {
+  const unique = indexes.filter((idx) => idx.table === shape.table && idx.unique)
+  if (shape.onConflict === null) return unique.find((idx) => idx.primaryKey) ?? null
+  const want = columnSet(shape.onConflict)
+  return unique.find((idx) => columnSet(idx.columns.map((c) => c.name)) === want) ?? null
+}
+
+/**
+ * Rule 9's red. It names the arbiters the table does hold, so the fix can pick one, and the
+ * index it proposes leads with the tenant column on a tenant table: `tenancy` reds a UNIQUE
+ * there that omits it, so proposing `(id)` would trade this red for that one.
+ */
+function noArbiterFinding(shape, at) {
+  const target = `public.${shape.table}`
+  const unique = indexes.filter((idx) => idx.table === shape.table && idx.unique)
+  const held = unique.map((idx) => `${idx.name} (${idx.columns.map((c) => c.name).join(', ')})`)
+  const holds = `${target} holds ${held.length > 0 ? held.join('; ') : 'no UNIQUE index'}`
+  if (shape.onConflict === null) {
+    return `${at}: upsert into ${target} with no onConflict targets the primary key, as PostgREST resolves it, and no migration gives ${target} one — there is no arbiter for the conflict (${holds}). Add a primary key, or pass onConflict naming the columns of a UNIQUE index.`
+  }
+  const cols = shape.onConflict
+  const tenantLed = untenanted.has(shape.table) || cols.includes(tenantColumn)
+  const key = tenantLed ? cols : [tenantColumn, ...cols]
+  const match = unique.find((idx) => columnSet(idx.columns.map((c) => c.name)) === columnSet(key))
+  const fix =
+    match === undefined
+      ? `Pass onConflict naming the columns of one it holds, or add one in a new migration: CREATE UNIQUE INDEX ${shape.table}_${key.join('_')}_key ON ${target} (${key.join(', ')});`
+      : `Pass onConflict: '${key.join(',')}', the columns of ${match.name}.`
+  const why = tenantLed
+    ? ''
+    : ` On a tenant table a UNIQUE carries ${tenantColumn} (tenancy reds one that omits it), so the conflict target names it too.`
+  return `${at}: upsert into ${target} ON CONFLICT (${cols.join(', ')}) — no UNIQUE index or primary key on ${target} has exactly those columns (${holds}), so PostgreSQL cannot infer an arbiter and the statement fails at runtime. ${fix}${why}`
+}
+
+/** Rules 9 and 10, plus the served line when the arbiter resolves. */
+function upsertFindings(shape, at) {
+  const out = []
+  if (!untenanted.has(shape.table) && !shape.payload.includes(tenantColumn)) {
+    out.push(
+      `${at}: upsert into tenant table "${shape.table}" writes no ${tenantColumn} — the WITH CHECK policy will refuse it at runtime.`,
+    )
+  }
+  const arbiter = arbiterOf(shape)
+  if (arbiter !== null)
+    return { findings: out, served: `${shape.id} -> ON CONFLICT ${arbiter.name}` }
+  out.push(noArbiterFinding(shape, at))
+  return { findings: out, served: null }
+}
+
+/** Rules 7-10 for one rpc or upsert row. */
+function judgeCall(shape, at) {
+  if (shape.op === 'upsert') return upsertFindings(shape, at)
+  const findings = rpcFindings(shape, at)
+  return {
+    findings,
+    served: findings.length === 0 ? `${shape.id} -> rpc public.${shape.rpc.name}` : null,
+  }
+}
 
 for (const shape of shapes) {
   const at = `${MANIFEST} (${shape.id})`
@@ -181,6 +333,15 @@ for (const shape of shapes) {
         `${at}: the keyset seek carries no range predicate on "${leadSort}", its leading sort column — a top-level OR cannot bound an index scan, so the cursor becomes a Filter and every page re-reads and discards the rows before it (the exact cost of OFFSET). Send the range as its own predicate too: .lte('${leadSort}', <cursor value>) alongside the disjunction.`,
       )
     }
+  }
+
+  // 7-10. An rpc or upsert is judged by its own rules and skips rules 3 and 5, explicitly:
+  // an rpc's table is null, and an upsert carries no equality to lead an index with.
+  if (shape.op === 'rpc' || shape.op === 'upsert') {
+    const call = judgeCall(shape, at)
+    errs.push(...call.findings)
+    if (call.served !== null) served.push(call.served)
+    continue
   }
 
   // 5. Tenant column present on any statement against a tenant table.

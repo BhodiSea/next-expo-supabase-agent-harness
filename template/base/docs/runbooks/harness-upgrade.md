@@ -1777,8 +1777,11 @@ the vertical-slice skill's `references/migration-rls.md` and `references/tests.m
 re-records their `tools/agents.lock.json` entries), `.claude/rules/security-invariants.md`
 and `docs/harness/gates-catalog.md`, and adds `tools/gen-grant-assertions.mjs` and
 `docs/adr/20260930-three-role-revoke.md`; its migration and its generated test are withheld,
-and its three seeded texts are yours to copy (its subsection below). What you may
-notice afterwards:
+and its three seeded texts are yours to copy (its subsection below). The query-shape rules
+for `rpc()` and `upsert()` re-plant `tools/lib/query-recorder.mjs`, `tools/lib/query-shapes.mjs`,
+`tools/lib/sql-parse.mjs`, `tools/check-query-shapes.mjs`, `tools/conformance-map.json` and
+`docs/harness/gates-catalog.md`; your committed `tools/generated/query-shapes.json` is seeded
+and stays as it is (its subsection below). What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1932,6 +1935,12 @@ notice afterwards:
   `baseVersion` is below 1.1.0 each reads `NOTE — (ramp)` under a NOTE that expires in
   1.2.0, and `graduate` refuses while they stand. The subsection on the grant bound below
   gives the SQL, then the command.
+- **`pnpm gen` records a DAL's `rpc()` and `upsert()` calls, and `query-shapes` judges
+  them.** If no probed DAL function of yours makes either call, the manifest regenerates
+  unchanged and nothing moves. If one does, it could not pass under 1.0.x: `pnpm gen` threw
+  on the rpc, and an upsert failed `query-shapes` with advice about OFFSET pagination. Run
+  `pnpm gen` again and commit the manifest; the subsection on rpc and upsert below says what
+  the gate now checks.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -2989,6 +2998,44 @@ quota shapes) that a file generated from the migrations cannot.
 The harness's upgrade lane runs exactly these two steps on its swept leg
 (`scripts/ci/upgrade-sweep.mjs` `SWEEPS['1.1.0']`): the statements the gate prints, in a
 migration of the leg's own, then the generator. It copies neither withheld file.
+
+### A DAL that calls `rpc()` or `upsert()`: regenerate the query-shape manifest
+
+Through 1.0.4 neither call could pass `query-shapes`. The recording port that `pnpm gen`
+drives each probed DAL function with had no `rpc()`, so generation threw on a function that
+called it, and an upsert recorded as a read whose `extra` named `.upsert()`, which the gate
+failed with advice about OFFSET pagination. Both are now recorded as their own kind of row.
+`tools/generated/query-shapes.json` is seeded, so `update` does not rewrite it. If a probed
+DAL function of yours makes either call:
+
+1. Run `pnpm gen`, or `pnpm gen:contracts`, the part of it that needs no database.
+2. Run `node tools/check-query-shapes.mjs`, and fix what it names (below).
+3. Commit `tools/generated/query-shapes.json`. Only the rows of rpc and upsert calls change;
+   every other row keeps its bytes.
+
+What the gate now checks, and the fix for each red:
+
+- **`calls rpc public.<name>, which no migration creates`.** No file in
+  `supabase/migrations/` creates that function in `public`, the one schema PostgREST
+  exposes, so the call would get PGRST202. Create it there, or call a name a migration
+  creates.
+- **`without its required parameter(s) …` or `names …, which public.<name> has no input
+  parameter called`.** Pass every input parameter that has no DEFAULT, under its declared
+  name, and no other. An OUT parameter is a result, not an argument.
+- **`upsert into public.<table> ON CONFLICT (…) — no UNIQUE index or primary key …`.** Put
+  the exact columns of a UNIQUE index or of the primary key in `onConflict`, in any order,
+  or add the index in a new migration; the finding lists the ones the table holds. On a
+  tenant table the index carries the tenant column, because `tenancy` reds a UNIQUE there
+  that omits it, so the conflict target names it too. With no `onConflict` the target is
+  the primary key, so the table needs one.
+- **`upsert into tenant table "<table>" writes no <tenant column>`.** Write the tenant column
+  in the payload, as an insert does.
+
+The gate reads migrations, not a database, and it does not model `DROP FUNCTION` or
+overloads (the last definition of a name wins), reads a partial UNIQUE index as an arbiter,
+and does not judge the arguments of a function with an unnamed input parameter. If you
+edited one of the owned files this item re-plants, your copy stays, the new one is parked
+under `.harness/pending/`, and `update` exits 2 while it stays there.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

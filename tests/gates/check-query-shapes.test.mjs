@@ -39,7 +39,8 @@ import { fileURLToPath } from 'node:url'
 // weaken the dead-code gate with an ignore entry or to let it see the truth. This is the
 // second one — the imports are honest and the gate keeps its teeth.
 import { boundKind, createRecorder, normalizeChain } from '../../template/base/tools/lib/query-recorder.mjs'
-import { indexServes, selectSql } from '../../template/base/tools/lib/query-shapes.mjs'
+import { indexServes, parseShapes, selectSql } from '../../template/base/tools/lib/query-shapes.mjs'
+import { parseFunctions, parseIndexes, splitStatements } from '../../template/base/tools/lib/sql-parse.mjs'
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url))
 const GATE_SRC = join(ROOT, 'template/base/tools/check-query-shapes.mjs')
@@ -493,4 +494,349 @@ test('RAMP (1.1.0): the fold-only finding is RAMP EXPIRED and red at harness 1.2
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('query-shapes: RAMP EXPIRED — the SQL history fold'), r.out)
   assert.ok(r.out.includes('no index on public.notes serves it'), r.out)
+})
+
+// ── 1.1.0 (#79): rpc() and upsert() ──────────────────────────────────────────
+// Through 1.0.x the recording port had only `from()`, so a probed DAL that called
+// `.rpc()` threw inside `pnpm gen`, and `upsert` was outside KNOWN_METHODS, so an upsert
+// recorded as a `select` with `extra: ["upsert"]` and redded with OFFSET advice. Both now
+// record as their own op, and the gate judges what PostgREST and PostgreSQL would refuse
+// at runtime: an rpc no migration creates or called with the wrong argument names
+// (PGRST202), and an upsert whose conflict columns match no UNIQUE index or primary key.
+
+/** A row exactly as tools/gen-query-shapes.mjs writes it: identity, then the chain. */
+async function recordRow(vertical, id, fn, run) {
+  const { chains, db } = createRecorder()
+  await run(db)
+  assert.equal(chains.length, 1)
+  return { id: `${vertical}.${id}`, vertical, fn, ...normalizeChain(chains[0]) }
+}
+
+/** The web app's invitation RPC, driven through the recording port. */
+const acceptRow = () =>
+  recordRow('orgs', 'acceptInvitation#accept', 'acceptInvitation', (db) =>
+    db.rpc('accept_invitation', { p_token: 'tok-VALUE-never-recorded' }),
+  )
+
+/** An idempotent write on an untenanted table, keyed on a UNIQUE index. */
+const handleUpsertRow = (onConflict = 'handle') =>
+  recordRow('profiles', 'saveHandle#upsert', 'saveHandle', (db) =>
+    db
+      .from('profiles')
+      .upsert({ handle: 'h', id: 'x' }, onConflict === null ? undefined : { onConflict })
+      .select('id')
+      .limit(1),
+  )
+
+/**
+ * A tenant upsert on the notes table, targeting its primary key by default.
+ * @param {Record<string, string>} [payload]
+ */
+const noteUpsertRow = (payload = { id: 'x', org_id: 'o', title: 't' }) =>
+  recordRow('notes', 'saveNote#upsert', 'saveNote', (db) =>
+    db.from('notes').upsert(payload).select('id').limit(1),
+  )
+
+const FUNCTIONS_SQL = `
+CREATE FUNCTION public.accept_invitation(p_token uuid)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  RETURN p_token;
+END;
+$$;
+CREATE FUNCTION public.org_audit_events(
+  _org uuid,
+  _before timestamptz DEFAULT NULL,
+  _limit int = 50,
+  _amount numeric(10,2) DEFAULT 0,
+  OUT event_id bigint
+)
+RETURNS SETOF record
+LANGUAGE sql
+STABLE
+AS $$ SELECT 1::bigint $$;
+CREATE TABLE public.profiles (
+  id uuid NOT NULL,
+  handle text NOT NULL,
+  CONSTRAINT profiles_pk PRIMARY KEY (id)
+);
+CREATE UNIQUE INDEX profiles_handle_key ON public.profiles (handle);
+`
+const MIGRATION_CALLS = `${MIGRATION_OK}${FUNCTIONS_SQL}`
+
+test('RECORDER (1.1.0): db.rpc() records op "rpc", table null and the argument NAMES only', async () => {
+  const row = await acceptRow()
+  assert.equal(row.op, 'rpc')
+  assert.equal(row.table, null)
+  assert.deepEqual(row.rpc, { args: ['p_token'], name: 'accept_invitation' })
+  assert.equal(row.kind, 'write')
+  assert.deepEqual(row.extra, [])
+  assert.ok(!JSON.stringify(row).includes('tok-VALUE'), JSON.stringify(row))
+})
+
+test('RECORDER (1.1.0): an rpc with no arguments records args [] and a later unknown method lands in extra', async () => {
+  const { chains, db } = createRecorder()
+  await db.rpc('ensure_personal_org').range(0, 20)
+  const shape = normalizeChain(chains[0])
+  assert.deepEqual(shape.rpc, { args: [], name: 'ensure_personal_org' })
+  assert.deepEqual(shape.extra, ['range'])
+})
+
+test('RECORDER (1.1.0): an upsert records op "upsert", its payload and onConflict, with an empty extra', async () => {
+  const row = await handleUpsertRow('handle')
+  assert.equal(row.op, 'upsert')
+  assert.equal(row.table, 'profiles')
+  assert.deepEqual(row.payload, ['handle', 'id'])
+  assert.deepEqual(row.onConflict, ['handle'])
+  assert.deepEqual(row.extra, [])
+  assert.equal(row.kind, 'write')
+})
+
+test('RECORDER (1.1.0): onConflict is split on commas and sorted, null when absent; an array payload reads its first element', async () => {
+  const { chains, db } = createRecorder()
+  await db.from('t').upsert([{ b: 1, a: 2 }, { c: 3 }], { onConflict: 'b, a' })
+  await db.from('t').upsert({ z: 1 })
+  const [many, one] = chains.map(normalizeChain)
+  assert.deepEqual(many.payload, ['a', 'b'])
+  assert.deepEqual(many.onConflict, ['a', 'b'])
+  assert.equal(one.onConflict, null)
+  assert.equal(boundKind(many), 'write')
+})
+
+test('RECORDER (1.1.0): the key list of select, insert, update and delete rows is pinned — neither new key reaches them', async () => {
+  const BASE = ['columns', 'eq', 'is', 'limit', 'op', 'or', 'orColumns', 'order', 'payload', 'range', 'table', 'extra', 'kind']
+  const { chains, db } = createRecorder()
+  await db.from('notes').select('id').eq('org_id', 'o').limit(1)
+  await db.from('notes').insert({ org_id: 'o' }).select('id').limit(1)
+  await db.from('notes').update({ title: 't' }).eq('org_id', 'o').select('id').limit(1)
+  await db.from('notes').delete().eq('org_id', 'o').select('id').limit(1)
+  await db.rpc('f', { a: 1 })
+  await db.from('notes').upsert({ org_id: 'o' })
+  const shapes = chains.map(normalizeChain)
+  assert.deepEqual(
+    shapes.slice(0, 4).map((s) => s.op),
+    ['select', 'insert', 'update', 'delete'],
+  )
+  for (const s of shapes.slice(0, 4)) assert.deepEqual(Object.keys(s), BASE, s.op)
+  // Each new op gains exactly its one key, in the key order the rows already use.
+  assert.deepEqual(Object.keys(shapes[4]), [...BASE.slice(0, 10), 'rpc', ...BASE.slice(10)])
+  assert.deepEqual(Object.keys(shapes[5]), [...BASE.slice(0, 4), 'onConflict', ...BASE.slice(4)])
+})
+
+test('PARSE (1.1.0): rpc and upsert rows parse; a missing rpc/onConflict key or a misplaced null table fails closed', async () => {
+  const rpc = await acceptRow()
+  const upsert = await handleUpsertRow()
+  assert.equal(parseShapes(JSON.stringify([rpc, upsert])).length, 2)
+  const { rpc: _r, ...noRpc } = rpc
+  const { onConflict: _o, ...noConflict } = upsert
+  assert.throws(() => parseShapes(JSON.stringify([noRpc])), /bad or missing "rpc"/)
+  assert.throws(() => parseShapes(JSON.stringify([noConflict])), /bad or missing "onConflict"/)
+  assert.throws(() => parseShapes(JSON.stringify([{ ...rpc, rpc: { name: '', args: [] } }])), /"rpc"/)
+  assert.throws(() => parseShapes(JSON.stringify([{ ...upsert, onConflict: 'handle' }])), /"onConflict"/)
+  // An empty option records [] and parses: the arbiter rule, not the parser, judges it.
+  assert.equal(parseShapes(JSON.stringify([{ ...upsert, onConflict: [] }])).length, 1)
+  assert.throws(() => parseShapes(JSON.stringify([{ ...upsert, table: null }])), /bad or missing "table"/)
+  assert.throws(() => parseShapes(JSON.stringify([listShape({ table: null })])), /bad or missing "table"/)
+  assert.throws(() => parseShapes(JSON.stringify([{ ...rpc, table: 'notes' }])), /bad or missing "table"/)
+})
+
+test('PARSE (1.1.0): the parser marks a primary key, named or not, and splits a parameter list at top level', () => {
+  const statements = splitStatements(MIGRATION_CALLS)
+  const pk = parseIndexes(statements).all.filter((i) => i.primaryKey)
+  assert.deepEqual(
+    pk.map((i) => `${i.table}:${i.name}`),
+    ['notes:notes_pkey', 'profiles:profiles_pk'],
+  )
+  const handle = parseIndexes(statements).all.find((i) => i.name === 'profiles_handle_key')
+  assert.equal(handle?.primaryKey, false)
+  assert.equal(handle?.unique, true)
+  const audit = parseFunctions(statements).find((f) => f.name === 'org_audit_events')
+  // `numeric(10,2)` is ONE parameter: a naive split(',') tore it into two.
+  assert.deepEqual(
+    audit?.params.map((p) => p.raw),
+    ['_org uuid', '_before timestamptz DEFAULT NULL', '_limit int = 50', '_amount numeric(10,2) DEFAULT 0', 'OUT event_id bigint'],
+  )
+  const altered = parseIndexes(
+    splitStatements(
+      'CREATE TABLE public.t (id uuid NOT NULL, k text);\nALTER TABLE public.t ADD CONSTRAINT t_main PRIMARY KEY (id), ADD UNIQUE (k);',
+    ),
+  ).all
+  assert.deepEqual(
+    altered.map((i) => [i.name, i.primaryKey]),
+    [
+      ['t_main', true],
+      ['t_k_key', false],
+    ],
+  )
+})
+
+test('GREEN (1.1.0): an rpc a migration creates, called with its parameter names', async () => {
+  const r = runGate(fixture({ migration: MIGRATION_CALLS, shapes: [listShape(), await acceptRow()] }))
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('orgs.acceptInvitation#accept -> rpc public.accept_invitation'), r.out)
+  // The null table must not reach the tenant-equality or index-service rules.
+  assert.ok(!r.out.includes('null'), r.out)
+})
+
+test('GREEN (1.1.0): an rpc may omit a DEFAULT parameter, and an OUT parameter is not an input', async () => {
+  const row = await recordRow('audit', 'events#first', 'events', (db) =>
+    db.rpc('org_audit_events', { _org: 'o' }).limit(50),
+  )
+  const r = runGate(fixture({ migration: MIGRATION_CALLS, shapes: [row] }))
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('rpc public.org_audit_events'), r.out)
+})
+
+test('GREEN (1.1.0): an upsert whose onConflict is a UNIQUE index', async () => {
+  const r = runGate(fixture({ migration: MIGRATION_CALLS, shapes: [await handleUpsertRow('handle')] }))
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('profiles.saveHandle#upsert -> ON CONFLICT profiles_handle_key'), r.out)
+})
+
+test('GREEN (1.1.0): an upsert with no onConflict on a table whose primary key is a NAMED constraint', async () => {
+  const migration = MIGRATION_CALLS.replace('  PRIMARY KEY (org_id, id)\n', '  CONSTRAINT notes_pk PRIMARY KEY (org_id, id)\n')
+  assert.notEqual(migration, MIGRATION_CALLS)
+  const r = runGate(fixture({ migration, shapes: [listShape(), await noteUpsertRow()] }))
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('notes.saveNote#upsert -> ON CONFLICT notes_pk'), r.out)
+})
+
+test('RED (1.1.0): an rpc no migration creates — the anti-vacuity rename', async () => {
+  const migration = MIGRATION_CALLS.replace('public.accept_invitation(', 'public.accept_invite(')
+  const r = runGate(fixture({ migration, shapes: [await acceptRow()] }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('(orgs.acceptInvitation#accept): calls rpc public.accept_invitation, which no migration creates'), r.out)
+  assert.ok(r.out.includes('PGRST202'), r.out)
+})
+
+test('RED (1.1.0): an rpc missing a required parameter, or naming one the function lacks', async () => {
+  const wrong = await recordRow('orgs', 'acceptInvitation#accept', 'acceptInvitation', (db) =>
+    db.rpc('accept_invitation', { token: 'x' }),
+  )
+  const r = runGate(fixture({ migration: MIGRATION_CALLS, shapes: [wrong] }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('without its required parameter(s) p_token'), r.out)
+  assert.ok(r.out.includes('names token, which public.accept_invitation has no input parameter called'), r.out)
+  const out = await recordRow('audit', 'events#first', 'events', (db) =>
+    db.rpc('org_audit_events', { _org: 'o', event_id: 1 }),
+  )
+  const r2 = runGate(fixture({ migration: MIGRATION_CALLS, shapes: [out] }))
+  assert.equal(r2.code, 1, r2.out)
+  assert.ok(r2.out.includes('names event_id, which public.org_audit_events has no input parameter called'), r2.out)
+})
+
+test('RED (1.1.0): an upsert with no matching arbiter — the anti-vacuity drop of the unique index', async () => {
+  const migration = MIGRATION_CALLS.replace(
+    'CREATE UNIQUE INDEX profiles_handle_key ON public.profiles (handle);',
+    'CREATE INDEX profiles_handle_idx ON public.profiles (handle);',
+  )
+  assert.notEqual(migration, MIGRATION_CALLS)
+  const r = runGate(fixture({ migration, shapes: [await handleUpsertRow('handle')] }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('upsert into public.profiles ON CONFLICT (handle)'), r.out)
+  assert.ok(r.out.includes('no UNIQUE index or primary key'), r.out)
+  // The finding names the arbiters the table does hold, so the fix can pick one.
+  assert.ok(r.out.includes('public.profiles holds profiles_pk (id)'), r.out)
+  assert.ok(r.out.includes('CREATE UNIQUE INDEX profiles_handle_key ON public.profiles (handle);'), r.out)
+  // A superset or subset of an index's columns is not an arbiter: the match is a set.
+  const r2 = runGate(fixture({ migration: MIGRATION_CALLS, shapes: [await handleUpsertRow('handle,id')] }))
+  assert.equal(r2.code, 1, r2.out)
+  assert.ok(r2.out.includes('ON CONFLICT (handle, id)'), r2.out)
+})
+
+test('RED (1.1.0): on a tenant table the index a no-arbiter finding proposes leads with the tenant column', async () => {
+  // tenancy reds a UNIQUE that omits org_id on a tenant table, so proposing
+  // `CREATE UNIQUE INDEX … (id)` would trade this red for that one.
+  const row = await recordRow('notes', 'saveNote#byId', 'saveNote', (db) =>
+    db.from('notes').upsert({ id: 'x', org_id: 'o' }, { onConflict: 'id' }).select('id').limit(1),
+  )
+  const r = runGate(fixture({ migration: MIGRATION_CALLS, shapes: [row] }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('upsert into public.notes ON CONFLICT (id)'), r.out)
+  assert.ok(r.out.includes('public.notes holds notes_pkey (org_id, id)'), r.out)
+  // (org_id, id) is the primary key already, so the fix is the conflict target, not an index.
+  assert.ok(r.out.includes("Pass onConflict: 'org_id,id', the columns of notes_pkey."), r.out)
+  assert.ok(!r.out.includes('ON public.notes (id);'), r.out)
+  const titled = await recordRow('notes', 'saveNote#byTitle', 'saveNote', (db) =>
+    db.from('notes').upsert({ org_id: 'o', title: 't' }, { onConflict: 'title' }).select('id').limit(1),
+  )
+  const r2 = runGate(fixture({ migration: MIGRATION_CALLS, shapes: [titled] }))
+  assert.equal(r2.code, 1, r2.out)
+  assert.ok(r2.out.includes('CREATE UNIQUE INDEX notes_org_id_title_key ON public.notes (org_id, title);'), r2.out)
+  assert.ok(r2.out.includes('On a tenant table a UNIQUE carries org_id'), r2.out)
+})
+
+test('RED (1.1.0): an upsert with no onConflict on a table with no primary key', async () => {
+  const migration = MIGRATION_CALLS.replace('  CONSTRAINT profiles_pk PRIMARY KEY (id)\n', '  CONSTRAINT profiles_id_check CHECK (id IS NOT NULL)\n')
+  assert.notEqual(migration, MIGRATION_CALLS)
+  const r = runGate(fixture({ migration, shapes: [await handleUpsertRow(null)] }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('upsert into public.profiles with no onConflict targets the primary key'), r.out)
+  assert.ok(r.out.includes('public.profiles holds profiles_handle_key (handle)'), r.out)
+})
+
+test('RED (1.1.0): a tenant upsert that writes no tenant column', async () => {
+  const r = runGate(
+    fixture({ migration: MIGRATION_CALLS, shapes: [await noteUpsertRow({ id: 'x', title: 't' })] }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('upsert into tenant table "notes" writes no org_id'), r.out)
+  // The upsert is judged as a write: no equality or index-service finding rides along.
+  assert.ok(!r.out.includes('no org_id equality'), r.out)
+  assert.ok(!r.out.includes('no index on public.notes serves it'), r.out)
+})
+
+test('RED (1.1.0): an rpc row with no rpc key, and an upsert row with no onConflict key, fail closed', async () => {
+  const { rpc: _r, ...noRpc } = await acceptRow()
+  const r = runGate(fixture({ migration: MIGRATION_CALLS, shapes: [noRpc] }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('bad or missing "rpc"'), r.out)
+  const { onConflict: _o, ...noConflict } = await handleUpsertRow()
+  const r2 = runGate(fixture({ migration: MIGRATION_CALLS, shapes: [noConflict] }))
+  assert.equal(r2.code, 1, r2.out)
+  assert.ok(r2.out.includes('bad or missing "onConflict"'), r2.out)
+})
+
+test('RED (1.1.0): the extra and ceiling rules still judge an rpc row', async () => {
+  const row = await recordRow('audit', 'events#page', 'events', (db) =>
+    db.rpc('org_audit_events', { _org: 'o' }).range(0, 20).limit(5000),
+  )
+  const r = runGate(fixture({ migration: MIGRATION_CALLS, shapes: [row] }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('uses .range()'), r.out)
+  assert.ok(r.out.includes('exceeds [api].max_rows'), r.out)
+})
+
+test('GREEN/RED (1.1.0): parameter modes, mode-prefixed names and unnamed parameters are read from the declaration', async () => {
+  const migration = `${MIGRATION_OK}
+CREATE FUNCTION public.set_role(INOUT invite_rank smallint, VARIADIC out_tags text[], OUT result text)
+LANGUAGE sql AS $$ SELECT 1, 'x' $$;
+CREATE FUNCTION public.echo(jsonb) RETURNS jsonb LANGUAGE sql AS $$ SELECT $1 $$;
+CREATE FUNCTION public.scale(double precision) RETURNS float8 LANGUAGE sql AS $$ SELECT $1 $$;
+`
+  const call = (fn, args) =>
+    recordRow('orgs', `${fn}#call`, fn, (db) => db.rpc(fn, args))
+  // An INOUT and a VARIADIC parameter are inputs, and a name starting with "in" or "out" is
+  // not a mode (parseFunctions' own reading takes "INOUT invite_rank" for a parameter "out").
+  const green = runGate(
+    fixture({
+      migration,
+      shapes: [
+        await call('set_role', { invite_rank: 1, out_tags: [] }),
+        // Unnamed input parameters cannot be matched by name: resolved, arguments not judged.
+        await call('echo', { anything: 1 }),
+        await call('scale', { x: 1 }),
+      ],
+    }),
+  )
+  assert.equal(green.code, 0, green.out)
+  assert.ok(green.out.includes('orgs.scale#call -> rpc public.scale'), green.out)
+  const red = runGate(fixture({ migration, shapes: [await call('set_role', { rank: 1, result: 'r' })] }))
+  assert.equal(red.code, 1, red.out)
+  assert.ok(red.out.includes('without its required parameter(s) invite_rank, out_tags'), red.out)
+  assert.ok(red.out.includes('names rank, result, which public.set_role has no input parameter called'), red.out)
 })

@@ -1502,6 +1502,35 @@ but without the leading column it filters by SCANNING); and **ceiling** (no LIMI
 `[api].max_rows`, which PostgREST truncates to silently, so the sentinel row a keyset
 page uses to detect "has more" never arrives).
 
+**`rpc()` and `upsert()` (1.1.0).** The recording port has `db.rpc(name, args)`, and an rpc
+row is `op: "rpc"` with `table: null` and one more key, `rpc: { name, args }`, where `args`
+is the sorted argument names and never a value. `upsert` is in the reviewed method set, and
+an upsert row is `op: "upsert"` with the payload's keys and one more key, `onConflict`: the
+option split on commas and sorted, or `null` when absent. A row that uses neither gains no
+key, so a manifest that has no such call regenerates byte-identical. Through 1.0.4 a probed
+DAL that called `.rpc()` threw inside `pnpm gen`, and an upsert recorded as a `select` whose
+`extra` named it, so it failed with OFFSET advice. Four rules judge the two ops, which skip
+**served** and **tenant-led** (an rpc has no table, and an upsert's lookup is its conflict
+arbiter); **bounded** never reds a write, and the unreviewed-method and **ceiling** rules
+still apply. **rpc resolves**: a migration creates `public.<name>`, the one schema
+`supabase/config.toml` exposes, or PostgREST answers PGRST202. **rpc arguments**: the call
+names every input parameter (IN, INOUT or VARIADIC) that has no DEFAULT, and no parameter
+the function lacks, or PostgREST finds no function with that argument list (PGRST202).
+**upsert arbiter**: the conflict columns equal, as a set, the columns of a UNIQUE index or
+primary key that still exists; with no `onConflict` they are the primary key's, which is
+what PostgREST targets, and PostgreSQL raises an error when ON CONFLICT inference finds no
+such index. Its finding lists the arbiters the table holds, and on a tenant table the target
+or index it proposes carries the tenant column, which `tenancy` requires of every UNIQUE
+there. **upsert tenant**: on a tenant table the payload carries the tenant column, as
+an insert's does. The limits, stated in the gate's header too: the parser does not model
+`DROP FUNCTION`, so a dropped function still resolves; `resolveFunction` matches on the name
+alone, so overloads collapse to the last definition; index parsing drops the predicate of a
+partial index, so a partial UNIQUE index, which ON CONFLICT cannot infer without an index
+predicate, still reads as an arbiter; and a function with an unnamed input parameter
+resolves, but its arguments are not judged. The function body an rpc runs is judged by no
+rule here. A committed manifest is seeded, so `update` never rewrites it: a DAL that calls
+either method runs `pnpm gen` again and commits the result.
+
 This is the static half. It cannot prove the planner CHOOSES the index it found — that
 is `tools/check-db-perf.mjs` in the path-filtered `db-scale` CI lane, against 2M seeded
 rows. Neither subsumes the other: this one is decidable from migration text in ~60ms,
@@ -1512,7 +1541,12 @@ printing the exact `CREATE INDEX` that would serve it; swap the index's sort tai
 stay green (both only see the leading column); drop the `.limit()` from a list DAL →
 FAIL unbounded; add `.range(0, 20)` → FAIL naming `.range()`; add a DAL function with
 no probe → `pnpm gen` FAILS and `contracts` reds; empty the manifest → FAIL (an empty
-manifest passes every rule above without judging anything).
+manifest passes every rule above without judging anything); rename the function an rpc
+calls in its migration → FAIL naming `public.<name>` and PGRST202; call it with a wrong or
+missing argument name → FAIL naming the parameter; drop the UNIQUE index an upsert's
+`onConflict` names → FAIL naming the conflict columns; drop the tenant column from a tenant
+upsert's payload → FAIL; strip `rpc` from an rpc row or `onConflict` from an upsert row →
+FAIL (the manifest is malformed, not judged).
 
 **The history fold (1.1.0).** The index lookup is folded through `DROP TABLE`: a dropped
 table takes its indexes with it, so a re-created table is served only by indexes created
