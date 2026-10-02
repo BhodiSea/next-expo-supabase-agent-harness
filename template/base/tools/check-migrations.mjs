@@ -21,7 +21,9 @@
 //      Judged per STATEMENT, so DML inside a CREATE FUNCTION body — which the
 //      migration defines but never executes — is not the migration's DML
 //   3. destructive DDL (DROP TABLE/COLUMN, TRUNCATE) requires `-- adr: docs/adr/<file>`
-//      pointing at an existing ADR
+//      pointing at an existing ADR; so does an authorization change (3b), which since
+//      1.1.0 includes ALTER POLICY that rewrites a policy (a RENAME TO alone changes no
+//      control), judged per statement
 // SOURCE: docs/harness/README.md (migration discipline)
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
@@ -45,6 +47,9 @@ import { splitStatements } from './lib/sql-parse.mjs'
 const GATE = 'migrations'
 const DIR = 'supabase/migrations'
 const RAMP = '0.2.0'
+// The ALTER POLICY rule's own ramp (1.1.0, #75). Its findings are NEW judgement of history the
+// 0.2.0 rules never read, so they do not join the 0.2.0 bucket, whose ramp ended at 0.4.0.
+const FOLD_RAMP = '1.1.0'
 
 // DML is judged at STATEMENT level, never by grepping raw text: a SECURITY DEFINER
 // RPC's function body legitimately contains INSERT/UPDATE/DELETE that the migration
@@ -89,15 +94,30 @@ const AUTHZ_DESTRUCTIVE = [
 // SOURCE: https://www.postgresql.org/docs/17/explicit-locking.html (ACCESS EXCLUSIVE conflicts with every other lock mode)
 const ACCESS_EXCLUSIVE = /\bALTER\s+TABLE(?:\s+ONLY)?\s+([a-z0-9_."]+)/gi
 
+// ALTER POLICY (1.1.0). It replaces the USING, WITH CHECK or TO clause a reviewer approved,
+// and the database never runs the old one again — an authorization change as consequential as
+// the DROP POLICY above, which needed an ADR while this did not. Judged per STATEMENT through
+// splitStatements, because the separate `RENAME TO` form changes no control and one rename in
+// a file must not excuse a rewrite beside it.
+// SOURCE: https://www.postgresql.org/docs/17/sql-alterpolicy.html
+const ALTER_POLICY = /^ALTER\s+POLICY\s+\S+\s+ON\s+\S+\s+(.+)$/i
+const rewritesPolicy = (stmt) => {
+  const m = ALTER_POLICY.exec(stmt)
+  return m !== null && !/^RENAME\s+TO\s+\S+$/i.test(m[1])
+}
+
 if (!existsSync(DIR)) skipOrFail(GATE, `${DIR} not found (no migrations surface yet)`)
 const errs = []
 // New-in-0.2.0 findings: a consumer whose migrations predate these rules cannot
 // retroactively add an ADR to applied history, so they ramp.
-/** @type {Array<{file: string, rule: 'authz-adr'|'lock-timeout', msg: string}>} */
+/** @type {Array<{file: string, rule: 'authz-adr'|'lock-timeout', msg: string, since: string}>} */
 const rampedErrs = []
-/** @param {string} file @param {'authz-adr'|'lock-timeout'} rule @param {string} msg */
-function ramped(file, rule, msg) {
-  rampedErrs.push({ file, rule, msg })
+/**
+ * @param {string} file @param {'authz-adr'|'lock-timeout'} rule @param {string} msg
+ * @param {string} [since] the ramp the finding rides: the 0.2.0 bucket unless named
+ */
+function ramped(file, rule, msg, since = RAMP) {
+  rampedErrs.push({ file, rule, msg, since })
 }
 
 // 1. append-only — a git failure must never silently VACATE this check: an
@@ -150,7 +170,8 @@ for (const f of readdirSync(DIR)
     .split('\n')
     .filter((l) => !l.trim().startsWith('--'))
     .join('\n')
-  if (splitStatements(text).some(isDml) && !/--\s*harness-allow-dml:/.test(text)) {
+  const statements = splitStatements(text)
+  if (statements.some(isDml) && !/--\s*harness-allow-dml:/.test(text)) {
     errs.push(
       `${DIR}/${f}: contains DML — schema migrations carry structure, not data. If this is deliberate reference data, add \`-- harness-allow-dml: <reason>\`.`,
     )
@@ -184,6 +205,21 @@ for (const f of readdirSync(DIR)
       )
     } else if (!existsSync(m[1])) {
       ramped(f, 'authz-adr', `${DIR}/${f}: referenced ADR ${m[1]} does not exist`)
+    }
+  }
+  // …and ALTER POLICY (1.1.0), the same rule and the same `authz-adr` allow entry, on a ramp
+  // of its own.
+  if (statements.some(rewritesPolicy)) {
+    const m = text.match(/--\s*adr:\s*(\S+)/)
+    if (!m) {
+      ramped(
+        f,
+        'authz-adr',
+        `${DIR}/${f}: ALTER POLICY removes an authorization control — the USING, WITH CHECK or TO clause it replaces is never run again. Add \`-- adr: docs/adr/NNNN-<slug>.md\` recording why`,
+        FOLD_RAMP,
+      )
+    } else if (!existsSync(m[1])) {
+      ramped(f, 'authz-adr', `${DIR}/${f}: referenced ADR ${m[1]} does not exist`, FOLD_RAMP)
     }
   }
 
@@ -309,11 +345,13 @@ function existsAtBase(file) {
 
 const used = new Set()
 const exempted = []
+// The 0.2.0 bucket and the 1.1.0 ALTER POLICY bucket, each consumed by its own ramp below.
 const remaining = []
+const remainingAlter = []
 for (const e of rampedErrs) {
   const hit = allow.find((a) => a.file === e.file && a.rule === e.rule)
   if (hit === undefined) {
-    remaining.push(e)
+    ;(e.since === FOLD_RAMP ? remainingAlter : remaining).push(e)
     continue
   }
   used.add(`${hit.file} ${hit.rule}`)
@@ -335,6 +373,10 @@ for (const e of exempted) {
   console.log(`${GATE}: NOTE — (reviewed exemption, ${ALLOW}) ${e.msg}`)
 }
 
+/** A ramped finding as a hard red, naming the escape when the in-file fix would red. */
+const hardFinding = (e) =>
+  `${e.msg}${existsAtBase(e.file) ? ` — if this migration is already APPLIED, the fix belongs in ${ALLOW} (rule "${e.rule}"), because editing a committed migration reds the append-only rule above. See docs/runbooks/harness-upgrade.md.` : ''}`
+
 if (remaining.length > 0) {
   const isRamped = rampNote(
     GATE,
@@ -343,17 +385,23 @@ if (remaining.length > 0) {
     { until: '0.4.0' },
   )
   if (isRamped) for (const e of remaining) console.log(`${GATE}: NOTE — ${e.msg}`)
-  else
-    errs.push(
-      ...remaining.map(
-        (e) =>
-          `${e.msg}${existsAtBase(e.file) ? ` — if this migration is already APPLIED, the fix belongs in ${ALLOW} (rule "${e.rule}"), because editing a committed migration reds the append-only rule above. See docs/runbooks/harness-upgrade.md.` : ''}`,
-      ),
-    )
+  else errs.push(...remaining.map(hardFinding))
+}
+
+// Every ALTER POLICY finding is one the 1.0.x rules never produced, so on an install whose
+// baseVersion predates 1.1.0 it is a dated NOTE until 1.2.0: an applied migration carrying one
+// was written when no rule asked for the ADR. Its sweep is the ADR for a new migration, or the
+// existing authz-adr entry above for one already applied.
+if (remainingAlter.length > 0) {
+  const alterRamped = rampNote(GATE, FOLD_RAMP, 'ALTER POLICY as an authorization change', {
+    until: '1.2.0',
+  })
+  if (alterRamped) for (const e of remainingAlter) console.log(`${GATE}: NOTE — (ramp) ${e.msg}`)
+  else errs.push(...remainingAlter.map(hardFinding))
 }
 
 failures(GATE, errs)
 ok(
   GATE,
-  'migrations append-only, DML-free, destructive and authorization-removing changes ADR-coupled, ACCESS EXCLUSIVE lock-bounded',
+  'migrations append-only, DML-free, destructive and authorization-changing DDL (ALTER POLICY included) ADR-coupled, ACCESS EXCLUSIVE lock-bounded',
 )

@@ -51,6 +51,8 @@ changes (#83).
 The CI-only `workflow-hardening` gate (see Added) opens one more ramp at 1.1.0, over a
 project's own workflows, with a deadline of 1.2.0, and adds one release row and one
 `scripts/ci/stop-side-expiries.json` entry (#73).
+The SQL history fold (see Changed) opens six more at 1.1.0, one in each gate whose verdict
+it moves, each with a deadline of 1.2.0, and adds one release row that anchors all six (#75).
 
 ### Security
 
@@ -702,6 +704,40 @@ this heading if none does. -->
   `scripts/check-dependency-channel.mjs` reds a malformed floor, a floor naming a package
   the template does not pin, and a template pin below its own floor. No gate script,
   `tools/framework-floor.json` row, chain step or ramp (#83).
+- **The SQL gates fold `DROP TABLE` and `ALTER POLICY`, behind six ramps until 1.2.0.**
+  `tools/lib/sql-parse.mjs` read neither statement. A dropped table kept its columns,
+  indexes, triggers, RLS toggles, policies and grants in every view the SQL gates read, and
+  a re-created table of the same name inherited them. A policy rewritten by `ALTER POLICY`
+  was judged on its CREATE text. `schema-rls` also parsed `DROP POLICY` and threw the list
+  away, so a dropped policy still covered its operation. Every view now folds
+  `DROP TABLE [IF EXISTS] a, b [CASCADE|RESTRICT]`: each table and its partitions leave it,
+  foreign keys into them are cleared, and a later CREATE starts the table fresh. The new
+  `parseLivePolicies()` is the one live-policy fold, read by `schema-rls` and `tenancy`:
+  `ALTER POLICY` replaces the roles, USING and WITH CHECK clauses it names and keeps the
+  rest, and `RENAME TO` renames. `schema-rls` now reads `parseCreatedTables()` instead of
+  its own regex, and reports a `DROP TABLE` without IF EXISTS, or an `ALTER POLICY`, whose
+  target no earlier migration left in place; `DROP TABLE IF EXISTS` on an unknown table is
+  a no-op there as in the database, and a table made outside the migrations and dropped by
+  an applied one is acknowledged with a reason in `tools/rls-exempt.json`. `migrations`
+  treats `ALTER POLICY` as an authorization change that needs `-- adr:`, judged per
+  statement so that a rename alone needs none, and an applied one uses the existing
+  `authz-adr` entry in `tools/migrations-allow.json`.
+  `schema-rls`, `tenancy`, `data-flow`, `db-limits` and `query-shapes` pass a finding only
+  the folded history produces through `rampNote(GATE, '1.1.0', 'the SQL history fold (…)',
+  { until: '1.2.0' })`, and `migrations` passes its `ALTER POLICY` findings through a ramp of
+  their own. Each is a dated NOTE below `baseVersion` 1.1.0, a plain red on a fresh scaffold
+  and `RAMP EXPIRED` from harness 1.2.0. The new owned `tools/lib/sql-fold-ramp.mjs` tells a
+  fold-only finding apart by replaying the gate over the pre-fold history in a worker thread
+  and comparing the two finding lists: a finding both readings produce stays a hard red at
+  every vintage, and one only the old reading produced is gone, because it described a
+  dropped or rewritten object. The replay runs only when the history holds one of the
+  folded statements and the gate found something. `db-perf`'s static index lookup moves
+  with the parser, with no ramp, since it runs only against a live database. The shipped
+  migrations hold no top-level `DROP TABLE` or `ALTER POLICY`, so a fresh scaffold's
+  verdicts do not move, and the obligations row `sql-history-fold-ramp-expiry` owes the six
+  expiries. The sweep, before 1.2.0, is the runbook's 1.1.0 section: fix what the fold
+  exposes in a NEW migration, or add an `authz-adr` entry to `tools/migrations-allow.json`
+  for an already-applied `ALTER POLICY` (#75).
 
 ### What stays open, honestly
 
@@ -972,6 +1008,31 @@ this heading if none does. -->
   and the 2.0.0 record owes this expiry beside #71's two and #72's. The new job has run
   under actionlint and zizmor and the gate in rendered scaffolds; no repository has run the
   job on GitHub yet (#73).
+- **The fold ramp compares finding text.** Numbers are masked, so the policy count in
+  `schema-rls`' missing-`mfa_aal2.test.sql` finding, which moves when a `DROP POLICY` is
+  folded, does not lift that finding. A finding both readings make in other words would read
+  as fold-only and ride the ramp until 1.2.0, and nothing checks for one. A message quoting a
+  predicate an `ALTER POLICY` replaced is a different finding by design: the old one
+  described text the database no longer runs (#75).
+- **`DROP TABLE … CASCADE` clears foreign keys, not every dependent object.** PostgreSQL
+  also drops views, and policies on other tables whose expressions read the dropped table;
+  the fold removes the table's own objects and the foreign keys into it (#75).
+- **Dynamic SQL stays out of reach.** `EXECUTE format('DROP TABLE …')` inside a function
+  body is part of its CREATE FUNCTION statement and folds nothing. That is how the shipped
+  audit and auth-trail partition pruners drop tables (#75).
+- **A renamed table is not followed.** The parser reads no `ALTER TABLE … RENAME TO`, as
+  through 1.0.x, so a later `DROP TABLE` of the new name reads as a drop of a table no
+  migration created and `schema-rls` reports it; a reviewed `tools/rls-exempt.json` entry
+  acknowledges it, as for a table made outside the migrations. That entry exempts the name,
+  so a table a later migration creates under the same name is exempt too, and nothing reds
+  on it; the runbook says to give a new table a new name (#75).
+- **An applied `ALTER POLICY` of a policy made outside the migrations has no escape.**
+  `schema-rls` cannot place it, and no reviewed list acknowledges one before the ramp
+  expires; an exemption keyed on the table would lift every rule for that table. The
+  record that owes this ramp's expiry has to answer it (#75).
+- **The six new ramps also end at 2.0.0 in this lineage.** 1.2.0 is the deadline issue #75
+  fixes, and every comparison is `>=`, so the 2.0.0 record owes these expiries beside #71's
+  two, #72's and #73's (#75).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -1333,6 +1394,33 @@ this heading if none does. -->
   expire in 1.2.0 and exited 0, and at a simulated harness 1.2.0 it printed `RAMP EXPIRED`
   and exited 1. One whose `actions-lint.yml` had been edited and its sha re-recorded kept it,
   parked the new copy and exited 2 (#73).
+  For the history fold, the tests-only commit was red on 51 cases. All 18 of the new
+  `tests/gates/sql-parse.test.mjs` failed (`sql.parseLivePolicies is not a function`, and a
+  `RESTRICT` drop and a partitioned parent left their tables in place). `schema-rls` printed
+  OK over `ALTER POLICY thing_select_own ON public.thing USING (true)`, reded a created then
+  dropped table as undeclared, and passed a dropped and re-created table on its old
+  policies, grant and index; `tenancy` passed an `ALTER POLICY` to `org_id = (SELECT
+  auth.uid())` and a dropped table's `untenantedTables` entry; `migrations` passed an
+  `ALTER POLICY` with no ADR; `data-flow`, `db-limits` and `query-shapes` passed a dropped
+  table's reviewed entries, triggers and index. After the change every case is green, each
+  fold-only red runs as a NOTE on a 1.0.3 manifest at harness 1.1.0, `RAMP EXPIRED` at
+  1.2.0 and a plain red with no manifest, and a red both readings make stays hard on the
+  1.0.3 manifest. Cases added with the two refinements pin them: an applied drop of a table
+  made outside the migrations, exempted with a reason, is green, and in
+  `tests/gates/sql-fold-ramp.test.mjs` a finding whose count the fold moved stays hard while
+  a twin that exits before reporting lifts nothing. One existing red changed its text and
+  not its exit: the shipped-tree case that deletes the notes grant now names
+  `notes_select_org`, because the shipped `notes_org_scope` migration drops
+  `notes_select_own`. `check-ramp-ledger` and
+  `check-obligations` are clean with the six sites and their row, and the `ramp-ledger` pins
+  that read the current fleet at older versions name them. On PostgreSQL 17.6 (the
+  `supabase/postgres` 17.6.1.171 image), each clause of `ALTER POLICY` alone kept the
+  others, `RENAME TO` changed only the name, an `ALTER POLICY` of a missing policy and a bare
+  `DROP TABLE` of a missing table failed, a `RESTRICT` drop of a referenced table failed, a
+  `CASCADE` drop removed the referencing foreign key and kept its `NOT NULL` column, a
+  partitioned parent took its partition, and a re-created table had no policies; the parser
+  read the same history to the same state. A zero-edit core scaffold rendered from this tree
+  passed `validate --report-all` with all six gates OK (#75).
 
 ## [1.0.4] — 2026-10-01
 

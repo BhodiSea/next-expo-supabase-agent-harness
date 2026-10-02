@@ -840,6 +840,28 @@ own transaction, `public.pgtap_fixture`, with the example's policy text renamed,
 proof survives a project deleting the example; the example's own copy is held by the static
 rules above.
 
+**The history fold (1.1.0).** The shared parser (`tools/lib/sql-parse.mjs`) read neither
+`DROP TABLE` nor `ALTER POLICY`, and this gate parsed `DROP POLICY` and threw the list
+away. So a policy rewritten by `ALTER POLICY … USING (true)` was judged on its CREATE text
+and passed; a dropped policy still covered its operation; and a table dropped and
+re-created kept its old policies, grant and owner index, while one created and dropped
+still redded as undeclared. The gate now reads the parser's one live-policy fold,
+`parseLivePolicies()` — `ALTER POLICY` replaces the `TO`, `USING` and `WITH CHECK` clauses
+it names, `RENAME TO` renames, `DROP POLICY` removes — and views in which `DROP TABLE`
+removes the table with everything on it, its created set included (`parseCreatedTables()`,
+in place of its own regex). A `DROP TABLE` without `IF EXISTS`, or an `ALTER POLICY`, whose
+target no earlier migration left in place is a finding; `DROP TABLE IF EXISTS` on an
+unknown table is a no-op, and a table made outside the migrations and dropped by an
+applied one is acknowledged in `tools/rls-exempt.json`. A finding only the folded history
+produces is a dated NOTE below `baseVersion` 1.1.0, through
+`rampNote('schema-rls', '1.1.0', 'the SQL history fold (DROP TABLE, ALTER POLICY and DROP POLICY)', { until: '1.2.0' })`;
+`tools/lib/sql-fold-ramp.mjs` tells it apart by replaying the gate over the pre-fold history,
+so a finding both readings produce stays hard at every vintage. **Anti-vacuity:**
+`ALTER POLICY thing_select_own ON public.thing USING (true)` → FAIL "has a vacuous USING
+(true)"; `DROP TABLE public.thing` and a bare re-create with ENABLE and FORCE → FAIL on all
+four operations and the owner index; `DROP TABLE public.ghost` → FAIL unresolved; and a
+table created then dropped → GREEN.
+
 ### 18. tenancy — `node tools/check-tenancy.mjs`
 
 The multi-tenant contract as reviewed data. schema-rls proves a predicate is REAL;
@@ -1007,6 +1029,20 @@ grant in place. The refusal is therefore *not* uniformly over-determined: readin
 forging are held by the grant alone. "Just grant the Edge Function read access to the audit
 table" is a reasonable-sounding request, it is the single likeliest edit to this design,
 and those two assertions are the only thing in the suite that catches it.
+
+**The history fold (1.1.0).** The gate's live-policy state is now the parser's
+`parseLivePolicies()`, which `schema-rls` reads too: besides CREATE and DROP POLICY it folds
+`ALTER POLICY` (the clauses it names replace the policy's; `RENAME TO` renames) and
+`DROP TABLE`, which removes the table's columns, indexes, triggers, grants and policies from
+every view and clears the foreign keys into it. A predicate rewritten by `ALTER POLICY` is
+therefore judged on the text the database runs, and a dropped table named in
+`untenantedTables` is a stale entry. The header's rule stands for every finding the 1.0.x
+reading also produces: a wrong predicate on an adopted surface is a hard red whatever the
+manifest says. Only a finding the fold alone produces is a dated NOTE below `baseVersion`
+1.1.0, through `rampNote('tenancy', '1.1.0', 'the SQL history fold (DROP TABLE and ALTER POLICY)', { until: '1.2.0' })`.
+**Anti-vacuity:** `ALTER POLICY notes_select_org ON public.notes USING (org_id = (SELECT
+auth.uid()))` → FAIL "matches NO reviewed predicate form", exactly as the same predicate from
+a CREATE does.
 
 ### 19. auth-posture — `node tools/check-auth-posture.mjs`
 
@@ -1208,6 +1244,14 @@ about whether a note dies with its author.
 Reviewed data: `tools/data-flow.json` (write-guard-protected, git-clean-enforced). Procedure:
 `docs/runbooks/data-subject-requests.md`. Ramped at `minVersion 0.6.0`, expiring **0.7.0**.
 
+**The history fold (1.1.0).** The column facts are folded through `DROP TABLE`: a dropped
+table's columns leave them and every foreign key into it is cleared, so its links stop
+deciding what an erasure does and a reviewed entry that names it goes stale. A finding only
+the folded facts produce is a dated NOTE below `baseVersion` 1.1.0, through
+`rampNote('data-flow', '1.1.0', 'the SQL history fold (DROP TABLE and ALTER POLICY)', { until: '1.2.0' })`;
+one both readings produce stays hard. **Anti-vacuity:** `DROP TABLE public.invitations
+CASCADE` → FAIL on the stale `severed[]` and `retained[]` entries for it.
+
 ### 21. types-drift — `node tools/check-types-drift.mjs`
 
 Regenerates the Supabase type mirror (`supabase gen types typescript --local`) from the
@@ -1254,6 +1298,17 @@ Three bounds keep it from becoming a hole: it exempts a **(file, rule) pair**, n
 file; the migration **must already exist at the diff base**, so one written today cannot
 be exempted at all; and a **stale entry reds**. Absent by default — creating it is a
 widening, so it is in `ESCAPE_LISTS` and must be committed.
+
+**`ALTER POLICY` is an authorization change (1.1.0).** It replaces the `USING`,
+`WITH CHECK` or `TO` clause a reviewer approved, and the database never runs the old one
+again, so it needs `-- adr:` naming an existing ADR, as `DROP POLICY` does. It is judged per
+statement: a migration whose only `ALTER POLICY` statements are `RENAME TO` needs none, and
+one rename does not excuse a rewrite beside it. Its findings ride their own ramp, not the
+0.2.0 bucket, through `rampNote('migrations', '1.1.0', 'ALTER POLICY as an authorization change', { until: '1.2.0' })`,
+and an applied migration uses the existing `authz-adr` entry in
+`tools/migrations-allow.json`. **Anti-vacuity:** a new migration with
+`ALTER POLICY notes_select_own ON public.notes USING (true);` and no ADR line → FAIL
+"removes an authorization control"; the same with `RENAME TO` → GREEN.
 
 ### 23. db-limits — `node tools/check-db-limits.mjs`
 
@@ -1328,10 +1383,18 @@ without `LOCAL`, or take a `pg_advisory_lock` → FAIL, with `SET LOCAL`, `ALTER
 SET`, `pg_advisory_xact_lock` and a `postgres(?:ql)?://` URL regex all proven to stay
 green; malformed JSON, an empty role matrix, a knob with no declared ceiling, or an
 `unavailable` entry with a thin reason → FAIL closed.
-`tests/gates/check-db-limits.test.mjs` carries 31 cases; the runtime twins are the
+`tests/gates/check-db-limits.test.mjs` carries these cases; the runtime twins are the
 pg_db_role_setting + quota block in `supabase/tests/rls_structure.test.sql` and
 `tests/rls/resource-limits.test.ts`, which proves the ceilings are in FORCE through
 PostgREST rather than merely present in the catalog.
+
+**The history fold (1.1.0).** The migration views are folded through `DROP TABLE` (a
+dropped table takes its triggers, columns, grants and policies with it) and `ALTER POLICY`,
+and the RESTRICTIVE counting rule reads the live policies. A metered table dropped and
+re-created without its triggers is unenforced; a finding only the fold produces is a dated
+NOTE below `baseVersion` 1.1.0, through
+`rampNote('db-limits', '1.1.0', 'the SQL history fold (DROP TABLE and ALTER POLICY)', { until: '1.2.0' })`,
+and one both readings produce stays hard.
 
 ### 24. contracts — `node tools/check-contract-drift.mjs`
 
@@ -1396,6 +1459,14 @@ stay green (both only see the leading column); drop the `.limit()` from a list D
 FAIL unbounded; add `.range(0, 20)` → FAIL naming `.range()`; add a DAL function with
 no probe → `pnpm gen` FAILS and `contracts` reds; empty the manifest → FAIL (an empty
 manifest passes every rule above without judging anything).
+
+**The history fold (1.1.0).** The index lookup is folded through `DROP TABLE`: a dropped
+table takes its indexes with it, so a re-created table is served only by indexes created
+after it. A finding only the fold produces is a dated NOTE below `baseVersion` 1.1.0,
+through `rampNote('query-shapes', '1.1.0', 'the SQL history fold (DROP TABLE and ALTER POLICY)', { until: '1.2.0' })`,
+and one both readings produce stays hard. `db-perf`'s static index lookup reads the same
+fold, with no ramp: it runs only against a live, scale-seeded database, where a dropped
+table's indexes are already gone.
 
 ### 26. rate-limits — `node tools/check-rate-limits.mjs`
 

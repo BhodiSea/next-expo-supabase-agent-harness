@@ -52,6 +52,7 @@ import {
   rampNote,
   skipOrFail,
 } from './lib/gate.mjs'
+import { foldOnlyFindings, foldTouches, historyFor, withhold } from './lib/sql-fold-ramp.mjs'
 import { parseColumnFacts, readSqlDir, splitStatements } from './lib/sql-parse.mjs'
 
 const GATE = 'data-flow'
@@ -72,7 +73,10 @@ if (!existsSync(MIGRATIONS_DIR)) {
 // does not judge a project against somebody else's decisions either.
 const policy = existsSync(POLICY) ? JSON.parse(readFileSync(POLICY, 'utf8')) : null
 
-const facts = parseColumnFacts(splitStatements(readSqlDir(MIGRATIONS_DIR)))
+// Folded (1.1.0): a DROP TABLE takes the table's columns with it, and every foreign key that
+// pointed at it, so a dropped table's links stop deciding what an erasure does.
+const statements = historyFor(splitStatements(readSqlDir(MIGRATIONS_DIR)))
+const facts = parseColumnFacts(statements)
 const links = classifyLinks(foreignKeys(facts), policy?.subjectRoot ?? SUBJECT_ROOT)
 const errs = []
 
@@ -331,7 +335,7 @@ if (surface?.kind === 'none' && /^\d+\.\d+\.\d+$/.test(surface.target ?? '')) {
 // declarative file is what a reviewer reads to answer "does this row die with its author",
 // and both answers are one word long.
 if (existsSync(SCHEMAS_DIR)) {
-  const declared = parseColumnFacts(splitStatements(readSqlDir(SCHEMAS_DIR)))
+  const declared = parseColumnFacts(historyFor(splitStatements(readSqlDir(SCHEMAS_DIR))))
   for (const e of foreignKeys(facts)) {
     const d = declared.get(e.table)?.get(e.column)
     if (d === undefined || d.references === null) continue
@@ -339,6 +343,30 @@ if (existsSync(SCHEMAS_DIR)) {
     errs.push(
       `${siteKey(e.table, e.column)}: ${SCHEMAS_DIR} declares ON DELETE ${spelledAction(d.onDelete)} but the applied history in ${MIGRATIONS_DIR} leaves it ON DELETE ${spelledAction(e.onDelete)}. The database does what the migrations say; the declarative file is what a reviewer reads. On this column those two sentences answer "is this erased with the account" differently.`,
     )
+  }
+}
+
+// ── the 1.1.0 ramp over the SQL history fold (#75) ──────────────────────────────────
+// Every finding above that reads the column facts can move when the history holds a DROP TABLE:
+// a reviewed entry for a dropped table goes stale, a link into it stops existing. What only the
+// folded facts produce is new judgement of applied history the old parser could not read, so on
+// an install whose baseVersion predates 1.1.0 it is a dated NOTE until 1.2.0; what both readings
+// produce stays exactly where it was. tools/lib/sql-fold-ramp.mjs replays this script over the
+// pre-fold history to tell them apart. Its own block, not a widening of the ramps below, for the
+// reason the 0.7.0 block gives.
+const fold = await foldOnlyFindings(import.meta.url, [errs], foldTouches(statements))
+if (!fold.replayed) {
+  console.log(
+    `${GATE}: the 1.0.x replay of the migration history did not report, so no finding is lifted by the 1.1.0 fold ramp`,
+  )
+}
+if (fold.foldOnly.length > 0) {
+  const foldRamped = rampNote(GATE, '1.1.0', 'the SQL history fold (DROP TABLE and ALTER POLICY)', {
+    until: '1.2.0',
+  })
+  if (foldRamped) {
+    withhold([errs], fold.foldOnly)
+    for (const e of fold.foldOnly) console.log(`${GATE}: NOTE — (ramp) ${e}`)
   }
 }
 

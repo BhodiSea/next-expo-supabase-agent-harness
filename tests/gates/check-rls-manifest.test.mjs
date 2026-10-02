@@ -87,6 +87,7 @@ function fixture({
   definerAllow = '{"comment":"x","allow":[]}\n',
   configToml = null,
   shipped = false,
+  manifest = null,
 } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'nesah-rlsgate-'))
   mkdirSync(join(dir, 'tools'), { recursive: true })
@@ -116,6 +117,10 @@ function fixture({
     writeFileSync(join(dir, 'supabase/tests/rls_structure.test.sql'), structure(structureRows))
   }
   if (configToml !== null) writeFileSync(join(dir, 'supabase/config.toml'), configToml)
+  if (manifest !== null) {
+    mkdirSync(join(dir, '.harness'), { recursive: true })
+    writeFileSync(join(dir, '.harness/manifest.json'), JSON.stringify(manifest))
+  }
   return dir
 }
 
@@ -586,7 +591,12 @@ test('RED (0.6.0): the SHIPPED tree with one GRANT line deleted — the green ab
   writeFileSync(mig, before.replace(GRANT, ''))
   const r = runGate(dir)
   assert.equal(r.code, 1, r.out)
-  assert.ok(r.out.includes('notes: policy notes_select_own'), r.out)
+  // The LIVE policy is named. Through 1.0.x this pinned notes_select_own, the owner-scoped
+  // policy 20260201000100_notes_org_scope.sql DROPs; since the 1.1.0 history fold a dropped
+  // policy is out of judgment, and the org-scoped policy that replaced it is the one the
+  // missing grant strands.
+  assert.ok(r.out.includes('notes: policy notes_select_org'), r.out)
+  assert.ok(!r.out.includes('notes: policy notes_select_own'), r.out)
 })
 
 test('GREEN (0.6.0): a deny-all policy needs no grant — the carve-out that keeps the tenancy spine legal', () => {
@@ -796,4 +806,161 @@ CREATE POLICY thing_delete_own ON public.thing AS PERMISSIVE FOR DELETE TO authe
   )
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /no PERMISSIVE policy FOR SELECT/)
+})
+
+// ---------------------------------------------------------------------------
+// 1.1.0 (#75) — the history fold: DROP TABLE and ALTER POLICY
+// ---------------------------------------------------------------------------
+// The parser read neither statement before 1.1.0, and this gate also discarded the DROP
+// POLICY list, so a rewritten policy was judged on text the database no longer runs and a
+// dropped table kept vouching for itself. Reproductions 1, 4 and 5 of the issue, plus the
+// Guard's unresolved-target findings. Findings only the fold produces ride a 1.1.0 ramp
+// until 1.2.0; a finding the 1.0.x reading also produces stays a hard red at every vintage.
+
+/** baseVersion 1.0.3 at harness 1.1.0: the install the ramp is for. */
+const PRE_FOLD = { baseVersion: '1.0.3', harnessVersion: '1.1.0', files: {} }
+/** The same install one release on, where the ramp has expired. */
+const PRE_FOLD_EXPIRED = { baseVersion: '1.0.3', harnessVersion: '1.2.0', files: {} }
+
+test('RED (1.1.0, repro 1): ALTER POLICY … USING (true) is judged as the database runs it', () => {
+  const r = runGate(
+    fixture({
+      migration: migration({ extra: 'ALTER POLICY thing_select_own ON public.thing USING (true);' }),
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /thing: policy thing_select_own has a vacuous USING \(true\)/)
+})
+
+test('GREEN (1.1.0, repro 4): a table created and then dropped is no longer "created but not declared"', () => {
+  const extra = 'CREATE TABLE public.widgets (id uuid PRIMARY KEY);\nDROP TABLE public.widgets;'
+  const r = runGate(fixture({ migration: migration({ extra }) }))
+  assert.equal(r.code, 0, r.out)
+  // …and without the drop it still reds, so the case above is not vacuous.
+  const kept = runGate(
+    fixture({ migration: migration({ extra: 'CREATE TABLE public.widgets (id uuid PRIMARY KEY);' }) }),
+  )
+  assert.equal(kept.code, 1, kept.out)
+  assert.match(kept.out, /widgets: created by a migration but not declared/)
+})
+
+test('RED (1.1.0, repro 5): a dropped and re-created table starts fresh — no old policy, grant or index counts', () => {
+  const extra = `DROP TABLE public.thing;
+CREATE TABLE public.thing (id uuid PRIMARY KEY, owner_id uuid NOT NULL);
+ALTER TABLE public.thing ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.thing FORCE ROW LEVEL SECURITY;`
+  const r = runGate(fixture({ migration: migration({ extra }) }))
+  assert.equal(r.code, 1, r.out)
+  for (const op of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
+    assert.match(r.out, new RegExp(`thing: no PERMISSIVE policy FOR ${op}`))
+  }
+  assert.match(r.out, /thing: no index with leading column owner_id/)
+})
+
+test('RED (1.1.0): a DROP POLICY is folded here too — the dropped policy no longer covers its operation', () => {
+  const r = runGate(
+    fixture({ migration: migration({ extra: 'DROP POLICY thing_delete_own ON public.thing;' }) }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /thing: no PERMISSIVE policy FOR DELETE/)
+})
+
+test('RED (1.1.0, Guard): DROP TABLE of a table no migration created is an unresolved finding', () => {
+  const r = runGate(fixture({ migration: migration({ extra: 'DROP TABLE public.ghost;' }) }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /ghost: DROP TABLE in \S+0001_thing\.sql names a table no earlier migration creates/)
+})
+
+test('GREEN (1.1.0, Guard): an applied drop of a table made outside the migrations, exempted with a reason', () => {
+  const r = runGate(
+    fixture({
+      migration: migration({ extra: 'DROP TABLE public.ghost;' }),
+      exempt: '{"comment":"x","exempt":[{"table":"ghost","reason":"created from the dashboard in 2025, dropped by 0001"}]}\n',
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+})
+
+test('GREEN (1.1.0, Guard): DROP TABLE IF EXISTS on an unknown table is a no-op, not a finding', () => {
+  const r = runGate(fixture({ migration: migration({ extra: 'DROP TABLE IF EXISTS public.ghost;' }) }))
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED (1.1.0, Guard): ALTER POLICY naming no live policy is an unresolved finding', () => {
+  const r = runGate(
+    fixture({ migration: migration({ extra: 'ALTER POLICY ghost_policy ON public.thing USING (owner_id = (SELECT auth.uid()));' }) }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /thing: ALTER POLICY ghost_policy in \S+0001_thing\.sql names no policy an earlier migration left in place/)
+})
+
+test('GREEN (1.1.0): ALTER POLICY … RENAME TO keeps the policy covering its operation', () => {
+  const r = runGate(
+    fixture({
+      migration: migration({ extra: 'ALTER POLICY thing_select_own ON public.thing RENAME TO thing_select_mine;' }),
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RAMP (1.1.0): a fold-only finding is a NOTE on a 1.0.3 install at harness 1.1.0', () => {
+  const r = runGate(
+    fixture({
+      migration: migration({ extra: 'ALTER POLICY thing_select_own ON public.thing USING (true);' }),
+      manifest: PRE_FOLD,
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /schema-rls: NOTE — the SQL history fold .*expires in 1\.2\.0/)
+  assert.match(r.out, /schema-rls: NOTE — \(ramp\) thing: policy thing_select_own has a vacuous USING \(true\)/)
+})
+
+test('RAMP (1.1.0): the same finding is RAMP EXPIRED and red at harness 1.2.0', () => {
+  const r = runGate(
+    fixture({
+      migration: migration({ extra: 'ALTER POLICY thing_select_own ON public.thing USING (true);' }),
+      manifest: PRE_FOLD_EXPIRED,
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /schema-rls: RAMP EXPIRED — the SQL history fold/)
+  assert.match(r.out, /has a vacuous USING \(true\)/)
+})
+
+test('RAMP (1.1.0): with no manifest the fold-only finding is a plain red', () => {
+  // Repro 1 above IS this case (no fixture here writes a manifest); pinned by name so the
+  // three states of the ramp sit together.
+  const r = runGate(
+    fixture({ migration: migration({ extra: 'ALTER POLICY thing_select_own ON public.thing USING (true);' }) }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.doesNotMatch(r.out, /NOTE — \(ramp\)/)
+})
+
+test('RAMP (1.1.0): a finding the 1.0.x reading ALSO produces stays hard on a 1.0.3 install', () => {
+  // The CREATE itself is vacuous, and the history holds a DROP TABLE of an unrelated table,
+  // so the fold runs and the replay runs — and still both readings agree on this finding.
+  const r = runGate(
+    fixture({
+      migration: migration({
+        usingSelect: 'USING (true)',
+        extra: 'CREATE TABLE public.widgets (id uuid PRIMARY KEY);\nDROP TABLE public.widgets;',
+      }),
+      manifest: PRE_FOLD,
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /has a vacuous USING \(true\)/)
+  assert.doesNotMatch(r.out, /NOTE — \(ramp\) thing: policy thing_select_own/)
+})
+
+test('RAMP (1.1.0): a finding only the 1.0.x reading produced clears on every install', () => {
+  // The vacuous CREATE is rewritten by ALTER POLICY to a real predicate: the database runs
+  // the real one, so nothing is left to report — with or without a manifest.
+  const extra = 'ALTER POLICY thing_select_own ON public.thing USING (owner_id = (SELECT auth.uid()));'
+  for (const manifest of [null, PRE_FOLD]) {
+    const r = runGate(fixture({ migration: migration({ usingSelect: 'USING (true)', extra }), manifest }))
+    assert.equal(r.code, 0, r.out)
+    assert.doesNotMatch(r.out, /vacuous/)
+  }
 })

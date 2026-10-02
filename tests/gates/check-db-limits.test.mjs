@@ -432,3 +432,42 @@ test('REGRESSION: an ancient baseVersion must NOT disarm findings once ceilings 
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('temp_file_limit'), r.out)
 })
+
+// ── 1.1.0 (#75): the history fold reaches the quota triggers ──────────────────────────
+// parseTriggers never forgot a table, so a metered table dropped and re-created without its
+// triggers still read as enforced. Folded, the re-created table starts fresh: a finding only
+// the fold produces, which rides the 1.1.0 ramp until 1.2.0.
+const RECREATED_NOTES = 'DROP TABLE public.notes;\nCREATE TABLE public.notes (id uuid PRIMARY KEY, org_id uuid NOT NULL);'
+
+/** @param {{ baseVersion: string, harnessVersion: string } | null} manifest */
+function recreatedFixture(manifest) {
+  const dir = fixture({ mig: migration({ extra: RECREATED_NOTES }) })
+  if (manifest !== null) {
+    mkdirSync(join(dir, '.harness'), { recursive: true })
+    writeFileSync(join(dir, '.harness/manifest.json'), JSON.stringify({ ...manifest, files: {} }))
+  }
+  return dir
+}
+
+test('RED (1.1.0): a metered table dropped and re-created without its triggers is unenforced', () => {
+  const r = runGate(recreatedFixture(null))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('notes: metered for'), r.out)
+  assert.ok(r.out.includes('no AFTER INSERT trigger executes'), r.out)
+  assert.ok(r.out.includes('notes: no AFTER DELETE trigger executing'), r.out)
+  assert.ok(!r.out.includes('NOTE — (ramp)'), r.out)
+})
+
+test('RAMP (1.1.0): the fold-only quota findings are NOTEs on a 1.0.3 install at harness 1.1.0', () => {
+  const r = runGate(recreatedFixture({ baseVersion: '1.0.3', harnessVersion: '1.1.0' }))
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /db-limits: NOTE — the SQL history fold .*expires in 1\.2\.0/)
+  assert.ok(r.out.includes('db-limits: NOTE — (ramp) notes: metered for'), r.out)
+})
+
+test('RAMP (1.1.0): the fold-only quota findings are RAMP EXPIRED and red at harness 1.2.0', () => {
+  const r = runGate(recreatedFixture({ baseVersion: '1.0.3', harnessVersion: '1.2.0' }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('db-limits: RAMP EXPIRED — the SQL history fold'), r.out)
+  assert.ok(r.out.includes('no AFTER INSERT trigger executes'), r.out)
+})

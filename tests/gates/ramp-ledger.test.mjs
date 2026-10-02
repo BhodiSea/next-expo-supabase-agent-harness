@@ -746,22 +746,30 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
   // closing on the verdict demand (#72, minVersion 1.1.0, due 1.2.0), which does not widen
   // it either. THIRTY since 1.1.0 added workflow-hardening's rules over a project's own
   // workflows (#73, minVersion 1.1.0, due 1.2.0), which DOES widen it: the CI-only gate
-  // carries no other ramp.
+  // carries no other ramp. THIRTY-SIX since 1.1.0 added SIX for the SQL history fold (#75), all
+  // minVersion 1.1.0 due 1.2.0, one per gate that reads the folded parser: schema-rls, tenancy,
+  // data-flow, db-limits, query-shapes and migrations' ALTER POLICY rule. Five of them WIDEN the
+  // set below; data-flow already carried its 0.6.0 closure ramp at this vintage.
   const fresh = classifyForInstall('0.6.0', '0.7.0', sites)
   assert.equal(fresh.expired.length, 0)
-  assert.equal(fresh.noting.length, 30)
+  assert.equal(fresh.noting.length, 36)
   assert.deepEqual(
     [...new Set(fresh.noting.map((s) => s.gate))].sort(),
     [
       'auth-posture',
       'boundaries',
       'data-flow',
+      'db-limits',
       'docs-sync',
+      'migrations',
       'observability',
+      'query-shapes',
       'rate-limits',
       'resilience',
       'reviewer-verdicts',
+      'schema-rls',
       'suppressions',
+      'tenancy',
       'version-sync',
       'web-e2e',
       'wiring',
@@ -829,18 +837,23 @@ test('the SHIPPED 0.8.0 rampExpiry record equals what the shipped call sites com
       'auth-posture',
       'boundaries',
       'data-flow',
+      'db-limits',
       'docs-sync',
+      'migrations',
       'observability',
+      'query-shapes',
       'rate-limits',
       'resilience',
       'reviewer-verdicts',
+      'schema-rls',
       'suppressions',
+      'tenancy',
       'version-sync',
       'web-e2e',
       'wiring',
       'workflow-hardening',
     ],
-    'what 0.8.0 opened (the 0.9.0 record owes those two) plus what 0.9.0, 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open (the later records owe these; 1.1.0 adds reviewer-verdicts, the ledger v2, and workflow-hardening)',
+    'what 0.8.0 opened (the 0.9.0 record owes those two) plus what 0.9.0, 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open (the later records owe these; 1.1.0 adds reviewer-verdicts, the ledger v2, workflow-hardening, and the five SQL gates of the history fold)',
   )
 
   // The one deadline this release moves, recorded rather than quiet — the second entry of
@@ -919,17 +932,22 @@ test('the SHIPPED 0.9.0 rampExpiry record equals what the shipped call sites com
       'auth-posture',
       'boundaries',
       'data-flow',
+      'db-limits',
       'docs-sync',
+      'migrations',
+      'query-shapes',
       'rate-limits',
       'resilience',
       'reviewer-verdicts',
+      'schema-rls',
       'suppressions',
+      'tenancy',
       'version-sync',
       'web-e2e',
       'wiring',
       'workflow-hardening',
     ],
-    'what 0.9.0 OPENS (the 0.10.0 record owes those two) plus what 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open (1.1.0 adds reviewer-verdicts, the ledger v2, and workflow-hardening)',
+    'what 0.9.0 OPENS (the 0.10.0 record owes those two) plus what 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open (1.1.0 adds reviewer-verdicts, the ledger v2, workflow-hardening, and the five SQL gates of the history fold)',
   )
   // …and the 0.9.0-opened pair in isolation, which is the assertion that does NOT drift
   // as later releases open their own ramps: filter by the minVersion that names them.
@@ -1016,13 +1034,26 @@ const VERDICT_DEMAND = 'reviewer bodies closing on the verdict demand'
 // 1.1.0, due 1.2.0, in the CI-only check-workflow-hardening.mjs, which sorts last.
 const WORKFLOW_HARDENING =
   'the workflow hardening rules over the project workflows (a workflow-level bash default, a ceiling on every job, harden-runner as the first step)'
+// The SQL history fold (1.1.0, #75): six sites, all opened at minVersion 1.1.0 and due 1.2.0 —
+// one per gate that reads the folded parser (data-flow, db-limits, query-shapes, schema-rls and
+// tenancy, schema-rls naming DROP POLICY too because it is the gate that discarded it) and
+// migrations' ALTER POLICY rule on a ramp of its own. The scanner lists files alphabetically.
+const SQL_FOLD = 'the SQL history fold (DROP TABLE and ALTER POLICY)'
+const SQL_FOLD_RLS = 'the SQL history fold (DROP TABLE, ALTER POLICY and DROP POLICY)'
+const ALTER_POLICY_ADR = 'ALTER POLICY as an authorization change'
 /** The 1.1.0-opened sites, in the order the scanner lists them. */
 const OPENED_110 = [
+  `'${SQL_FOLD}'`, // check-data-flow.mjs
+  `'${SQL_FOLD}'`, // check-db-limits.mjs
   `'${SEVERITY_CONTRACT}'`,
   `'${VERDICT_DEMAND}'`,
+  `'${ALTER_POLICY_ADR}'`, // check-migrations.mjs
+  `'${SQL_FOLD}'`, // check-query-shapes.mjs
   `'${MODEL_CHECK}'`,
   `'${ROUND_BUDGET}'`,
   `'${LEDGER_V2}'`,
+  `'${SQL_FOLD_RLS}'`, // check-rls-manifest.mjs
+  `'${SQL_FOLD}'`, // check-tenancy.mjs
   `"${ARRIVAL}"`,
   `'${WORKFLOW_HARDENING}'`,
 ]
@@ -1112,14 +1143,20 @@ test('the SHIPPED 1.0.0 rampExpiry record equals what the shipped call sites com
       [
         'auth-posture',
         'boundaries',
+        'data-flow',
+        'db-limits',
         'docs-sync',
+        'migrations',
+        'query-shapes',
         'resilience',
         'reviewer-verdicts',
+        'schema-rls',
         'suppressions',
+        'tenancy',
         'version-sync',
         'workflow-hardening',
       ],
-      `the six-gate 1.0.0 fleet at base ${base}, plus the 1.1.0 ledger v2 and workflow-hardening`,
+      `the six-gate 1.0.0 fleet at base ${base}, plus the 1.1.0 ledger v2, workflow-hardening and the SQL history fold`,
     )
   }
   // v0.10.0 meets exactly ONE expiring gate — data-flow — the smallest non-zero wave and
@@ -1158,14 +1195,20 @@ test('the SHIPPED 1.0.1 rampExpiry record equals what the shipped call sites com
       [
         'auth-posture',
         'boundaries',
+        'data-flow',
+        'db-limits',
         'docs-sync',
+        'migrations',
+        'query-shapes',
         'resilience',
         'reviewer-verdicts',
+        'schema-rls',
         'suppressions',
+        'tenancy',
         'version-sync',
         'workflow-hardening',
       ],
-      `the six-gate 1.0.0 fleet at base ${base}, plus the 1.1.0 ledger v2 and workflow-hardening`,
+      `the six-gate 1.0.0 fleet at base ${base}, plus the 1.1.0 ledger v2, workflow-hardening and the SQL history fold`,
     )
   }
   const at100 = classifyForInstall('1.0.0', '1.0.1', sites)
@@ -1176,12 +1219,12 @@ test('the SHIPPED 1.0.1 rampExpiry record equals what the shipped call sites com
   // as advisory for a 1.0.0 base at every version below its 1.2.0 deadline, and so do the
   // reviewer ledger v2 and the security-reviewer model check 1.1.0 opened, below their 2.1.0
   // deadline, and the severity contract's two sites (#71), docs-sync's verdict-demand
-  // position (#72) and workflow-hardening's rules (#73), below their 1.2.0 deadline; nothing
-  // else.
+  // position (#72), workflow-hardening's rules (#73) and the SQL history fold's six (#75), below
+  // their 1.2.0 deadline; nothing else.
   assert.deepEqual(
     at100.noting.map((s) => s.detail),
     OPENED_110,
-    '1.0.0 meets only the seven 1.1.0-opened sites under the current fleet',
+    '1.0.0 meets only the thirteen 1.1.0-opened sites under the current fleet',
   )
   assert.match(record.why, /ramp-expectations\.mjs/)
 })
@@ -1248,17 +1291,17 @@ test('the SHIPPED 1.1.0 rampExpiry record equals what the shipped call sites com
     assert.deepEqual([...new Set(at.expired.map((s) => s.gate))].sort(), SEVEN)
     // …and the re-opened arrival stays a NOTE for them: its fix is parked, not due. So do
     // the reviewer ledger v2, the security-reviewer model check, the severity contract's two
-    // sites, docs-sync's verdict-demand position and workflow-hardening's rules this release
-    // opens.
+    // sites, docs-sync's verdict-demand position, workflow-hardening's rules and the SQL history
+    // fold's six sites this release opens.
     assert.deepEqual(
       at.noting.map((s) => s.detail),
       OPENED_110,
     )
   }
-  // Every 1.0.x vintage meets NOTHING expired and exactly the seven 1.1.0-opened NOTEs, the
+  // Every 1.0.x vintage meets NOTHING expired and exactly the thirteen 1.1.0-opened NOTEs, the
   // re-opened arrival, the reviewer ledger v2, the security-reviewer model check, the
-  // severity contract's two sites, docs-sync's verdict-demand position and
-  // workflow-hardening's rules (#73) — the inverse proof
+  // severity contract's two sites, docs-sync's verdict-demand position,
+  // workflow-hardening's rules (#73) and the SQL history fold's six (#75) — the inverse proof
   // that the wave is dated, not blanket. Filtered by the minVersion that names them first, so
   // a site opened at any other version fails here on its own line, and each later 1.1.0 ramp
   // joins OPENED_110 in the diff that opens it.
@@ -1272,7 +1315,7 @@ test('the SHIPPED 1.1.0 rampExpiry record equals what the shipped call sites com
     assert.deepEqual(
       at.noting.map((s) => s.detail),
       OPENED_110,
-      `${base} meets only the seven 1.1.0-opened sites`,
+      `${base} meets only the thirteen 1.1.0-opened sites`,
     )
   }
   assert.match(record.why, /SWEEPS\['1\.0\.0'\]/)

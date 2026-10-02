@@ -101,6 +101,7 @@ export const STAMP_INPUTS = {
     'tools',
     'tests',
     'tools/lib/sql-parse.mjs',
+    'tools/lib/sql-fold-ramp.mjs',
   ]),
   // the whole jest-expo/RNTL fast lane (screens + states + a11y sweeps).
   // Deliberate exclusions: the tRPC/API server graph is mocked at the seam (the
@@ -197,6 +198,7 @@ export const STAMP_INPUTS = {
     'packages/verticals',
     'tools/lib/query-shapes.mjs',
     'tools/lib/sql-parse.mjs',
+    'tools/lib/sql-fold-ramp.mjs',
   ]),
   // reviewed budgets closed over the GENERATED mutation inventory, the by-value
   // module diff, and both wiring reads (the tRPC host + the Server Actions dir).
@@ -226,6 +228,7 @@ export const STAMP_INPUTS = {
     'tools/audit-columns.json',
     'tools/pii-columns.json',
     'tools/lib/sql-parse.mjs',
+    'tools/lib/sql-fold-ramp.mjs',
   ]),
   // root+mobile lockstep + web/api major agreement + node-major agreement + rc-pin +
   // single-zod-instance + single-react-per-surface. Every version the gate reads
