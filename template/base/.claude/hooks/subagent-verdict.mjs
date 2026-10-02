@@ -76,6 +76,14 @@
 // exit 2 would keep the subagent running and spend a block of the turn-wide cap, and a hook
 // has no NOTE channel to carry a ramp. The Stop step judges the budget.
 //
+// AND, SINCE 2.0.0 (#87), THE FORMAT STAMP. `prompt_id` has left the ledger key: under the
+// reviewer ledger v2 a PASS is current while its digest pair matches the tree, whichever
+// prompt recorded it. Every entry now carries `v`, tools/lib/reviewer-verdicts.mjs
+// LEDGER_FORMAT, and the Stop step reads the session's entries by session_id and format: one
+// in another format never counts as a PASS, and a reviewer with only such entries is told
+// so, by name, rather than "did not run". `prompt_id` is still recorded: the 1.0.x judgement
+// keys on it, and it dates a mis-shaped line.
+//
 // IT IS SILENT FOR NON-REVIEWERS. The roster is read from .claude/agents/, not duplicated into
 // a settings.json matcher — a matcher string would be a second copy of the roster, and the one
 // thing this release has learned repeatedly is that two copies of a list drift.
@@ -403,6 +411,11 @@ function roundsOf(record) {
 }
 
 const record = {
+  // The ledger format stamp (2.0.0, #87), the v2 key beside session_id: the lib's constant,
+  // so a parked pre-2.0.0 fork of the lib leaves it undefined, JSON.stringify drops it, and
+  // the step names the entry's format instead of counting it. prompt_id stays, outside the
+  // key: the 1.0.x judgement keys on it, and it dates a mis-shaped line.
+  v: verdicts.LEDGER_FORMAT,
   session_id: input.session_id ?? null,
   prompt_id: input.prompt_id ?? null,
   agent_type: agentType,

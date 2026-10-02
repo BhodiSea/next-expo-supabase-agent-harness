@@ -159,10 +159,16 @@
     ],
     ".claude/hooks/stop-validate-gate.mjs": [
       {
+        "sha256": "22f3637b078b198b6052fda1bdb4199f3dbf434df600d30bba82ba6dc5194522"
+      },
+      {
         "sha256": "3e14d4dbf20c4870d13a6823c256625bbb9b26b54c6b7ea8b0d6bbdb60812a1a"
       }
     ],
     ".claude/hooks/subagent-verdict.mjs": [
+      {
+        "sha256": "368c05644694b1c1bb70b9ff7f63d209cee7e6a00485c02029c2701533f12ec1"
+      },
       {
         "sha256": "c98f42ab6e1e7dcdc4f4749eb9267fe396bf0deb553129eba3492c69212f263d"
       }
@@ -762,6 +768,15 @@
             "SECURITY_TXT_EXPIRES"
           ]
         ]
+      },
+      {
+        "sha256": "e1ba5f6bc738a2ecd02a86b45a213aca1fe143fab263f1d6f727a8a490300298",
+        "sites": [
+          [
+            149423,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
       }
     ],
     "docs/modules/ci-mobile-release/README.md": [
@@ -936,7 +951,25 @@
     ],
     "docs/runbooks/harness-upgrade.md": [
       {
+        "sha256": "4a251a3810ff279e2502d7197a39707af3623845a229759c9351144e40f06ba5",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "533f48c5d91d8eaba99cfad8a619cbcf263b9d8e16a17298a1038a3ae8e4ac9a",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "5cf3877f639c30981f12d99573cafddb4068e3605e43af6d1fb6adf02bf72081",
         "sites": [
           [
             14115,
@@ -1493,6 +1526,9 @@
     ],
     "tools/check-reviewer-verdicts.mjs": [
       {
+        "sha256": "552a1c04116d059ca25dac587b41e8c1a8da0532f42ee23c2a6e52ba09fb51f7"
+      },
+      {
         "sha256": "958655a6fb939ee2b3c9f926827fc03fb09cec0055c36004ae2b827d408c08eb"
       }
     ],
@@ -2001,6 +2037,9 @@
       }
     ],
     "tools/lib/reviewer-verdicts.mjs": [
+      {
+        "sha256": "6694bf2f868c1208479ca6308445e8b97ff3ec019c1acb47cb1f3b1173ac84a5"
+      },
       {
         "sha256": "935f46a90871da7e9344f1bb40857247fc5ca986df5304aa4f4e981c10f0ae1a"
       }

@@ -408,7 +408,8 @@ const SWEEPS = {
   // runs, and a leg's tools/i18n-allow.json is the empty seed, with no site entry in it. The
   // lint exemption for the seeded delete-account index.ts is gone, and a swept leg already ends
   // on the 1.1.0 shell through '1.1.0''s derived pass. The round budget's extension to 2.1.0 is
-  // a Stop step's: no leg runs the Stop chain.
+  // a Stop step's, and so is the reviewer ledger's new key (#87): no leg runs the Stop chain,
+  // and a leg's ledger is empty.
   //
   // THE EXAMPLE LEAVES THE DEFAULT TREE (#85), and three steps follow from that for a swept
   // leg, whose install predates 2.0.0 and so still carries the example. They were found at

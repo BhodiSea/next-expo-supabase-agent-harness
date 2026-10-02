@@ -366,9 +366,13 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
   cites it.
   ([B02](design/FIELD-UPGRADES-2026-09.md#b02-the-encryption-rule-ships-with-its-module),
   issue #86)
-- **`prompt_id` leaves the ledger key.** After ledger v2 the path digest is
-  what makes a verdict current.
-  ([B03](design/FIELD-UPGRADES-2026-09.md#b03-prompt_id-leaves-the-ledger-key))
+- **`prompt_id` leaves the ledger key.** Built in 2.0.0: after ledger v2 the
+  path digest is what makes a verdict current, so `reviewer-verdicts` reads the
+  reviewer ledger by session and a format stamp every entry now carries. An entry
+  in another format never counts as a PASS and is named, the step needs only the
+  session id, and the 1.0.x judgement keeps the prompt in its key.
+  ([B03](design/FIELD-UPGRADES-2026-09.md#b03-prompt_id-leaves-the-ledger-key),
+  issue #87)
 
 Five further ideas were considered and rejected. The design record
 [lists them with the reason](design/FIELD-UPGRADES-2026-09.md#dropped-after-design-review), so they are not

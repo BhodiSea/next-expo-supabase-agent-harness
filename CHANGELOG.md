@@ -39,6 +39,9 @@ stand, and an `e2ee` install gets it back as the module's own file (#86).
 Server Action and migrations, and the matrix screen move to their own template tree, which
 `init --with-demo` overlays and the new `eject` takes back out. An existing install keeps its
 example: it is seeded, and `update` neither rewrites nor deletes it (#85).
+**Breaking: `reviewer-verdicts` keys the reviewer ledger on the session and a format stamp,
+not the prompt.** The step needs only the session id, and a reviewer whose verdicts in the
+current session a 1.1.x hook wrote is re-run once after `update` (see Changed) (#87).
 
 ### Security
 
@@ -106,6 +109,15 @@ this heading if none does. -->
 
 <!-- Entries from the 2.0.0 items that land after the version bump go here. The cut removes
 this heading if none does. -->
+
+- **`reviewer-verdicts` no longer prints a remedy that does not work for a mis-shaped ledger
+  line.** A line of the current prompt that lacks `agent_type` or `verdict` fails closed, and
+  the step said to re-run the reviewer, because "a fresh well-formed PASS supersedes the torn
+  line". It never did: the reader stops at that line, so the error lasted until the next
+  prompt whatever ran. 2.0.0 keeps that lifetime and corrects the remedy: a re-run does not
+  clear it, the next prompt does, and the agent should end the turn and tell the user. With
+  the session as the whole key the error would otherwise have lasted the rest of the session,
+  with nothing the agent could do about it (decision 3) (#87).
 
 ### Changed
 
@@ -180,6 +192,28 @@ this heading if none does. -->
   the only `config` subcommand. npm latest is 2.119.0, but the catalog pin stays 2.118.0, so the
   pin-bump clause did not fire. By the entry's standing rule the date moves one release, in the
   ledger, the obligations row and the three files the entry lists (#86).
+
+- **Breaking: `prompt_id` leaves the reviewer ledger key, and every entry carries a format
+  stamp.** Under the reviewer ledger v2 a PASS is current while its dispatch and stop digests
+  match the tree, so the prompt only forced re-runs. The SubagentStop hook now stamps each
+  entry with `v: "2.0.0"` (`LEDGER_FORMAT` in `tools/lib/reviewer-verdicts.mjs`), and v2
+  reads the session's entries by session and format (`readSessionEntries`). An entry in
+  another format never counts as a PASS, and never clears a BLOCK; a BLOCK in any format
+  still stands until the same run passes in the current format; and a reviewer whose
+  entries are all in another format reds with a finding that names the format and asks for
+  one re-run, where it would otherwise read as "did not run". That is the breaking part:
+  after `update`, no PASS a 1.1.x hook recorded counts, so each owed reviewer runs once
+  more, and a kept fork of the hook or the lib writes unstamped entries until its parked
+  copy is merged (the runbook's 2.0.0 section). The step requires `HARNESS_SESSION_ID`
+  alone. The Stop hook still passes `HARNESS_PROMPT_ID` and the hook still records
+  `prompt_id`: the 1.0.x judgement, which decides with no merge base and below `baseVersion`
+  1.1.0 until 2.1.0, keeps the prompt in its key, because its `path_state` leaves deletions
+  out and has no dispatch digest; a 1.1.x step still requires it; and it dates a mis-shaped
+  line. Where the 1.0.x judgement decides with no prompt id, the step now reds and says why,
+  where it used to skip loudly outside CI. `readLedger` and `readSessionLedger` keep their
+  names, signatures and meaning, for that judgement and for a step forked at 1.1.x. The round
+  budget counts entries of every format. Not ramped: this is the major's key, and the format
+  finding is a v2 finding, under v2's ramp (#87).
 
 ### Removed
 
@@ -267,6 +301,19 @@ this heading if none does. -->
   citation into their own files is not told (#86).
 - **`upgrade-linux` installs core only**, so the `e2ee` half of the move is proven by the
   in-process installer tests, not by a lane leg (#86).
+- **No lane runs `reviewer-verdicts` against a real ledger.** The Stop-chain runs in CI
+  execute it on a clean scaffold, where nothing is owed, so the 2.0.0 ledger key is proven by
+  the unit fixtures in `tests/gates/check-reviewer-verdicts.test.mjs` and
+  `tests/hooks/subagent-verdict-pathstate.test.mjs` alone (#87).
+- **The 1.0.x judgement still keys on the prompt** wherever it decides: with no merge base,
+  for good, and below `baseVersion` 1.1.0 until 2.1.0. B03's relaxation needs v2's digest
+  pair, which that judgement does not have (#87).
+- **A mis-shaped ledger line still lasts its prompt.** Decision 3 kept the lifetime and
+  corrected the remedy. Nothing lets the agent clear such a line inside its prompt, by design:
+  the line cannot be attributed to a reviewer, and the ledger is write-guarded (#87).
+- **The dispatch records carry no format stamp.** `.harness/reviewer-dispatch.jsonl` is keyed
+  by session and `agent_id`, and its one field means what it meant at 1.1.0; a change to it
+  would need a stamp of its own (#87).
 - **What was proven where.** With `package.json` at 2.0.0 and nothing discharged,
   `check-obligations` was red on the fourteen rows targeting 1.2.0, `check-ramp-ledger` on the
   missing `1.1.0` vintage and the missing `"2.0.0"` `rampExpiry`, `check-eol-target` on the
@@ -331,6 +378,13 @@ this heading if none does. -->
   two registers `update` plants as 2.0.0's default copies. The sweep now adopts a directory as
   the union of the template's roots and runs those three steps, each pinned in
   `tests/gates/upgrade-sweep.test.mjs` (#85).
+  For the ledger key, fifteen cases written first were red on the tree before the change: the
+  session-only headline and its stale canary, the earlier-prompt BLOCK, the older-format
+  finding and the older-format PASS that must not clear a BLOCK, decision 3's remedy (a re-run
+  in the same prompt stayed red while the remedy said it would clear it), the two identity
+  cases, the reader and judge units, the parked-lib finding, the fail-closed canary's remedy,
+  and the hook's stamp in both hook files. After the change the step's suite, the hook's,
+  `hook-contract` and `run-stop-chain` are green (#87).
 
 ## [1.1.0] — 2026-10-02
 

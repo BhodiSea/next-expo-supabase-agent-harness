@@ -2,11 +2,18 @@
 // (template/base/.claude/hooks/subagent-verdict.mjs) and Stop-chain step 10
 // (template/base/tools/check-reviewer-verdicts.mjs).
 //
-// THE HEADLINE PROOF is `RED: last turn's PASS does not satisfy this turn`. The ledger is
-// append-only across a session, so an entry keyed to a different prompt_id is exactly the
-// shape that would make this whole control decorative — it would report coverage from work
-// somebody did an hour ago. Every other finding here is recoverable by re-running a reviewer;
-// that one would be silent.
+// THE HEADLINE PROOF (2.0.0, #87) is `an earlier prompt's PASS reds as STALE once the owed
+// file moves`. The ledger is append-only across a session, so an entry from an earlier prompt
+// is exactly what a naive reader would accept, and accepting it unconditionally would report
+// coverage from work somebody did an hour ago, silently. Through 1.1.x the step refused it by
+// its prompt_id. Since 2.0.0 the key is the session and the ledger format stamp (`v`), and
+// what refuses a stale earlier PASS is the reviewer ledger v2's digest pair: the PASS counts
+// only while the tree it was dispatched on, the tree it passed and the tree now are one, so
+// the case that proves the key is the one where the owed file moved after the PASS. The
+// 1.0.x judgement, which still decides with no merge base and below baseVersion 1.1.0 until
+// 2.1.0, keeps the prompt in its key, and `LAST TURN'S PASS does not satisfy this turn` still
+// pins that. Every other finding here is recoverable by re-running a reviewer; a stale PASS
+// that counted would be silent.
 //
 // The second is `RED: a reviewer that ends without the mandated line is BLOCKED`. That
 // contract — the body must end demanding exactly `VERDICT: PASS` or `VERDICT: BLOCK` — has
@@ -55,6 +62,15 @@
 // Every other reviewer's non-pinned verdict still counts, and every non-pinned verdict is
 // NAMED on a `FALLBACK MODEL` line that the Stop hook shows the user on a green run too. An
 // entry with no `model` field, as every entry before 1.1.0 is, is judged exactly as before.
+//
+// The seventh (2.0.0, #87): THE LEDGER KEY. `prompt_id` leaves it. The hook stamps every
+// entry with the ledger format (`v`, tools/lib/reviewer-verdicts.mjs LEDGER_FORMAT), and v2
+// reads the session's entries by session_id and format: an entry in another format is
+// returned apart and never counts as a PASS, while a BLOCK in any format still stands, and a
+// reviewer whose entries are all in another format reds with a finding that names the
+// format. The step needs HARNESS_SESSION_ID alone; HARNESS_PROMPT_ID still keys the 1.0.x
+// judgement and still dates a mis-shaped line of this session, whose error lasts until the
+// prompt ends (decision 3: the lifetime it had, with a remedy that now says so).
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import {
@@ -134,7 +150,10 @@ function fixture({ changed = CHANGED, ledger = null, triggers } = {}) {
   return dir
 }
 
+// The entry the CURRENT hook writes: its format stamp first (2.0.0, #87). An entry an earlier
+// hook wrote is `entry(…, { v: undefined })`, which JSON.stringify writes without the key.
 const entry = (agent_type, verdict, over = {}) => ({
+  v: ledgerLib.LEDGER_FORMAT,
   session_id: SESSION,
   prompt_id: PROMPT,
   agent_type,
@@ -160,7 +179,7 @@ function writeLedger(dir, entries) {
 const digestFor = (dir, agent, files = [CHANGED]) =>
   pathStateDigest(agent, TRIGGERS, files, (p) => readFileSync(join(dir, p)))
 
-function runStep(dir, { session = SESSION, prompt = PROMPT, step = STEP } = {}) {
+function runStep(dir, { session = SESSION, prompt = PROMPT, step = STEP, ci = true } = {}) {
   const env = { ...process.env }
   delete env.HARNESS_REQUIRE_TOOLCHAINS
   // THE FIXTURE IS A DIFFERENT REPOSITORY, and this is the fourth time that has had to be
@@ -177,7 +196,10 @@ function runStep(dir, { session = SESSION, prompt = PROMPT, step = STEP } = {}) 
   // plays a CONSUMER, and a consumer does not have HARNESS_ALLOW_SELF_EDIT set
   // (upgrade-lane.sh unsets it script-wide with the full argument).
   delete env.HARNESS_ALLOW_SELF_EDIT
-  env.CI = 'true'
+  // `ci: false` plays a developer's shell, where a skip exits 0 (2.0.0, #87: the 1.0.x
+  // judgement with no prompt id must red there, not skip).
+  if (ci) env.CI = 'true'
+  else delete env.CI
   if (session === null) delete env.HARNESS_SESSION_ID
   else env.HARNESS_SESSION_ID = session
   if (prompt === null) delete env.HARNESS_PROMPT_ID
@@ -234,8 +256,10 @@ test('GREEN: a reviewer PASS is recorded, keyed to session and prompt', () => {
   // null here for the same reason: no dispatch record exists, and no digest is computable.
   // `model` and `pinned` (1.1.0, #62) are null too: the payload names no
   // agent_transcript_path, so the hook cannot read which model ran, and it records the
-  // verdict anyway with the exit code unchanged.
+  // verdict anyway with the exit code unchanged. `v` (2.0.0, #87) is the ledger format stamp
+  // the step keys on beside the session; `prompt_id` stays as a diagnostic outside the key.
   assert.deepEqual(line, {
+    v: '2.0.0',
     session_id: 's1',
     prompt_id: 'p1',
     agent_type: 'security-reviewer',
@@ -420,9 +444,13 @@ test('CANARY — the owed reviewer did not run, though another one did', () => {
   assert.match(r.out, /29990101_x\.sql` is why/)
 })
 
-test('CANARY — LAST TURN’S PASS does not satisfy this turn', () => {
-  // The one failure mode that would be silent. The ledger is append-only across a session,
-  // so an entry from an earlier prompt is exactly what a naive reader would accept.
+test('CANARY (the 1.0.x judgement) — LAST TURN’S PASS does not satisfy this turn', () => {
+  // The headline through 1.1.x. The ledger is append-only across a session, so an entry from
+  // an earlier prompt is exactly what a naive reader would accept. Since 2.0.0 (#87) prompt_id
+  // is out of the v2 key, but this fixture has no upstream, so the 1.0.x judgement decides,
+  // and it keeps the prompt in its key: its path_state digest leaves deletions out, so an
+  // earlier prompt's PASS is not provably about this tree. The v2 headline is
+  // `HEADLINE (2.0.0)` and its stale canary, below.
   const r = runStep(
     fixture({ ledger: [entry('security-reviewer', 'PASS', { prompt_id: 'an-earlier-turn' })] }),
   )
@@ -623,17 +651,22 @@ test('GREEN (0.9.0) — a torn line from a crashed session does not unbind this 
   assert.match(r.out, /line 2/)
 })
 
-test('CANARY (0.9.0) — THIS turn\'s own mis-shaped verdict line still FAILS CLOSED, with a performable remedy', () => {
+test('CANARY (0.9.0) — THIS turn\'s own mis-shaped verdict line still FAILS CLOSED, with a remedy that is true', () => {
   const dir = fixture({
     ledger: `${JSON.stringify({ session_id: SESSION, prompt_id: PROMPT, agent_type: 'security-reviewer' })}\n`,
   })
   const r = runStep(dir)
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /missing agent_type or verdict/)
-  // The remedy must be one the consumer can actually perform: the ledger is write-guard
-  // protected, so "delete it" is not — re-running the reviewer (a fresh appended entry) is.
-  assert.match(r.out, /run (the|each named) reviewer again/i)
+  // The remedy must be one that works. "Delete it" is not one (the ledger is write-guard
+  // protected), and through 1.1.x neither was the printed "run the reviewer again": the reader
+  // returns at the first such line, so a fresh entry after it never cleared the error. 2.0.0
+  // (#87, decision 3) keeps the line's lifetime, the prompt, and says so: DECISION 3 below
+  // executes both ends of it.
+  assert.match(r.out, /re-running the reviewer does not clear it/i)
+  assert.match(r.out, /the next prompt/)
   assert.doesNotMatch(r.out, /delete it and re-run/)
+  assert.doesNotMatch(r.out, /supersedes the torn line/)
 })
 
 test('RED: a missing trigger table is a BROKEN control, not an empty policy', () => {
@@ -643,13 +676,43 @@ test('RED: a missing trigger table is a BROKEN control, not an empty policy', ()
   assert.equal(r.code, 1, r.out)
 })
 
-test('no turn identity FAILS CLOSED in CI — the hook that supplies it must have changed', () => {
-  const r = runStep(fixture({ ledger: [entry('security-reviewer', 'PASS')] }), { prompt: null })
-  assert.equal(r.code, 1, r.out)
-  assert.match(r.out, /HARNESS_SESSION_ID\/HARNESS_PROMPT_ID/)
+test('no SESSION identity FAILS CLOSED in CI — the hook that supplies it must have changed (2.0.0: the session alone)', () => {
+  // Since 2.0.0 (#87) the step's identity is HARNESS_SESSION_ID alone. Without it there is no
+  // ledger key at all, and in CI that means the Stop hook that passes it has changed.
+  for (const prompt of [PROMPT, null]) {
+    const r = runStep(fixture({ ledger: [entry('security-reviewer', 'PASS')] }), {
+      session: null,
+      prompt,
+    })
+    assert.equal(r.code, 1, `${String(prompt)}: ${r.out}`)
+    assert.match(r.out, /no HARNESS_SESSION_ID in the environment/)
+    assert.doesNotMatch(r.out, /HARNESS_SESSION_ID\/HARNESS_PROMPT_ID/)
+  }
 })
 
-test('readLedger narrows to the turn and leaves everything else alone', () => {
+test('the step RUNS with HARNESS_SESSION_ID alone (2.0.0); the 1.0.x judgement, which keys on the prompt, fails closed without one', () => {
+  // A clean scaffold (the clean Stop-chain runs) owes nothing: green, executed, not skipped.
+  const clean = runStep(fixture({ changed: 'docs/notes.md' }), { prompt: null })
+  assert.equal(clean.code, 0, clean.out)
+  assert.match(clean.out, /no reviewer is owed a verdict by this diff/)
+  // No upstream, so the 1.0.x judgement decides, and its key is still (session, prompt).
+  // With no HARNESS_PROMPT_ID it can bind no verdict to this turn: a red that says why and
+  // what to do, never a skip that would switch the check off outside CI.
+  const dir = fixture()
+  writeLedger(dir, [
+    entry('security-reviewer', 'PASS', { path_state: digestFor(dir, 'security-reviewer') }),
+  ])
+  for (const ci of [true, false]) {
+    const r = runStep(dir, { prompt: null, ci })
+    assert.equal(r.code, 1, `CI=${String(ci)}: ${r.out}`)
+    assert.match(r.out, /the 1\.0\.x judgement decides here and keys the ledger on the prompt/)
+    assert.match(r.out, /no HARNESS_PROMPT_ID/)
+    assert.match(r.out, /set-upstream-to/)
+    assert.doesNotMatch(r.out, /SKIPPED|skips are not allowed/)
+  }
+})
+
+test('readLedger (the 1.0.x judgement’s reader) narrows to the turn and leaves everything else alone', () => {
   const raw = [
     JSON.stringify(entry('security-reviewer', 'PASS')),
     JSON.stringify(entry('design-reviewer', 'PASS', { prompt_id: 'other' })),
@@ -1970,7 +2033,9 @@ test('GREEN (budget) — a loop the same run closes WITHIN the budget spends not
 
 test('budget — entries an earlier hook wrote count ONE round each, and name no findings', () => {
   const dir = committedChange()
-  const legacy = { ...entry('security-reviewer', 'BLOCK'), prompt_id: 'an-earlier-prompt' }
+  // No format stamp either (2.0.0, #87): a round is a round in any format, so an older hook's
+  // BLOCKs spend the budget exactly as they did, and they stand until the same run passes.
+  const legacy = { ...entry('security-reviewer', 'BLOCK', { v: undefined }), prompt_id: 'an-earlier-prompt' }
   writeLedger(dir, [legacy, { ...legacy }, { ...legacy }, bound(dir, 'security-reviewer', 'PASS'), ...wholeTurnPasses(dir)])
   assertBudgetRed(dir, [
     /security-reviewer used its round budget of 3/,
@@ -2017,4 +2082,237 @@ test('budget — a parked tools/lib/reviewer-verdicts.mjs without the budget jud
   const r = runStep(dir, { step: join(dir, 'tools/check-reviewer-verdicts.mjs') })
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /tools\/lib\/reviewer-verdicts\.mjs has no judgeRoundBudget export/)
+})
+
+// ── THE LEDGER KEY (2.0.0, #87): the session and the format, not the prompt ─────────
+//
+// B03. After the reviewer ledger v2, what makes a PASS current is its digest pair, and
+// prompt_id only forced re-runs. So the v2 key is session_id and the ledger format stamp `v`:
+// a counted PASS from an earlier prompt stands as long as its digests do, and the canary that
+// proves the key is the one where the owed file MOVED after that PASS. An entry in another
+// format is returned apart by the reader and never counts as a PASS; a BLOCK in any format
+// still stands until the same run passes; a reviewer whose entries are ALL in another format
+// reds naming the format, so a mid-session `update` or a parked fork of the hook or the lib
+// reads as what it is, never as "did not run". Every case here runs with HARNESS_SESSION_ID
+// alone unless it says otherwise: the step needs nothing more where v2 decides.
+
+const EARLIER = { prompt_id: 'an-earlier-prompt' }
+/** The entry an earlier (pre-2.0.0) hook wrote: no format stamp. */
+const UNSTAMPED = { v: undefined }
+
+test('HEADLINE (2.0.0) — a current-format PASS from an EARLIER prompt counts with HARNESS_SESSION_ID alone, its dispatch and stop digests equal to the current one', () => {
+  const dir = committedChange()
+  writeLedger(dir, [
+    bound(dir, 'security-reviewer', 'PASS', EARLIER),
+    ...wholeTurnPasses(dir, EARLIER),
+  ])
+  for (const prompt of [null, 'a-later-prompt']) {
+    const r = runStep(dir, { prompt })
+    assert.equal(r.code, 0, `${String(prompt)}: ${r.out}`)
+    assert.match(r.out, /3 owed reviewer\(s\) each have a counted PASS at the current tree/)
+  }
+})
+
+test('CANARY (2.0.0, the headline) — that earlier-prompt PASS reds as STALE once the owed file moves', () => {
+  // The prompt-keyed headline's successor. Nothing about the prompt refuses this PASS any
+  // more: the digest does, because the tree it passed is no longer the tree being shipped.
+  const dir = committedChange()
+  const earlier = bound(dir, 'security-reviewer', 'PASS', EARLIER)
+  put(dir, CHANGED, '-- a change\n-- and a later commit the reviewer never saw\n')
+  commitAll(dir, 'a post-PASS commit')
+  writeLedger(dir, [earlier, ...wholeTurnPasses(dir, EARLIER)])
+  const r = runStep(dir, { prompt: null })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /reviewer-verdicts: FAIL/)
+  assert.match(r.out, /security-reviewer returned PASS for a different tree/)
+  assert.match(r.out, /29990101_x\.sql/)
+  // The same red on every vintage the v2 ramp distinguishes (with the prompt the hook passes).
+  assertV2Red(dir, [/security-reviewer returned PASS for a different tree/])
+})
+
+test('CANARY (2.0.0) — a BLOCK from an earlier prompt still reds until the SAME agent_id passes at the current digest', () => {
+  const dir = committedChange()
+  const block = bound(dir, 'security-reviewer', 'BLOCK', { ...EARLIER, agent_id: 'a1' })
+  writeLedger(dir, [block, bound(dir, 'security-reviewer', 'PASS', { agent_id: 'a2' }), ...wholeTurnPasses(dir)])
+  const second = runStep(dir, { prompt: null })
+  assert.equal(second.code, 1, second.out)
+  assert.match(second.out, /security-reviewer returned VERDICT: BLOCK \(agent_id a1\)/)
+  assert.match(second.out, /second opinion/)
+  writeLedger(dir, [block, bound(dir, 'security-reviewer', 'PASS', { agent_id: 'a1' }), ...wholeTurnPasses(dir)])
+  const same = runStep(dir, { prompt: null })
+  assert.equal(same.code, 0, same.out)
+})
+
+test('CANARY (2.0.0) — an owed reviewer whose entries are all in an OLDER format reds, asks for a re-review and names the format', () => {
+  // A PASS that would count in every other respect: its digests equal the tree now. The
+  // 1.1.x hook wrote it (no stamp), before a mid-session `update` or through a kept fork.
+  const dir = committedChange()
+  writeLedger(dir, [
+    bound(dir, 'security-reviewer', 'PASS', { ...UNSTAMPED, ...EARLIER }),
+    bound(dir, 'security-reviewer', 'PASS', UNSTAMPED),
+    ...wholeTurnPasses(dir),
+  ])
+  assertV2Red(dir, [
+    /security-reviewer has verdicts in this session only in another ledger format \(no format stamp: a hook from before 2\.0\.0 wrote them\)/,
+    /this step reads format 2\.0\.0/,
+    /Run security-reviewer again/,
+    /\.harness\/pending\//,
+  ])
+  const r = runStep(dir, { prompt: null })
+  assert.equal(r.code, 1, r.out)
+  assert.doesNotMatch(r.out, /has not returned a verdict|did not run/, r.out)
+  // A stamp that is not this lib's is named as it stands, a newer one included: an entry the
+  // step cannot bind is sent back for re-review, whichever side of the hop wrote it.
+  writeLedger(dir, [bound(dir, 'security-reviewer', 'PASS', { v: '9.9.9' }), ...wholeTurnPasses(dir)])
+  const newer = runStep(dir, { prompt: null })
+  assert.equal(newer.code, 1, newer.out)
+  assert.match(newer.out, /only in another ledger format \(format 9\.9\.9\)/)
+})
+
+test('CANARY (2.0.0) — an older-format PASS never clears a BLOCK; an older-format BLOCK still stands until the same run passes in the current format', () => {
+  const dir = committedChange()
+  // A current-format BLOCK, then the same run's PASS in the old format: not a clearing PASS.
+  writeLedger(dir, [
+    bound(dir, 'security-reviewer', 'BLOCK', { agent_id: 'a1' }),
+    bound(dir, 'security-reviewer', 'PASS', { ...UNSTAMPED, agent_id: 'a1' }),
+    ...wholeTurnPasses(dir),
+  ])
+  const unstampedPass = runStep(dir, { prompt: null })
+  assert.equal(unstampedPass.code, 1, unstampedPass.out)
+  assert.match(unstampedPass.out, /security-reviewer returned VERDICT: BLOCK \(agent_id a1\)/)
+  // An old-format BLOCK from before the hop: a fresh run's PASS is a second opinion …
+  const oldBlock = bound(dir, 'security-reviewer', 'BLOCK', { ...UNSTAMPED, ...EARLIER, agent_id: 'a1' })
+  writeLedger(dir, [oldBlock, bound(dir, 'security-reviewer', 'PASS', { agent_id: 'a2' }), ...wholeTurnPasses(dir)])
+  const fresh = runStep(dir, { prompt: null })
+  assert.equal(fresh.code, 1, fresh.out)
+  assert.match(fresh.out, /security-reviewer returned VERDICT: BLOCK \(agent_id a1\)/)
+  // … and the same run, resumed after the hop and passing in the current format, clears it.
+  writeLedger(dir, [oldBlock, bound(dir, 'security-reviewer', 'PASS', { agent_id: 'a1' }), ...wholeTurnPasses(dir)])
+  const resumed = runStep(dir, { prompt: null })
+  assert.equal(resumed.code, 0, resumed.out)
+})
+
+test('DECISION 3 (2.0.0) — a mis-shaped line of THIS prompt fails closed for the rest of the prompt: a re-run does not clear it, the next prompt does', () => {
+  const dir = committedChange()
+  const torn = JSON.stringify({ session_id: SESSION, prompt_id: PROMPT, agent_type: 'security-reviewer' })
+  // The torn line, then the re-run the old remedy prescribed: well-formed, current, bound.
+  put(
+    dir,
+    '.harness/reviewer-ledger.jsonl',
+    `${[torn, ...[bound(dir, 'security-reviewer', 'PASS'), ...wholeTurnPasses(dir)].map((e) => JSON.stringify(e))].join('\n')}\n`,
+  )
+  const same = runStep(dir)
+  assert.equal(same.code, 1, `the re-run in the same prompt does not clear it: ${same.out}`)
+  assert.match(same.out, /line 1 of \.harness\/reviewer-ledger\.jsonl belongs to THIS session's current prompt and is missing agent_type or verdict/)
+  assert.match(same.out, /re-running the reviewer does not clear it/i)
+  assert.match(same.out, /the next prompt/)
+  // The next prompt: the line is skipped with a NOTE and judged as absent, so the re-run counts.
+  const next = runStep(dir, { prompt: 'the-next-prompt' })
+  assert.equal(next.code, 0, next.out)
+  assert.match(next.out, /NOTE — line 1 .*missing agent_type or verdict/)
+  // With no prompt id the step cannot tell the line is not this prompt's, so it fails closed.
+  const undated = runStep(dir, { prompt: null })
+  assert.equal(undated.code, 1, undated.out)
+  assert.match(undated.out, /no HARNESS_PROMPT_ID/)
+  assert.match(undated.out, /missing agent_type or verdict/)
+})
+
+test('readSessionEntries (2.0.0): narrows to the session and the format; entries in another format come back apart, in ledger order', () => {
+  const raw = [
+    JSON.stringify(entry('security-reviewer', 'PASS', EARLIER)),
+    JSON.stringify(entry('security-reviewer', 'BLOCK', UNSTAMPED)),
+    'not json',
+    JSON.stringify(entry('design-reviewer', 'PASS', { v: '1.9.9' })),
+    JSON.stringify(entry('security-reviewer', 'PASS', { session_id: 'other' })),
+    JSON.stringify({ session_id: SESSION, prompt_id: 'an-earlier-prompt', agent_type: 'x' }),
+    JSON.stringify(entry('design-reviewer', 'BLOCK')),
+    'null',
+    JSON.stringify({ session_id: 'other', agent_type: 'x' }),
+    JSON.stringify({ session_id: SESSION, agent_type: 'x' }),
+    '',
+  ].join('\n')
+  const r = ledgerLib.readSessionEntries(raw, SESSION, { promptId: PROMPT })
+  assert.equal(r.error, null)
+  const tags = (list) => list.map((e) => `${e.agent_type}/${e.verdict}/${String(e.v)}`)
+  assert.deepEqual(tags(r.entries), ['security-reviewer/PASS/2.0.0', 'design-reviewer/BLOCK/2.0.0'])
+  assert.deepEqual(tags(r.older), ['security-reviewer/BLOCK/undefined', 'design-reviewer/PASS/1.9.9'])
+  assert.deepEqual(tags(r.session), [
+    'security-reviewer/PASS/2.0.0',
+    'security-reviewer/BLOCK/undefined',
+    'design-reviewer/PASS/1.9.9',
+    'design-reviewer/BLOCK/2.0.0',
+  ])
+  assert.equal(r.skipped.length, 5, JSON.stringify(r.skipped))
+  assert.match(r.skipped[0], /line 3 .*is not JSON/)
+  assert.match(r.skipped[1], /line 6 .*missing agent_type or verdict .*an earlier prompt/)
+  assert.match(r.skipped[2], /line 8 .*is not an object/)
+  assert.match(r.skipped[3], /line 9 .*missing agent_type or verdict \(another session's entry\)/)
+  // This session's, with no prompt_id: it does not name the current prompt, the key its
+  // lifetime always had, so it is stepped over and named, as through 1.1.x.
+  assert.match(r.skipped[4], /line 10 .*\(this session's, with no prompt_id to date it\)/)
+  // The prompt is NOT a filter: the same read with no prompt id returns the same entries …
+  const tornless = raw.split('\n').filter((l) => !l.includes('"agent_type":"x"')).join('\n')
+  assert.deepEqual(tags(ledgerLib.readSessionEntries(tornless, SESSION).entries), tags(r.entries))
+  // … and it dates a mis-shaped line of this session: this prompt's fails closed, and with no
+  // prompt id any of this session's does, because it cannot be shown to be another prompt's.
+  const thisPrompt = JSON.stringify({ session_id: SESSION, prompt_id: PROMPT, verdict: 'PASS' })
+  const mine = ledgerLib.readSessionEntries(`${thisPrompt}\n`, SESSION, { promptId: PROMPT })
+  assert.match(String(mine.error), /belongs to THIS session's current prompt/)
+  assert.deepEqual([mine.entries, mine.older, mine.session], [[], [], []])
+  assert.match(String(ledgerLib.readSessionEntries(raw, SESSION).error), /no HARNESS_PROMPT_ID/)
+  assert.equal(ledgerLib.readSessionEntries(raw, SESSION, { label: 'L' }).error?.startsWith('line 6 of L'), true)
+  assert.equal(ledgerLib.LEDGER_FORMAT, '2.0.0')
+})
+
+test('judgeReviewerV2 (2.0.0): an entry in another format never counts as a PASS, and a BLOCK in any format stands', () => {
+  const cur = 'c'.repeat(64)
+  const owed = { agent: 'security-reviewer', because: CHANGED }
+  const e = (verdict, over = {}) => ({
+    ...entry('security-reviewer', verdict),
+    path_state_start: cur,
+    path_state_stop: cur,
+    ...over,
+  })
+  /** @param {object[]} session @param {object[]} older */
+  const judge = (session, older) => ledgerLib.judgeReviewerV2(owed, session, cur, older)
+  // `older` holds the SAME objects as the session list, as readSessionEntries returns them:
+  // the judge tells them apart by identity, so a 1.1.x step that passes no list loses nothing.
+  const oldPass = e('PASS', UNSTAMPED)
+  const oldBlock = e('BLOCK', UNSTAMPED)
+  const newerPass = e('PASS', { v: '1.9.9' })
+  const oddPass = e('PASS', { v: 'a\nb' })
+  const cases = /** @type {Array<[string, object[], object[], RegExp | null]>} */ ([
+    ['only an older-format PASS', [oldPass], [oldPass], /only in another ledger format \(no format stamp/],
+    ['an older PASS beside a counted current one', [oldPass, e('PASS')], [oldPass], null],
+    ['an older BLOCK, then a fresh run', [oldBlock, e('PASS', { agent_id: 'a2' })], [oldBlock], /BLOCK \(agent_id a1\)/],
+    ['an older BLOCK, then the same run', [oldBlock, e('PASS')], [oldBlock], null],
+    ['a current BLOCK, then the same run in the old format', [e('BLOCK'), oldPass], [oldPass], /BLOCK \(agent_id a1\)/],
+    ['the same run passed BEFORE its older-format BLOCK', [e('PASS'), oldBlock], [oldBlock], /BLOCK \(agent_id a1\)/],
+    ['two other formats, each named once', [oldPass, newerPass, oldPass], [oldPass, newerPass], /\(no format stamp: a hook from before 2\.0\.0 wrote them; format 1\.9\.9\)/],
+    ['a stamp not spelled like a version', [oddPass], [oddPass], /\(an unreadable format stamp\)/],
+  ])
+  for (const [name, session, older, want] of cases) {
+    const got = judge(session, older)
+    if (want === null) assert.equal(got, null, name)
+    else assert.match(String(got), want, name)
+  }
+  // A 1.1.x step passes no `older`: every entry counts by the 1.1.x rule, as it always did.
+  assert.equal(ledgerLib.judgeReviewerV2(owed, [oldPass], cur), null)
+})
+
+test('a parked tools/lib/reviewer-verdicts.mjs without the 2.0.0 reader is ONE v2 finding naming what it lacks', () => {
+  const dir = committedChange()
+  const lib = join(dir, 'tools/lib/reviewer-verdicts.mjs')
+  mkdirSync(join(dir, 'tools/lib'), { recursive: true })
+  cpSync(join(TOOLS, 'lib'), join(dir, 'tools/lib'), { recursive: true })
+  cpSync(STEP, join(dir, 'tools/check-reviewer-verdicts.mjs'))
+  const text = readFileSync(lib, 'utf8')
+  const fork = text.replace('export function readSessionEntries(', 'function notExported(')
+  assert.notEqual(fork, text, 'the fixture must actually drop the export')
+  writeFileSync(lib, fork)
+  writeLedger(dir, [bound(dir, 'security-reviewer', 'PASS'), ...wholeTurnPasses(dir)])
+  const r = runStep(dir, { step: join(dir, 'tools/check-reviewer-verdicts.mjs') })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /tools\/lib\/reviewer-verdicts\.mjs lacks readSessionEntries/)
+  assert.match(r.out, /parked/)
 })

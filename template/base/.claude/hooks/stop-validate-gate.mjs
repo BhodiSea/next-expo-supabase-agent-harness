@@ -147,10 +147,15 @@ function runStep(cmd) {
     // (tests/rls/run-rls.mjs) that THIS run is the proof — a skip is not acceptable.
     const out = execSync(cmd, {
       // THE TURN'S IDENTITY, passed down (0.6.0). tools/check-reviewer-verdicts.mjs narrows
-      // the reviewer ledger to THIS turn, and without the prompt_id an earlier turn's PASS
-      // would satisfy an obligation raised by this one — the one failure mode that would
-      // make that whole control decorative. `session_id` and `prompt_id` are observed fields
-      // of the Stop payload; see design/CONTROL-PLANE-FACTS.md.
+      // the reviewer ledger to THIS session, and without the session_id another session's
+      // PASS would satisfy an obligation raised by this one — the one failure mode that would
+      // make that whole control decorative. Since 2.0.0 (#87) the session is the only id the
+      // step requires: its v2 key is the session and the entry's format stamp. The prompt_id
+      // is still passed, for three readers: the 1.0.x judgement keys on it, it dates a
+      // mis-shaped ledger line, and a step from 1.1.x (a kept fork, or the old copy during a
+      // mid-session update) still requires it and would otherwise skip loudly outside CI,
+      // which switches the check off. `session_id` and `prompt_id` are observed fields of the
+      // Stop payload; see design/CONTROL-PLANE-FACTS.md.
       env: {
         ...process.env,
         HARNESS_STOP_GATE: '1',

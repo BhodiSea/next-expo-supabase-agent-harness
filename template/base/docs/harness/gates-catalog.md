@@ -2526,8 +2526,10 @@ rather than the tree: every reviewer whose `MUST BE USED` trigger patterns
 have returned `VERDICT: PASS`, recorded by the SubagentStop hook
 (`.claude/hooks/subagent-verdict.mjs`) into the session-scoped ledger at
 `.harness/reviewer-ledger.jsonl`. The Stop hook passes the turn's identity down
-(`HARNESS_SESSION_ID`/`HARNESS_PROMPT_ID`) and the step narrows the ledger to
-THIS turn, so last turn's PASS satisfies nothing. Five failure modes: an owed
+(`HARNESS_SESSION_ID`/`HARNESS_PROMPT_ID`), and this 1.0.x judgement narrows the
+ledger to THIS turn, so last turn's PASS satisfies nothing under it (since 2.0.0
+the step requires only the session id, and the reviewer ledger v2 keys on the
+session and the entry's format: the ledger key, below). Five failure modes: an owed
 reviewer that never ran BLOCKS, naming the trigger path that summoned it; a
 reviewer that ran and returned `VERDICT: BLOCK` blocks loudly — that is the
 finding it exists to produce, and a turn does not end on a BLOCK (it stands for
@@ -2553,9 +2555,9 @@ banner (the 0.6.0 ramp's deadline arrived — sweep the findings, then
 graduate), while a 0.6.0-vintage install reds plainly with no banner: its ramp
 is inert, not expired. Fail closed in every direction that matters: a missing
 `tools/reviewer-triggers.json` is a broken control, not an empty policy
-(FAIL); a missing, unreadable, or unparseable ledger BLOCKS; a missing turn
-identity skips loudly outside the Stop hook and FAILS in CI, where the hook
-that supplies it must have changed. What it deliberately does NOT judge is the
+(FAIL); a missing, unreadable, or unparseable ledger BLOCKS; a missing
+session identity skips loudly outside the Stop hook and FAILS in CI, where the
+hook that supplies it must have changed. What it deliberately does NOT judge is the
 CONTENT of a review: a PASS is an attestation by a read-only agent whose
 tools, pinned model, fallback list and body are hashed in
 `tools/agents.lock.json` (its `models` map records the pin alone; the model a
@@ -2587,7 +2589,37 @@ nothing, and a torn line that claims this turn still fails closed. With no
 merge base (a fresh `git init`, or a branch with no upstream) v2 does not
 judge: the step prints a NOTE saying so and the 1.0.x judgement decides. Every
 clean-scaffold run in the harness's own CI takes that path. `path_state` keeps
-its 1.0.x meaning, and `prompt_id` stays in each entry and in the turn key.
+its 1.0.x meaning.
+**The ledger key (2.0.0): the session and the format, not the prompt.** Under
+v2 a PASS is current while its digest pair matches the tree, so `prompt_id`
+only forced re-runs, and it leaves v2's key. The SubagentStop hook stamps every
+entry with `v`, the ledger format (`LEDGER_FORMAT` in
+`tools/lib/reviewer-verdicts.mjs`, `2.0.0`), and v2 reads the session's
+entries by session and format (`readSessionEntries`). An entry in another
+format, one a hook from before 2.0.0 wrote (no stamp) or any other stamp, is
+returned apart and never counts as a PASS, nor as the PASS that clears a
+BLOCK; a BLOCK in any format still stands until the same run passes in the
+current format, in ledger order. A reviewer whose entries in the session are
+all in another format reds with a finding that names the format and asks for
+one re-run, and says that a kept fork of the hook or the lib writes such
+entries on every run until the parked copy is merged; it never reads as "did
+not run". This is not ramped: it is the 2.0.0 key, and the format finding is a
+v2 finding, so it rides v2's ramp. The step requires `HARNESS_SESSION_ID`
+alone. The Stop hook still passes `HARNESS_PROMPT_ID` and the hook still
+records `prompt_id`: the 1.0.x judgement keeps the prompt in its key (its
+`path_state` leaves deletions out and has no dispatch digest, so an earlier
+prompt's PASS is not provably about this tree), a step from 1.1.x still
+requires it, and it dates a mis-shaped line. Where the 1.0.x judgement decides
+and no prompt id is set, it reds with a finding that says why, in CI and out of
+it: a skip would switch the check off. A line of this session that lacks
+`agent_type` or `verdict` fails closed until the prompt it was written in ends,
+the lifetime it always had: re-running the reviewer does not clear it, because
+the line stays in the append-only ledger and the reader stops at it, and the
+step's remedy says so and says the next prompt does. From then on the line is
+skipped with a NOTE and the ledger is judged as if it were absent. With no
+prompt id the step cannot date such a line, and fails closed on it. It never
+authorizes anything either way. The round budget counts entries of every
+format: a round an earlier hook recorded stays spent.
 **The model a verdict ran on (1.1.0; the security finding behind a ramp until
 2.1.0).** A reviewer can run off the model its agent file pins: a per-invocation
 `model`, `CLAUDE_CODE_SUBAGENT_MODEL` (and `_FORCE`), an `availableModels`
@@ -2621,9 +2653,13 @@ limit: the transcript lives outside the project, so the record catches a
 configuration that moves a reviewer, not a session that forges its own
 transcript; a value not spelled like a model ID is recorded as `null`, so a
 forged one cannot write lines into the Stop output.
-**Anti-vacuity:** tests/gates/check-reviewer-verdicts.test.mjs — the owed
-reviewer that never ran, last turn's PASS refused, the cross-session PASS
-refused, the BLOCK that blocks, the unparseable ledger failing closed, the
+**Anti-vacuity:** tests/gates/check-reviewer-verdicts.test.mjs — the headline
+since 2.0.0: an earlier prompt's current-format PASS counts with the session id
+alone at the current digest and reds as `returned PASS for a different tree`
+once the owed file moves; the owed
+reviewer that never ran, last turn's PASS refused under the 1.0.x judgement,
+the cross-session PASS refused, the BLOCK that blocks, the unparseable ledger
+failing closed, the
 `RAMP EXPIRED` branch EXECUTED at harness 0.7.0 (with the 0.6.0-vintage
 sibling case pinning the plain red, no banner), the PASS-then-edit stale
 binding red (with edit-then-PASS green, the non-owed post-PASS edit staying
@@ -2654,6 +2690,18 @@ no-upstream path and `reviewChanges()` are pinned too, with the seeded
 `path_state_start` are proved in tests/hooks/subagent-verdict-pathstate.test.mjs,
 and tests/hooks/hook-contract.test.mjs holds a reviewer's `SubagentStart` to
 exit 0 with one dispatch record, no ledger line and no blocked turn outcome.
+The ledger key (2.0.0): insert an entry in an older format for an owed reviewer
+→ FAIL naming the format and asking for a re-run (a NOTE on a 1.0.3 manifest,
+`RAMP EXPIRED` at harness 2.1.0); an older-format PASS clears no BLOCK, an
+older-format BLOCK stands until the same run passes in the current format, a
+BLOCK from an earlier prompt stands with the session id alone, and a parked lib
+without `readSessionEntries` is one finding naming it. A mis-shaped line of the
+current prompt reds, a re-run after it in the same prompt is still red, the
+next prompt is green with a NOTE, and with no prompt id it fails closed; the
+step runs with the session id alone, fails closed in CI without it, and the
+1.0.x judgement reds without a prompt id instead of skipping. The hook's exact
+entry shape carries `v: '2.0.0'`, and tests/hooks/subagent-verdict-pathstate.test.mjs
+shows a hook beside a parked lib without `LEDGER_FORMAT` writing no stamp.
 The model record (1.1.0): a transcript fixture in the observed shape on the pin
 records `pinned: true`, one off it, a mid-run fallback (the verdict's model wins),
 a failover whose model attachment still names the pin, and a synthetic or torn

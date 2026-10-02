@@ -4,9 +4,10 @@
 //
 // One module because the two ends must agree about three things and there is no second
 // chance to notice they do not: what a verdict LINE looks like, what a ledger ENTRY looks
-// like, and which turn an entry belongs to. Two copies of that agreement is the drift this
-// release has spent itself deleting. Since 1.1.0 (#62) there is a fourth: which model a
-// verdict ran on, and when that model counts as the reviewer's pin.
+// like, and which session and FORMAT an entry belongs to (since 2.0.0, #87: the ledger key;
+// through 1.1.x it was the session and the prompt). Two copies of that agreement is the
+// drift this release has spent itself deleting. Since 1.1.0 (#62) there is a fourth: which
+// model a verdict ran on, and when that model counts as the reviewer's pin.
 //
 // Pure: no process exit, no I/O (hashing is computation, not I/O — pathStateDigest takes a
 // reader precisely so the file system stays the caller's business). Every consumer supplies
@@ -271,12 +272,140 @@ function parseObject(line) {
   }
 }
 
+// ── THE LEDGER KEY (2.0.0, #87) ─────────────────────────────────────────────────────────
+// B03: prompt_id leaves the key. Under the reviewer ledger v2 what makes a PASS current is
+// its digest pair, and prompt_id only forced re-runs, so since 2.0.0 the v2 judgement reads
+// the ledger by session_id and FORMAT. The hook stamps every entry with `v`, LEDGER_FORMAT,
+// read from this lib through its namespace import: the writer and the reader share one
+// definition, and a hook running beside a parked fork of this lib writes no stamp rather
+// than a format that lib cannot read. The reader COMPARES the stamp (turn-outcomes' `v` only
+// tests presence): an entry in any other format, older or newer, comes back apart and never
+// counts as a PASS, while a BLOCK in any format still stands. Session scoping stays, because
+// concurrent sessions share the file. prompt_id stays in every entry, outside the key: the
+// 1.0.x judgement still keys on it (readLedger, below), and it dates a mis-shaped line.
+
 /**
- * The ledger, narrowed to ONE SESSION (v2), in ledger order. Malformed lines keep readLedger's
- * bounds exactly: a line that does not parse is skipped and named, and a mis-shaped line
- * that claims THIS turn (session + prompt) fails closed, so a torn line from an earlier
- * prompt still cannot brick the rest of the session. Session scoping stays because
- * concurrent sessions share the file; prompt_id stays in each entry.
+ * The reviewer ledger's entry format, written as `v` on every entry since 2.0.0: the release
+ * that introduced it, as the turn-outcomes stamp is. An entry without `v` was written by a
+ * hook from before 2.0.0. It moves when an entry's meaning changes, and the step then names
+ * every entry an older hook wrote instead of reading it.
+ */
+export const LEDGER_FORMAT = '2.0.0'
+
+const LEDGER_LABEL = '.harness/reviewer-ledger.jsonl'
+
+/** @param {Record<string, unknown>} e */
+const isWellFormed = (e) => typeof e.agent_type === 'string' && typeof e.verdict === 'string'
+
+/** @param {Record<string, unknown>} e */
+const isCurrentFormat = (e) => e.v === LEDGER_FORMAT
+
+/**
+ * A mis-shaped line of THIS session (no agent_type or no verdict), DATED by its prompt_id.
+ * DECISION 3 (2.0.0, #87): the error keeps the lifetime it always had, the prompt. With the
+ * session as the whole key it would red every Stop for the rest of the session, and the
+ * ledger is append-only and write-guarded, so nothing the agent could do would clear it. A
+ * line of the current prompt fails closed until the prompt ends, and a re-run does not clear
+ * it, because the line stays where it is (the step's remedy says exactly that). A line of an
+ * earlier prompt, or one with no prompt_id to date it, is skipped and named, as through
+ * 1.1.x. With no prompt id to compare, the line cannot be shown to be an earlier prompt's,
+ * so it fails closed. It never authorizes anything, whichever way it goes.
+ * @param {Record<string, unknown>} parsed @param {string} where @param {string|null} promptId
+ * @returns {{ error?: string, skipped?: string }}
+ */
+function misshapenLine(parsed, where, promptId) {
+  if (promptId === null) {
+    return {
+      error: `${where} belongs to THIS session and is missing agent_type or verdict, and with no HARNESS_PROMPT_ID the step cannot show it is an earlier prompt's`,
+    }
+  }
+  if (parsed.prompt_id === promptId) {
+    return {
+      error: `${where} belongs to THIS session's current prompt and is missing agent_type or verdict`,
+    }
+  }
+  const whose =
+    typeof parsed.prompt_id === 'string'
+      ? "this session's, from an earlier prompt"
+      : "this session's, with no prompt_id to date it"
+  return { skipped: `${where} is missing agent_type or verdict (${whose}) — skipped` }
+}
+
+/**
+ * One ledger line, read for the session key: an entry of this session, a NOTE, an error, or
+ * nothing (another session's well-formed entry).
+ * @param {string} line @param {string} where @param {string} sessionId @param {string|null} promptId
+ * @returns {{ entry?: Record<string, unknown>, error?: string, skipped?: string }}
+ */
+function sessionLine(line, where, sessionId, promptId) {
+  let parsed
+  try {
+    parsed = JSON.parse(line)
+  } catch {
+    return {
+      skipped: `${where} is not JSON — skipped (unattributable, so it can authorize nothing)`,
+    }
+  }
+  if (parsed === null || typeof parsed !== 'object') {
+    return {
+      skipped: `${where} is not an object — skipped (unattributable, so it can authorize nothing)`,
+    }
+  }
+  if (parsed.session_id !== sessionId) {
+    return isWellFormed(parsed)
+      ? {}
+      : { skipped: `${where} is missing agent_type or verdict (another session's entry) — skipped` }
+  }
+  return isWellFormed(parsed) ? { entry: parsed } : misshapenLine(parsed, where, promptId)
+}
+
+/**
+ * The ledger, narrowed to ONE SESSION and split by FORMAT (2.0.0, #87): the v2 key.
+ *
+ *   - `entries`: this session's well-formed entries in LEDGER_FORMAT, in ledger order: the
+ *     only ones that can count as a PASS;
+ *   - `older`: this session's well-formed entries in any other format (no `v`, or another
+ *     one), in ledger order, returned apart rather than dropped, so the step can name them;
+ *   - `session`: both, in ledger order, for the rules that need the order (a BLOCK in any
+ *     format stands until a LATER counted PASS from the same run; every entry is a round);
+ *   - `error`: a mis-shaped line of the current prompt (misshapenLine), which fails closed;
+ *   - `skipped`: the lines stepped over, each named with its line number and class.
+ *
+ * The prompt is not a filter. `promptId` only dates a mis-shaped line of this session.
+ * @param {string} raw
+ * @param {string} sessionId
+ * @param {{ promptId?: string|null, label?: string }} [opts]
+ * @returns {{ entries: Array<Record<string, unknown>>, older: Array<Record<string, unknown>>, session: Array<Record<string, unknown>>, error: string|null, skipped: string[] }}
+ */
+export function readSessionEntries(raw, sessionId, { promptId = null, label = LEDGER_LABEL } = {}) {
+  const session = []
+  const skipped = []
+  for (const [i, line] of raw.split('\n').entries()) {
+    if (line.trim() === '') continue
+    const read = sessionLine(line, `line ${String(i + 1)} of ${label}`, sessionId, promptId)
+    if (read.error !== undefined) {
+      return { entries: [], older: [], session: [], error: read.error, skipped }
+    }
+    if (read.skipped !== undefined) skipped.push(read.skipped)
+    if (read.entry !== undefined) session.push(read.entry)
+  }
+  return {
+    entries: session.filter(isCurrentFormat),
+    older: session.filter((e) => !isCurrentFormat(e)),
+    session,
+    error: null,
+    skipped,
+  }
+}
+
+/**
+ * The 1.1.x reader of the v2 judgement: the ledger, narrowed to ONE SESSION, in ledger order,
+ * every format alike, with readLedger's (session + prompt) fail-closed rule for a mis-shaped
+ * line. The 2.0.0 step reads readSessionEntries instead. This one stays, with its signature
+ * and its meaning, for a check-reviewer-verdicts.mjs forked at 1.1.x that `update` kept beside
+ * this lib: it calls this through its namespace import and judges what it returns by the 1.1.x
+ * rule.
+ * @public kept for a step forked at 1.1.x; exported for tests/gates/check-reviewer-verdicts.test.mjs
  * @param {string} raw @param {string} sessionId @param {string} promptId @param {string} [label]
  * @returns {{ entries: object[], error: string|null, skipped: string[] }}
  */
@@ -335,11 +464,12 @@ const isCountedPass = (e, current) =>
 /**
  * The BLOCKs that still stand: a BLOCK is cleared only by a LATER counted PASS from the
  * SAME agent_id. A PASS from another run is a second opinion and retracts nothing, and a
- * BLOCK with no agent_id can never be cleared.
+ * BLOCK with no agent_id can never be cleared. A BLOCK stands in any format (2.0.0): only
+ * what counts as the clearing PASS is format-bound.
  * @param {Array<Record<string, unknown>>} mine this reviewer's session entries, in order
- * @param {string|null} current
+ * @param {(e: Record<string, unknown>) => boolean} counts whether an entry is a counted PASS
  */
-function standingBlocks(mine, current) {
+function standingBlocks(mine, counts) {
   return mine.filter(
     (e, i) =>
       e.verdict === 'BLOCK' &&
@@ -347,11 +477,45 @@ function standingBlocks(mine, current) {
         .slice(i + 1)
         .some(
           (later) =>
-            typeof e.agent_id === 'string' &&
-            later.agent_id === e.agent_id &&
-            isCountedPass(later, current),
+            typeof e.agent_id === 'string' && later.agent_id === e.agent_id && counts(later),
         ),
   )
+}
+
+/** @param {{agent: string}} owed @param {Array<Record<string, unknown>>} standing */
+function blockFinding(owed, standing) {
+  const ids = [
+    ...new Set(
+      standing.map((e) => (typeof e.agent_id === 'string' ? e.agent_id : 'none recorded')),
+    ),
+  ]
+  return `${owed.agent} returned VERDICT: BLOCK (agent_id ${ids.join(', ')}) in this session, and that reviewer has not returned PASS at the current tree since. A BLOCK stands across prompts until the SAME reviewer passes: fix what it named, then resume that reviewer (SendMessage to its agent_id) so it re-reviews. A fresh run of ${owed.agent} is a second opinion and retracts nothing.`
+}
+
+/**
+ * How a format stamp is named in a finding: never the raw value unless it is spelled like a
+ * version, because the ledger's content reaches the Stop output.
+ * @param {unknown} v
+ */
+function formatName(v) {
+  if (v === undefined || v === null) return 'no format stamp: a hook from before 2.0.0 wrote them'
+  return typeof v === 'string' && /^[0-9A-Za-z.+-]{1,32}$/.test(v)
+    ? `format ${v}`
+    : 'an unreadable format stamp'
+}
+
+/**
+ * The finding for an owed reviewer whose entries in this session are ALL in another ledger
+ * format (2.0.0, #87): never "did not run", because it did, and never a PASS, because the
+ * step cannot bind an entry in a format it does not read. It names the formats and both
+ * causes: entries written before a mid-session `update`, which one re-run replaces, and a
+ * kept fork of the hook or this lib, which writes them on every run until it is merged.
+ * @param {{agent: string}} owed @param {Array<Record<string, unknown>>} mine
+ */
+function formatFinding(owed, mine) {
+  const a = owed.agent
+  const formats = [...new Set(mine.map((e) => formatName(e.v)))].join('; ')
+  return `${a} has verdicts in this session only in another ledger format (${formats}), and this step reads format ${LEDGER_FORMAT}, so none of them counts. A hook from another release wrote them: before an \`update\` in this session, or a fork of .claude/hooks/subagent-verdict.mjs or tools/lib/reviewer-verdicts.mjs that \`update\` kept. Run ${a} again, then end the turn. If its new entry is not in format ${LEDGER_FORMAT} either, a kept fork is writing it: merge the copy \`update\` parked under .harness/pending/ into it and re-record its sha (docs/runbooks/harness-upgrade.md, 2.0.0 section).`
 }
 
 /** @param {{agent: string, because: string, why?: string, wholeTurn?: boolean}} owed */
@@ -390,25 +554,31 @@ function uncountedFinding(owed, pass, current) {
  * The v2 verdict for ONE owed reviewer, over this session's entries: null when it is
  * satisfied, else the finding. A standing BLOCK comes first; then any counted PASS
  * satisfies it, from this prompt or an earlier one (a SETTLED PASS: its digests still match);
- * otherwise the latest PASS says why it does not count.
+ * then a reviewer whose entries are all in another format gets the format finding (2.0.0);
+ * otherwise the latest PASS in this format says why it does not count.
+ *
+ * `older` (2.0.0, #87) is readSessionEntries' list of the entries in another format: none of
+ * them counts as a PASS, in its own right or as the PASS that clears a BLOCK, while a BLOCK
+ * among them stands like any other. A step from 1.1.x passes no `older`, and every entry it
+ * passes is judged by the 1.1.x rule, as it always was.
  * @param {{agent: string, because: string, why?: string, wholeTurn?: boolean}} owed
- * @param {Array<Record<string, unknown>>} entries readSessionLedger's entries
+ * @param {Array<Record<string, unknown>>} entries this session's entries in ledger order
+ *   (readSessionEntries' `session`; a 1.1.x step passes readSessionLedger's entries)
  * @param {string|null} current reviewStateDigest for this reviewer, now
+ * @param {ReadonlyArray<Record<string, unknown>>} [older] the entries in another format
  * @returns {string|null}
  */
-export function judgeReviewerV2(owed, entries, current) {
+export function judgeReviewerV2(owed, entries, current, older = []) {
+  const apart = new Set(older)
   const mine = entries.filter((e) => e.agent_type === owed.agent)
-  const standing = standingBlocks(mine, current)
-  if (standing.length > 0) {
-    const ids = [
-      ...new Set(
-        standing.map((e) => (typeof e.agent_id === 'string' ? e.agent_id : 'none recorded')),
-      ),
-    ]
-    return `${owed.agent} returned VERDICT: BLOCK (agent_id ${ids.join(', ')}) in this session, and that reviewer has not returned PASS at the current tree since. A BLOCK stands across prompts until the SAME reviewer passes: fix what it named, then resume that reviewer (SendMessage to its agent_id) so it re-reviews. A fresh run of ${owed.agent} is a second opinion and retracts nothing.`
-  }
-  if (mine.some((e) => isCountedPass(e, current))) return null
-  return uncountedFinding(owed, mine.filter((e) => e.verdict === 'PASS').at(-1), current)
+  /** @param {Record<string, unknown>} e */
+  const counts = (e) => !apart.has(e) && isCountedPass(e, current)
+  const standing = standingBlocks(mine, counts)
+  if (standing.length > 0) return blockFinding(owed, standing)
+  if (mine.some(counts)) return null
+  const bindable = mine.filter((e) => !apart.has(e))
+  if (bindable.length === 0 && mine.length > 0) return formatFinding(owed, mine)
+  return uncountedFinding(owed, bindable.filter((e) => e.verdict === 'PASS').at(-1), current)
 }
 
 // ── THE SEVERITY CONTRACT AND THE ROUND BUDGET (1.1.0, #71) ─────────────────────────────
@@ -746,12 +916,18 @@ export function judgeModel(who, entry, policy) {
 }
 
 /**
- * The ledger, narrowed to ONE TURN.
+ * The ledger, narrowed to ONE TURN: the 1.0.x judgement's reader, and since 2.0.0 (#87) only
+ * that judgement's. The v2 key is the session and the format (readSessionEntries, above).
  *
- * The narrowing is the control. The file is append-only across a whole session, so an entry
- * from an earlier prompt is exactly what a naive reader would accept — and accepting it would
- * report coverage from work somebody did an hour ago, silently, which is the one failure mode
- * here that no later check would catch.
+ * The narrowing is the 1.0.x control. The file is append-only across a whole session, so an
+ * entry from an earlier prompt is exactly what a naive reader would accept — and accepting it
+ * would report coverage from work somebody did an hour ago, silently, which is the one failure
+ * mode here that no later check would catch. v2 can accept it because its digest pair proves
+ * the PASS is about this tree, deletions included; the 1.0.x `path_state` leaves deletions
+ * out and has no dispatch digest, so where the 1.0.x judgement decides (no merge base, or an
+ * install below 1.1.0 until 2.1.0) the prompt stays in its key, every format alike. The name,
+ * the signature and this meaning stay, so a step and a lib from different releases still
+ * agree on the call.
  *
  * MALFORMED LINES ARE BOUNDED TO THE LINE (0.9.0). This used to fail closed on ANY bad
  * line, forever — and the failure text prescribed deleting the ledger, a remedy the
@@ -763,7 +939,9 @@ export function judgeModel(who, entry, policy) {
  *     turn, so it can authorize nothing and can be owed nothing);
  *   - a parsed entry MISSING agent_type/verdict that claims THIS turn's session+prompt →
  *     `error` (fail closed: the current turn's own verdict lines must be readable, or a
- *     torn PASS would read as "no reviewer was owed");
+ *     torn PASS would read as "no reviewer was owed"). It lasts until the prompt ends: the
+ *     reader returns at the line, so a re-run after it does not clear it (2.0.0 says so in
+ *     the step's remedy; through 1.1.x the remedy said a re-run would);
  *   - the same mis-shape from ANOTHER turn → SKIPPED with its class named.
  * ONE shape rather than a discriminated union: `error` is null on success. A union reads
  * better in the abstract and forces every call site through a narrowing dance that adds no
