@@ -94,15 +94,20 @@
     }
   ],
 
-  "notTriggered": [
+  "wholeTurnMatching": "A reviewer in `wholeTurn` is OWED whenever the owed diff is non-empty, whatever its paths, and its verdict binds to a digest over the WHOLE diff: any later change anywhere in it sends the PASS stale. The owed diff is the one tools/lib/git-diff.mjs reviewChanges() returns (the merge-base diff with deletions, 1.1.0), and the class is judged by the reviewer ledger v2 in tools/check-reviewer-verdicts.mjs.",
+
+  "wholeTurn": [
     {
       "agent": "torvalds-reviewer",
-      "why": "AGENTS.md says it runs 'before finishing' — that is EVERY turn, which no diff pattern expresses and which a path trigger would model badly. Making it path-triggered would either fire it on everything (noise) or on an arbitrary subset (a rule that reads as coverage and is not). Left out deliberately rather than approximated; a whole-turn obligation needs a different mechanism than a path glob."
+      "why": "AGENTS.md says it runs 'before finishing', which is EVERY turn. No path pattern expresses that: a path trigger would fire it on everything (noise) or on an arbitrary subset (a rule that reads as coverage and is not). Through 1.0.4 it sat in notTriggered for that reason, and its verdicts were recorded and never judged. The whole-turn class is the different mechanism a whole-turn obligation needed."
     },
     {
       "agent": "citation-verifier",
-      "why": "Driven by the /verify-citations command and closed by the `provenance` chain gate, which reds tree-wide on an uncited decision site. It already has a deterministic control; adding a second, weaker one keyed on paths would let a green path-trigger imply a coverage the gate is the real source of."
-    },
+      "why": "Its definition says it MUST BE USED before finishing a feature, so it is summoned before a turn ends, like torvalds-reviewer, and until 1.1.0 its verdict was recorded and never judged. The `provenance` chain gate still reds tree-wide on an uncited decision site; this class judges the other half, that the reviewer which checks each citation resolves actually ran on this diff."
+    }
+  ],
+
+  "notTriggered": [
     {
       "agent": "dal-author",
       "why": "An AUTHOR, not a reviewer. It produces the diff; it does not attest to one. Its output is judged by the same gates as any other code."

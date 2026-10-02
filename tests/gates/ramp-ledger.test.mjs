@@ -735,10 +735,12 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
   // closure over the shipped tools/modules.json, auth-posture's [auth.hook] trail
   // posture, and version-sync's vendor-support register (the last four do NOT widen
   // the set — boundaries, auth-posture and version-sync already carry ramps at this
-  // vintage).
+  // vintage). TWENTY-FIVE since 1.1.0 added ONE, the reviewer ledger v2 (minVersion 1.1.0,
+  // due 2.1.0), which does NOT widen the set: reviewer-verdicts already carries its 0.7.0
+  // binding ramp at this vintage.
   const fresh = classifyForInstall('0.6.0', '0.7.0', sites)
   assert.equal(fresh.expired.length, 0)
-  assert.equal(fresh.noting.length, 24)
+  assert.equal(fresh.noting.length, 25)
   assert.deepEqual(
     [...new Set(fresh.noting.map((s) => s.gate))].sort(),
     [
@@ -821,12 +823,13 @@ test('the SHIPPED 0.8.0 rampExpiry record equals what the shipped call sites com
       'observability',
       'rate-limits',
       'resilience',
+      'reviewer-verdicts',
       'suppressions',
       'version-sync',
       'web-e2e',
       'wiring',
     ],
-    'what 0.8.0 opened (the 0.9.0 record owes those two) plus what 0.9.0, 0.9.5, 0.9.9, 0.10.0, 0.11.0 and 1.0.0 open (the later records owe these)',
+    'what 0.8.0 opened (the 0.9.0 record owes those two) plus what 0.9.0, 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open (the later records owe these; 1.1.0 adds reviewer-verdicts, the ledger v2)',
   )
 
   // The one deadline this release moves, recorded rather than quiet — the second entry of
@@ -908,12 +911,13 @@ test('the SHIPPED 0.9.0 rampExpiry record equals what the shipped call sites com
       'docs-sync',
       'rate-limits',
       'resilience',
+      'reviewer-verdicts',
       'suppressions',
       'version-sync',
       'web-e2e',
       'wiring',
     ],
-    'what 0.9.0 OPENS (the 0.10.0 record owes those two) plus what 0.9.5, 0.9.9, 0.10.0, 0.11.0 and 1.0.0 open',
+    'what 0.9.0 OPENS (the 0.10.0 record owes those two) plus what 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open (1.1.0 adds reviewer-verdicts, the ledger v2)',
   )
   // …and the 0.9.0-opened pair in isolation, which is the assertion that does NOT drift
   // as later releases open their own ramps: filter by the minVersion that names them.
@@ -979,6 +983,10 @@ test('highestReleaseBelow: ordering is numeric and non-release refs are ignored'
 // "0.11.0". The date arrived hard, on a file `update` may never rewrite, with no deadline of
 // theirs met. This is the regression proof: it fails against minVersion 0.10.0.
 const ARRIVAL = "the arrival of tools/eol.json's removalTarget dates"
+// The reviewer ledger v2 (1.1.0, #70): opened at minVersion 1.1.0, due 2.1.0, so it reads as
+// advisory for every vintage below 1.1.0 at every version below 2.1.0.
+const LEDGER_V2 =
+  'the reviewer ledger v2 judgement (a merge-base owed set with deletions, standing BLOCKs, dispatch-bound verdicts and whole-turn reviewers)'
 
 test('0.11.1 → 1.0.0 → 1.1.0 — the eol ARRIVAL escape reaches the vintages it used to exclude, one release on each time', () => {
   const sites = shippedRampSites()
@@ -1054,13 +1062,23 @@ test('the SHIPPED 1.0.0 rampExpiry record equals what the shipped call sites com
   assert.equal(record.affects.at(-1), '0.10.0')
   // The 0.11.x vintages meet NOTHING expired and the whole six-gate 1.0.0 NOTE fleet — the
   // shape legs A and M share, and the inverse proof that the wave is dated, not blanket.
+  // Under the current fleet the reviewer ledger v2 (minVersion 1.1.0, due 2.1.0) reads as
+  // advisory for them too, moved in the diff that opened it.
   for (const base of ['0.11.0', '0.11.1']) {
     const at = classifyForInstall(base, '1.0.0', sites)
     assert.equal(at.expired.length, 0, `${base} must meet no expiry at 1.0.0`)
     assert.deepEqual(
       [...new Set(at.noting.map((s) => s.gate))].sort(),
-      ['auth-posture', 'boundaries', 'docs-sync', 'resilience', 'suppressions', 'version-sync'],
-      `the six-gate 1.0.0 fleet at base ${base}`,
+      [
+        'auth-posture',
+        'boundaries',
+        'docs-sync',
+        'resilience',
+        'reviewer-verdicts',
+        'suppressions',
+        'version-sync',
+      ],
+      `the six-gate 1.0.0 fleet at base ${base}, plus the 1.1.0 ledger v2`,
     )
   }
   // v0.10.0 meets exactly ONE expiring gate — data-flow — the smallest non-zero wave and
@@ -1096,8 +1114,16 @@ test('the SHIPPED 1.0.1 rampExpiry record equals what the shipped call sites com
     assert.equal(at.expired.length, 0, `${base} must meet no expiry at 1.0.1`)
     assert.deepEqual(
       [...new Set(at.noting.map((s) => s.gate))].sort(),
-      ['auth-posture', 'boundaries', 'docs-sync', 'resilience', 'suppressions', 'version-sync'],
-      `the six-gate 1.0.0 fleet at base ${base}`,
+      [
+        'auth-posture',
+        'boundaries',
+        'docs-sync',
+        'resilience',
+        'reviewer-verdicts',
+        'suppressions',
+        'version-sync',
+      ],
+      `the six-gate 1.0.0 fleet at base ${base}, plus the 1.1.0 ledger v2`,
     )
   }
   const at100 = classifyForInstall('1.0.0', '1.0.1', sites)
@@ -1105,11 +1131,12 @@ test('the SHIPPED 1.0.1 rampExpiry record equals what the shipped call sites com
   // At 1.0.1's own release a 1.0.0 install met NO note at all. These pins read the CURRENT
   // fleet at a historical version and move with each reviewed ramp change, in the same diff:
   // since 1.1.0 re-opened version-sync's eol arrival at minVersion 1.1.0, that one site reads
-  // as advisory for a 1.0.0 base at every version below its 1.2.0 deadline, and nothing else.
+  // as advisory for a 1.0.0 base at every version below its 1.2.0 deadline, and so does the
+  // reviewer ledger v2 1.1.0 opened, below its 2.1.0 deadline; nothing else.
   assert.deepEqual(
     at100.noting.map((s) => s.detail),
-    [`"${ARRIVAL}"`],
-    '1.0.0 meets only the re-opened eol arrival under the current fleet',
+    [`'${LEDGER_V2}'`, `"${ARRIVAL}"`],
+    '1.0.0 meets only the two 1.1.0-opened sites under the current fleet',
   )
   assert.match(record.why, /ramp-expectations\.mjs/)
 })
@@ -1174,18 +1201,24 @@ test('the SHIPPED 1.1.0 rampExpiry record equals what the shipped call sites com
     assert.equal(at.expired.length, 7, `${base} must meet the seven 1.0.0-opened expiries`)
     assert.ok(at.expired.every((s) => s.minVersion === '1.0.0'))
     assert.deepEqual([...new Set(at.expired.map((s) => s.gate))].sort(), SEVEN)
-    // …and the re-opened arrival stays a NOTE for them: its fix is parked, not due.
+    // …and the re-opened arrival stays a NOTE for them: its fix is parked, not due. So does
+    // the reviewer ledger v2 this release opens.
     assert.deepEqual(
       at.noting.map((s) => s.detail),
-      [`"${ARRIVAL}"`],
+      [`'${LEDGER_V2}'`, `"${ARRIVAL}"`],
     )
   }
-  // Every 1.0.x vintage meets NOTHING expired and exactly the one re-opened NOTE — the
-  // inverse proof that the wave is dated, not blanket.
+  // Every 1.0.x vintage meets NOTHING expired and exactly the two 1.1.0-opened NOTEs, the
+  // re-opened arrival and the reviewer ledger v2 — the inverse proof that the wave is
+  // dated, not blanket.
   for (const base of ['1.0.0', '1.0.1', '1.0.2', '1.0.3', '1.0.4']) {
     const at = classifyForInstall(base, '1.1.0', sites)
     assert.equal(at.expired.length, 0, `${base} must meet no expiry at 1.1.0`)
-    assert.equal(at.noting.length, 1, `${base} meets only the re-opened arrival`)
+    assert.deepEqual(
+      at.noting.map((s) => s.detail),
+      [`'${LEDGER_V2}'`, `"${ARRIVAL}"`],
+      `${base} meets only the two 1.1.0-opened sites`,
+    )
   }
   assert.match(record.why, /SWEEPS\['1\.0\.0'\]/)
   assert.match(record.why, /ramp-expectations\.mjs/)

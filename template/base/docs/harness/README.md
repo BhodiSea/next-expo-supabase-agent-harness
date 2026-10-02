@@ -74,7 +74,8 @@ Exit-code semantics (the crux of the design):
 | PostToolUse | `Edit\|Write\|MultiEdit` | `.claude/hooks/posttool-fast-check.mjs` | fast per-file feedback (Biome), non-blocking |
 | PostToolUse | `Edit\|Write\|MultiEdit` | `.claude/hooks/posttool-source-check.mjs` | flags decision sites lacking `// SOURCE:` (exit 2) |
 | Stop | — | `.claude/hooks/stop-validate-gate.mjs` | runs the UNION of `STOP_HOOK_STEPS` and the frozen `tools/stop.floor.json`; exits 2 with failures on stderr until green |
-| SubagentStop | `*` | `.claude/hooks/subagent-verdict.mjs` | reads each reviewer's terminal `VERDICT:` line from the payload's `last_assistant_message`, blocks a reviewer that gave none, and records the rest for Stop step `reviewer-verdicts` |
+| SubagentStart | `*` | `.claude/hooks/subagent-verdict.mjs` | (1.1.0) records the tree each reviewer is dispatched on in `.harness/reviewer-dispatch.jsonl`, never in the ledger; exits 0, because SubagentStart cannot block, and a missing record surfaces at Stop |
+| SubagentStop | `*` | `.claude/hooks/subagent-verdict.mjs` | reads each reviewer's terminal `VERDICT:` line from the payload's `last_assistant_message`, blocks a reviewer that gave none, and records the rest for Stop step `reviewer-verdicts`, with the tree digests at dispatch and at the verdict (1.1.0) |
 
 Seven guard hooks, each invoked through the fail-closed launcher (1.0.0:
 `node "$CLAUDE_PROJECT_DIR/.claude/hooks/launch.mjs" <hook>.mjs` — a hook that cannot
@@ -527,14 +528,17 @@ and reds a reviewer holding anything outside the read-only allowlist or missing
   storage (`LargeSecureStore`), `app.config.ts`/`eas.json`, permissions, or
   config plugins.
 - `torvalds-reviewer` — the quality red-team (data structures first, kill special
-  cases, delete code) before a slice is declared done.
+  cases, delete code) before a slice is declared done. Since 1.1.0 it is in the
+  `wholeTurn` class of `tools/reviewer-triggers.json`: `reviewer-verdicts` owes its
+  verdict on every non-empty diff.
 - `accessibility-reviewer` — RN accessibility review (roles/labels/hints, touch
   targets, screen-reader sanity) on UI-heavy slices.
 - `design-reviewer` — design-quality review (typography roles, spacing rhythm,
   accent discipline, motion tokens, state choreography — the
   `designing-mobile-ui` doctrine) on UI-touching slices; taste and
   choreography, where the gates cannot judge.
-- `citation-verifier` — the provenance verifier, via `/verify-citations`.
+- `citation-verifier` — the provenance verifier, via `/verify-citations`, and, like
+  `torvalds-reviewer`, owed on every non-empty diff since 1.1.0 (`wholeTurn`).
 
 Author agents (`dal-author`, `migration-rls-author`, `test-author`) keep their write
 tools; only the universal frontmatter fields apply to them.

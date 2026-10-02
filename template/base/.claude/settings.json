@@ -69,6 +69,18 @@
         "matcher": ""
       }
     ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/launch.mjs\" subagent-verdict.mjs",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
     "SubagentStop": [
       {
         "hooks": [

@@ -2101,6 +2101,33 @@ that supplies it must have changed. What it deliberately does NOT judge is the
 CONTENT of a review: a PASS is an attestation by a read-only agent whose
 tools, model, and body are locked in `tools/agents.lock.json` — whether it was
 a GOOD review is not a property any file can hold.
+**The reviewer ledger v2 (1.1.0, behind a ramp until 2.1.0).** Everything
+above is the 1.0.x judgement. On an install whose `baseVersion` predates 1.1.0
+it stays the verdict, and v2's findings print as NOTEs; where v2 is live, v2
+decides. v2 judges the BRANCH. Its owed set is `reviewChanges()` in
+`tools/lib/git-diff.mjs`: the diff from the merge base with the branch's
+upstream (the PR base in CI) to the working tree, plus untracked files, with
+deletions and both sides of a rename included and `.harness/` left out. So a
+migration committed before Stop is still owed, and a deleted policy owes
+`security-reviewer`. A push moves an upstream that is the branch's own remote
+branch, so there the owed set shrinks to what is not pushed yet; an upstream
+set to the branch it will merge into keeps the whole branch owed. The ledger is
+read for the whole session. A BLOCK stands until the SAME `agent_id` returns
+PASS at the current digest; a fresh run is a second opinion and retracts
+nothing. A PASS counts, in its own prompt or a
+later one, only when three digests agree: the one the hook recorded at
+`SubagentStart` (`path_state_start`, from `.harness/reviewer-dispatch.jsonl`),
+the one it recorded at the verdict (`path_state_stop`), and the one now. A
+review of a moving tree therefore does not count, and a verdict with no start
+record reds with a finding that names the `SubagentStart` wiring, which
+`wiring` cannot see. The `wholeTurn` class in `tools/reviewer-triggers.json`
+(`torvalds-reviewer`, `citation-verifier`) is owed on every non-empty diff, and
+its digest covers the whole diff. A PASS from another session still counts for
+nothing, and a torn line that claims this turn still fails closed. With no
+merge base (a fresh `git init`, or a branch with no upstream) v2 does not
+judge: the step prints a NOTE saying so and the 1.0.x judgement decides. Every
+clean-scaffold run in the harness's own CI takes that path. `path_state` keeps
+its 1.0.x meaning, and `prompt_id` stays in each entry and in the turn key.
 **Anti-vacuity:** tests/gates/check-reviewer-verdicts.test.mjs — the owed
 reviewer that never ran, last turn's PASS refused, the cross-session PASS
 refused, the BLOCK that blocks, the unparseable ledger failing closed, the
@@ -2118,7 +2145,19 @@ FAIL), both forms in one message bounced — so a hedge can never read as a
 pass; the bounce record (`.harness/verdict-bounces.jsonl`: agent, shape, last
 line) and "every roster body ENDS with the verdict demand" are pinned there
 too, and tests/hooks/hook-contract.test.mjs holds the refusal at exactly exit 2
-even when that record cannot be written.
+even when that record cannot be written. The ledger v2 cases (1.1.0) run in a
+clone whose branch tracks origin/main: commit-then-Stop still owing
+`security-reviewer` (the headline), a deleted migration, a BLOCK from an
+earlier prompt that another `agent_id` cannot clear and the same one can, the
+moving tree, the missing start record, the stale PASS, the unjudged
+`torvalds-reviewer` and the other session's PASS. Each red runs as a NOTE on a
+1.0.3 manifest, a plain red on 1.1.0 and `RAMP EXPIRED` at harness 2.1.0; the
+settled PASS and the same-prompt clear are green on 1.1.0 and red on 1.0.3; the
+no-upstream path and `reviewChanges()` are pinned too, with the seeded
+`.gitignore` keeping what `supabase start` writes out of the owed set. The dispatch record and
+`path_state_start` are proved in tests/hooks/subagent-verdict-pathstate.test.mjs,
+and tests/hooks/hook-contract.test.mjs holds a reviewer's `SubagentStart` to
+exit 0 with one dispatch record, no ledger line and no blocked turn outcome.
 
 ## CI-only lanes (outside the chain and the Stop hook)
 
