@@ -11,6 +11,158 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [2.0.0] — 2026-09-30
+
+**A major, the opt-in release: what an install carries is what it opted into, and the notes
+1.1.0 opened become verdicts.** 1.2.0 is never cut: this lineage goes from 1.1.0 to 2.0.0
+directly, and every comparison is `>=`, so each deadline dated 1.2.0 arrives here. Eighteen of
+the twenty-four ramp sites the 1.1.0 release held at minVersion 1.1.0 reach it, across fifteen
+gates, so an install whose `baseVersion` is below 1.1.0 now gets a hard failure where it got a
+dated NOTE: the SQL history fold in `data-flow`, `db-limits`, `query-shapes`, `tenancy` and
+`schema-rls`, `migrations`' `ALTER POLICY` rule, `schema-rls`' grant bound, `docs-sync`'s
+severity contract, verdict-demand position and `AGENTS.md` gate list, the Edge Function
+surface in `diff-coverage`, `edge-functions`, `mutation-ratchet` and `mutation-scope`,
+`gate-integrity`'s planted escape list, `web-compile`, `route-manifest`'s per-route browser
+closure, and `workflow-hardening`. A 1.1.0 install meets none of them. Of the other six, two
+retire with what they carried (see Removed), two were dated 2.1.0 when they opened (the
+reviewer ledger v2 and the security-reviewer model check), and two move to 2.1.0 (see
+Changed). Each item that lands after this bump adds its entry below; the breaking ones say so.
+The `template/migrations.json` record for 2.0.0 carries `rampExpiry` (twenty vintages, 0.1.3
+through 1.0.4: 1.1.0's fifteen plus the five 1.0.x vintages), one `seededSourceFixes` set and
+two `rampExtensions` entries, and injects no chain step. `scripts/lib/ramp-sites.mjs`
+`VINTAGES` grows by `1.1.0`. The obligations register loses twelve release rows and re-targets
+two to 2.1.0 (#86).
+The full encryption rule, `.claude/rules/e2ee.md`, leaves every install without the `e2ee`
+module (see Removed): the record's `removed` entry deletes it where a release's bytes still
+stand, and an `e2ee` install gets it back as the module's own file (#86).
+
+### Security
+
+<!-- Entries from the 2.0.0 items that land after the version bump go here. The cut removes
+this heading if none does. -->
+
+### Added
+
+<!-- Entries from the 2.0.0 items that land after the version bump go here. The cut removes
+this heading if none does. -->
+
+### Fixed
+
+<!-- Entries from the 2.0.0 items that land after the version bump go here. The cut removes
+this heading if none does. -->
+
+### Changed
+
+- **The NOTE fleet 1.1.0 opened is now enforcing for installs below 1.1.0.** The eighteen
+  sites above expire at 2.0.0, as their obligations rows said they would. The 2.0.0 record's
+  `rampExpiry` names their population, copied from `check-ramp-ledger`'s output at 2.0.0, and
+  the ten rows that carried them are deleted: `docs-sync-severity-contract-ramp-expiry`,
+  `docs-sync-verdict-demand-ramp-expiry`, `docs-sync-gate-list-ramp-expiry`,
+  `workflow-hardening-project-workflows-ramp-expiry`, `sql-history-fold-ramp-expiry`,
+  `grant-bound-ramp-expiry`, `web-compile-ramp-expiry`,
+  `route-manifest-browser-closure-ramp-expiry`, `edge-functions-surface-ramp-expiry` and
+  `gate-integrity-planted-escape-list-ramp-expiry`. Nothing new is demanded: the sweep is the
+  1.1.0 one, and the runbook's 2.0.0 section lists what arrives and points to each part of it.
+  `SWEEPS['2.0.0']` is a reviewed empty entry (#86).
+- **The uuid 7 acceptance is re-affirmed and moved to 2.1.0, and its arrival ramp re-opens at
+  2.0.0.** `tools/eol.json` dated its re-review 1.2.0, which arrives here, and
+  `check-eol-target` reds a production-scope target the version has reached. The re-review on
+  2026-09-30 found the discharge condition unmet: `xcode` 3.0.1 is still the latest and still
+  declares `uuid: ^7.0.3`, `@expo/config-plugins` depends on it at both `latest` (57.0.9) and
+  `next` (58.0.4), and a registry sweep of a fresh strict-tier scaffold (1581 pairs, 0 errors)
+  found the same seven deprecations the register carries. The vendor's message now also warns
+  that uuid@11 will likely be deprecated in 2028. The register is seeded, so every 1.1.0 install
+  still holds `"removalTarget": "1.2.0"`. The standing rule is paid in full: a
+  `seededSourceFixes` probe on that literal parks the re-affirmation, a `rampExtensions` entry
+  moves `version-sync`'s arrival escape from (1.1.0, 1.2.0) to (2.0.0, 2.1.0), and the
+  obligations row `version-sync-eol-arrival-ramp-expiry` is re-targeted to 2.1.0 (#86).
+- **`reviewer-verdicts`' round budget moves to 2.1.0, beside the ledger v2 it judges by.** The
+  budget counts review rounds over the reviewer ledger v2's change set and closes a loop only
+  on the same run's PASS over an unmoving tree. On an install below 1.1.0, v2 stays a NOTE until
+  2.1.0 and the 1.0.x judgement decides, under which a later prompt's PASS from any run clears
+  a BLOCK; expiring the budget there at 2.0.0 would red a loop the governing verdict calls
+  closed. The obligations row asked the 2.0.0 record to weigh this, and a reviewed
+  `rampExtensions` entry moves the budget from 1.2.0 to 2.1.0 at its old minVersion. Nothing an
+  install sees changes but the date in its NOTE, and the row is re-targeted to 2.1.0 (#86).
+- **The Supabase CLI config census moves to 2.1.0.** The `auth-posture-cli-census` deferral
+  targeted 1.2.0, and `docs-sync` reds an arrived deferral on every install, fresh scaffolds
+  included. Re-checked on 2026-09-30: supabase/cli#5894 is still open with no milestone, no
+  linked pull request and no comments, and the CLI reference still documents `config push` as
+  the only `config` subcommand. npm latest is 2.119.0, but the catalog pin stays 2.118.0, so the
+  pin-bump clause did not fire. By the entry's standing rule the date moves one release, in the
+  ledger, the obligations row and the three files the entry lists (#86).
+
+### Removed
+
+- **Breaking: the `i18n` gate's 1.0.x regular expressions, and the `{"site": "file:line"}`
+  allowlist entry.** 1.1.0 ran them beside the syntax-tree walk for one release, behind two
+  ramps due 1.2.0, and the obligations row `i18n-syntax-tree-ramp-expiry` said the release that
+  meets that deadline deletes what the ramps carried. The walk is now the only scan, with no
+  ramp, on every install. A `site` entry fails the step as malformed everywhere, and the message
+  says the finding's FAIL line prints the `key` entry that replaces it. A string only the
+  expressions reported (`title = "…"` as a plain assignment in a `.ts` module) no longer reds,
+  so a `key` entry kept for one reds as stale. Without `typescript` the copy and `Intl`-boundary
+  checks go unjudged, with a loud NOTE locally and a failure in CI, where 1.1.x fell back to the
+  expressions. `tests/gates/i18n-tree.test.mjs`'s fixture parity, the row's precondition, stays
+  as the walk's spec. The two sites leave the ramp fleet and `scripts/ci/stop-side-expiries.json`
+  (#86).
+- **Breaking: the dated `lint` exemption for `supabase/functions/delete-account/index.ts`.**
+  1.1.0 kept that seeded file, which measures 16 on every 1.0.x install, out of the Edge
+  Function complexity block for one release, paired with a `seededSourceFixes` entry that parks
+  the handler split. The row `edge-functions-complexity-seeded-exemption` named the discharge:
+  remove the line once the fix has had a release to land. An install that has not pulled the
+  split meets `lint` red on that file, and the runbook's 2.0.0 section names the pull (#86).
+- **Breaking: `.claude/rules/e2ee.md` from installs without the `e2ee` module.** The full
+  encryption rule (the envelope and AAD construction, the wrapped-key erase lever, the export
+  stance, the audit-capture refusal) is stored in `template/modules/e2ee/` now, with the same
+  bytes and install path, so `enable e2ee` installs it and an install without the module does
+  not carry it; the always-loaded stub `.claude/rules/encryption.md` stays everywhere and says
+  so. The `"2.0.0"` record's `removed` entry deletes the base copy on `update` before the plan
+  loop, sha- and provenance-guarded, and on an `e2ee` install the loop plants the module copy
+  back recorded with `module: "e2ee"`, so `disable e2ee` now removes it. A fork stays with a
+  note; the runbook's 2.0.0 section says what to do with it on each kind of install. Base files
+  cite the stub, and a factory test fails any base, stack or preset file that names a rule
+  only a module ships, outside four reviewed exemptions. Five conformance-map notes that named
+  the full rule as if every install had it are reworded, `docs/harness/README.md` and the
+  module README say where it lives, and `update --dry-run` now reports the re-planted file
+  under `written` exactly as the real run does: `applyFileMigrations` returns the paths it
+  removes, and the plan loop reads them as absent. `update()`'s cognitive complexity drops
+  from 61 to 59 with it, and the ratchet records the drop (#86).
+
+### What stays open, honestly
+
+- **uuid 7 is re-dated, not discharged.** Nothing in this tree can move `xcode`'s major. The
+  2.1.0 record owes either the arrival ramp's expiry or the next re-open (#86).
+- **The CLI config census is re-dated, not built.** It waits on supabase/cli#5894 (#86).
+- **The 2.1.0 record owes three `reviewer-verdicts` expiries at once**: the reviewer ledger v2,
+  the security-reviewer model check and the round budget (#86).
+- **Nothing in an install notices a base file that cites a module-only rule.** The provenance
+  gate reads `SOURCE:` payloads only in `.ts`/`.tsx` and `.sql` files, so the closure is the
+  factory's (`tests/installer/e2ee-rule-module.test.mjs`); a consumer who writes such a
+  citation into their own files is not told (#86).
+- **`upgrade-linux` installs core only**, so the `e2ee` half of the move is proven by the
+  in-process installer tests, not by a lane leg (#86).
+- **What was proven where.** With `package.json` at 2.0.0 and nothing discharged,
+  `check-obligations` was red on the fourteen rows targeting 1.2.0, `check-ramp-ledger` on the
+  missing `1.1.0` vintage and the missing `"2.0.0"` `rampExpiry`, `check-eol-target` on the
+  arrived uuid target, and `check-release-lockstep` and `check-released-shas` on the version
+  sites and the missing 2.0.0 table. The rewritten `i18n`, round-budget, lint-exemption and
+  sweep tests were each red on the tree before their change. After the fixed cost each check
+  is clean. The v1.1.0 tag is local until the maintainer pushes it, so the tag-reading checks
+  on this pull request's CI compare against v1.0.3, and `check-ramp-ledger`'s vintage closure
+  there reports `1.0.4` and `1.1.0` as not yet released; the local run with the tags present
+  is the one that proves this commit (#86). For the encryption rule's move, the eight cases of
+  `tests/installer/e2ee-rule-module.test.mjs` written first were red on the tree before it (the
+  template half, the empty closure, and every upgrade case), and a ninth, a fork on an install
+  whose version shipped other rule bytes, was added after the move to pin the parked copy the
+  runbook describes. The dry-run case stayed red after the move until `applyFileMigrations`
+  returned its removals, and the `e2ee` round-trip and npm-pack additions to
+  `lifecycle.test.mjs` were red on the tree before the move. A zero-edit core
+  scaffold carries no `.claude/rules/e2ee.md` and validates, a `--modules e2ee` scaffold
+  records it with `module: "e2ee"`, and upgrade-lane legs A (v1.1.0), N (v1.0.4) and E (v0.3.0,
+  swept) pass locally; leg A's plant-vs-withhold check needed a fix first, because a v1.1.0
+  baseline seeds `tools/surfaces.json` at init and `update` never planted it (#86).
+
 ## [1.1.0] — 2026-10-02
 
 **A minor, the sharper verdicts release: the notes 1.0.0 opened become verdicts, and the

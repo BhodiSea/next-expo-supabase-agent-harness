@@ -32,6 +32,7 @@ import {
   applyConfigSteps,
   applyFileMigrations,
   applySeededSourceFixObligations,
+  installedBytes,
   matchSeedOnInitOnly,
   readTemplateMigrations,
   seedOnInitOnlyPatterns,
@@ -361,8 +362,11 @@ export async function update(
   // consumer's harness.config.mjs (the Stop hook), not only CI's --min-floor.
   const pendingVersions = versionsBetween(migrations, manifest.harnessVersion, installerVersion())
   const migrationEntries = pendingVersions.map((v) => migrations[v])
+  // The paths a `removed` or `renamed` record deleted (on a dry run, would have): the plan
+  // loop reads each as absent, so a dry run reports the re-plant the real run performs.
+  let migratedAway = new Set()
   if (migrationEntries.length > 0) {
-    applyFileMigrations({
+    migratedAway = applyFileMigrations({
       targetDir,
       files,
       modules,
@@ -447,9 +451,9 @@ export async function update(
     const mode = effectiveMode(recorded?.mode, ip)
     const incomingSha = sha256(entry.content)
 
-    // Raw bytes, not utf8: hashing a lossy utf8 decode of a binary asset would
-    // never match the manifest sha recorded over the true file content.
-    const current = existsSync(dest) ? readFileSync(dest) : null
+    // Raw bytes, not utf8 (installedBytes says why), and null for a path this run's
+    // migrations removed, whether or not a dry run left it on disk.
+    const current = installedBytes(dest, migratedAway.has(ip))
 
     if (mode === 'conflicted') {
       const resolved = resolveConflict({ targetDir, ip, recorded, current, report })

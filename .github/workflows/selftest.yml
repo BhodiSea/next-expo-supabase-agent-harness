@@ -589,7 +589,7 @@ jobs:
           echo 'canary OK: the static i18n gate went red'
       # 1.1.0 (#76): a shape only the syntax-tree walk sees. The scaffold is installed above,
       # so `typescript` loads from the project and the walk RUNS; the red must name the string
-      # and its attribute, which no regular expression of the gate reports.
+      # and its attribute, which the 1.0.x regular expressions (retired at 2.0.0) never reported.
       - name: "Canary 34: accessibilityLabel={'Close dialog'} → the i18n syntax-tree walk must FAIL naming it"
         working-directory: ${{ runner.temp }}/canary
         run: |
@@ -1976,10 +1976,36 @@ jobs:
           # re-opened at (1.1.0, 1.2.0) and stays a NOTE here, as it does on leg A.
           # `graduate` now refuses on the red chain rather than on NOTEs alone. Verified
           # against `ramp-expectations.mjs 0.11.0 1.1.0`.
+          #
+          # AT 2.0.0 it meets the 1.1.0-opened fleet on top: every one of those sites opened at
+          # minVersion 1.1.0, so the eighteen that expire here expire for it too, and the leg
+          # N below holds the clean isolation. Verified against `ramp-expectations.mjs 0.11.0 2.0.0`.
           - leg: M
             baseline: v0.11.0
             dir: upgrade-0-11-0
-            why: the vintage leg A vacated at 1.0.0 — at 1.1.0 the seven 1.0.0-opened expiries and nothing older
+            why: the vintage leg A vacated at 1.0.0 — at 2.0.0 the 1.0.0 and 1.1.0 fleets both expired
+          # LEG N — v1.0.4, the vintage leg A vacated at 2.0.0 (leg A slides to v1.1.0), added
+          # by the leg J/K rule: the version leg A leaves behind is a released population no lane
+          # executes until one is written for it. And it is 2.0.0's HEADLINE EXPIRY LEG, the
+          # leg-H and leg-M pattern one release on: 1.2.0 is never cut, so the 1.1.0-opened fleet
+          # falls due at 2.0.0, and a v1.0.4 install meets exactly its eighteen expiring sites
+          # (fifteen gates) and NOTHING older — every 1.0.0-opened site is inert for it. The
+          # validate-chain ones must red on predicted RAMP EXPIRED lines; diff-coverage, the
+          # three CI-only Edge Function gates and workflow-hardening drop to their §7e proofs.
+          # Two gates stay advisory: reviewer-verdicts' three 2.1.0-dated sites (a Stop step,
+          # so not asserted here), and version-sync's re-opened eol arrival, which reads clean
+          # because §5a-bis re-plays the end-of-life register before the chain is judged. The
+          # chain is also red on `lint`, which is no ramp: 2.0.0 removed the dated exemption for
+          # the seeded delete-account index.ts, and an unswept v1.0.4 install still carries the
+          # 1.0.x shell (`doctor` names the parked 1.1.0 source fix). `graduate` refuses on the
+          # red chain. Its inverse is leg A: the same release, the same fleet, eighteen
+          # expiries here and none on v1.1.0.
+          # Verified against `ramp-expectations.mjs 1.0.4 2.0.0`. Until the maintainer pushes
+          # the v1.0.4 tag this leg cannot resolve its baseline on GitHub, and fails closed.
+          - leg: N
+            baseline: v1.0.4
+            dir: upgrade-1-0-4
+            why: the vintage leg A vacated at 2.0.0 — the eighteen 1.1.0-opened expiries and nothing older
     name: "upgrade (leg ${{ matrix.leg }} — ${{ matrix.baseline || 'previous release' }})"
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0

@@ -8,7 +8,8 @@
 //   - a finding BOTH readings produce stays a hard red at every vintage;
 //   - a finding only the OLD reading produced clears on every install — it describes an object
 //     that was dropped or rewritten;
-//   - a finding only the NEW reading produces rides the gate's own 1.1.0 ramp until 1.2.0.
+//   - a finding only the NEW reading produces rides the gate's own 1.1.0 ramp until 1.2.0,
+//     which expired at 2.0.0, so it is hard on every install since.
 //
 // Telling the three apart needs the old reading's findings, so the gate replays ITSELF over the
 // pre-fold history (sql-parse.mjs preFoldHistory) in a worker thread — "the twin" — and the

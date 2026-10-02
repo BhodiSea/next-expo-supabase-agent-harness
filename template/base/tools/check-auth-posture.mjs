@@ -316,7 +316,7 @@ for (const name of policy.requiredSections ?? []) {
 // containers during this spike) and prints `SECRET_KEY` and `JWT_SECRET` into the output a
 // gate would then be handling. A control that reads a neighbour's stack and handles their
 // credentials is not a control. The `[inbucket]` defect itself IS fixed; the standing check is
-// deferred to 1.2.0 (deferral ledger: auth-posture-cli-census) — RE-CHECKED AT 0.11.0
+// deferred to 2.1.0 (deferral ledger: auth-posture-cli-census) — RE-CHECKED AT 0.11.0
 // (2026-08-13), the FIRST firing against a real pin bump: npm latest moved 2.113.0 -> 2.114.0
 // (GA 2026-08-12), so the 're-check at every CLI pin bump' clause fired on its own terms. The
 // CLI is now a pnpm/nx monorepo and the Go CLI moved to apps/cli-go — the path changed, the
@@ -331,7 +331,9 @@ for (const name of policy.requiredSections ?? []) {
 // moves the date one release in a reviewed diff until the upstream subcommand actually ships
 // (re-checked again at the 1.0.0 cut, 2026-08-16: #5894 still open, no milestone, no PR;
 // and at the 1.1.0 cut, 2026-09-29: still open, no milestone, no PR, zero comments, the CLI
-// reference still lists `config push` alone, npm latest 2.118.0).
+// reference still lists `config push` alone, npm latest 2.118.0; and at the 2.0.0 cut,
+// 2026-09-30, where the never-cut 1.2.0 date arrived: still open, no milestone, no PR, the
+// reference still lists `config push` alone, npm latest 2.119.0 with the catalog pin unmoved).
 // The census unions the owned core with the seeded additionalSections (the 1.0.0 split
 // applied to sections): a consumer who enables [realtime] records it in the tunables
 // register with the same two-place discipline as a key retune. A malformed addition reds

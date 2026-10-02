@@ -122,7 +122,7 @@ its tokens are put back with the manifest's answers (`tools/lib/derender.mjs`). 
 alone stopped being enough in 1.0.2, when re-recording a sha became the supported way to keep
 a fork, because the manifest need not be committed. A plant prints a NOTE; an untracked list
 that matches its record but no release variant is a finding behind a ramp (a NOTE for
-installs below `baseVersion` 1.1.0 until harness 1.2.0); tracked-and-modified, untracked with
+installs below `baseVersion` 1.1.0 until harness 1.2.0, which expired at 2.0.0, so hard for every install since); tracked-and-modified, untracked with
 no record and untracked with a different sha are red as before. The threshold-config rule
 (3b) still trusts the record alone, a stated limit.
 
@@ -245,10 +245,11 @@ off; `deno check` in the `edge-functions` lane is the type half), and the securi
 reach the functions unedited and unramped — a `getSession()` there is an authentication
 bypass, not a debt. `service-role-edge-functions-only` stays off them: they are its
 sanctioned home. A second block holds them to cognitive complexity ≤ 15 and
-`no-suppressed-complexity`, with ONE dated exemption: the delete-account `index.ts` every
-1.0.x install carries is seeded and measures 16, so it is exempt from that block until
-1.2.0, paired with the 1.1.0 `seededSourceFixes` instruction to pull the split
-(`update --refresh-seeded supabase/functions/delete-account/`).
+`no-suppressed-complexity`, every function file included. 1.1.0 exempted the seeded
+delete-account `index.ts` every 1.0.x install carries, which measures 16, for one release,
+paired with the `seededSourceFixes` instruction to pull the split
+(`update --refresh-seeded supabase/functions/delete-account/`); 2.0.0, the first release at
+or past its 1.2.0 deadline, removed the exemption.
 **Anti-vacuity:** `import * as SecureStore from 'expo-secure-store'` in a random
 feature → FAIL no-restricted-imports; call `fetch()` in a screen → FAIL
 no-restricted-globals (depcruise walls the same seams at the module-graph level —
@@ -897,7 +898,8 @@ target no earlier migration left in place is a finding; `DROP TABLE IF EXISTS` o
 unknown table is a no-op, and a table made outside the migrations and dropped by an
 applied one is acknowledged in `tools/rls-exempt.json`. A finding only the folded history
 produces is a dated NOTE below `baseVersion` 1.1.0, through
-`rampNote('schema-rls', '1.1.0', 'the SQL history fold (DROP TABLE, ALTER POLICY and DROP POLICY)', { until: '1.2.0' })`;
+`rampNote('schema-rls', '1.1.0', 'the SQL history fold (DROP TABLE, ALTER POLICY and DROP POLICY)', { until: '1.2.0' })`,
+expired at 2.0.0, so hard for every install since;
 `tools/lib/sql-fold-ramp.mjs` tells it apart by replaying the gate over the pre-fold history,
 so a finding both readings produce stays hard at every vintage. **Anti-vacuity:**
 `ALTER POLICY thing_select_own ON public.thing USING (true)` → FAIL "has a vacuous USING
@@ -946,7 +948,8 @@ platform default). The hand-written assertions in `rls_structure.test.sql` stay:
 `service_role` allowlist and the seat and quota shapes state intent. Ramped through
 `rampNote('schema-rls', '1.1.0', 'the grant bound, the three-role revoke doctrine and the generated grant assertions', { until: '1.2.0' })`:
 an install seeded before 1.1.0 has tables that predate the doctrine (profiles and notes on
-every vintage), and `update` withholds the migration and the generated file.
+every vintage), and `update` withholds the migration and the generated file. That ramp
+expired at 2.0.0, so hard for every install since: the runbook's 1.1.0 section is the sweep.
 SOURCE: https://www.postgresql.org/docs/17/ddl-priv.html
 **Anti-vacuity:** the shipped tree without
 `supabase/migrations/20260920000000_authenticated_write_revoke.sql` → FAIL on all seven
@@ -1134,7 +1137,8 @@ therefore judged on the text the database runs, and a dropped table named in
 `untenantedTables` is a stale entry. The header's rule stands for every finding the 1.0.x
 reading also produces: a wrong predicate on an adopted surface is a hard red whatever the
 manifest says. Only a finding the fold alone produces is a dated NOTE below `baseVersion`
-1.1.0, through `rampNote('tenancy', '1.1.0', 'the SQL history fold (DROP TABLE and ALTER POLICY)', { until: '1.2.0' })`.
+1.1.0, through `rampNote('tenancy', '1.1.0', 'the SQL history fold (DROP TABLE and ALTER POLICY)', { until: '1.2.0' })`,
+which expired at 2.0.0, so hard for every install since.
 **Anti-vacuity:** `ALTER POLICY notes_select_org ON public.notes USING (org_id = (SELECT
 auth.uid()))` → FAIL "matches NO reviewed predicate form", exactly as the same predicate from
 a CREATE does.
@@ -1175,7 +1179,7 @@ project's posture lives in its `[remotes]` blocks or the Dashboard, and neither 
 here. `auth.email.enable_confirmations` is where that gap is loudest — `false` is correct
 locally and wrong in production — and `tools/auth-posture.json` says so in writing.
 
-**Deferred to 1.2.0: asking the CLI directly** (deferral ledger: `auth-posture-cli-census`).
+**Deferred to 2.1.0: asking the CLI directly** (deferral ledger: `auth-posture-cli-census`).
 A check that read the CLI's own deprecation
 warnings was built, worked, and found a real defect — the harness shipped `[inbucket]` against a
 CLI that renamed it to `[local_smtp]` and warns on every command, with nothing reading the
@@ -1208,6 +1212,9 @@ comments, still no milestone, npm latest still 2.114.0, so it moved to 1.1.0. At
 cut (2026-09-29) it arrived again: #5894 still open with no milestone, no linked PR and zero
 comments, the CLI reference still documenting `config push` as the only `config` subcommand,
 and npm latest at 2.118.0, the version the catalog pins exactly, so it moved to 1.2.0.
+1.2.0 was never cut, so the date arrived at the 2.0.0 cut (2026-09-30): #5894 still open with
+no milestone, no linked PR and no comments, the reference still listing `config push` alone,
+and npm latest at 2.119.0 while the catalog pin stayed at 2.118.0, so it moved to 2.1.0.
 The 0.8.0 move licensed itself "once"; the second firing proved the shape recurs, so the rule
 is now standing: each arrival with the upstream condition unmet forces the re-check and a
 one-release move in a reviewed diff — the discharge happens only when the side-effect-free
@@ -1343,8 +1350,8 @@ Reviewed data: `tools/data-flow.json` (write-guard-protected, git-clean-enforced
 table's columns leave them and every foreign key into it is cleared, so its links stop
 deciding what an erasure does and a reviewed entry that names it goes stale. A finding only
 the folded facts produce is a dated NOTE below `baseVersion` 1.1.0, through
-`rampNote('data-flow', '1.1.0', 'the SQL history fold (DROP TABLE and ALTER POLICY)', { until: '1.2.0' })`;
-one both readings produce stays hard. **Anti-vacuity:** `DROP TABLE public.invitations
+`rampNote('data-flow', '1.1.0', 'the SQL history fold (DROP TABLE and ALTER POLICY)', { until: '1.2.0' })`
+(expired at 2.0.0, so hard for every install since); one both readings produce stays hard. **Anti-vacuity:** `DROP TABLE public.invitations
 CASCADE` → FAIL on the stale `severed[]` and `retained[]` entries for it.
 
 ### 21. types-drift — `node tools/check-types-drift.mjs`
@@ -1399,8 +1406,8 @@ widening, so it is in `ESCAPE_LISTS` and must be committed.
 again, so it needs `-- adr:` naming an existing ADR, as `DROP POLICY` does. It is judged per
 statement: a migration whose only `ALTER POLICY` statements are `RENAME TO` needs none, and
 one rename does not excuse a rewrite beside it. Its findings ride their own ramp, not the
-0.2.0 bucket, through `rampNote('migrations', '1.1.0', 'ALTER POLICY as an authorization change', { until: '1.2.0' })`,
-and an applied migration uses the existing `authz-adr` entry in
+0.2.0 bucket, through `rampNote('migrations', '1.1.0', 'ALTER POLICY as an authorization change', { until: '1.2.0' })`
+(expired at 2.0.0, so hard for every install since), and an applied migration uses the existing `authz-adr` entry in
 `tools/migrations-allow.json`. **Anti-vacuity:** a new migration with
 `ALTER POLICY notes_select_own ON public.notes USING (true);` and no ADR line → FAIL
 "removes an authorization control"; the same with `RENAME TO` → GREEN.
@@ -1488,8 +1495,8 @@ dropped table takes its triggers, columns, grants and policies with it) and `ALT
 and the RESTRICTIVE counting rule reads the live policies. A metered table dropped and
 re-created without its triggers is unenforced; a finding only the fold produces is a dated
 NOTE below `baseVersion` 1.1.0, through
-`rampNote('db-limits', '1.1.0', 'the SQL history fold (DROP TABLE and ALTER POLICY)', { until: '1.2.0' })`,
-and one both readings produce stays hard.
+`rampNote('db-limits', '1.1.0', 'the SQL history fold (DROP TABLE and ALTER POLICY)', { until: '1.2.0' })`
+(expired at 2.0.0, so hard for every install since), and one both readings produce stays hard.
 
 ### 24. contracts — `node tools/check-contract-drift.mjs`
 
@@ -1592,8 +1599,8 @@ FAIL (the manifest is malformed, not judged).
 **The history fold (1.1.0).** The index lookup is folded through `DROP TABLE`: a dropped
 table takes its indexes with it, so a re-created table is served only by indexes created
 after it. A finding only the fold produces is a dated NOTE below `baseVersion` 1.1.0,
-through `rampNote('query-shapes', '1.1.0', 'the SQL history fold (DROP TABLE and ALTER POLICY)', { until: '1.2.0' })`,
-and one both readings produce stays hard. `db-perf`'s static index lookup reads the same
+through `rampNote('query-shapes', '1.1.0', 'the SQL history fold (DROP TABLE and ALTER POLICY)', { until: '1.2.0' })`
+(expired at 2.0.0, so hard for every install since), and one both readings produce stays hard. `db-perf`'s static index lookup reads the same
 fold, with no ramp: it runs only against a live, scale-seeded database, where a dropped
 table's indexes are already gone.
 
@@ -1751,9 +1758,9 @@ hashes files, not the environment). The build rewrites the committed
 stamp-hits. Skips loudly without `apps/web` or `node_modules`; fails closed in CI.
 
 Shipped **ramped** (`minVersion 1.1.0`, `until 1.2.0`): `update` injects the step into an
-existing chain, so below that baseVersion a failed build is a NOTE carrying the output. A
-ramped failure records no stamp, so the NOTE repeats, and `graduate` stays refused, until
-the app compiles. The ramp is consulted only once the build has failed.
+existing chain, so below that baseVersion a failed build was a NOTE carrying the output,
+recording no stamp. The ramp expired at 2.0.0, so hard for every install since: a web app that does not compile reds
+the step on every install.
 **Anti-vacuity:** add `import '../lib/auth/session'` (it opens with `import 'server-only'`)
 under the `'use client'` directive of `app/providers.tsx` → `types` stays green and
 `web-compile: FAIL` carries Next's `You're importing a module that depends on
@@ -1917,9 +1924,9 @@ comments blanked. State test ids are globally unique, so a literal names exactly
 A `null` state is never demanded; a route whose every state is null has no id a spec could
 name, and is chrome to allowlist. The check reads text: it proves a spec names the state,
 and the web-e2e lane proves the spec passes. Its findings are a list of their own behind a
-ramp of their own (`minVersion 1.1.0`, `until 1.2.0`), consulted only once findings exist:
+ramp of their own (`minVersion 1.1.0`, `until 1.2.0`, expired at 2.0.0, so hard for every install since), consulted only once findings exist:
 the seeded `notes.spec.ts` and `security.spec.ts` are `seedOnInitOnly`, so an install
-created earlier carries a spec for `orgs` only.
+created earlier carries a spec for `orgs` only until it copies them.
 
 **Anti-vacuity:** add `app/(protected)/o/[orgSlug]/settings/page.tsx` with no
 `page.meta.ts` → FAIL naming the page and the URL it would be served at; declare a state
@@ -2037,7 +2044,7 @@ an entry, or `docs-sync` reds naming the file (`fallbackListProblems`; the
 harness repository's `check-plugin-manifest` applies the same rule to the
 shipped roster). A file without a list is fine: only its pin counts.
 
-**The reviewer severity contract (1.1.0, ramped until 1.2.0).** Each reviewer body
+**The reviewer severity contract (1.1.0, ramped until 1.2.0, expired at 2.0.0, so hard for every install since).** Each reviewer body
 states, on lines of their own before its closing verdict paragraph, the severities it
 ranks findings at and the ones that make its verdict BLOCK:
 `Severities: CRITICAL, HIGH, MEDIUM, LOW` and `Blocking: CRITICAL, HIGH`. The gate
@@ -2051,9 +2058,10 @@ it. The SubagentStop hook reads the same `Blocking:` line (the `reviewer-verdict
 section below). Ramped, like the verdict demand's position below and unlike the rest of
 the roster check, because since 1.0.2
 `update` parks a locally modified owned body instead of overwriting it, so a body forked
-before 1.1.0 gets dated NOTEs until 1.2.0; a fresh scaffold is live from day one.
+before 1.1.0 got dated NOTEs until 1.2.0, which arrived at 2.0.0; a fresh scaffold is live
+from day one.
 
-**Reviewer bodies close on the verdict demand (1.1.0, ramped until 1.2.0).** Each
+**Reviewer bodies close on the verdict demand (1.1.0, ramped until 1.2.0, expired at 2.0.0, so hard for every install since).** Each
 reviewer body must ask for `VERDICT: PASS` or `VERDICT: BLOCK`, a hard red on every
 vintage as it has been since 0.2.0, and that demand must now be its closing instruction.
 The body is trimmed, split into paragraphs on blank lines and whitespace-collapsed, and
@@ -2066,8 +2074,8 @@ two bodies whose closing paragraph asked for the top 3 fixes after the verdict, 
 bounced every review that obeyed them, and this gate, which then checked presence only,
 passed both. The position rule rides a ramp because `update` keeps a re-recorded fork of
 an owned body (1.0.2) that no earlier release judged for position: below `baseVersion`
-1.1.0 each finding prints as a dated NOTE, the NOTE expires in 1.2.0, and a fresh scaffold
-is live from the start. A fork of `tools/lib/agent-roster.mjs` that lacks the helper still
+1.1.0 each finding printed as a dated NOTE that expired in 1.2.0, which arrived at 2.0.0, and
+a fresh scaffold is live from the start. A fork of `tools/lib/agent-roster.mjs` that lacks the helper still
 loads the gate; presence is judged with the 1.0.x test and one finding, through the same
 ramp, names the stale lib. **Honest limit:** only the last paragraph is judged. An EARLIER
 paragraph that asks for text after the verdict line is not caught here, and the hook
@@ -2139,7 +2147,7 @@ drop `Blocking:` from `security-reviewer.md`, or narrow it to `Blocking: HIGH` �
 naming the file (a NOTE with its deadline on a pre-1.1.0 install);
 append ` Follow it with the top 3 fixes.` to the closing paragraph of
 `.claude/agents/torvalds-reviewer.md` → FAIL naming that file (a dated NOTE below
-`baseVersion` 1.1.0, `RAMP EXPIRED` from harness 1.2.0); delete a reviewer's verdict
+`baseVersion` 1.1.0 before harness 1.2.0, `RAMP EXPIRED` from it, so at 2.0.0); delete a reviewer's verdict
 demand → FAIL naming the file on every vintage;
 write "Deferred to x.y.z" (a real release number) in any scanned surface with no
 ledger entry → FAIL naming file, line and target; delete the sentence an entry
@@ -2386,7 +2394,8 @@ runner's config. A missing map FAILS CLOSED (the chain was reordered or the
 artifact deleted); an empty diff passes with a note.
 A changed Edge Function file in a directory with no vitest suite is named as absent,
 with the one green path (add the suite); on an install whose `baseVersion` predates
-1.1.0 those findings are `diff-coverage: NOTE — (ramp) …` lines until 1.2.0.
+1.1.0 those findings were `diff-coverage: NOTE — (ramp) …` lines until 1.2.0, which arrived
+at 2.0.0, so they red on every install since.
 **Anti-vacuity:** add an untracked `apps/web/src/` file with an exported
 function and no test → FAIL naming the file as absent from the coverage map.
 
@@ -2415,28 +2424,28 @@ CONSTRUCTION — the pseudo-locale sweep in the RNTL lane (every `en` source str
 must come back mangled under `en-XA`; `ar-XB` is the RTL pass) is the behavioral
 other half.
 
-**Two scans (1.1.0).** Checks 1 and 2 were regular expressions over comment-blanked
-text through 1.0.x, one quote form each, with JSX text that could not hold `=`, `;`,
-a backtick or `$`. The gate now also walks the TypeScript syntax tree
+**One scan, the syntax tree (1.1.0; alone since 2.0.0).** Checks 1 and 2 were regular
+expressions over comment-blanked text through 1.0.x, one quote form each, with JSX text that
+could not hold `=`, `;`, a backtick or `$`. 1.1.0 added a walk of the TypeScript syntax tree
 (`tools/lib/i18n-tree.mjs`, one parse per file with the project's own `typescript`
-devDependency) and judges the union: JSX text, a listed attribute or
+devDependency) and judged the union for one release, with what only the walk saw ramped
+for installs below 1.1.0 until 1.2.0. 2.0.0, the first release at or past that deadline,
+retired the expressions: the walk alone reads JSX text, a listed attribute or
 `label`/`title`/`subtitle`/`description` property whose value is a string or a
 template literal with no substitutions, bare or inside `{…}`, and `Intl` /
-`toLocale*` / `toFixed`. A finding both scans see, or only the expressions see, is
-hard; one only the expressions see is tagged as retiring with them in 1.2.0. A
-finding only the tree walk sees is hard on a fresh install and a NOTE on an install
-whose baseVersion predates 1.1.0, until 1.2.0. When `typescript` cannot load, the
-expressions judge alone and the output says the walk did not run: a loud NOTE
-locally, a failure in CI.
+`toLocale*` / `toFixed`, on every install, with no ramp. Its fixture parity with the
+expressions' red and not-copy fixtures (`tests/gates/i18n-tree.test.mjs`) is what licensed
+the retirement. When `typescript` cannot load, checks 1 and 2 do not run and the output
+says so: a loud NOTE locally, a failure in CI; checks 3 and 4 still judge.
 
 **The escape is keyed on content.** `tools/i18n-allow.json` entries are
 `{"key": "<12 hex characters>", "reason": "…"}`. The key is a sha256 over the file's
 path, the finding kind, the attribute or property name and the text with its
-whitespace collapsed; every FAIL line prints the entry ready to paste, both scans
-compute the same key, and inserting a line above the string does not move it. A
-malformed entry, or a key that matches no finding, FAILS. A 1.0.x
-`{"site": "file:line"}` entry still mutes its line below baseVersion 1.1.0 and prints
-the key that replaces it, until 1.2.0; on a fresh install it is malformed.
+whitespace collapsed; every FAIL line prints the entry ready to paste, and inserting a
+line above the string does not move it. A malformed entry, or a key that matches no
+finding, FAILS. A 1.0.x `{"site": "file:line"}` entry muted its line below baseVersion
+1.1.0 until 1.2.0; since 2.0.0 it is malformed on every install, and the message says the
+FAIL line of the string it muted prints the key that replaces it.
 **Anti-vacuity:** hardcode "Add a note" in a screen → the scan reds it; put
 `<Text accessibilityLabel={'Close dialog'} />` under `apps/mobile/src` → only the
 tree walk reports it, and the FAIL names `"Close dialog" (accessibilityLabel
@@ -2632,7 +2641,8 @@ Each ledger entry also records `blocking`, the finding lines at a blocking sever
 (each capped at 200 characters, null with no contract), and `round`, the verdict's
 round in its reviewer's review loop in this session, with `overBudget` past the budget,
 where the hook still exits 0. The step judges the budget, behind its own ramp until
-1.2.0 (a hook has no NOTE channel to carry one). A BLOCK opens a review loop; every
+2.1.0 (a hook has no NOTE channel to carry one; 2.0.0 moved it from 1.2.0 to the
+reviewer ledger v2's deadline, because the budget judges v2's change set by v2's rule). A BLOCK opens a review loop; every
 later verdict of that reviewer in the session is its next round, whichever run returns
 it; the loop closes when each BLOCK in it is cleared by a PASS from the same run over a
 tree that did not move under it. A loop still open after `ROUND_BUDGET` rounds (3, in
@@ -2651,7 +2661,7 @@ FAIL naming the file; send a PASS containing `- [HIGH] supabase/migrations/x.sql
 → the hook exits 2 with the shape `pass-with-blocking-finding`
 (tests/hooks/hook-contract.test.mjs, beside its exit-0 controls); record three BLOCKs
 from one run and then its PASS → `reviewer-verdicts` FAIL naming the budget and the
-findings, as a NOTE on a 1.0.3 manifest and `RAMP EXPIRED` at harness 1.2.0
+findings, as a NOTE on a 1.0.3 manifest (at harness 2.0.0 too) and `RAMP EXPIRED` at harness 2.1.0
 (tests/gates/check-reviewer-verdicts.test.mjs). The pure helpers are table-tested in
 tests/gates/severity-contract.test.mjs.
 
@@ -2840,8 +2850,9 @@ tests/gates/severity-contract.test.mjs.
   report), so the scoper judges a changed function file whose directory holds no vitest
   suite: a FAIL naming the suite it needs. On an install whose `baseVersion` predates 1.1.0
   that file is withheld with `mutation-scope: NOTE — (ramp) …` on stderr, and a new survivor
-  under `supabase/functions/` is `mutation-ratchet: NOTE — (ramp) …`, until 1.2.0; a
-  survivor anywhere else is judged as before.
+  under `supabase/functions/` is `mutation-ratchet: NOTE — (ramp) …`, until 1.2.0, which
+  arrived at 2.0.0, so both red on every install since; a survivor anywhere else is judged
+  as before.
 - **osv-scan** (`osv-scan.yml`, its own workflow) — known-vulnerability SCA over
   every discovered `pnpm-lock.yaml` against the OSV database. The PR job is
   DIFF-AWARE (only newly introduced vulns red a PR — the deterministic form of a
@@ -2953,8 +2964,9 @@ tests/gates/severity-contract.test.mjs.
   request or push that touches a workflow, `.github/zizmor.yml`, the script, its library or
   `.harness/manifest.json`, with no install. It is not a chain step, so `graduate` never
   runs it: run it by hand before graduating. **Ramped:** an install whose `baseVersion`
-  predates 1.1.0 gets each finding as `workflow-hardening: NOTE — (ramp) …` until 1.2.0;
-  a fresh 1.1.0 scaffold is held to the rules at once. **Beside `harden-runner-coverage`,
+  predates 1.1.0 got each finding as `workflow-hardening: NOTE — (ramp) …` until 1.2.0,
+  which arrived at 2.0.0; a fresh 1.1.0 scaffold was held to the rules at once, and since
+  2.0.0 every install is. **Beside `harden-runner-coverage`,
   not instead of it:** that job keeps its id, name and loop, which COUNTS harden-runner lines
   per `*.yml` file, so two steps in one job cover a bare neighbour, a step after `checkout`
   or a comment passes, and a `.yaml` file or a four-space indent is never read; this gate
@@ -2989,8 +3001,8 @@ tests/gates/severity-contract.test.mjs.
   run; a cold check fills a 13 MB module cache (supabase-js, its five `@supabase` npm packages
   and what they import) in 2 to 2.5 s; a warm one takes under 0.2 s. **Ramped:** on an
   install whose `baseVersion` predates 1.1.0, every finding, and a missing deno, `deno.json` or `deno.lock`,
-  is `edge-functions: NOTE — (ramp) …` until 1.2.0, because `update` delivers the gate and the
-  job but not the seeded split. **The injection** (`tests/gates/check-edge-functions.test.mjs`,
+  was `edge-functions: NOTE — (ramp) …` until 1.2.0, because `update` delivers the gate and the
+  job but not the seeded split; 1.2.0 arrived at 2.0.0, so it reds on every install since. **The injection** (`tests/gates/check-edge-functions.test.mjs`,
   and Canary 38 on a rendered scaffold): append `const n: number = 'x'` to
   `supabase/functions/delete-account/index.ts` and the gate exits 1 with
   `edge-functions: FAIL` and deno's `TS2322` line; delete that function's `deno.json` and it

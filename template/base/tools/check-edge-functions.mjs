@@ -25,7 +25,7 @@
 // version quality-gate.yml pins (Renovate bumps it), so no install carries its binary. Missing
 // locally, the gate skips loudly; in CI it fails closed (skipOrFail).
 //
-// RAMPED. Every finding, and a missing deno, is a NOTE with the deadline until 1.2.0 on an
+// RAMPED. Every finding, and a missing deno, was a NOTE until 1.2.0 (expired at 2.0.0) on an
 // install whose baseVersion predates 1.1.0: `update` delivers this owned gate and its job,
 // but not the seeded deno.json, deno.lock and handler split, which reach fresh scaffolds only
 // (the 1.1.0 runbook section pulls them with `update --refresh-seeded`).

@@ -478,7 +478,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const reportable = rampedAway ? preExisting : findings
   // THE 1.1.0 EDGE FUNCTION RAMP. supabase/functions/ joined SRC_RE in 1.1.0, and an install
   // whose baseVersion predates it has function code no test was ever asked to cover, so a
-  // finding THERE is a NOTE with the deadline until 1.2.0. Anywhere else is judged as before.
+  // finding THERE was a NOTE until 1.2.0, which expired at 2.0.0. Anywhere else is judged as before.
   const edgeFindings = reportable.filter((f) => EDGE_RE.test(f.file))
   const edgeRamped =
     edgeFindings.length > 0 &&

@@ -86,6 +86,9 @@
     ],
     "tools/eol.json": [
       {
+        "sha256": "107aa127f6ed2f5b1571562e6aad183d8fb28a8a7ccc77b3aa202074c985bb8e"
+      },
+      {
         "sha256": "35b3ce2a369ae3d46371e3f4c4816d38e0866678c1997e4a62b5b8df9ba6734b"
       },
       {
@@ -117,6 +120,9 @@
     "tools/i18n-allow.json": [
       {
         "sha256": "9b3b1268efaf9d927f5dbb88d960b888304e581ac2390191eec72cd65cb014e3"
+      },
+      {
+        "sha256": "bf822cf372acf301d36dd1fd67f0782e6e4373b64e3dec6538a79cbc4edb8875"
       },
       {
         "sha256": "ef147f39e3be2316687a081153de892dd06bb255ed4374d8a27c4c73b371d2eb"

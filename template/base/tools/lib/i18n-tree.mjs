@@ -1,5 +1,6 @@
-// tools/lib/i18n-tree.mjs — the i18n gate's syntax-tree scanner (1.1.0). The gate
-// (tools/check-i18n.mjs) decides what its findings mean; this module only finds them.
+// tools/lib/i18n-tree.mjs — the i18n gate's syntax-tree scanner (1.1.0), and since 2.0.0
+// its only scan. The gate (tools/check-i18n.mjs) decides what its findings mean; this module
+// only finds them.
 //
 // WHY A TREE. Through 1.0.x the gate found copy with regular expressions over comment-blanked
 // source text, one quote form per expression, and a JSX text run that may not hold `=`, `;`,
@@ -14,21 +15,22 @@
 //     expression's source: `Intl.<member>`, or `.<method>(<arguments>)` from the dot through
 //     the call's closing parenthesis.
 // A value read through parentheses, `as` or `satisfies` is the same value. Every copy
-// finding passes the two filters the regular expressions have always applied: two
-// consecutive letters, and not looksMachineFacing.
+// finding passes the two filters the 1.0.x regular expressions applied: two consecutive
+// letters, and not looksMachineFacing.
 //
-// ONE KEY, WHICHEVER SCANNER REPORTS IT. findingKey hashes the POSIX path, the finding kind,
-// the attribute or property name ('' for JSX text and `intl`) and the text with its
-// whitespace collapsed, so a CRLF checkout gets the same key. The gate's regular expressions
-// compute the key from the same four fields, so one allowlist entry mutes a finding either
-// scanner reports. Texts are taken from the comment-blanked source, as the expressions read
-// it, and a finding's line is the line the expression would report: the tag close before a
-// JSX text run, the attribute or property name, the `.` of a method, the `I` of `Intl`.
+// ONE KEY PER FINDING. findingKey hashes the POSIX path, the finding kind, the attribute or
+// property name ('' for JSX text and `intl`) and the text with its whitespace collapsed, so a
+// CRLF checkout gets the same key. Through 1.1.x the gate's regular expressions computed the
+// key from the same four fields, so one allowlist entry muted a finding either scanner
+// reported; 2.0.0 retired the expressions and every 1.1.x key still matches. Texts are taken
+// from the comment-blanked source, and a finding's line is the line the expressions reported:
+// the tag close before a JSX text run, the attribute or property name, the `.` of a method,
+// the `I` of `Intl`.
 //
 // THE PARSER IS THE PROJECT'S OWN `typescript` devDependency, loaded with a dynamic import.
 // When it cannot load, loadParser returns null instead of skipping or failing: the gate
-// decides what a missing parser means (a loud NOTE locally while the regular expressions
-// still judge; a failure in CI).
+// decides what a missing parser means (a loud NOTE locally, where the copy and boundary
+// checks go unjudged; a failure in CI).
 // SOURCE: docs/harness/gates-catalog.md (i18n gate) [corpus: harness/doctrine]
 import { createHash } from 'node:crypto'
 import { toPosix } from './fs-walk.mjs'
@@ -38,6 +40,7 @@ import { blankComments, lineOf } from './source-text.mjs'
 // accessibilityLabel/Hint, so they are copy in the fullest sense). Everything else (testID,
 // accessibilityRole — a token vocabulary, not prose — nativeID, id, key, name, href) is
 // machine-facing and deliberately absent.
+/** @public exported for the harness repo's gate suite (tests/gates/i18n-tree.test.mjs) */
 export const TEXT_ATTRS = [
   'accessibilityLabel',
   'accessibilityHint',
@@ -51,11 +54,12 @@ export const TEXT_ATTRS = [
 
 // Object-literal copy: `label: 'Home'` in a navigator's options, `description:` in a
 // registry, `title:`/`subtitle:` in action items, column headers in a data module.
-export const COPY_PROPS = ['label', 'title', 'subtitle', 'description']
+const COPY_PROPS = ['label', 'title', 'subtitle', 'description']
 
 /**
  * A literal that is plainly not copy: empty, a lone url/path/anchor, or a lowercase
  * token/id with no spaces (a css class, a testID-shaped kebab string).
+ * @public exported for the harness repo's gate suite (tests/gates/i18n-tree.test.mjs)
  * @param {string} text
  */
 export function looksMachineFacing(text) {
@@ -75,6 +79,7 @@ const collapse = (text) => text.replace(/\s+/g, ' ').trim()
 /**
  * The allowlist key: the first 12 hex characters of a sha256 over the JSON array
  * [POSIX path, kind, name, text with whitespace collapsed].
+ * @public exported for the harness repo's gate suite (tests/gates/i18n-tree.test.mjs)
  * @param {string} file @param {string} kind @param {string} name @param {string} text
  */
 export function findingKey(file, kind, name, text) {

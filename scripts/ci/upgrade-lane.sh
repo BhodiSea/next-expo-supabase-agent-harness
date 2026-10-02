@@ -176,6 +176,18 @@ export PATH
 BEFORE="$(node -p "require('$SCAFFOLD/.harness/manifest.json').harnessVersion")"
 [ "$BEFORE" = "${PREV_TAG#v}" ] || die "manifest records $BEFORE after init at $PREV_TAG"
 
+# The tolerated-absent files §3 judges, as the BASELINE's own init left them. A baseline that
+# already ships one (tools/surfaces.json is seeded at init since 1.1.0, so every leg from
+# v1.1.0 on starts with it) did not get it from `update`, and §3 must not read it as a plant.
+# Its sha is kept instead, because what §3 can still assert is that `update` left it alone.
+TOLERATED_ABSENT="tools/retrofit-accept.json tools/secret-scan-allow.json tools/surfaces.json"
+: > "$WORK/baseline-seeded.txt"
+for f in $TOLERATED_ABSENT; do
+  if [ -f "$SCAFFOLD/$f" ]; then
+    printf '%s %s\n' "$f" "$(node -e 'process.stdout.write(require("node:crypto").createHash("sha256").update(require("node:fs").readFileSync(process.argv[1])).digest("hex"))' "$SCAFFOLD/$f")" >> "$WORK/baseline-seeded.txt"
+  fi
+done
+
 # ── 2. run HEAD's update ─────────────────────────────────────────────────────────
 say "update -> v$HEAD_VERSION"
 node "$ROOT/installer/cli.mjs" update --dir "$SCAFFOLD" | tee "$WORK/update.log"
@@ -351,7 +363,16 @@ for f in tools/approved-tools.json tools/secret-patterns.json tools/doctrine-sym
   [ -f "$SCAFFOLD/$f" ] || die "$f must be PLANTED by update — its gate fails closed without it"
   echo "  planted:   $f"
 done
-for f in tools/retrofit-accept.json tools/secret-scan-allow.json tools/surfaces.json; do
+for f in $TOLERATED_ABSENT; do
+  seeded="$(grep -F "$f " "$WORK/baseline-seeded.txt" | cut -d' ' -f2 || true)"
+  if [ -n "$seeded" ]; then
+    # The baseline's init seeded it: `update` never planted it, and must not have touched it.
+    now="$(node -e 'process.stdout.write(require("node:crypto").createHash("sha256").update(require("node:fs").readFileSync(process.argv[1])).digest("hex"))' "$SCAFFOLD/$f" 2>/dev/null || true)"
+    [ "$now" = "$seeded" ] ||
+      die "$f was seeded by the baseline's own init and \`update\` changed or removed it — a seeded file is the project's, and update must leave it as it found it"
+    echo "  seeded at init by $PREV_TAG, left alone: $f"
+    continue
+  fi
   [ ! -f "$SCAFFOLD/$f" ] ||
     die "$f must be TOLERATED-ABSENT, not planted — its gate reads absent-as-empty, and planting it ships a reviewed-acceptance file nobody reviewed"
   echo "  withheld:  $f"

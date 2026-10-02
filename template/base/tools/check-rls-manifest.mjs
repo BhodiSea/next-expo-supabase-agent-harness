@@ -57,7 +57,7 @@
 // kept vouching — its old policies, grant and owner index counting for a re-created table of
 // the same name. It now reads the parser's one live-policy fold and the folded views, and
 // reports a DROP TABLE or ALTER POLICY whose target no earlier migration left in place.
-// Findings only the fold produces ride a 1.1.0 ramp until 1.2.0 (the block at the end).
+// Findings only the fold produced rode a 1.1.0 ramp until 1.2.0, expired at 2.0.0 (the block at the end).
 //
 // AND THE GRANT BOUND IN 1.1.0 (#74). The closure above runs one way, and its fold starts
 // empty, so it never saw what Supabase's default privileges hand a role on a new `public`
@@ -65,7 +65,7 @@
 // A second fold, seeded with that default, now bounds what anon and authenticated hold by the
 // policies that admit it, holds every table to the three-role revoke doctrine, and keeps
 // supabase/tests/rls_grants.generated.test.sql equal to what tools/gen-grant-assertions.mjs
-// renders. One 1.1.0 ramp until 1.2.0 covers all three. See tools/lib/table-grants.mjs.
+// renders. One 1.1.0 ramp until 1.2.0 covered all three; it expired at 2.0.0. See tools/lib/table-grants.mjs.
 //
 // Static and <100ms: statement-level SQL parsing via tools/lib/sql-parse.mjs, not
 // substring vibes — an early regex version was defeated by the shipped migration's
@@ -816,7 +816,7 @@ if (grantErrs.length > 0) {
   else errs.push(...grantErrs)
 }
 
-// RAMPED from 1.1.0 until 1.2.0 (#74), one site for three kinds of finding: the bound, the
+// RAMPED from 1.1.0 until 1.2.0 (#74; expired at 2.0.0), one site for three kinds of finding: the bound, the
 // doctrine, and a missing or stale generated file. An install seeded before 1.1.0 has tables
 // that predate the doctrine — every one of them, profiles and notes included, since the
 // harness's own migrations taught two revokes until 1.0.2 — and no generated file (`update`

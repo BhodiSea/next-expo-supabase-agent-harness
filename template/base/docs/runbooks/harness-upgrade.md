@@ -3312,6 +3312,149 @@ whose sha matches its record as a harness refresh. If you forked
 `.harness/pending/`, and `update` exits 2 while it stays there; your copy never reads
 `tools/lib/planted-shas.json`.
 
+## 2.0.0 — the opt-in release: the 1.1.0 notes fall due
+
+**If your `baseVersion` is 1.1.0 or later, nothing expires for you.** Every ramp 1.1.0 opened
+carries `minVersion 1.1.0`, so none of them has ever been live on your install. What the
+version bump itself brings a 1.1.0 install is the uuid arrival NOTE below; each change a later
+2.0.0 item makes has its own part of this section. Read what applies to YOUR `baseVersion`
+off `node scripts/ci/ramp-expectations.mjs <your base> 2.0.0` in a harness checkout, and off
+`pnpm validate 2>&1 | grep -E 'NOTE — \(ramp\)|RAMP EXPIRED'` in your own tree, never off
+this page.
+
+**If your `baseVersion` is below 1.1.0, this is where the 1.1.0 sweep stops being
+optional.** 1.2.0 is never cut: this lineage goes from 1.1.0 to 2.0.0 directly, and every
+comparison is `>=`, so each deadline dated 1.2.0 arrives here. The 1.1.0 section above is the
+sweep, and nothing in it changed. If you are more than one release behind, read the sections
+above in order before crossing this one.
+
+### What ARRIVES (hard) — for installs below 1.1.0
+
+Eighteen of the ramp sites 1.1.0 opened, across fifteen gates. Each finding that printed as
+`NOTE — (ramp)` with `expires in 1.2.0` now prints under a `RAMP EXPIRED` banner and reds its
+step. Each 1.1.0 subsection named here says what to do:
+
+1. **The SQL history fold**, in `data-flow`, `db-limits`, `query-shapes`, `tenancy` and
+   `schema-rls`, and `migrations`' rule that an `ALTER POLICY` is an authorization change
+   ("What OPENS: the SQL gates fold `DROP TABLE` and `ALTER POLICY`"). Fix what the fold
+   exposes in a NEW migration, or add a `tools/migrations-allow.json` `authz-adr` entry for
+   an `ALTER POLICY` you already applied.
+2. **`schema-rls`' grant bound**, its three-role revoke doctrine and the generated grant
+   assertions ("What OPENS: `schema-rls` bounds grants by policies…"). The subsection's SQL
+   goes in a NEW migration, then `node tools/gen-grant-assertions.mjs`.
+3. **`docs-sync`, three sites**: the reviewer severity contract and the verdict-demand
+   position of a reviewer body you forked ("Reviewer bodies state which severities block…"
+   and "A reviewer body must close on its verdict demand"), and the `AGENTS.md` gate list
+   ("What re-OPENS" in the 1.1.0 section: paste the 37 names the finding prints).
+4. **The Edge Function surface**, in `diff-coverage`, `edge-functions`, `mutation-ratchet`
+   and `mutation-scope` ("Edge Functions: pull the handler split…").
+5. **`gate-integrity`'s planted escape list** ("An uncommitted escape list must be one a
+   release planted"): commit each escape list the finding names after reviewing it, or delete
+   one nobody meant to create.
+6. **`web-compile`** and **`route-manifest`'s per-route browser closure** ("The web app
+   compiles in the chain, and each web route needs a browser spec").
+7. **`workflow-hardening`** over your own workflows ("Your own workflows:
+   `workflow-hardening`").
+
+`workflow-hardening`, `edge-functions`, `mutation-ratchet` and `mutation-scope` run only in
+CI and `diff-coverage` is a Stop step, so `pnpm validate` does not show them: run each by hand
+before you graduate, as the 1.1.0 subsections say. `scripts/ci/upgrade-sweep.mjs`
+`SWEEPS['1.1.0']` is what the upgrade lane's swept leg runs before it requires `graduate` to
+succeed; `SWEEPS['2.0.0']` adds no step for these sites (it says why).
+
+### What RETIRES with them — on every install
+
+Two of the 1.1.0 ramps existed only to carry something to this release, and both things go
+now, whatever your `baseVersion`.
+
+**The `i18n` gate's regular expressions and the `site` entry.** Through 1.1.x the gate ran
+its 1.0.x regular expressions beside the syntax-tree walk and reported both. From 2.0.0 the
+walk is the only scan:
+
+- A `{"site": "file:line", …}` entry in `tools/i18n-allow.json` is malformed on every install
+  and fails the step closed. Delete it; the FAIL line of the string it muted prints the
+  `{"key": …}` entry that replaces it, ready to paste.
+- A string only the regular expressions reported (for example `title = "…"` as a plain
+  assignment in a `.ts` module) no longer reds. A `key` entry you added for one now matches no
+  finding and reds as stale: delete it.
+- Without `typescript` installed, the copy and `Intl`-boundary checks cannot run. Locally the
+  step says so in a NOTE; in CI it fails. Run `pnpm install`.
+
+**The `lint` exemption for `supabase/functions/delete-account/index.ts`.** 1.1.0 kept that
+seeded file out of the Edge Function complexity block for one release, because the copy every
+1.0.x install carries measures 16. If `update` printed a `SEEDED SOURCE FIX` naming `lint` and
+you have not acted on it, `lint` now reds on that file. Pull the split:
+
+```
+update --refresh-seeded supabase/functions/delete-account/
+git add supabase/functions/delete-account/
+```
+
+That replaces the whole directory, so read the diff first if you edited it. A fresh 1.1.0 or
+later scaffold already has the split.
+
+### What moves to 2.1.0 (a dated NOTE)
+
+**`version-sync`'s uuid arrival, a fifth time.** The harness re-reviewed its own uuid 7
+acceptance at this release and moved its `removalTarget` from 1.2.0 to 2.1.0: `xcode` 3.0.1
+still declares `uuid: ^7.0.3`, `@expo/config-plugins` still depends on that `xcode`, and a
+registry sweep of a fresh scaffold still finds uuid@7.0.3 in the production closure. Your
+seeded `tools/eol.json` still says `"removalTarget": "1.2.0"` on a 1.1.0 install, or an older
+date on an older one, and that date has arrived. `update` parks the re-affirmation under
+`.harness/pending/source-fixes.json`, and `version-sync` prints the arrival as
+`NOTE — (ramp)` with `expires in 2.1.0`. The remedy is the 1.1.0 section's, one date on:
+re-affirm the row under a release you mean, or, if you never edited the file,
+`update --refresh-seeded tools/eol.json` and read the diff before you commit it.
+`graduate` refuses while this NOTE stands.
+
+**`reviewer-verdicts`' round budget.** It stays a NOTE until 2.1.0 on an install below 1.1.0,
+where it was dated 1.2.0. It counts rounds over the reviewer ledger v2's change set and closes
+a loop by v2's rule, and v2 itself stays a NOTE there until 2.1.0, so the budget waits for it.
+Nothing to do; the NOTE now names 2.1.0.
+
+**The Supabase CLI census.** `auth-posture`'s deferred ask-the-CLI check moved from 1.2.0 to
+2.1.0: supabase/cli#5894 is still open, and the CLI still documents `config push` as its only
+`config` subcommand. Nothing to do.
+
+### What `update` plants, and what else moved
+
+Owned files, re-planted when your copy still matches a released sha: the hooks under
+`.claude/hooks/` (their version stamps), this runbook, `tools/check-version-sync.mjs` (the
+re-opened arrival ramp), `tools/check-reviewer-verdicts.mjs` (the round budget's date),
+`tools/check-i18n.mjs` and `tools/lib/i18n-tree.mjs` (the retired regular expressions),
+`eslint.config.mjs` (the retired exemption), `tools/deferrals.json`, `tools/auth-posture.json`,
+`tools/check-auth-posture.mjs` and `docs/harness/gates-catalog.md` (the census date and the
+sentences that called the 1.1.0 ramps open). The seeded `tools/eol.json` and
+`tools/i18n-allow.json` change for fresh scaffolds only: the first reaches you through the
+parked fix above, and the second changes only its comment.
+
+### The full encryption rule ships with the `e2ee` module
+
+`.claude/rules/e2ee.md`, the full encryption rule, moved from the base template into the
+`e2ee` module: the same text, the same install path and the same `paths:` scoping, so it loads
+exactly as before wherever it is installed. What changes is which installs carry it. The
+always-loaded `.claude/rules/encryption.md` stays in every install, and it now says that
+`enable e2ee` installs the full rule.
+
+- **An install without `e2ee`:** `update` deletes `.claude/rules/e2ee.md` when it holds the
+  bytes a release shipped, and prunes its record. `enable e2ee` brings it back.
+- **An install with `e2ee`:** `update` deletes the old copy and plants the module's straight
+  back, recorded as the module's (`module: "e2ee"`), so `disable e2ee` removes it from now on.
+- **A kept fork.** If you edited the file, or re-recorded its sha to keep an edit, `update`
+  leaves it in place with a note ending "remove it manually".
+  - Without `e2ee`: delete it, or keep it as your own rule. Nothing re-plants or removes it.
+  - With `e2ee`: ignore the note's "remove it manually", because the module ships this rule.
+    If `update` parked a copy under `.harness/pending/.claude/rules/e2ee.md` (it does when the
+    rule changed after your version), merge it into your file. Your record keeps no module
+    attribution, so `disable e2ee` leaves the file in place: delete it yourself if you disable
+    the module.
+
+Owned files re-planted when your copy still matches a released sha: the stub,
+`docs/harness/README.md` and `tools/conformance-map.json` (five notes that named the full rule
+as if every install had it; its two generated documents do not quote notes and are
+unchanged), and, on an `e2ee` install, `docs/modules/e2ee/README.md`, which lists the rule
+among the files the module adds.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

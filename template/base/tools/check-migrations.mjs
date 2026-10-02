@@ -389,7 +389,7 @@ if (remaining.length > 0) {
 }
 
 // Every ALTER POLICY finding is one the 1.0.x rules never produced, so on an install whose
-// baseVersion predates 1.1.0 it is a dated NOTE until 1.2.0: an applied migration carrying one
+// baseVersion predates 1.1.0 it was a dated NOTE until 1.2.0 (expired at 2.0.0): an applied migration carrying one
 // was written when no rule asked for the ADR. Its sweep is the ADR for a new migration, or the
 // existing authz-adr entry above for one already applied.
 if (remainingAlter.length > 0) {

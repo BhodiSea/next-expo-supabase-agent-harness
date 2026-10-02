@@ -29,7 +29,7 @@ provenance attestation; see [Verifying a release](SECURITY.md#verifying-a-releas
 `npx github:BhodiSea/next-expo-supabase-agent-harness#<tag>` form still works, but
 npm 12 refuses git sources unless it is run with `--allow-git=root`.
 
-**Status: stable (1.1.x).** CI proves the scaffold on Linux only. The installer's
+**Status: stable (2.0.x).** CI proves the scaffold on Linux only. The installer's
 unit tests also run on Windows. `pnpm validate` has never run in CI on macOS or
 Windows. See [Limitations](#limitations).
 

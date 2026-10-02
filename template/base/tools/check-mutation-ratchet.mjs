@@ -209,7 +209,7 @@ const unaccepted = found.filter((s) => !accepted.has(s.id))
 // THE 1.1.0 EDGE FUNCTION RAMP. supabase/functions/*/ joined the mutated floor in 1.1.0
 // (tools/lib/mutation-critical.mjs), and an install whose baseVersion predates it carries
 // function code no test was ever asked to kill mutants in. So a NEW survivor under
-// supabase/functions/ is a NOTE with the deadline on that install until 1.2.0; a survivor
+// supabase/functions/ was a NOTE on that install until 1.2.0 (expired at 2.0.0); a survivor
 // anywhere else is judged exactly as before, and a fresh scaffold is held at once.
 const EDGE = /^supabase\/functions\//
 const edgeFresh = unaccepted.filter((s) => EDGE.test(s.file))

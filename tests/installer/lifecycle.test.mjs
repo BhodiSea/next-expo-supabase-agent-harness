@@ -590,8 +590,10 @@ test('enable/disable flips a module: dry-run writes nothing, drift is parked, di
 // W7 representative round-trips, one per module SHAPE: workflow-heavy
 // (ci-mobile-release — dotless github/ storage must land at .github/workflows/),
 // doc-plus-test (observability — a file under the seeded apps/ prefix plus
-// docs), and slice-shaped (push-notifications — .ts.txt slice files installed
-// verbatim under docs/, never as live TypeScript).
+// docs), slice-shaped (push-notifications — .ts.txt slice files installed
+// verbatim under docs/, never as live TypeScript), and, since 2.0.0 (#86), a module that
+// ships under .claude/ (e2ee — the full encryption rule, beside base's own rule files,
+// which disable must leave in place).
 test('enable/disable round-trips representative W7 module shapes with correct install paths', () => {
   const cases = [
     {
@@ -619,6 +621,14 @@ test('enable/disable round-trips representative W7 module shapes with correct in
         'docs/modules/push-notifications/APPLY.md',
         'docs/modules/push-notifications/slice/packages/api/src/routers/push.ts.txt',
         'docs/modules/push-notifications/slice/supabase/migrations/20260101000200_push_tokens.sql',
+      ],
+    },
+    {
+      name: 'e2ee',
+      expect: [
+        '.claude/rules/e2ee.md',
+        'packages/platform/crypto/src/envelope.ts',
+        'docs/modules/e2ee/README.md',
       ],
     },
   ]
@@ -667,6 +677,11 @@ test('enable/disable round-trips representative W7 module shapes with correct in
     'observability: empty packages/api/src/observability/ husk left after disable',
   )
   assert.ok(existsSync(join(dir, 'apps/web/app/page.tsx')), 'disable must not touch base scaffold files')
+  // The e2ee module's rule sits in a directory base also ships into: disable removes the
+  // module's file and nothing else there, and the directory stays.
+  for (const rule of ['encryption.md', 'security-invariants.md', 'provenance.md', 'boundaries.md', 'mobile-server-split.md']) {
+    assert.ok(existsSync(join(dir, '.claude/rules', rule)), `disable must leave the base rule .claude/rules/${rule}`)
+  }
 })
 
 test('retrofit rejects hono-only, Tauri, foreign lockfiles, and non-workspace layouts with clear messages', () => {
@@ -1157,6 +1172,10 @@ test('npm pack ships every template path (dotless storage survives packing)', ()
     'template/presets/tokens-metal/apps/web/styles/metal/rims.css',
     'template/stack/packages/design-system-native/scripts/gen-preset.mjs',
     'template/stack/packages/design-system-native/tailwind-preset.cjs',
+    // 2.0.0 (#86): the first .claude/ path under template/modules/. A packing rule that
+    // reached dot-directories only under base would drop the full encryption rule from
+    // every e2ee install while the module still enabled cleanly from a checkout.
+    'template/modules/e2ee/.claude/rules/e2ee.md',
     'installer/cli.mjs',
   ]) {
     assert.ok(files.includes(critical), `npm pack dropped ${critical}`)

@@ -1,10 +1,11 @@
 // Unit tests for the i18n gate's syntax-tree scanner (template/base/tools/lib/i18n-tree.mjs,
 // 1.1.0, #76). In-process, so the tools/lib coverage floor measures the module.
 //
-// TWO JOBS BEFORE THE REGULAR EXPRESSIONS RETIRE AT 1.2.0 (the design record's guard):
+// TWO JOBS, the first of which licensed the 2.0.0 retirement (the design record's guard):
 //   1. FIXTURE PARITY. The tree walk ALONE finds every string tests/gates/check-i18n.test.mjs
-//      reds, and finds nothing in its not-copy fixtures. When 1.2.0 deletes the regular
-//      expressions, this is the proof that nothing they caught is lost.
+//      reds, and finds nothing in its not-copy fixtures. It was the precondition for deleting
+//      the regular expressions, which 2.0.0 did (the first release at or past their 1.2.0
+//      deadline), and it stays: the walk is now the only scan, so parity is its whole spec.
 //   2. THE ABSENT PARSER. loadParser takes an injected loader, and a loader that throws,
 //      rejects or hands back something that is not the compiler yields null, never a scan.
 //

@@ -521,17 +521,18 @@ test('tags at or above the version being cut, and below the lineage floor, are n
   assert.deepEqual(checkVintages(['v0.1.2', 'v0.1.3', 'v0.6.0'], '0.6.0', ['0.1.3']), [])
 })
 
-test('the GROWN list (1.1.0): v1.0.4 released means VINTAGES carries it, judged as the bump will', () => {
+test('the GROWN list (2.0.0): v1.1.0 released means VINTAGES carries it, judged as the bump will', () => {
   // The live-tag test below asks checkVintages about the CURRENT package version, and
   // checkVintages skips tags >= the version being cut — so at package 0.9.5 the entry
   // '0.9.5' is never demanded and its absence would stay green right up to the bump commit,
   // where the same test reds with no code having changed. This is that wire, pulled early
   // (0.8.0 pulled it for v0.7.0, 0.9.5 for v0.9.0, 0.9.9 for v0.9.5, 0.10.0 for v0.9.9,
   // 0.11.0 for v0.10.0, 0.11.1 for v0.11.0, 1.0.0 for v0.11.1, 1.0.1 for v1.0.0, 1.0.2 for
-  // v1.0.1, 1.0.3 for v1.0.2, 1.0.4 for v1.0.3, and 1.1.0 for v1.0.4): the real released-tag
-  // set, judged as the 1.1.0 release will judge it, against the SHIPPED VINTAGES (the default
-  // argument — a local literal here would be the drift the one-definition test above exists
-  // to prevent).
+  // v1.0.1, 1.0.3 for v1.0.2, 1.0.4 for v1.0.3, 1.1.0 for v1.0.4, and 2.0.0 for v1.1.0): the
+  // real released-tag set, judged as the 2.0.0 release will judge it, against the SHIPPED
+  // VINTAGES (the default argument — a local literal here would be the drift the
+  // one-definition test above exists to prevent). 2.0.0 is the first MAJOR hop since 1.0.0,
+  // and the first-segment compare is what orders every 1.x vintage below it.
   //
   // 0.10.0 WAS THE HOP THIS TEST WARNED ABOUT from 0.9.5 onward — 0.9.9 -> 0.10.0 is the
   // first minor to cross a two-digit segment, where a string compare would order '0.10.0'
@@ -559,8 +560,9 @@ test('the GROWN list (1.1.0): v1.0.4 released means VINTAGES carries it, judged 
     'v1.0.2',
     'v1.0.3',
     'v1.0.4',
+    'v1.1.0',
   ]
-  assert.deepEqual(checkVintages(tags, '1.1.0'), [])
+  assert.deepEqual(checkVintages(tags, '2.0.0'), [])
 
   // And the defect shape it guards: the list stopped at 0.9.0 — exactly the forgotten-entry
   // red the bump would otherwise be the first to surface. The comparison underneath is
@@ -769,9 +771,14 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
   // FORTY-SIX since 1.1.0 added gate-integrity's release provenance of an uncommitted, planted
   // escape list (#84, minVersion 1.1.0, due 1.2.0), which DOES widen it: gate-integrity's 0.2.0
   // and 0.3.0 surface ramps are already live at this vintage.
+  // FORTY-FOUR since 2.0.0 DELETED the i18n gate's two, with the regular expressions and the
+  // file:line site entry they carried (the first release at or past their 1.2.0 deadline), which
+  // NARROWS the set again: i18n carries no ramp now. 2.0.0's two extensions (version-sync's eol
+  // arrival re-opened at minVersion 2.0.0 and reviewer-verdicts' round budget moved to 2.1.0)
+  // stay noting here, as they were, and move no count.
   const fresh = classifyForInstall('0.6.0', '0.7.0', sites)
   assert.equal(fresh.expired.length, 0)
-  assert.equal(fresh.noting.length, 46)
+  assert.equal(fresh.noting.length, 44)
   assert.deepEqual(
     [...new Set(fresh.noting.map((s) => s.gate))].sort(),
     [
@@ -783,7 +790,6 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
       'docs-sync',
       'edge-functions',
       'gate-integrity',
-      'i18n',
       'migrations',
       'mutation-ratchet',
       'mutation-scope',
@@ -802,7 +808,7 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
       'wiring',
       'workflow-hardening',
     ],
-    'what 0.7.0 opened plus what 0.8.0, 0.9.0, 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open, all advisory for this vintage at harness 0.7.0 (1.1.0 adds workflow-hardening, i18n, route-manifest and web-compile, diff-coverage, edge-functions, mutation-ratchet and mutation-scope for the Edge Function surface, and gate-integrity)',
+    'what 0.7.0 opened plus what 0.8.0, 0.9.0, 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open, all advisory for this vintage at harness 0.7.0 (1.1.0 adds workflow-hardening, route-manifest and web-compile, diff-coverage, edge-functions, mutation-ratchet and mutation-scope for the Edge Function surface, and gate-integrity; its i18n pair was deleted at 2.0.0)',
   )
 
   // The why is a pointer a consumer follows, so its three load-bearing references are pinned
@@ -869,7 +875,6 @@ test('the SHIPPED 0.8.0 rampExpiry record equals what the shipped call sites com
       'docs-sync',
       'edge-functions',
       'gate-integrity',
-      'i18n',
       'migrations',
       'mutation-ratchet',
       'mutation-scope',
@@ -888,7 +893,7 @@ test('the SHIPPED 0.8.0 rampExpiry record equals what the shipped call sites com
       'wiring',
       'workflow-hardening',
     ],
-    'what 0.8.0 opened (the 0.9.0 record owes those two) plus what 0.9.0, 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open (the later records owe these; 1.1.0 adds reviewer-verdicts, the ledger v2, workflow-hardening, the five SQL gates of the history fold, i18n, the syntax-tree walk, route-manifest and web-compile (#77), the four Edge Function surface gates (#78) and gate-integrity (#84))',
+    'what 0.8.0 opened (the 0.9.0 record owes those two) plus what 0.9.0, 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open (the later records owe these; 1.1.0 adds reviewer-verdicts, the ledger v2, workflow-hardening, the five SQL gates of the history fold, route-manifest and web-compile (#77), the four Edge Function surface gates (#78) and gate-integrity (#84); its i18n pair was deleted at 2.0.0)',
   )
 
   // The one deadline this release moves, recorded rather than quiet — the second entry of
@@ -972,7 +977,6 @@ test('the SHIPPED 0.9.0 rampExpiry record equals what the shipped call sites com
       'docs-sync',
       'edge-functions',
       'gate-integrity',
-      'i18n',
       'migrations',
       'mutation-ratchet',
       'mutation-scope',
@@ -990,7 +994,7 @@ test('the SHIPPED 0.9.0 rampExpiry record equals what the shipped call sites com
       'wiring',
       'workflow-hardening',
     ],
-    'what 0.9.0 OPENS (the 0.10.0 record owes those two) plus what 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open (1.1.0 adds reviewer-verdicts, the ledger v2, workflow-hardening, the five SQL gates of the history fold, i18n, the syntax-tree walk, route-manifest and web-compile (#77), the four Edge Function surface gates (#78) and gate-integrity (#84))',
+    'what 0.9.0 OPENS (the 0.10.0 record owes those two) plus what 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open (1.1.0 adds reviewer-verdicts, the ledger v2, workflow-hardening, the five SQL gates of the history fold, route-manifest and web-compile (#77), the four Edge Function surface gates (#78) and gate-integrity (#84); its i18n pair was deleted at 2.0.0)',
   )
   // …and the 0.9.0-opened pair in isolation, which is the assertion that does NOT drift
   // as later releases open their own ramps: filter by the minVersion that names them.
@@ -1088,9 +1092,10 @@ const ALTER_POLICY_ADR = 'ALTER POLICY as an authorization change'
 // for the bound, the three-role revoke doctrine and the generated grant assertions. It sits
 // after the fold's ramp in check-rls-manifest.mjs.
 const GRANT_BOUND = 'the grant bound, the three-role revoke doctrine and the generated grant assertions'
-// The i18n gate's two ramps (1.1.0, #76): both opened at minVersion 1.1.0, due 1.2.0. In
-// check-i18n.mjs the site-entry ramp is called before the scan and the tree-only ramp after
-// it, so in that order, between check-docs-sync.mjs and check-migrations.mjs.
+// The i18n gate's two ramps (1.1.0, #76), both opened at minVersion 1.1.0 and due 1.2.0, were
+// DELETED at 2.0.0, the first release at or past that deadline, with the regular expressions
+// and the file:line site entry they carried (obligations row i18n-syntax-tree-ramp-expiry's
+// discharge). Their details are kept here only for the test below that proves they are gone.
 const I18N_SITE_ENTRIES = 'file:line site entries in tools/i18n-allow.json (content keys replace them)'
 const I18N_TREE_ONLY = 'copy only the syntax-tree walk finds (shapes the 1.0.x regular expressions miss)'
 // docs-sync's AGENTS.md gate-list escape, RE-OPENED at (1.1.0, 1.2.0) by #77 because 1.1.0
@@ -1120,7 +1125,12 @@ const EDGE_SCOPE =
 // minVersion 1.1.0 and due 1.2.0. check-gate-integrity.mjs sorts between
 // check-edge-functions.mjs and check-i18n.mjs.
 const PLANTED_LIST = 'release provenance of an uncommitted, planted escape list'
-/** The 1.1.0-opened sites, in the order the scanner lists them. */
+/**
+ * The sites the 1.1.0 release held at minVersion 1.1.0 that still ship, in the order the
+ * scanner lists them: twenty-two since 2.0.0 deleted the i18n pair. The eol arrival among them
+ * re-opened at minVersion 2.0.0 at the 2.0.0 cut, and still reads as advisory for every 1.0.x
+ * base at every version below its 2.1.0 deadline.
+ */
 const OPENED_110 = [
   `'${SQL_FOLD}'`, // check-data-flow.mjs
   `'${SQL_FOLD}'`, // check-db-limits.mjs
@@ -1130,8 +1140,6 @@ const OPENED_110 = [
   `'${VERDICT_DEMAND}'`,
   EDGE_TYPECHECK, // check-edge-functions.mjs
   `'${PLANTED_LIST}'`, // check-gate-integrity.mjs
-  `'${I18N_SITE_ENTRIES}'`, // check-i18n.mjs
-  `'${I18N_TREE_ONLY}'`, // check-i18n.mjs
   `'${ALTER_POLICY_ADR}'`, // check-migrations.mjs
   EDGE_MUTATION, // check-mutation-ratchet.mjs
   `'${SQL_FOLD}'`, // check-query-shapes.mjs
@@ -1148,7 +1156,7 @@ const OPENED_110 = [
   EDGE_SCOPE, // mutation-scope.mjs
 ]
 
-test('0.11.1 → 1.0.0 → 1.1.0 — the eol ARRIVAL escape reaches the vintages it used to exclude, one release on each time', () => {
+test('0.11.1 → 1.0.0 → 1.1.0 → 2.0.0 — the eol ARRIVAL escape reaches the vintages it used to exclude, one release on each time', () => {
   const sites = shippedRampSites()
   const arrival = sites.filter((s) => s.detail?.includes(ARRIVAL))
   assert.equal(arrival.length, 1, `expected exactly one arrival site, got ${arrival.length}`)
@@ -1176,13 +1184,24 @@ test('0.11.1 → 1.0.0 → 1.1.0 — the eol ARRIVAL escape reaches the vintages
     assert.equal(at.expired.length, 0)
   }
 
+  // 2.0.0 moved it to minVersion 2.0.0 by the same rule: 1.2.0 is never cut, the 2.0.0
+  // re-review moved the template's uuid row from 1.2.0 to 2.1.0, and every 1.1.0 install holds
+  // the seeded "1.2.0" that arrives at 2.0.0. An escape opened at 1.1.0 is inert for exactly
+  // them, so the 1.1.0 vintage must be ADVISORY at 2.0.0, and so must every older one.
+  for (const base of ['0.10.0', '0.11.1', '1.0.0', '1.0.4', '1.1.0']) {
+    const at = classifyForInstall(base, '2.0.0', arrival)
+    assert.equal(at.noting.length, 1, `the ${base} vintage is not covered by the arrival ramp`)
+    assert.equal(at.inert.length, 0)
+    assert.equal(at.expired.length, 0)
+  }
+
   // A FRESH install of this harness is judged immediately — the escape is for installs
   // seeded before the demand, never for trees that ship with the re-dated register.
-  assert.equal(classifyForInstall('1.1.0', '1.1.0', arrival).inert.length, 1)
+  assert.equal(classifyForInstall('2.0.0', '2.0.0', arrival).inert.length, 1)
 
   // And it is still an escape with an expiry, not an open-ended one.
-  assert.equal(arrival[0].minVersion, '1.1.0')
-  assert.equal(arrival[0].until, '1.2.0')
+  assert.equal(arrival[0].minVersion, '2.0.0')
+  assert.equal(arrival[0].until, '2.1.0')
 })
 
 test('0.11.1 — the extension is RECORDED, and matches the site byte-for-byte', () => {
@@ -1224,9 +1243,9 @@ test('the SHIPPED 1.0.0 rampExpiry record equals what the shipped call sites com
   // shape legs A and M share, and the inverse proof that the wave is dated, not blanket.
   // Under the current fleet the reviewer ledger v2 (minVersion 1.1.0, due 2.1.0) reads as
   // advisory for them too, moved in the diff that opened it, and so do workflow-hardening
-  // (#73, minVersion 1.1.0, due 1.2.0), a gate of its own, the i18n gate's two ramps (#76,
-  // minVersion 1.1.0, due 1.2.0), and gate-integrity's release provenance of a planted escape
-  // list (#84, minVersion 1.1.0, due 1.2.0).
+  // (#73, minVersion 1.1.0, due 1.2.0), a gate of its own, and gate-integrity's release
+  // provenance of a planted escape list (#84, minVersion 1.1.0, due 1.2.0). The i18n gate's
+  // two ramps (#76) read here until 2.0.0 deleted them with what they carried.
   for (const base of ['0.11.0', '0.11.1']) {
     const at = classifyForInstall(base, '1.0.0', sites)
     assert.equal(at.expired.length, 0, `${base} must meet no expiry at 1.0.0`)
@@ -1241,7 +1260,6 @@ test('the SHIPPED 1.0.0 rampExpiry record equals what the shipped call sites com
         'docs-sync',
         'edge-functions',
         'gate-integrity',
-        'i18n',
         'migrations',
         'mutation-ratchet',
         'mutation-scope',
@@ -1256,7 +1274,7 @@ test('the SHIPPED 1.0.0 rampExpiry record equals what the shipped call sites com
         'web-compile',
         'workflow-hardening',
       ],
-      `the six-gate 1.0.0 fleet at base ${base}, plus the 1.1.0 ledger v2, workflow-hardening, the SQL history fold, i18n's two ramps, #77's two, the Edge Function surface's four and gate-integrity's planted-list provenance`,
+      `the six-gate 1.0.0 fleet at base ${base}, plus the 1.1.0 ledger v2, workflow-hardening, the SQL history fold, #77's two, the Edge Function surface's four and gate-integrity's planted-list provenance`,
     )
   }
   // v0.10.0 meets exactly ONE expiring gate — data-flow — the smallest non-zero wave and
@@ -1301,7 +1319,6 @@ test('the SHIPPED 1.0.1 rampExpiry record equals what the shipped call sites com
         'docs-sync',
         'edge-functions',
         'gate-integrity',
-        'i18n',
         'migrations',
         'mutation-ratchet',
         'mutation-scope',
@@ -1316,7 +1333,7 @@ test('the SHIPPED 1.0.1 rampExpiry record equals what the shipped call sites com
         'web-compile',
         'workflow-hardening',
       ],
-      `the six-gate 1.0.0 fleet at base ${base}, plus the 1.1.0 ledger v2, workflow-hardening, the SQL history fold, i18n's two ramps, #77's two, the Edge Function surface's four and gate-integrity's planted-list provenance`,
+      `the six-gate 1.0.0 fleet at base ${base}, plus the 1.1.0 ledger v2, workflow-hardening, the SQL history fold, #77's two, the Edge Function surface's four and gate-integrity's planted-list provenance`,
     )
   }
   const at100 = classifyForInstall('1.0.0', '1.0.1', sites)
@@ -1328,14 +1345,15 @@ test('the SHIPPED 1.0.1 rampExpiry record equals what the shipped call sites com
   // reviewer ledger v2 and the security-reviewer model check 1.1.0 opened, below their 2.1.0
   // deadline, and the severity contract's two sites (#71), docs-sync's verdict-demand
   // position (#72), workflow-hardening's rules (#73), the SQL history fold's six (#75),
-  // schema-rls' grant bound (#74), the i18n gate's two ramps (#76), #77's re-opened
-  // gate-list escape, web-compile step and browser closure, the Edge Function surface's
-  // four (#78) and gate-integrity's planted-list provenance (#84), below their 1.2.0
-  // deadline; nothing else.
+  // schema-rls' grant bound (#74), #77's re-opened gate-list escape, web-compile step and
+  // browser closure, the Edge Function surface's four (#78) and gate-integrity's planted-list
+  // provenance (#84), below their 1.2.0 deadline; nothing else. The i18n gate's two ramps (#76)
+  // read here until 2.0.0 deleted them, and the eol arrival's re-open at minVersion 2.0.0 keeps
+  // it advisory for this base.
   assert.deepEqual(
     at100.noting.map((s) => s.detail),
     OPENED_110,
-    '1.0.0 meets only the twenty-four 1.1.0-opened sites under the current fleet',
+    '1.0.0 meets only the twenty-two sites under the current fleet',
   )
   assert.match(record.why, /ramp-expectations\.mjs/)
 })
@@ -1360,7 +1378,8 @@ test('1.0.0 — TWO extensions are RECORDED, and each matches its site byte-for-
   // And both moved sites opened at 1.0.0 — ABOVE the population they protected. Both have
   // moved on since, to (1.1.0, 1.2.0), and the 1.1.0 record carries both moves (the 1.1.0
   // test below): the arrival by its standing rule, and the gate list because 1.1.0 injects
-  // web-compile (#77).
+  // web-compile (#77). The arrival moved on again at 2.0.0, to (2.0.0, 2.1.0), by the same
+  // rule (the 2.0.0 test below); the gate list expired there.
   const sites = shippedRampSites()
   const gateListSite = sites.find((s) =>
     s.detail?.includes('AGENTS.md gate-list lockstep after an injected chain step'),
@@ -1370,8 +1389,8 @@ test('1.0.0 — TWO extensions are RECORDED, and each matches its site byte-for-
   assert.equal(gateListSite.until, '1.2.0')
   const arrivalSite = sites.find((s) => s.detail?.includes(ARRIVAL))
   assert.ok(arrivalSite, 'the arrival site is still shipped')
-  assert.equal(arrivalSite.minVersion, '1.1.0')
-  assert.equal(arrivalSite.until, '1.2.0')
+  assert.equal(arrivalSite.minVersion, '2.0.0')
+  assert.equal(arrivalSite.until, '2.1.0')
 })
 
 // ── 1.1.0: the six-gate 1.0.0 fleet falls due, and its eighth site re-opens ─────────
@@ -1406,33 +1425,36 @@ test('the SHIPPED 1.1.0 rampExpiry record equals what the shipped call sites com
     // due, and the gate list's paste is the consumer's. So do the reviewer ledger v2, the
     // security-reviewer model check, the severity contract's two sites, docs-sync's
     // verdict-demand position, workflow-hardening's rules, the SQL history fold's six sites,
-    // schema-rls' grant bound, the i18n gate's two ramps, #77's two sites, the Edge Function
-    // surface's four (#78) and gate-integrity's planted-list provenance (#84) this release opens.
+    // schema-rls' grant bound, #77's two sites, the Edge Function surface's four (#78) and
+    // gate-integrity's planted-list provenance (#84) this release opens (its i18n pair was
+    // deleted at 2.0.0).
     assert.deepEqual(
       at.noting.map((s) => s.detail),
       OPENED_110,
     )
   }
-  // Every 1.0.x vintage meets NOTHING expired and exactly the twenty-four 1.1.0-opened NOTEs, the
-  // two re-opened escapes, the reviewer ledger v2, the security-reviewer model check, the
+  // Every 1.0.x vintage meets NOTHING expired and exactly the twenty-two NOTEs of OPENED_110,
+  // the two re-opened escapes, the reviewer ledger v2, the security-reviewer model check, the
   // severity contract's two sites, docs-sync's verdict-demand position,
   // workflow-hardening's rules (#73), the SQL history fold's six (#75), schema-rls' grant
-  // bound (#74), the i18n gate's two ramps (#76), #77's two, the Edge Function surface's
-  // four (#78) and gate-integrity's planted-list provenance (#84) — the inverse proof
-  // that the wave is dated, not blanket. Filtered by the minVersion that names them first, so
-  // a site opened at any other version fails here on its own line, and each later 1.1.0 ramp
-  // joins OPENED_110 in the diff that opens it.
+  // bound (#74), #77's two, the Edge Function surface's four (#78) and gate-integrity's
+  // planted-list provenance (#84) — the inverse proof that the wave is dated, not blanket.
+  // Filtered by the minVersion that names them first, so a site opened at any other version
+  // fails here on its own line: 1.1.0, or 2.0.0 for the one eol arrival site the 2.0.0 cut
+  // re-opened there, which reads as advisory for these bases at 1.1.0 as it did before.
   for (const base of ['1.0.0', '1.0.1', '1.0.2', '1.0.3', '1.0.4']) {
     const at = classifyForInstall(base, '1.1.0', sites)
     assert.equal(at.expired.length, 0, `${base} must meet no expiry at 1.1.0`)
     assert.ok(
-      at.noting.every((s) => s.minVersion === '1.1.0'),
-      `${base} meets only 1.1.0-opened sites`,
+      at.noting.every(
+        (s) => s.minVersion === '1.1.0' || (s.minVersion === '2.0.0' && s.detail === `"${ARRIVAL}"`),
+      ),
+      `${base} meets only 1.1.0-opened sites and the re-opened arrival`,
     )
     assert.deepEqual(
       at.noting.map((s) => s.detail),
       OPENED_110,
-      `${base} meets only the twenty-four 1.1.0-opened sites`,
+      `${base} meets only the twenty-two sites of OPENED_110`,
     )
   }
   assert.match(record.why, /SWEEPS\['1\.0\.0'\]/)
@@ -1473,4 +1495,113 @@ test('1.1.0 — TWO extensions are RECORDED, the arrival and gate-list re-opens,
     ),
     'the 1.1.0 record must park the re-date for installs still holding "1.1.0"',
   )
+})
+
+// ── 2.0.0: the 1.1.0 fleet falls due, two sites move to 2.1.0, and the i18n pair is retired ──
+test('the SHIPPED 2.0.0 rampExpiry record equals what the shipped call sites compute', () => {
+  const migrations = JSON.parse(
+    readFileSync(new URL('../../template/migrations.json', import.meta.url), 'utf8'),
+  )
+  const record = migrations['2.0.0']?.rampExpiry
+  assert.ok(record, 'the release that reds twenty vintages at once must say which, in data')
+
+  const sites = shippedRampSites()
+  const computed = VINTAGES.filter((v) => cmpDotted(v, '2.0.0') < 0).filter(
+    (base) => classifyForInstall(base, '2.0.0', sites).expired.length > 0,
+  )
+  assert.deepEqual(record.affects, computed)
+  // Twenty: 1.1.0's fifteen plus the five 1.0.x vintages, which met nothing expiring at 1.1.0
+  // and meet the 1.1.0-opened fleet here. The 1.1.0 vintage is not among them.
+  assert.equal(record.affects.length, 20)
+  assert.equal(record.affects.at(-1), '1.0.4')
+  assert.ok(!record.affects.includes('1.1.0'))
+
+  // The 1.0.x vintages meet exactly EIGHTEEN 1.1.0-opened sites across FIFTEEN gates, and
+  // nothing older; the four that stay NOTEs are the three reviewer-verdicts sites dated 2.1.0
+  // (the ledger v2, the model check, and the round budget this record extends) and the eol
+  // arrival this record re-opens at minVersion 2.0.0.
+  const FIFTEEN = [
+    'data-flow',
+    'db-limits',
+    'diff-coverage',
+    'docs-sync',
+    'edge-functions',
+    'gate-integrity',
+    'migrations',
+    'mutation-ratchet',
+    'mutation-scope',
+    'query-shapes',
+    'route-manifest',
+    'schema-rls',
+    'tenancy',
+    'web-compile',
+    'workflow-hardening',
+  ]
+  const STILL_NOTING = [`'${MODEL_CHECK}'`, `'${ROUND_BUDGET}'`, `'${LEDGER_V2}'`, `"${ARRIVAL}"`]
+  for (const base of ['1.0.0', '1.0.1', '1.0.2', '1.0.3', '1.0.4']) {
+    const at = classifyForInstall(base, '2.0.0', sites)
+    assert.equal(at.expired.length, 18, `${base} must meet the eighteen 1.1.0-opened expiries`)
+    assert.ok(at.expired.every((s) => s.minVersion === '1.1.0' && s.until === '1.2.0'))
+    assert.deepEqual([...new Set(at.expired.map((s) => s.gate))].sort(), FIFTEEN)
+    assert.deepEqual(at.noting.map((s) => s.detail), STILL_NOTING, base)
+  }
+  // A 1.1.0 install meets NOTHING expired and only the re-opened arrival — the inverse proof
+  // that the wave is dated, not blanket, and the reason no lane leg on v1.1.0 may red.
+  const at110 = classifyForInstall('1.1.0', '2.0.0', sites)
+  assert.equal(at110.expired.length, 0)
+  assert.deepEqual(at110.noting.map((s) => s.detail), [`"${ARRIVAL}"`])
+  assert.match(record.why, /SWEEPS\['1\.1\.0'\]/)
+  assert.match(record.why, /ramp-expectations\.mjs/)
+})
+
+test('2.0.0 — TWO extensions are RECORDED, the arrival re-open and the round budget, and each matches its site byte-for-byte', () => {
+  const migrations = JSON.parse(
+    readFileSync(new URL('../../template/migrations.json', import.meta.url), 'utf8'),
+  )
+  const exts = migrations['2.0.0'].rampExtensions
+  assert.equal(exts.length, 2, 'two moves, two records')
+  const sites = shippedRampSites()
+  // The arrival (the standing rule, a fifth re-date of the uuid row): 1.2.0 -> 2.1.0, re-opened
+  // at minVersion 2.0.0 because every 1.1.0 install holds the arrived "1.2.0".
+  const arrival = exts.find((e) => e.file === 'check-version-sync.mjs')
+  assert.ok(arrival, 'the arrival move is recorded')
+  assert.equal(arrival.detail, `"${ARRIVAL}"`)
+  assert.equal(arrival.from, '1.2.0')
+  assert.equal(arrival.to, '2.1.0')
+  const arrivalSite = sites.find((s) => s.detail === arrival.detail)
+  assert.ok(arrivalSite, 'the extension names a shipped site, byte for byte')
+  assert.equal(arrivalSite.minVersion, '2.0.0')
+  assert.equal(arrivalSite.until, '2.1.0')
+  // The round budget: 1.2.0 -> 2.1.0 at its old minVersion, beside the ledger v2 it judges by.
+  const budget = exts.find((e) => e.file === 'check-reviewer-verdicts.mjs')
+  assert.ok(budget, 'the round-budget move is recorded')
+  assert.equal(budget.detail, `'${ROUND_BUDGET}'`)
+  assert.equal(budget.from, '1.2.0')
+  assert.equal(budget.to, '2.1.0')
+  const budgetSite = sites.find((s) => s.detail === budget.detail)
+  assert.ok(budgetSite, 'the extension names a shipped site, byte for byte')
+  assert.equal(budgetSite.minVersion, '1.1.0')
+  assert.equal(budgetSite.until, '2.1.0')
+  const v2 = sites.find((s) => s.detail === `'${LEDGER_V2}'`)
+  assert.equal(budgetSite.until, v2?.until, 'the budget expires with the ledger v2 it depends on')
+  for (const e of exts) assert.ok(e.why.length > 200, `thin why (${String(e.why.length)} chars) for ${e.file}`)
+  // The standing rule's other debt, in the same record: the parked fix on the OLD literal.
+  const probes = (migrations['2.0.0'].seededSourceFixes ?? []).flatMap((f) => f.probes ?? [])
+  assert.ok(
+    probes.some(
+      (p) => p.path === 'tools/eol.json' && p.brokenWhen?.contains === '"removalTarget": "1.2.0"',
+    ),
+    'the 2.0.0 record must park the re-date for installs still holding "1.2.0"',
+  )
+})
+
+test('2.0.0 — the i18n gate carries no ramp: its two 1.1.0 sites were retired with what they carried', () => {
+  // The obligations row i18n-syntax-tree-ramp-expiry named the discharge: the first release at
+  // or past 1.2.0 deletes the regular expressions and the file:line site entry, and both ramps
+  // go with them. Deleting a rampNote is never a deadline move (the ratchet's own rule).
+  const sites = shippedRampSites()
+  assert.deepEqual(sites.filter((s) => s.gate === 'i18n'), [])
+  for (const d of [I18N_SITE_ENTRIES, I18N_TREE_ONLY]) {
+    assert.ok(!sites.some((s) => s.detail?.includes(d)), `still shipped: ${d}`)
+  }
 })

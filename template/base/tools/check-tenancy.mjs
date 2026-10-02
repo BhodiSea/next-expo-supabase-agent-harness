@@ -1583,7 +1583,7 @@ if (existsSync(CONFIG_TOML)) {
 // reading also produces. What only the fold produces (a predicate judged on its ALTER POLICY
 // text, the facts of a dropped or re-created table) is new judgement of APPLIED history that
 // the old parser could not read, so on an install whose baseVersion predates 1.1.0 it is a
-// dated NOTE until 1.2.0. tools/lib/sql-fold-ramp.mjs replays this script over the pre-fold
+// dated NOTE until 1.2.0 (expired at 2.0.0). tools/lib/sql-fold-ramp.mjs replays this script over the pre-fold
 // history to tell the two apart; a finding only the old reading produced is already gone.
 const fold = await foldOnlyFindings(import.meta.url, [errs], foldTouches(statements))
 if (!fold.replayed) {

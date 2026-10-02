@@ -87,8 +87,8 @@
           "mustContain": "auth-posture-cli-census"
         }
       ],
-      "reason": "The standing ask-the-CLI config census is blocked UPSTREAM, not on scheduling: no Supabase CLI subcommand parses config.toml without side effects (config push needs a project ref, functions list needs a token, status binds to whichever stack holds the default ports and prints SECRET_KEY/JWT_SECRET). RE-CHECKED at the 0.10.0 arrival (2026-08-13) against the first real pin bump the standing rule has met — the catalog's `supabase: ^2.34.3` range now resolves to 2.114.0 (GA 2026-08-12) rather than the 2.113.0 both prior re-checks read. The CLI became a pnpm/nx monorepo and the Go CLI moved to apps/cli-go, but apps/cli-go/cmd/config.go AT TAG v2.114.0 still registers `push` alone, and supabase/cli#5894 is still open with no milestone and no linked PR. The consumer deferral entry carries the full re-check record and the standing per-arrival rule; this row is its census twin — it discharges only when the side-effect-free subcommand actually ships, by deleting both together. RE-CHECKED AT THE 1.0.0 CUT (2026-08-16), the settlement release that skips 0.12.0 entirely (every comparison is >=, so the 0.12.0 date arrives at this hop): supabase/cli#5894 is still OPEN, still no milestone, still zero comments, and its only cross-references are this harness's own PRs — the upstream condition is unmet, and npm latest is still 2.114.0, so no pin-bump clause fired. The standing rule moves the date ONE RELEASE (reworded from 'one minor' at 1.0.0: the lineage now cuts by release, and 1.1.0 is the next one) across every listed site. RE-CHECKED AT THE 1.1.0 CUT (2026-09-29), when the target arrived again: supabase/cli#5894 is still OPEN, with no milestone, no linked pull request and zero comments. The nearest upstream work is the one its own body names: supabase/cli#5840, merged 2026-07-09, validates config.toml only on the `db reset --local` path, inside a command with side effects, so it is not the subcommand this census waits for. The Supabase CLI reference still documents `config push` as the only `config` subcommand, and npm latest is 2.118.0, the version the 1.0.4 catalog pins exactly. The upstream condition is unmet, and the standing rule moves the date ONE RELEASE, to 1.2.0, across every listed site.",
-      "reviewedOn": "2026-09-29",
+      "reason": "The standing ask-the-CLI config census is blocked UPSTREAM, not on scheduling: no Supabase CLI subcommand parses config.toml without side effects (config push needs a project ref, functions list needs a token, status binds to whichever stack holds the default ports and prints SECRET_KEY/JWT_SECRET). RE-CHECKED at the 0.10.0 arrival (2026-08-13) against the first real pin bump the standing rule has met — the catalog's `supabase: ^2.34.3` range now resolves to 2.114.0 (GA 2026-08-12) rather than the 2.113.0 both prior re-checks read. The CLI became a pnpm/nx monorepo and the Go CLI moved to apps/cli-go, but apps/cli-go/cmd/config.go AT TAG v2.114.0 still registers `push` alone, and supabase/cli#5894 is still open with no milestone and no linked PR. The consumer deferral entry carries the full re-check record and the standing per-arrival rule; this row is its census twin — it discharges only when the side-effect-free subcommand actually ships, by deleting both together. RE-CHECKED AT THE 1.0.0 CUT (2026-08-16), the settlement release that skips 0.12.0 entirely (every comparison is >=, so the 0.12.0 date arrives at this hop): supabase/cli#5894 is still OPEN, still no milestone, still zero comments, and its only cross-references are this harness's own PRs — the upstream condition is unmet, and npm latest is still 2.114.0, so no pin-bump clause fired. The standing rule moves the date ONE RELEASE (reworded from 'one minor' at 1.0.0: the lineage now cuts by release, and 1.1.0 is the next one) across every listed site. RE-CHECKED AT THE 1.1.0 CUT (2026-09-29), when the target arrived again: supabase/cli#5894 is still OPEN, with no milestone, no linked pull request and zero comments. The nearest upstream work is the one its own body names: supabase/cli#5840, merged 2026-07-09, validates config.toml only on the `db reset --local` path, inside a command with side effects, so it is not the subcommand this census waits for. The Supabase CLI reference still documents `config push` as the only `config` subcommand, and npm latest is 2.118.0, the version the 1.0.4 catalog pins exactly. The upstream condition is unmet, and the standing rule moves the date ONE RELEASE, to 1.2.0, across every listed site. RE-CHECKED AT THE 2.0.0 CUT (2026-09-30), when the date arrived again: 1.2.0 is never cut, this lineage goes from 1.1.0 to 2.0.0 directly, and every comparison is >=. supabase/cli#5894 is still OPEN, with no milestone, no linked pull request and no comments. The Supabase CLI reference still documents `config push` as the only `config` subcommand. npm latest has moved to 2.119.0, but the catalog still pins 2.118.0 exactly and this release does not bump it, so the pin-bump clause did not fire. The upstream condition is unmet, so the standing rule moves the date ONE RELEASE, to 2.1.0, across every listed site.",
+      "reviewedOn": "2026-09-30",
       "evidence": "https://github.com/supabase/cli/issues/5894"
     },
     {
@@ -226,15 +226,15 @@
     {
       "id": "version-sync-eol-arrival-ramp-expiry",
       "kind": "release",
-      "target": "1.2.0",
+      "target": "2.1.0",
       "sites": [
         {
           "file": "template/base/tools/check-version-sync.mjs",
           "mustContain": "the arrival of tools/eol.json's removalTarget dates"
         }
       ],
-      "reason": "RE-OPENED A THIRD TIME, at 1.1.0, and this time by the standing rule below rather than by a lane finding. The 1.1.0 re-review of tools/eol.json's uuid row (2026-09-29) found the upstream discharge condition unmet: xcode@3.0.1 is still the latest xcode and still declares uuid ^7.0.3, and @expo/config-plugins still depends on xcode ^3.0.1 at its latest and next tags. So the harness moved its own removalTarget from 1.1.0 to 1.2.0, and the rule's two debts were paid in the 1.1.0 record: the seededSourceFixes probe on the old literal ('\"removalTarget\": \"1.1.0\"', which scripts/check-eol-target.mjs demanded), and this ramp re-opened at minVersion 1.1.0 until 1.2.0 (the record's rampExtensions entry). Every 1.0.x install holds the seeded 1.1.0 date, which arrives at 1.1.0, and an escape opened at 1.0.0 is inert for exactly them. The row is therefore RE-TARGETED to 1.2.0, not deleted. THE HISTORY: it was RE-OPENED A SECOND TIME at 1.0.0, and the recurrence is the point of the row. 0.11.1 re-opened this ramp because the escape excluded the one vintage holding the arrived date; 1.0.0 re-opens it because the SAME shape recurred one release on — the 0.11.x vintages hold a seeded tools/eol.json saying 0.12.0, 0.12.0 was never cut, the date arrives at 1.0.0 (>=), and upgrade-lane leg A found it exactly as the 0.11.0 tag's lane found the first. The 1.0.0 record's rampExtensions entry moves (0.11.0, 0.12.0) → (1.0.0, 1.1.0), and the same record's seededSourceFixes probe (contains '\"removalTarget\": \"0.12.0\"') delivers the harness's own re-affirmation as a parked fix. THE STANDING RULE, written so it stops being rediscovered: every release that moves the template's uuid removalTarget owes BOTH the seededSourceFixes probe on the old literal (scripts/check-eol-target.mjs demands it) AND an arrival ramp opened at that release's own minVersion, until the next; the ramp's expiry is owed by the next record. Discharge = the 1.2.0 record's rampExpiry naming this site's population (every vintage below 1.1.0 that meets it), OR, if the uuid row moves again, the next re-open under the same rule, OR the upstream discharge (an xcode major off uuid 7 reached by @expo/config-plugins), which retires the row and the ramp together.",
-      "reviewedOn": "2026-09-29"
+      "reason": "RE-OPENED A FOURTH TIME, at 2.0.0, by the standing rule below. This lineage cuts 2.0.0 directly after 1.1.0, so the 1.2.0 date the 1.1.0 re-review wrote arrives at 2.0.0 (every comparison is >=), and the 2.0.0 re-review of tools/eol.json's uuid row (2026-09-30) found the upstream discharge condition unmet again: xcode@3.0.1 is still the latest xcode (its newest publication a 3.0.2 nightly from 2025-11-25) and still declares uuid ^7.0.3, and @expo/config-plugins still depends on xcode ^3.0.1 at its latest (57.0.9) and next (58.0.4) tags; a fresh strict-tier registry sweep found the same seven deprecations (1581 pairs, 0 errors). So the harness moved its own removalTarget from 1.2.0 to 2.1.0, and the rule's two debts were paid in the 2.0.0 record: the seededSourceFixes probe on the old literal ('\"removalTarget\": \"1.2.0\"', which scripts/check-eol-target.mjs demanded), and this ramp re-opened at minVersion 2.0.0 until 2.1.0 (the record's rampExtensions entry). Every 1.1.0 install holds the seeded 1.2.0 date, which arrives at 2.0.0, and an escape opened at 1.1.0 is inert for exactly them. The row is therefore RE-TARGETED to 2.1.0, not deleted. THE 1.1.0 RE-OPEN, the third: RE-OPENED A THIRD TIME, at 1.1.0, and this time by the standing rule below rather than by a lane finding. The 1.1.0 re-review of tools/eol.json's uuid row (2026-09-29) found the upstream discharge condition unmet: xcode@3.0.1 is still the latest xcode and still declares uuid ^7.0.3, and @expo/config-plugins still depends on xcode ^3.0.1 at its latest and next tags. So the harness moved its own removalTarget from 1.1.0 to 1.2.0, and the rule's two debts were paid in the 1.1.0 record: the seededSourceFixes probe on the old literal ('\"removalTarget\": \"1.1.0\"', which scripts/check-eol-target.mjs demanded), and this ramp re-opened at minVersion 1.1.0 until 1.2.0 (the record's rampExtensions entry). Every 1.0.x install holds the seeded 1.1.0 date, which arrives at 1.1.0, and an escape opened at 1.0.0 is inert for exactly them. The row is therefore RE-TARGETED to 1.2.0, not deleted. THE HISTORY: it was RE-OPENED A SECOND TIME at 1.0.0, and the recurrence is the point of the row. 0.11.1 re-opened this ramp because the escape excluded the one vintage holding the arrived date; 1.0.0 re-opens it because the SAME shape recurred one release on — the 0.11.x vintages hold a seeded tools/eol.json saying 0.12.0, 0.12.0 was never cut, the date arrives at 1.0.0 (>=), and upgrade-lane leg A found it exactly as the 0.11.0 tag's lane found the first. The 1.0.0 record's rampExtensions entry moves (0.11.0, 0.12.0) → (1.0.0, 1.1.0), and the same record's seededSourceFixes probe (contains '\"removalTarget\": \"0.12.0\"') delivers the harness's own re-affirmation as a parked fix. THE STANDING RULE, written so it stops being rediscovered: every release that moves the template's uuid removalTarget owes BOTH the seededSourceFixes probe on the old literal (scripts/check-eol-target.mjs demands it) AND an arrival ramp opened at that release's own minVersion, until the next; the ramp's expiry is owed by the next record. Discharge = the 2.1.0 record's rampExpiry naming this site's population (every vintage below 2.0.0 that meets it), OR, if the uuid row moves again, the next re-open under the same rule, OR the upstream discharge (an xcode major off uuid 7 reached by @expo/config-plugins), which retires the row and the ramp together.",
+      "reviewedOn": "2026-09-30"
     },
     {
       "id": "reviewer-verdicts-ledger-v2-ramp-expiry",
@@ -250,29 +250,16 @@
       "reviewedOn": "2026-09-30"
     },
     {
-      "id": "docs-sync-severity-contract-ramp-expiry",
-      "kind": "release",
-      "target": "1.2.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-docs-sync.mjs",
-          "mustContain": "the reviewer severity contract"
-        }
-      ],
-      "reason": "OPENED AT 1.1.0 (#71, R02). docs-sync now holds every reviewer body in REVIEWER_AGENTS to a severity contract: a `Severities:` line and a `Blocking:` line of their own, each stated once, Blocking a subset of Severities and holding the floor, CRITICAL and HIGH (severityContractProblems in template/base/tools/lib/agent-roster.mjs). The SubagentStop hook reads the Blocking line and bounces a PASS that lists a finding at a blocking severity. Ramped because since 1.0.2 `update` parks a locally modified owned body instead of overwriting it, and re-records the agents lock only for bodies it rewrote, so a project's edited body would otherwise red on the upgrade that delivers the check. The same ramp carries the one finding a parked fork of tools/lib/agent-roster.mjs without the judge produces. The deadline is the one issue #71 fixes, the next minor. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes this expiry, as it owes the version-sync arrival row above, which targets the same release. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming this site's population (every vintage below 1.1.0 that forked a reviewer body), with its sweep in that release's runbook section (restore the two lines from the template or .harness/pending/, a human re-locks with HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write, re-record the sha), and this row is deleted in the same diff; OR the ramp is extended by a reviewed rampExtensions entry and this row re-targeted.",
-      "reviewedOn": "2026-09-30"
-    },
-    {
       "id": "reviewer-verdicts-round-budget-ramp-expiry",
       "kind": "release",
-      "target": "1.2.0",
+      "target": "2.1.0",
       "sites": [
         {
           "file": "template/base/tools/check-reviewer-verdicts.mjs",
           "mustContain": "the per-reviewer round budget"
         }
       ],
-      "reason": "OPENED AT 1.1.0 (#71, R02). The SubagentStop hook records each verdict's `round` in its reviewer's review loop and the reply's `blocking` finding lines, and reviewer-verdicts judges the budget (judgeRoundBudget in template/base/tools/lib/reviewer-verdicts.mjs, ROUND_BUDGET = 3): a BLOCK opens a loop, each later verdict of that reviewer in the session is its next round, the loop closes when the same run passes over an unmoving tree, and a loop still open after the budget reds with the recorded findings and says to hand them to the human; a PASS recorded past the budget never clears it. Entries an earlier or parked hook wrote count one round each with no recorded findings. On an install whose baseVersion predates 1.1.0 the findings print as NOTEs through one rampNote call, because a session already in flight at the upgrade holds verdicts no budget was ever stated for. The hook cannot carry this ramp (a hook has no NOTE channel), so it lives in the Stop step. The deadline is the one issue #71 fixes, the next minor, and 1.2.0 arrives at this lineage's 2.0.0 cut (see the docs-sync row above). It also comes before the reviewer ledger v2 ramp's (2.1.0, the row above): the budget judges v2's change set and closes a loop by v2's rule, so at 2.0.0 an install below 1.1.0 would meet it live while v2 still prints NOTEs and the 1.0.x judgement decides; the 2.0.0 record weighs that against re-opening this ramp to 2.1.0. With no merge base the budget does not judge, as v2 does not. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming this site's population (every vintage below 1.1.0), with its sweep in that release's runbook section (nothing to edit: a spent budget clears in a new session), and this row is deleted in the same diff; OR a reviewed rampExtensions entry re-targets it. The site is Stop-only, so scripts/ci/stop-side-expiries.json names the unit proof that executes its RAMP EXPIRED branch.",
+      "reason": "EXTENDED AT 2.0.0 to 2.1.0, by the reviewed rampExtensions entry in the 2.0.0 record, the choice this row asked that record to weigh. The budget judges v2's change set and closes a loop by v2's rule (the same run's PASS over an unmoving tree), and the reviewer ledger v2 ramp beside it stays open until 2.1.0 for every vintage below 1.1.0, so on those installs the 1.0.x judgement still decides whether a BLOCK is cleared. Letting the budget expire at 2.0.0 would red a loop on exactly the installs where the verdict that governs them calls it closed. Minimum version unchanged (1.1.0): a fresh or 1.1.0-seeded install has been live since 1.1.0. Nothing an install sees changes at 2.0.0: the NOTE stays a NOTE, dated 2.1.0. OPENED AT 1.1.0 (#71, R02). The SubagentStop hook records each verdict's `round` in its reviewer's review loop and the reply's `blocking` finding lines, and reviewer-verdicts judges the budget (judgeRoundBudget in template/base/tools/lib/reviewer-verdicts.mjs, ROUND_BUDGET = 3): a BLOCK opens a loop, each later verdict of that reviewer in the session is its next round, the loop closes when the same run passes over an unmoving tree, and a loop still open after the budget reds with the recorded findings and says to hand them to the human; a PASS recorded past the budget never clears it. Entries an earlier or parked hook wrote count one round each with no recorded findings. On an install whose baseVersion predates 1.1.0 the findings print as NOTEs through one rampNote call, because a session already in flight at the upgrade holds verdicts no budget was ever stated for. The hook cannot carry this ramp (a hook has no NOTE channel), so it lives in the Stop step. The deadline was the one issue #71 fixes, the next minor, and 1.2.0 arrived at this lineage's 2.0.0 cut. It also comes before the reviewer ledger v2 ramp's (2.1.0, the row above): the budget judges v2's change set and closes a loop by v2's rule, so at 2.0.0 an install below 1.1.0 would meet it live while v2 still prints NOTEs and the 1.0.x judgement decides; the 2.0.0 record weighs that against re-opening this ramp to 2.1.0. With no merge base the budget does not judge, as v2 does not. Discharge = the 2.1.0 record's rampExpiry naming this site's population (every vintage below 1.1.0), beside the reviewer ledger v2 expiry it depends on, with its sweep in that release's runbook section (nothing to edit: a spent budget clears in a new session), and this row is deleted in the same diff; OR a reviewed rampExtensions entry re-targets it. The site is Stop-only, so scripts/ci/stop-side-expiries.json names the unit proof that executes its RAMP EXPIRED branch.",
       "reviewedOn": "2026-09-30"
     },
     {
@@ -329,185 +316,6 @@
       "reason": "The reviewer model record (1.1.0, #62) was probed against Claude Code 2.1.285 in print mode (design/CONTROL-PLANE-FACTS.md, Fact 16): no Subagent* payload names a model, each assistant line of the subagent transcript at agent_transcript_path carries the model that produced it at message.model as a full ID, a model error with no chain never reaches SubagentStop while a fallbackModel chain moves the subagent silently, and a green Stop hook's JSON systemMessage surfaces as a notice while its stderr does not. Three answers print mode cannot give are still owed: how the interactive terminal, the VS Code extension and the desktop app render a green Stop's systemMessage (the channel that keeps a fallback from being silent), whether the plugin loader accepts the harnessFallbackModels key, and whether the main agent's Edit tool may write a subagent transcript under ~/.claude/projects/. Discharge = run the three probes Fact 16 names, record each answer in Fact 16 (which moves this anchor), and delete this row in the same diff; if a surface does not show the systemMessage, move the FALLBACK MODEL lines to a channel it does show first.",
       "reviewedOn": "2026-09-30",
       "evidence": "design/CONTROL-PLANE-FACTS.md"
-    },
-    {
-      "id": "docs-sync-verdict-demand-ramp-expiry",
-      "kind": "release",
-      "target": "1.2.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-docs-sync.mjs",
-          "mustContain": "reviewer bodies closing on the verdict demand"
-        }
-      ],
-      "reason": "OPENED AT 1.1.0 (#72, R03). docs-sync now holds every reviewer body in REVIEWER_AGENTS to CLOSE on the verdict demand: its last paragraph must be exactly the demand, optionally followed by the shipped rationale sentence (verdictDemandProblem in template/base/tools/lib/agent-roster.mjs). Presence of the demand stays a hard red on every vintage, as it has been since 0.2.0; only the position rides this ramp, because since 1.0.2 `update` keeps a re-recorded fork of an owned reviewer body and parks the incoming copy, so a fork made before 1.1.0 was never judged for position. The same ramp carries the one finding a parked fork of tools/lib/agent-roster.mjs without the helper produces. The deadline is the one issue #72 sets as its default, the next minor. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes this expiry, as it owes the version-sync arrival row and the two other 1.1.0 ramps above that target the same release (docs-sync's severity contract and reviewer-verdicts' round budget, #71). Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming this site's population (every vintage below 1.1.0 that forked a reviewer body), with its sweep in that release's runbook section (restore the closing paragraph from .harness/pending/ or the template, a human re-locks with HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write, re-record the sha), and this row is deleted in the same diff; OR the ramp is extended by a reviewed rampExtensions entry and this row re-targeted.",
-      "reviewedOn": "2026-09-30"
-    },
-    {
-      "id": "workflow-hardening-project-workflows-ramp-expiry",
-      "kind": "release",
-      "target": "1.2.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-workflow-hardening.mjs",
-          "mustContain": "the workflow hardening rules over the project workflows"
-        }
-      ],
-      "reason": "OPENED AT 1.1.0 (#73, R04). tools/check-workflow-hardening.mjs, a CI-only gate run by actions-lint.yml's workflow-hardening job, holds a project's OWN workflows to the house rules every shipped workflow meets (the pure rules in template/base/tools/lib/workflow-hardening.mjs): a workflow-level defaults.run.shell: bash above jobs:, a whole-number timeout-minutes on every job that can take one (1..360 on a GitHub-hosted runner, 1..7200 on a self-hosted one), and step-security/harden-runner as the FIRST step of every job that is neither a reusable-workflow call nor self-hosted, with egress-policy: audit when its runner or a matrix value it reads names windows. Input the check cannot read is a finding. Ramped because the rules are new for workflows a project wrote: an install whose baseVersion predates 1.1.0 gets every finding as a NOTE, through one rampNote call; every workflow the harness ships passes in every tier, so a NOTE names a workflow the project wrote or edited. The deadline is the one issue #73 fixes (decision 2), the next minor. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes this expiry beside the version-sync arrival row and the three other 1.1.0 ramps above that target the same release. The gate is outside both chains, so the upgrade lane's narrow() drops its expiry: scripts/ci/stop-side-expiries.json names tests/gates/check-workflow-hardening.test.mjs as the proof that executes its RAMP EXPIRED branch, and `graduate` does not run it (the runbook's 1.1.0 section says to run it by hand before graduating). Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming this site's population (every vintage below 1.1.0 whose own workflows break a rule), with its sweep in that release's runbook section (run node tools/check-workflow-hardening.mjs and fix each <file>#<job> it names, as the 1.1.0 section describes), and this row is deleted in the same diff; OR the ramp is extended by a reviewed rampExtensions entry and this row re-targeted.",
-      "reviewedOn": "2026-09-30"
-    },
-    {
-      "id": "sql-history-fold-ramp-expiry",
-      "kind": "release",
-      "target": "1.2.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-rls-manifest.mjs",
-          "mustContain": "the SQL history fold"
-        },
-        {
-          "file": "template/base/tools/check-tenancy.mjs",
-          "mustContain": "the SQL history fold"
-        },
-        {
-          "file": "template/base/tools/check-data-flow.mjs",
-          "mustContain": "the SQL history fold"
-        },
-        {
-          "file": "template/base/tools/check-db-limits.mjs",
-          "mustContain": "the SQL history fold"
-        },
-        {
-          "file": "template/base/tools/check-query-shapes.mjs",
-          "mustContain": "the SQL history fold"
-        },
-        {
-          "file": "template/base/tools/check-migrations.mjs",
-          "mustContain": "ALTER POLICY as an authorization change"
-        }
-      ],
-      "reason": "OPENED AT 1.1.0 (#75, R06): six sites, one row, because they are one change read by six gates. tools/lib/sql-parse.mjs now folds DROP TABLE (the table leaves every view, foreign keys into it clear, a later CREATE starts it fresh) and ALTER POLICY (the clauses it names replace the policy's; RENAME TO renames), and parseLivePolicies is the one live-policy fold schema-rls and tenancy read. schema-rls, tenancy, data-flow, db-limits and query-shapes pass a finding only the folded history produces through rampNote(GATE, '1.1.0', 'the SQL history fold (…)', { until: '1.2.0' }); tools/lib/sql-fold-ramp.mjs tells it apart by replaying the gate over the pre-fold history in a worker thread and comparing finding text, so a finding both readings produce stays a hard red at every vintage and one only the 1.0.x reading produced clears. migrations' new ALTER POLICY rule (an authorization change that needs `-- adr:`; rename-only is exempt) rides its own ramp, rampNote('migrations', '1.1.0', 'ALTER POLICY as an authorization change', { until: '1.2.0' }), not the 0.2.0 bucket whose ramp ended at 0.4.0. db-perf takes the parser change with no ramp (it runs only against a live, scale-seeded database). The deadline is the one issue #75 fixes, the next minor. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes these six expiries beside the five other 1.2.0-dated rows above. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming the population (every vintage below 1.1.0 whose migration history holds a top-level DROP TABLE or ALTER POLICY, or, for schema-rls, a DROP POLICY), with its sweep in that release's runbook section (fix what the fold exposes in a NEW migration, or add a tools/migrations-allow.json `authz-adr` entry for an already-applied ALTER POLICY), and this row is deleted in the same diff; OR the ramps are extended by reviewed rampExtensions entries and this row re-targeted. When the last of these ramps is removed, tools/lib/sql-fold-ramp.mjs and sql-parse.mjs's preFoldHistory go with it.",
-      "reviewedOn": "2026-09-30"
-    },
-    {
-      "id": "grant-bound-ramp-expiry",
-      "kind": "release",
-      "target": "1.2.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-rls-manifest.mjs",
-          "mustContain": "the grant bound"
-        }
-      ],
-      "reason": "OPENED AT 1.1.0 (#74, R05): one site for three kinds of finding in schema-rls, all from tools/lib/table-grants.mjs's second privilege fold, which starts each `public` table with every privilege Supabase's default hands anon, authenticated and service_role. THE BOUND: every privilege anon or authenticated holds, directly, through PUBLIC or on columns, is admitted by a PERMISSIVE policy for that operation naming the role, public or no role, whose predicate is not literally false; TRUNCATE, REFERENCES, TRIGGER and MAINTAIN never are, so they are revoked or listed in the tolerated-absent tools/grant-bound-allow.json. THE DOCTRINE: for each of the three roles the default-seeded fold holds nothing the explicit fold does not (docs/adr/20260930-three-role-revoke.md). THE GENERATED FILE: supabase/tests/rls_grants.generated.test.sql equals what tools/gen-grant-assertions.mjs renders. They pass through rampNote('schema-rls', '1.1.0', 'the grant bound, the three-role revoke doctrine and the generated grant assertions', { until: '1.2.0' }): NOTE lines below baseVersion 1.1.0, a plain red on a fresh 1.1.0 scaffold, RAMP EXPIRED from harness 1.2.0. The deadline is the one issue #74 fixes. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes this expiry beside the other 1.2.0-dated rows above. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming the population (every vintage below 1.1.0: each one's profiles and notes predate the doctrine, and every vintage below 1.0.2 also lacks 20260920000000_authenticated_write_revoke.sql), with its sweep in that release's runbook section (the SQL of the runbook's 1.1.0 section in a NEW migration, then `node tools/gen-grant-assertions.mjs`), and this row is deleted in the same diff; OR the ramp is extended by a reviewed rampExtensions entry and this row re-targeted.",
-      "reviewedOn": "2026-09-30"
-    },
-    {
-      "id": "i18n-syntax-tree-ramp-expiry",
-      "kind": "release",
-      "target": "1.2.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-i18n.mjs",
-          "mustContain": "copy only the syntax-tree walk finds"
-        },
-        {
-          "file": "template/base/tools/check-i18n.mjs",
-          "mustContain": "file:line site entries in tools/i18n-allow.json"
-        }
-      ],
-      "reason": "OPENED AT 1.1.0 (#76, R07). The i18n Stop step now walks the TypeScript syntax tree (template/base/tools/lib/i18n-tree.mjs, the project's own `typescript`) beside its 1.0.x regular expressions and reports the union, and tools/i18n-allow.json entries are keyed on content ({\"key\": 12 hex characters of a sha256 over the POSIX path, the finding kind, the attribute or property name and the whitespace-collapsed text, \"reason\"}) instead of file:line. Two rampNote calls, both opened at minVersion 1.1.0 until 1.2.0, the deadline issue #76 fixes: a finding only the tree walk sees is a NOTE on an install seeded before 1.1.0 and hard on a fresh one, and a 1.0.x {\"site\"} entry still mutes its line there, naming the key that replaces it, and is malformed on a fresh install. A finding only the regular expressions see is hard and tagged as retiring in 1.2.0. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes both expiries, beside the other 1.2.0-dated rows above (#71, #72, #73, #75, #74) and the version-sync arrival row. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming both sites' population (every vintage below 1.1.0 whose tree holds a tree-only finding or a site entry), with its sweep in that release's runbook section (convert each site entry to the key its NOTE prints; catalog or key each tree-only string), AND that release REMOVES what the ramp retires: the regular expressions in check-i18n.mjs (ATTR_LITERAL, OBJECT_LITERAL, JSX_TEXT, INTL_USE with intlText, regexScan and the union in unite, and the regex-only tag), after tests/gates/i18n-tree.test.mjs's fixture parity shows the walk alone reds every red fixture string and none of the not-copy ones, and the site entry shape (allowSites, SITE_SHAPE and the second rampNote), leaving the tree walk and key entries; this row is deleted in the same diff. OR the ramp is extended by a reviewed rampExtensions entry and this row re-targeted.",
-      "reviewedOn": "2026-09-30"
-    },
-    {
-      "id": "web-compile-ramp-expiry",
-      "kind": "release",
-      "target": "1.2.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-web-build.mjs",
-          "mustContain": "the web compile step (next build over apps/web)"
-        }
-      ],
-      "reason": "OPENED AT 1.1.0 (#77, R08). The new chain step web-compile (tools/check-web-build.mjs) runs `pnpm --filter web exec next build --webpack` on a stamp miss, and the 1.1.0 record's configSteps injects it into every existing chain after `build`. A web app that stopped compiling before its install upgraded would otherwise red on a check it never had, so below baseVersion 1.1.0 a failed build is a NOTE carrying the output; a ramped failure records no stamp, so the NOTE repeats and graduate stays refused until the app compiles. The deadline is the one issue #77 sets, the next minor. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes this expiry, as it owes the other 1.1.0 ramps that target the same release. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming this site's population (every vintage below 1.1.0 whose web app does not compile under the placeholder env), with its sweep in that release's runbook section (make `pnpm --filter web exec next build --webpack` green, then graduate), and this row is deleted in the same diff; OR the ramp is extended by a reviewed rampExtensions entry and this row re-targeted.",
-      "reviewedOn": "2026-09-30"
-    },
-    {
-      "id": "route-manifest-browser-closure-ramp-expiry",
-      "kind": "release",
-      "target": "1.2.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-web-routes.mjs",
-          "mustContain": "the per-route browser closure"
-        }
-      ],
-      "reason": "OPENED AT 1.1.0 (#77, R08). route-manifest's web half now requires, for every registered web route, a spec under apps/web/e2e naming one of its non-null declared state test ids as a quoted literal (comments blanked). The seeded suite gains apps/web/e2e/notes.spec.ts and apps/web/e2e/security.spec.ts, but both are seedOnInitOnly, so an install scaffolded before 1.1.0 carries a spec for `orgs` only and would red on `notes` and `security` the first validate after update. Below baseVersion 1.1.0 the findings are NOTEs; a fresh scaffold ships the specs and is held to the check at once. The deadline is the one issue #77 sets, the next minor. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes this expiry, as it owes the other 1.1.0 ramps that target the same release. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming this site's population (every vintage below 1.1.0 with a registered web route no spec names), with its sweep in that release's runbook section (copy the two seeded specs, or write a spec per route), and this row is deleted in the same diff; OR the ramp is extended by a reviewed rampExtensions entry and this row re-targeted.",
-      "reviewedOn": "2026-09-30"
-    },
-    {
-      "id": "docs-sync-gate-list-ramp-expiry",
-      "kind": "release",
-      "target": "1.2.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-docs-sync.mjs",
-          "mustContain": "AGENTS.md gate-list lockstep after an injected chain step"
-        }
-      ],
-      "reason": "RE-OPENED AT 1.1.0 (#77), the fourth move of this escape (0.6.0, 0.8.0 and 1.0.0 before it). The 1.1.0 record's configSteps injects web-compile, so every existing chain grows to 37 steps while the seeded AGENTS.md documents 36 (or fewer); the 1.0.0-opened escape reached its until at 1.1.0, inert for every 1.0.x install and expired for every older one. It re-opens at minVersion 1.1.0 with the byte-matched rampExtensions entry in the \"1.1.0\" record, and only ADDITIVE drift rides it. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes this expiry, as it owes the other 1.1.0 ramps that target the same release. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming this site's population (every vintage below 1.1.0 whose AGENTS.md still documents fewer steps than its chain), with its sweep in that release's runbook section (paste the chain's names into the \"The N gates, in order:\" sentence and the N-step chain line; upgrade-lane leg E's §3 rewrite performs exactly that), and this row is deleted in the same diff; OR the ramp is extended again by a reviewed rampExtensions entry and this row re-targeted.",
-      "reviewedOn": "2026-09-30"
-    },
-    {
-      "id": "edge-functions-surface-ramp-expiry",
-      "kind": "release",
-      "target": "1.2.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-diff-coverage.mjs",
-          "mustContain": "the Edge Function surface"
-        },
-        {
-          "file": "template/base/tools/check-edge-functions.mjs",
-          "mustContain": "the Edge Function surface"
-        },
-        {
-          "file": "template/base/tools/check-mutation-ratchet.mjs",
-          "mustContain": "the Edge Function surface"
-        },
-        {
-          "file": "template/base/tools/mutation-scope.mjs",
-          "mustContain": "the Edge Function surface"
-        }
-      ],
-      "reason": "OPENED AT 1.1.0 (#78). 1.1.0 brings supabase/functions under the checks that never reached it: diff-coverage's SRC_RE gains supabase/functions/ (vitest.config.ts measures a directory there once it holds a vitest suite, and each function's Deno.serve shell, index.ts, is in COVERAGE_EXCLUDE), the mutation floor gains the starred root supabase/functions/*/ with index.ts carved out (and tools/mutation-scope.mjs judges a changed function file whose directory holds no vitest suite, which Stryker's vitest runner cannot mutate), and the new CI-only gate tools/check-edge-functions.mjs (quality-gate.yml's edge-functions job) runs `deno check --frozen` of each function's index.ts against its own deno.json (exact jsr:/npm: versions) and deno.lock. An install whose baseVersion predates 1.1.0 has function code none of the three was ever asked to hold, and `update` delivers the owned gates, config and workflow but not the seeded handler split, deno.json and deno.lock, so each of the four passes its findings under supabase/functions (check-edge-functions also a missing deno, deno.json or deno.lock; mutation-scope withholds the untested file from the run) through one rampNote(GATE, '1.1.0', '<n> …the Edge Function surface…', { until: '1.2.0' }): NOTE lines below baseVersion 1.1.0, a plain red on a fresh 1.1.0 scaffold, RAMP EXPIRED from harness 1.2.0. The deadline is the one issue #78 fixes. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes these four expiries beside the other 1.1.0 ramps that target the same release. None of the four runs in an upgrade-lane leg (diff-coverage is a Stop step, the scoper, the ratchet and the typecheck are CI-only), so scripts/ci/stop-side-expiries.json names the unit proof that executes each RAMP EXPIRED branch. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming this row's population (every vintage below 1.1.0 with function code), with its sweep in that release's runbook section (pull the split with `update --refresh-seeded supabase/functions/delete-account/`, give each own function a deno.json with exact versions, its deno.lock and a vitest suite in its directory, then run the edge-functions gate by hand before graduating), and this row is deleted in the same diff; OR the ramps are extended by reviewed rampExtensions entries and this row re-targeted.",
-      "reviewedOn": "2026-09-30"
-    },
-    {
-      "id": "edge-functions-complexity-seeded-exemption",
-      "kind": "release",
-      "target": "1.2.0",
-      "sites": [
-        {
-          "file": "template/base/eslint.config.mjs",
-          "mustContain": "supabase/functions/delete-account/index.ts"
-        }
-      ],
-      "reason": "OPENED AT 1.1.0 (#78). eslint.config.mjs now lints supabase/functions (the TypeScript parser, no project service) with sonarjs/cognitive-complexity at 15 and local/no-suppressed-complexity. The config is harness-OWNED, so `update` arms the rules on every install at once, while the delete-account index.ts every 1.0.x install carries is SEEDED and measures 16 (its readKey): an upgrading consumer would meet a hard-red lint step on a file `update` cannot rewrite and they never touched. A lint rule cannot carry a rampNote, so that one path sits in the complexity block's `ignores` as its ramp, paired with the 1.1.0 seededSourceFixes instruction (gate lint) that `doctor` surfaces: pull the split with `update --refresh-seeded supabase/functions/delete-account/`, which replaces the 1.0.x file with a one-call shell and moves readKey into handler.ts, where it measures under 15. The security rules (no-unverified-session, crypto-primitives-one-door) are NOT exempted: the seeded file passes both. This is the pairing env-through-register-seeded-exemption set at 0.9.5 and 0.10.0 discharged. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, so the 2.0.0 cut owes the removal of the ignore line, once the source fix has had a release to land. Discharge = the exemption line is removed from eslint.config.mjs and this row is deleted in the same diff; OR the row is re-targeted in a reviewed diff that says why the fix has not landed.",
-      "reviewedOn": "2026-09-30"
-    },
-    {
-      "id": "gate-integrity-planted-escape-list-ramp-expiry",
-      "kind": "release",
-      "target": "1.2.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-gate-integrity.mjs",
-          "mustContain": "release provenance of an uncommitted, planted escape list"
-        }
-      ],
-      "reason": "OPENED AT 1.1.0 (#84, F16): one site in gate-integrity's escape-list commit rule (sub-check 3). An untracked escape list whose sha256 matches its .harness/manifest.json record used to be a harness plant on that fact alone, and since 1.0.2 a human may re-record a sha to keep a fork, so one uncommitted edit to the manifest's `files` turned any untracked escape list into a plant. The exemption now also asks tools/lib/planted-shas.json (OWNED, hash-pinned by sub-check 1, generated from the `planted` maps of template/shas/*.json) whether a harness release planted exactly these bytes, derendering a placeholder-bearing list with the manifest's answers (tools/lib/derender.mjs, pinned to the installer's derender by tests/gates/derender-parity.test.mjs). A path that passes the two old conditions and fails only the new one goes through rampNote('gate-integrity', '1.1.0', 'release provenance of an uncommitted, planted escape list', { until: '1.2.0' }), called only when such a path exists: NOTE lines below baseVersion 1.1.0, a plain red on a fresh 1.1.0 scaffold, RAMP EXPIRED from harness 1.2.0. Every red that existed before keeps its outcome and its text. The deadline is the one issue #84 fixes (decision 3). THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes this expiry beside the other 1.2.0-dated rows above. gate-integrity is a validate-chain step, so the upgrade lane executes its expiry itself and scripts/ci/stop-side-expiries.json needs no entry. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming this site's population (every vintage below 1.1.0 that holds an untracked escape list no release planted), with its sweep in that release's runbook section (commit each escape list the NOTE names after reviewing it, or delete one nobody meant to create), and this row is deleted in the same diff; OR the ramp is extended by a reviewed rampExtensions entry and this row re-targeted.",
-      "reviewedOn": "2026-09-30"
     }
   ]
 }

@@ -5,7 +5,7 @@
     "installer/commands/doctor.mjs::doctor": 54,
     "installer/commands/enable.mjs::enable": 44,
     "installer/commands/init.mjs::init": 117,
-    "installer/commands/update.mjs::update": 61,
+    "installer/commands/update.mjs::update": 59,
     "installer/lib/merge-claude-settings.mjs::mergeClaudeSettings": 19,
     "installer/lib/merge-workspace-yaml.mjs::parseSimpleYaml": 24,
     "scripts/check-reuse.mjs::parseReuseToml": 24,

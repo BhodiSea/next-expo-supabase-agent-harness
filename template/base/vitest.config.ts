@@ -44,7 +44,7 @@ import { defineConfig } from 'vitest/config'
 //     has against the aggregate floor. A directory with no vitest suite is not measured, and
 //     tools/check-diff-coverage.mjs still names a CHANGED file under it as absent from the
 //     coverage map — the finding that says "add a suite" (a NOTE until 1.2.0 on an install
-//     whose baseVersion predates 1.1.0).
+//     whose baseVersion predates 1.1.0, hard on every install since 2.0.0).
 const ROOT = fileURLToPath(new URL('.', import.meta.url))
 const EDGE_FUNCTIONS = 'supabase/functions'
 // The quotes are escapes on purpose: tools/check-diff-coverage.mjs reads COVERAGE_EXCLUDE out

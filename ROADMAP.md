@@ -37,24 +37,32 @@ when they fall due.
   breached cap and its measured value (the 1.0.4 CHANGELOG, "What stays
   open"); the fix follows from that line.
 
-## Next: 1.1.0
+## Next: 2.0.0
 
-1.0.0 opened a set of dated advisory notes for existing installs, all expiring
-at 1.1.0. The 1.1.0 version bump settled each one (issue #39):
+1.1.0 opened a set of dated advisory notes for existing installs, all but three
+of them dated 1.2.0. This lineage goes from 1.1.0 to 2.0.0 directly and never
+cuts 1.2.0, so those deadlines arrive at 2.0.0, and its version bump settled
+each one (issue #86):
 
-- The six-gate note fleet is enforcing for installs below 1.0.0:
-  `auth-posture`, `boundaries`, `docs-sync`, `resilience`, `suppressions`, and
-  `version-sync`'s support register. Their seven `*-ramp-expiry` release rows
-  are gone from the obligations register.
-- `uuid` 7, the one vendor-deprecated package in the production dependency
-  closure, was re-reviewed at 1.1.0 and is still not discharged upstream. Its
-  removal target moved to 1.2.0, and `version-sync`'s arrival note re-opened
-  until 1.2.0 (the `version-sync-eol-arrival-ramp-expiry` release row).
+- Eighteen sites across fifteen gates are enforcing for installs below 1.1.0:
+  the SQL history fold, the grant bound, the reviewer severity contract and
+  verdict demand, the `AGENTS.md` gate list, the Edge Function surface, the
+  planted escape list, `web-compile`, the per-route browser closure and
+  `workflow-hardening`. Their ten `*-ramp-expiry` release rows are gone from
+  the obligations register.
+- Two ramps existed to carry something to this release, and it went with them:
+  the `i18n` gate's 1.0.x regular expressions and `file:line` allowlist entries,
+  and the dated `lint` exemption for the seeded delete-account function.
+- `uuid` 7 was re-reviewed at 2.0.0 and is still not discharged upstream. Its
+  removal target moved to 2.1.0, and `version-sync`'s arrival note re-opened
+  until 2.1.0.
+- `reviewer-verdicts`' round budget moved to 2.1.0, beside the reviewer ledger
+  v2 whose change set it judges. The 2.1.0 release owes all three of that
+  step's ramps.
 - The Supabase CLI config census, still blocked upstream on
-  supabase/cli#5894, was re-checked and re-dated to 1.2.0.
+  supabase/cli#5894, was re-checked and re-dated to 2.1.0.
 
-The rest of 1.1.0 is the field-report upgrades below that are scheduled for
-it, each behind a ramp of its own or tightening nothing for an existing install.
+The rest of 2.0.0 is the breaking field-report upgrades below.
 
 ## Field-report upgrades
 
@@ -284,7 +292,8 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
   each verdict's round. `reviewer-verdicts` reds a review loop still open after
   three rounds with the recorded findings, for the human; a PASS past the budget
   never clears it. Two ramps opened at 1.1.0 hold both checks as NOTEs below
-  that `baseVersion` until 1.2.0.
+  that `baseVersion`: the contract's until 1.2.0, which arrived at 2.0.0, and
+  the budget's until 2.1.0, where 2.0.0 moved it to wait for the ledger v2.
   ([R02](design/FIELD-UPGRADES-2026-09.md#r02-a-severity-contract-and-a-round-budget),
   issue #71)
 - **`docs-sync` holds the verdict demand to the end of the body.** Each
@@ -324,10 +333,11 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
 - **i18n detection on the syntax tree.** The `i18n` step walks the TypeScript
   syntax tree beside its regular expressions and reports the union, and its
   allowlist is keyed on a hash of the string's content instead of a line
-  number. Two ramps opened at 1.1.0 hold what only the walk finds, and the old
-  `file:line` entries, as NOTEs below that `baseVersion` until 1.2.0, when the
-  expressions and `site` entries are removed. A string reached through a
-  variable or a helper is still seen by neither scan.
+  number. Two ramps opened at 1.1.0 held what only the walk finds, and the old
+  `file:line` entries, as NOTEs below that `baseVersion` until 1.2.0; 2.0.0,
+  the release that met that deadline, removed the expressions and `site`
+  entries, so the walk is the only scan. A string reached through a variable or
+  a helper is still not seen.
   ([R07](design/FIELD-UPGRADES-2026-09.md#r07-i18n-detection-on-the-syntax-tree),
   issue #76)
 - **The web build in the chain, and a browser test per route.** A stamped
@@ -345,9 +355,13 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
 - **The example leaves the scaffold.** Reference-only by default, with an
   optional materialised demo and an `eject` verb.
   ([B01](design/FIELD-UPGRADES-2026-09.md#b01-the-example-leaves-the-scaffold))
-- **The encryption rule ships with its module.** An install without `e2ee`
-  carries none of it.
-  ([B02](design/FIELD-UPGRADES-2026-09.md#b02-the-encryption-rule-ships-with-its-module))
+- **The encryption rule ships with its module.** Built in 2.0.0: the full rule,
+  `.claude/rules/e2ee.md`, is stored in the `e2ee` module, so an install without
+  `e2ee` does not carry it, and the 2.0.0 record removes the base copy from
+  existing installs. The always-loaded stub stays everywhere, and every base file
+  cites it.
+  ([B02](design/FIELD-UPGRADES-2026-09.md#b02-the-encryption-rule-ships-with-its-module),
+  issue #86)
 - **`prompt_id` leaves the ledger key.** After ledger v2 the path digest is
   what makes a verdict current.
   ([B03](design/FIELD-UPGRADES-2026-09.md#b03-prompt_id-leaves-the-ledger-key))
