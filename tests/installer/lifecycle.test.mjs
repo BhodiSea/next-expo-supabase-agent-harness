@@ -69,6 +69,10 @@ test('bootstrap init renders the monorepo layout with manifest modes', () => {
   const dir = mkdtempSync(join(tmpdir(), 'epah-boot-'))
   const r = run(['init', '--dir', dir, '--yes', ...SETS])
   assert.equal(r.code, 0, r.out)
+  assert.match(
+    r.out,
+    /next steps:\r?\n\s+1\. git init[^\r\n]*\r?\n\s+2\. pnpm install\r?\n\s+3\. git add -A && git commit[^\r\n]*pnpm-lock\.yaml[^\r\n]*\r?\n\s+4\. pnpm validate/,
+  )
 
   for (const expected of [
     'package.json',
@@ -160,6 +164,25 @@ test('bootstrap init renders the monorepo layout with manifest modes', () => {
   assert.equal(manifest.baseVersion, manifest.harnessVersion, 'init must stamp baseVersion == harnessVersion')
 })
 
+test('init in an existing Git repository omits the git init step', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-git-'))
+  execFileSync('git', ['init', '-q', dir])
+  const r = run(['init', '--dir', dir, '--yes', ...SETS])
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /next steps:\r?\n\s+1\. pnpm install\r?\n\s+2\. git add -A && git commit[\s\S]*?\r?\n\s+3\. pnpm validate/)
+  assert.doesNotMatch(r.out, /^\s+\d+\. git init/m)
+})
+
+test('init JSON report carries next steps as an array', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-json-'))
+  const r = run(['init', '--dir', dir, '--yes', '--report', 'json', ...SETS])
+  assert.equal(r.code, 0, r.out)
+  const report = JSON.parse(r.out)
+  assert.equal(report.steps.length, 4)
+  assert.match(report.steps[0], /^git init/)
+  assert.match(report.steps[2], /pnpm-lock\.yaml/)
+})
+
 test('dry-run writes nothing', () => {
   const dir = mkdtempSync(join(tmpdir(), 'epah-dry-'))
   const r = run(['init', '--dir', dir, '--yes', '--dry-run', ...SETS])
@@ -184,6 +207,7 @@ test('retrofit: non-clobber configs, merged workspace yaml, no stack app code', 
   // Conflicts (validate script, eslint config) are reported with exit 2 by design.
   const r = run(['init', '--dir', dir, '--yes', ...SETS])
   assert.equal(r.code, 2, r.out)
+  assert.match(r.out, /review \.harness sibling configs and merge them into your existing configs/)
 
   // package.json: merged, never clobbered.
   const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))

@@ -12,7 +12,7 @@
 //      `pnpm install` resolves its default from the CI env var, so the same line is
 //      frozen on a runner and floating on a laptop, and nobody decided either;
 //   2. any workflow leaning on `cache: pnpm` (or a frozen install) is backed by init's
-//      next-steps note naming pnpm-lock.yaml — the cross-file half, because the 0.9.0
+//      next steps naming pnpm-lock.yaml — the cross-file half, because the 0.9.0
 //      guidance ("the first commit must include pnpm-lock.yaml") is the only thing that
 //      makes the entry path completable, and prose regressions are silent;
 //   3. every `uses:` reference is SHA-pinned (40-hex) with a version comment — the
@@ -105,16 +105,16 @@ function judgeUses(lines) {
  * @param {string} initSource
  * @returns {string[]}
  */
-function judgeInitNote(initSource) {
-  const note = /'next:[^']*'/.exec(initSource)
-  if (note === null) {
+function judgeInitSteps(initSource) {
+  const steps = /^( *)function nextSteps\([\s\S]*?^\1\}/m.exec(initSource)
+  if (steps === null) {
     return [
-      "installer/commands/init.mjs has no 'next:' note at all — the shipped workflows demand a committed lockfile (cache: pnpm / --frozen-lockfile) and the init contract's next-steps note is the one place a consumer is told, so the closure cannot find its anchor",
+      "installer/commands/init.mjs has no structured next-steps guidance — the shipped workflows demand a committed lockfile (cache: pnpm / --frozen-lockfile) and the init contract's next steps are the one place a consumer is told, so the closure cannot find its anchor",
     ]
   }
-  if (!note[0].includes('pnpm-lock.yaml')) {
+  if (!steps[0].includes('pnpm-lock.yaml')) {
     return [
-      "installer/commands/init.mjs's next-steps note no longer names pnpm-lock.yaml — the shipped workflows' entry path (`pnpm install --frozen-lockfile`, setup-node `cache: pnpm`) hard-fails unless the first commit includes the lockfile, and this note is the only place the consumer is told. Restore the committed-lockfile instruction.",
+      "installer/commands/init.mjs's structured next-steps guidance no longer names pnpm-lock.yaml — the shipped workflows' entry path (`pnpm install --frozen-lockfile`, setup-node `cache: pnpm`) hard-fails unless the first commit includes the lockfile, and these steps are the only place the consumer is told. Restore the committed-lockfile instruction.",
     ]
   }
   return []
@@ -151,7 +151,7 @@ export function ciPreconditionProblems({ workflows, initSource }) {
 
   const wantsLockfile =
     installs.anyFrozen || lines.some(({ line }) => /^\s*cache:\s*['"]?pnpm['"]?\s*$/.test(line))
-  if (wantsLockfile) problems.push(...judgeInitNote(initSource))
+  if (wantsLockfile) problems.push(...judgeInitSteps(initSource))
 
   return problems
 }

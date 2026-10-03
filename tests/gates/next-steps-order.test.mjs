@@ -3,14 +3,14 @@
 // The scaffold's root `prepare` script is `lefthook install`, which needs a repository, and
 // `wiring` reds a `.git/hooks` with no lefthook in it; the 0.9.0 ramp that softens that red
 // never applies to a fresh scaffold. So `pnpm install` before `git init` cannot end green.
-// init's closing note and the README said so, while CONTRIBUTING's zero-edit recipe (the
+// init's closing steps and the README said so, while CONTRIBUTING's zero-edit recipe (the
 // check that "matters most") ran the install first, and the two issue forms either never ran
 // `git init` or defined a green scaffold without it. Nothing read those texts against each
-// other, and check-ci-preconditions only asks init's note to name pnpm-lock.yaml.
+// other, and check-ci-preconditions only asks init's steps to name pnpm-lock.yaml.
 //
 // This test reads the files and never imports them: installer/commands/init.mjs is text here
-// exactly as scripts/lib/ci-preconditions.mjs reads it, with the same note regex (not
-// exported there, so it is copied). Each slice is anchored narrowly: CONTRIBUTING's Local
+// exactly as scripts/lib/ci-preconditions.mjs reads it, and anchored on the same
+// `nextSteps` function. Each slice is anchored narrowly: CONTRIBUTING's Local
 // development list names `pnpm install` long before the recipe, and the recipe's own comment
 // names `git init`, so the slice starts at the `node installer/cli.mjs init --dir` line.
 // SOURCE: installer/commands/init.mjs · CONTRIBUTING.md · README.md · .github/ISSUE_TEMPLATE/
@@ -39,8 +39,8 @@ function between(text, start, end) {
 /** @type {Array<{ where: string, text: () => string }>} */
 const TEXTS = [
   {
-    where: "installer/commands/init.mjs: init's next-steps note",
-    text: () => /'next:[^']*'/.exec(read('installer/commands/init.mjs'))?.[0] ?? '',
+    where: "installer/commands/init.mjs: init's next steps",
+    text: () => between(read('installer/commands/init.mjs'), /^\s*function nextSteps\(/, /^\s*\}$/),
   },
   {
     where: "CONTRIBUTING.md: the zero-edit scaffold recipe (from `node installer/cli.mjs init --dir` to the closing fence)",
