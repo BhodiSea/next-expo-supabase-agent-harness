@@ -390,6 +390,10 @@ const RULE_CANARIES = {
     bashDeny('node installer/cli.mjs apply-proposal x'),
     bashDeny('pnpm dlx next-expo-supabase-agent-harness "apply-proposal" x --dry-run'),
     bashDeny("npx next-expo-supabase-agent-harness 'apply-proposal'"),
+    // 2.0.2: the forms the README and the gate messages now print, and the global install's.
+    bashDeny('npx next-expo-supabase-agent-harness@latest apply-proposal x'),
+    bashDeny('next-expo-supabase-agent-harness apply-proposal x --dir .'),
+    bashDeny('npm exec next-expo-supabase-agent-harness -- apply-proposal x'),
     bashAllow('git commit -m "docs: apply-proposal"'),
     bashAllow('node --test tests/installer/apply-proposal.test.mjs'),
     bashAllow('pnpm exec eslint installer/commands/apply-proposal.mjs'),

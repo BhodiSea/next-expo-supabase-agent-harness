@@ -198,7 +198,7 @@ function describe(root, name) {
 export function proposalLines(dir) {
   return pendingProposals(dir).map((p) =>
     p.problem === undefined
-      ? `${p.file} proposes ${p.target}: ${p.reason} — a human applies it with \`npx next-expo-supabase-agent-harness apply-proposal ${p.id}\` in a terminal, or deletes it`
+      ? `${p.file} proposes ${p.target}: ${p.reason} — a human applies it with \`npx next-expo-supabase-agent-harness@latest apply-proposal ${p.id}\` in a terminal, or deletes it`
       : `${p.file} ${p.problem}; \`apply-proposal\` will refuse it — fix or delete it`,
   )
 }

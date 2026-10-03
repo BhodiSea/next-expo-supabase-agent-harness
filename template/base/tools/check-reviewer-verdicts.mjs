@@ -138,7 +138,7 @@ const BINDING_RAMP = '0.7.0'
 if (!existsSync(TRIGGERS)) {
   fail(
     GATE,
-    `${TRIGGERS} is missing — it is this step's entire subject, so its absence is a broken control rather than an empty policy. Restore it from git history, or re-run \`npx next-expo-supabase-agent-harness update\`.`,
+    `${TRIGGERS} is missing — it is this step's entire subject, so its absence is a broken control rather than an empty policy. Restore it from git history, or re-run \`npx next-expo-supabase-agent-harness@latest update\`.`,
   )
 }
 const cfg = JSON.parse(readFileSync(TRIGGERS, 'utf8'))

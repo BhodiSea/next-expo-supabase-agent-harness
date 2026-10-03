@@ -65,7 +65,11 @@ export async function graduate(opts) {
     console.error('graduate: no .harness/manifest.json — run `init` first')
     return 1
   }
-  const target = installerVersion()
+  // The INSTALL's version, never the CLI's (2.0.2). The ramps validate judges are the ones
+  // the install carries, so graduating past its own harnessVersion would mark ramps it does
+  // not yet have as swept: `npx …@latest graduate` on an install not yet updated did exactly
+  // that. An install that is behind updates first; graduate never stands in for that.
+  const target = manifest.harnessVersion ?? installerVersion()
   const base = manifest.baseVersion ?? manifest.harnessVersion
   if (typeof base === 'string' && cmpDotted(base, target) >= 0) {
     console.log(`graduate: baseVersion already ${base} (>= ${target}) — nothing to graduate`)

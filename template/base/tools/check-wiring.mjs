@@ -83,7 +83,7 @@ const hookText = JSON.stringify(settings.hooks ?? {})
 for (const hook of SHIPPED_HOOKS) {
   if (!hookText.includes(hook)) {
     errs.push(
-      `${SETTINGS} no longer wires ${hook} — that entire tool surface runs unguarded. Restore it with \`npx next-expo-supabase-agent-harness update\`.`,
+      `${SETTINGS} no longer wires ${hook} — that entire tool surface runs unguarded. Restore it with \`npx next-expo-supabase-agent-harness@latest update\`.`,
     )
   }
 }
@@ -348,7 +348,7 @@ function patternToRegExp(pattern) {
 let ownersSummary = 'no CODEOWNERS file (skipped)'
 if (codeownersPath === undefined) {
   errs.push(
-    'no CODEOWNERS file (.github/CODEOWNERS) — ~ten gate failure messages in this harness promise that a widening "lands in the PR diff under CODEOWNERS". Without the file that promise is prose. The harness ships one; restore it with `npx next-expo-supabase-agent-harness update`.',
+    'no CODEOWNERS file (.github/CODEOWNERS) — ~ten gate failure messages in this harness promise that a widening "lands in the PR diff under CODEOWNERS". Without the file that promise is prose. The harness ships one; restore it with `npx next-expo-supabase-agent-harness@latest update`.',
   )
 } else {
   /** @type {Array<{ raw: string, pattern: string, owners: string[], re: RegExp | null, line: number }>} */

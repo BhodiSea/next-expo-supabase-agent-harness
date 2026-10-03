@@ -258,7 +258,7 @@ export function loadExtraRoots() {
     raw = readFileSync(EXTRA_FILE, 'utf8')
   } catch {
     throw new Error(
-      `${EXTRA_FILE} is missing — it is SEEDED; restore it from git history or replant it with \`npx next-expo-supabase-agent-harness update\``,
+      `${EXTRA_FILE} is missing — it is SEEDED; restore it from git history or replant it with \`npx next-expo-supabase-agent-harness@latest update\``,
     )
   }
   let doc

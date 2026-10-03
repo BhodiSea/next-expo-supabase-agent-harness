@@ -244,7 +244,7 @@ The layers, in order of engagement:
    sets `HARNESS_ALLOW_SELF_EDIT=1` in the environment the session starts from. Nothing
    records the variable; the committed diff is the record (see below).
 3. **The `.harness` manifest** — the installer records a SHA-256 for every
-   harness-owned file; `npx next-expo-supabase-agent-harness doctor` re-hashes the tree so
+   harness-owned file; `npx next-expo-supabase-agent-harness@latest doctor` re-hashes the tree so
    silent in-place edits are evident as drift, and the `gate-integrity` gate re-checks
    the enforcement files on every validate.
 4. **The CI floor** — CI does not trust the config: `--min-floor` enforces the frozen
@@ -265,7 +265,7 @@ the way `JSON.stringify(proposal, null, 2)` prints it, with one trailing newline
 `format` checks it. `harness-proposals/` is committed and outside every path the deny list,
 the write guard and the bash guard name, so staging narrows no layer, and a proposal is
 inert: no gate reads it. A human then runs
-`npx next-expo-supabase-agent-harness apply-proposal <id>` in a terminal. It shows the
+`npx next-expo-supabase-agent-harness@latest apply-proposal <id>` in a terminal. It shows the
 reason and a diff of the current file against the proposed one, and writes the file only
 after the human types the target path. `--dry-run` shows the same and writes nothing; with
 no id it lists the pending proposals, which `doctor` also lists as `info`. It refuses a

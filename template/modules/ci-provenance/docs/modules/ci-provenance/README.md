@@ -25,7 +25,7 @@ that keeps third-party attributions honest.
 ## How enabling works
 
 ```
-npx next-expo-supabase-agent-harness enable ci-provenance
+npx next-expo-supabase-agent-harness@latest enable ci-provenance
 ```
 
 copies the files; the workflow runs on the next `v*` tag (or `workflow_dispatch`).

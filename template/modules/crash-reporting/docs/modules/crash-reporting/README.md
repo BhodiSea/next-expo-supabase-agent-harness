@@ -34,7 +34,7 @@ deployment decision, not a scaffold default.
 ## How enabling works
 
 ```
-npx next-expo-supabase-agent-harness enable crash-reporting
+npx next-expo-supabase-agent-harness@latest enable crash-reporting
 ```
 
 copies the files. `redact.test.ts` joins `pnpm --filter mobile exec jest` (the

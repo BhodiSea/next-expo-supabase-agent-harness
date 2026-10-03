@@ -283,7 +283,7 @@ for (const [ip, meta] of Object.entries(manifest.files ?? {})) {
   const detail =
     `${ip}: RETROFIT CONFLICT — this install kept the target's file and parked the harness version at ${meta.sidecar ?? '(unrecorded)'}. ` +
     "Until the two are merged, every gate that reads this config is judging the TARGET's rules, not the harness's, and reporting green either way. " +
-    `Merge it: diff \`${ip}\` against \`${meta.sidecar ?? '<sidecar>'}\`, fold the harness rules in, delete the sidecar, and re-run \`npx next-expo-supabase-agent-harness update\` so the manifest re-records the file as owned. ` +
+    `Merge it: diff \`${ip}\` against \`${meta.sidecar ?? '<sidecar>'}\`, fold the harness rules in, delete the sidecar, and re-run \`npx next-expo-supabase-agent-harness@latest update\` so the manifest re-records the file as owned. ` +
     `To accept the divergence instead, add {"path":"${ip}","theirsSha256":"${theirsNow ?? '<sha>'}","reason":"…"} to ${ACCEPT} and COMMIT it — the sha pins the acceptance to the content that was reviewed.`
   if (accepted) conflictNotes.push(`${ip}: accepted divergence — ${accepted.reason}`)
   else errs.push(detail)
@@ -722,6 +722,6 @@ function okSummary() {
 failures(
   GATE,
   errs,
-  'Restore the file(s) from git; if the change came from a sanctioned harness upgrade, re-run `npx next-expo-supabase-agent-harness update` (it re-records the hashes). A DELIBERATE fork of a harness-owned file is supported too: a human re-records its sha256 in .harness/manifest.json in a reviewed commit, this gate goes green, and from harness 1.0.2 `update` sees a recorded sha no release shipped, keeps your file and parks the incoming version under .harness/pending/ instead of overwriting it (docs/runbooks/harness-upgrade.md, "Forking an owned file").',
+  'Restore the file(s) from git; if the change came from a sanctioned harness upgrade, re-run `npx next-expo-supabase-agent-harness@latest update` (it re-records the hashes). A DELIBERATE fork of a harness-owned file is supported too: a human re-records its sha256 in .harness/manifest.json in a reviewed commit, this gate goes green, and from harness 1.0.2 `update` sees a recorded sha no release shipped, keeps your file and parks the incoming version under .harness/pending/ instead of overwriting it (docs/runbooks/harness-upgrade.md, "Forking an owned file").',
 )
 ok(GATE, okSummary())

@@ -28,6 +28,7 @@ import { dirname, join } from 'node:path'
 import { renderEntry, walkDemo, walkStack, walkTemplate } from '../lib/copy.mjs'
 import { readDemoIndex, trimDemoRows } from '../lib/demo-rows.mjs'
 import { readManifest, sha256, writeManifest } from '../lib/manifest.mjs'
+import { refuseOlderCli } from '../lib/migrations.mjs'
 import { createProvenance, readReleasedShas } from '../lib/provenance.mjs'
 import { printReport } from '../lib/report.mjs'
 import { dropProjectReferences } from '../lib/tsconfig-references.mjs'
@@ -226,6 +227,7 @@ export async function eject(opts, { releasedShas = readReleasedShas(), index = r
   const targetDir = opts.dir
   const manifest = readManifest(targetDir)
   if (!manifest) throw new Error('no .harness/manifest.json — run `init` first')
+  refuseOlderCli(manifest, 'eject')
   const refusal = refusalOf(manifest)
   if (refusal !== null) {
     console.error(`error: ${refusal}`)

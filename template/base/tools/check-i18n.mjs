@@ -148,7 +148,7 @@ if (adopted.length === 0) {
   ok(
     GATE,
     `SKIPPED — no locale seam is adopted on any surface (${present.map((s) => s.catalog).join(', ')} absent), so this project ships single-locale. ` +
-      `Adopt one with \`npx next-expo-supabase-agent-harness update --refresh-seeded ${present[0].adoptPath}\` ` +
+      `Adopt one with \`npx next-expo-supabase-agent-harness@latest update --refresh-seeded ${present[0].adoptPath}\` ` +
       '(see docs/harness/gates-catalog.md, "i18n")',
   )
 }

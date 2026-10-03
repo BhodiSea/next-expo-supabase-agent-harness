@@ -46,7 +46,7 @@ next run with zero edits here.
 ## How enabling works
 
 ```
-npx next-expo-supabase-agent-harness enable device-e2e
+npx next-expo-supabase-agent-harness@latest enable device-e2e
 ```
 
 copies the workflow and records it in `.harness/manifest.json`. It is live

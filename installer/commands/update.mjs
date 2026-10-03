@@ -35,6 +35,7 @@ import {
   installedBytes,
   matchSeedOnInitOnly,
   readTemplateMigrations,
+  refuseOlderCli,
   seedOnInitOnlyPatterns,
   versionsBetween,
 } from '../lib/migrations.mjs'
@@ -288,6 +289,7 @@ export async function update(
   if (!manifest) {
     throw new Error('no .harness/manifest.json found — run `init` first')
   }
+  refuseOlderCli(manifest, 'update')
 
   // Heal manifests written by pre-0.1.3 Windows installs, which keyed files
   // with backslashes: without this, every incoming POSIX path misses its

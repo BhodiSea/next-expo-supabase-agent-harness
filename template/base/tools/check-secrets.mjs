@@ -36,7 +36,7 @@ const ACCEPT = 'tools/secret-scan-allow.json'
 if (!existsSync(PATTERNS)) {
   fail(
     GATE,
-    `${PATTERNS} is missing, so this gate has no policy and cannot report a clean tree. It is harness-owned and write-guard-protected — restore it from git history, or run \`npx next-expo-supabase-agent-harness update\`.`,
+    `${PATTERNS} is missing, so this gate has no policy and cannot report a clean tree. It is harness-owned and write-guard-protected — restore it from git history, or run \`npx next-expo-supabase-agent-harness@latest update\`.`,
   )
 }
 

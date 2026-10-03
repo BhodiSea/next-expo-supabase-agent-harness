@@ -1151,5 +1151,39 @@
       ],
       "why": "2.0.1 opens no escape and closes none. The population above is 2.0.0's, restated because a direct hop from any of these vintages crosses 2.0.0's record: the 1.1.0 fleet falls due as it does at 2.0.0, and the documented sweep (docs/runbooks/harness-upgrade.md, the 1.1.0 and 2.0.0 sections; scripts/ci/upgrade-sweep.mjs SWEEPS['1.1.0'] and SWEEPS['2.0.0']) is what clears it. A 1.1.0 or 2.0.0 install meets nothing that expires. Read the count off `node scripts/ci/ramp-expectations.mjs <base> 2.0.1`, never off this paragraph."
     }
+  },
+  "2.0.2": {
+    "//": [
+      "2.0.2 — a patch: the installer stops moving an install backwards, and every printed CLI command names `@latest`. The version bump changes the nine hook version stamps and the upgrade runbook, both OWNED and re-planted by `update` when sha-unmodified. A patch opens no ramp and moves no deadline, so the record carries no removed/renamed/configSteps/seedOnInitOnly/seededSourceFixes/dependencyObligations and no rampExtensions, and scripts/ci/upgrade-sweep.mjs needs no SWEEPS['2.0.2'] entry: nothing is withheld.",
+      "THE INSTALLER REFUSES A CLI OLDER THAN THE INSTALL. `update`, `enable`, `disable` and `eject` write the running CLI's copy of the template, so before 2.0.2 an older CLI moved an install backwards without a word: a 2.0.0 CLI over a 2.0.1 install printed `harness update 2.0.1 → 2.0.0` and rewrote 11 owned files. A global install (`npm i -g`) stays at the release it was installed at, and a bare `npx next-expo-supabase-agent-harness` resolves to that copy, so this was the ordinary stale-CLI case. All four now stop before their first write, naming both versions and `npx next-expo-supabase-agent-harness@latest <command>`. The same version is still allowed. This lives in the installer, so it protects an install from the 2.0.2 CLI onward whatever the install's own vintage; an older CLI cannot be made to refuse.",
+      "`graduate` ADVANCES baseVersion TO THE INSTALL'S harnessVersion, not the CLI's version, so `npx …@latest graduate` on an install that has not been updated no longer marks ramps the install does not carry as swept. An install that graduated with a newer CLI before 2.0.2 records a baseVersion above its harnessVersion, so the checks ramped between the two arrive as hard reds rather than NOTEs when it updates; nothing in 2.0.2 rewrites a recorded baseVersion.",
+      "THE GATE MESSAGES, HOOKS AND SHIPPED DOCS NAME `npx next-expo-supabase-agent-harness@latest <command>` wherever they printed the bare `npx next-expo-supabase-agent-harness <command>`. The changed files are OWNED and re-planted when sha-unmodified; a kept fork keeps the bare spelling, which still runs. The write guard's `apply-proposal-invocation` rule (.claude/hooks/lib/guard-rules.mjs, OWNED) now also matches the bare `next-expo-supabase-agent-harness` command a global install provides and `npm exec`, neither of which it caught before."
+    ],
+    "rampExpiry": {
+      "//": "COMPUTED by scripts/check-ramp-ledger.mjs at version 2.0.2 and copied from its output, never typed. The vintage list is identical to 2.0.1's, and 2.0.0's, for the reason 1.0.4's was identical to 1.0.3's: a patch closes no new escape, but a direct hop from an old vintage crosses 2.0.0's record and meets its expiries on arrival, so the population is restated rather than inherited by implication.",
+      "affects": [
+        "0.1.3",
+        "0.2.0",
+        "0.2.1",
+        "0.3.0",
+        "0.4.0",
+        "0.5.0",
+        "0.6.0",
+        "0.7.0",
+        "0.8.0",
+        "0.9.0",
+        "0.9.5",
+        "0.9.9",
+        "0.10.0",
+        "0.11.0",
+        "0.11.1",
+        "1.0.0",
+        "1.0.1",
+        "1.0.2",
+        "1.0.3",
+        "1.0.4"
+      ],
+      "why": "2.0.2 opens no escape and closes none. The population above is 2.0.0's, restated because a direct hop from any of these vintages crosses 2.0.0's record: the 1.1.0 fleet falls due as it does at 2.0.0, and the documented sweep (docs/runbooks/harness-upgrade.md, the 1.1.0 and 2.0.0 sections; scripts/ci/upgrade-sweep.mjs SWEEPS['1.1.0'] and SWEEPS['2.0.0']) is what clears it. A 1.1.0, 2.0.0 or 2.0.1 install meets nothing that expires. Read the count off `node scripts/ci/ramp-expectations.mjs <base> 2.0.2`, never off this paragraph."
+    }
   }
 }

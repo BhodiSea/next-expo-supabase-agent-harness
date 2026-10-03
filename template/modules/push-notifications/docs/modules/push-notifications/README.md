@@ -52,7 +52,7 @@ wired into one but not the others reds. APPLY.md carries the exact hunks.
 ## How enabling works
 
 ```
-npx next-expo-supabase-agent-harness enable push-notifications
+npx next-expo-supabase-agent-harness@latest enable push-notifications
 ```
 
 copies the files above into `docs/modules/push-notifications/`. No gate config

@@ -257,7 +257,7 @@ if (
 if (register === null) {
   fail(
     GATE,
-    `${REGISTER} is missing — it is the reviewed suppression register this gate closes against. Pull the seeded exemplar with \`npx next-expo-supabase-agent-harness update --refresh-seeded ${REGISTER}\`; its shipped state matches the scaffold's own directives exactly.`,
+    `${REGISTER} is missing — it is the reviewed suppression register this gate closes against. Pull the seeded exemplar with \`npx next-expo-supabase-agent-harness@latest update --refresh-seeded ${REGISTER}\`; its shipped state matches the scaffold's own directives exactly.`,
   )
 }
 

@@ -53,7 +53,7 @@ const A11Y_SUITE = 'apps/mobile/__tests__/primitives-a11y.test.tsx'
 if (!existsSync(A11Y_SUITE)) {
   fail(
     GATE,
-    `${A11Y_SUITE} is missing — the primitives accessibility sweep is the mobile lane's a11y net (the web lane's axe-scan twin), and a jest run without it passes green while checking no accessibility contract at all. Restore it from git history, or pull the template copy with \`npx next-expo-supabase-agent-harness update --refresh-seeded ${A11Y_SUITE}\`.`,
+    `${A11Y_SUITE} is missing — the primitives accessibility sweep is the mobile lane's a11y net (the web lane's axe-scan twin), and a jest run without it passes green while checking no accessibility contract at all. Restore it from git history, or pull the template copy with \`npx next-expo-supabase-agent-harness@latest update --refresh-seeded ${A11Y_SUITE}\`.`,
   )
 }
 

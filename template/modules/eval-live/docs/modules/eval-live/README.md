@@ -30,7 +30,7 @@ pre-validation and exemplar/holdout disjointness.
 ## How enabling works
 
 ```
-npx next-expo-supabase-agent-harness enable eval-live
+npx next-expo-supabase-agent-harness@latest enable eval-live
 ```
 
 `live.test.ts` joins the default vitest lane immediately (fake fetch — proves the

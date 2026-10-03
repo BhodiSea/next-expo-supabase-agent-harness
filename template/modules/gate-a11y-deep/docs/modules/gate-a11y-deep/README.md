@@ -36,7 +36,7 @@ registers joins the sweep the same day with zero wiring.
 ## How enabling works
 
 ```
-npx next-expo-supabase-agent-harness enable gate-a11y-deep
+npx next-expo-supabase-agent-harness@latest enable gate-a11y-deep
 ```
 
 The sweep lands inside `apps/mobile/__tests__/`, which means it **joins the

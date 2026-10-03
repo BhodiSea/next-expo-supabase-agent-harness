@@ -212,7 +212,7 @@ if (existsSync(EAS_JSON)) {
   const iosToolchain = existsSync(STORE_POLICY) ? readJson(STORE_POLICY).iosToolchain : undefined
   if (iosToolchain === undefined) {
     toolchainErrs.push(
-      `${STORE_POLICY} carries no iosToolchain record while ${EAS_JSON} exists — the Xcode floor is a reviewed decision and the file is harness-owned, so a missing record is a stale or tampered tree, not a choice; restore it via \`npx next-expo-supabase-agent-harness update\``,
+      `${STORE_POLICY} carries no iosToolchain record while ${EAS_JSON} exists — the Xcode floor is a reviewed decision and the file is harness-owned, so a missing record is a stale or tampered tree, not a choice; restore it via \`npx next-expo-supabase-agent-harness@latest update\``,
     )
   }
   // Resolve the production profile's ios.image through the `extends` chain: the profile
@@ -476,7 +476,7 @@ if (existsSync(EOL_PATH)) {
   // as "there was nothing to check". Ramped with the rest of the section: an install that has
   // not run `update` since 0.9.9 has not been given the file yet either.
   eolErrs.push(
-    `${EOL_PATH} is absent, so no dependency in this tree is being checked for VENDOR SUPPORT — only for patch level. It is a seeded file that ships with 0.9.9: run \`npx next-expo-supabase-agent-harness update\` to get it, or restore it if this tree deleted it.`,
+    `${EOL_PATH} is absent, so no dependency in this tree is being checked for VENDOR SUPPORT — only for patch level. It is a seeded file that ships with 0.9.9: run \`npx next-expo-supabase-agent-harness@latest update\` to get it, or restore it if this tree deleted it.`,
   )
 }
 
@@ -769,7 +769,7 @@ if (existsSync(SUPPORT_PATH)) {
   )
 } else {
   supportErrs.push(
-    `${SUPPORT_PATH} is absent, so no online service or platform this stack runs on has a reviewed vendor-support disposition (Essential Eight PA-11/POS-16). It is a seeded file that ships with 1.0.0: run \`npx next-expo-supabase-agent-harness update\` to get it, or restore it if this tree deleted it.`,
+    `${SUPPORT_PATH} is absent, so no online service or platform this stack runs on has a reviewed vendor-support disposition (Essential Eight PA-11/POS-16). It is a seeded file that ships with 1.0.0: run \`npx next-expo-supabase-agent-harness@latest update\` to get it, or restore it if this tree deleted it.`,
   )
 }
 if (supportErrs.length > 0) {

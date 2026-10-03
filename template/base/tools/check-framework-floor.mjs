@@ -68,7 +68,7 @@ if (existsSync(ccPath)) {
   }
 } else {
   console.log(
-    `${GATE}: NOTE — ${ccPath} is absent, so the Claude Code version floor is not being reviewed. It ships with 0.6.0; run \`npx next-expo-supabase-agent-harness update\` to get it.`,
+    `${GATE}: NOTE — ${ccPath} is absent, so the Claude Code version floor is not being reviewed. It ships with 0.6.0; run \`npx next-expo-supabase-agent-harness@latest update\` to get it.`,
   )
 }
 
@@ -96,7 +96,7 @@ if (existsSync(eolPath)) {
   }
 } else {
   console.log(
-    `${GATE}: NOTE — ${eolPath} is absent, so no dependency here is being reviewed for VENDOR SUPPORT, only for patch level. It ships with 0.9.9; run \`npx next-expo-supabase-agent-harness update\` to get it.`,
+    `${GATE}: NOTE — ${eolPath} is absent, so no dependency here is being reviewed for VENDOR SUPPORT, only for patch level. It ships with 0.9.9; run \`npx next-expo-supabase-agent-harness@latest update\` to get it.`,
   )
 }
 
@@ -121,7 +121,7 @@ if (existsSync(supportPath)) {
   }
 } else {
   console.log(
-    `${GATE}: NOTE — ${supportPath} is absent, so no online service or platform is being reviewed for VENDOR SUPPORT. It ships with 1.0.0; run \`npx next-expo-supabase-agent-harness update\` to get it.`,
+    `${GATE}: NOTE — ${supportPath} is absent, so no online service or platform is being reviewed for VENDOR SUPPORT. It ships with 1.0.0; run \`npx next-expo-supabase-agent-harness@latest update\` to get it.`,
   )
 }
 

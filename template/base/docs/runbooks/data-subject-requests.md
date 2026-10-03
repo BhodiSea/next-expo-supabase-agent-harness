@@ -91,7 +91,7 @@ Three properties worth knowing when someone asks why the numbers look the way th
   legitimate moves are to ship your own surface (the template's
   `packages/api/src/routers/system.ts` + `packages/api/src/export.ts` +
   `@app/notes` `listAuthoredNotes` are the worked pattern, and
-  `npx next-expo-supabase-agent-harness update --refresh-seeded tools/data-flow.json` pulls
+  `npx next-expo-supabase-agent-harness@latest update --refresh-seeded tools/data-flow.json` pulls
   the reviewed exemplar of the policy file) or to re-review the target to a release you mean,
   in a reviewed diff.
 

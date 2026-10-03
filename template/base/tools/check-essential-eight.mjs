@@ -102,7 +102,7 @@ if (!existsSync(path)) {
   failures(
     GATE,
     [
-      `${REGISTER} is missing — it is the reviewed conformance register this gate judges. Pull the seeded exemplar with \`npx next-expo-supabase-agent-harness update --refresh-seeded ${REGISTER}\`.`,
+      `${REGISTER} is missing — it is the reviewed conformance register this gate judges. Pull the seeded exemplar with \`npx next-expo-supabase-agent-harness@latest update --refresh-seeded ${REGISTER}\`.`,
       ...proofProblems,
     ],
     null,

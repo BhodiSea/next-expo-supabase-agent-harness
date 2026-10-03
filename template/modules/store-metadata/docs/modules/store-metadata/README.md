@@ -40,7 +40,7 @@ against. SOURCE: https://docs.expo.dev/eas/metadata/
 ## How enabling works
 
 ```
-npx next-expo-supabase-agent-harness enable store-metadata
+npx next-expo-supabase-agent-harness@latest enable store-metadata
 ```
 
 copies the files and records them in `.harness/manifest.json`. No

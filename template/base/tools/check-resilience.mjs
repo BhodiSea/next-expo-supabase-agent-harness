@@ -225,7 +225,7 @@ if (
 if (register === null) {
   fail(
     GATE,
-    `${REGISTER} is missing — it is the reviewed posture register this gate closes against (the scan above still found ${String(sites.size)} seam file(s)). Pull the seeded exemplar with \`npx next-expo-supabase-agent-harness update --refresh-seeded ${REGISTER}\`; its shipped state declares the scaffold's own seams exactly.`,
+    `${REGISTER} is missing — it is the reviewed posture register this gate closes against (the scan above still found ${String(sites.size)} seam file(s)). Pull the seeded exemplar with \`npx next-expo-supabase-agent-harness@latest update --refresh-seeded ${REGISTER}\`; its shipped state declares the scaffold's own seams exactly.`,
   )
 }
 

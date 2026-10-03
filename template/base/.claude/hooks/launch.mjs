@@ -21,7 +21,7 @@
 // ONE tiny file with no imports, no parse-fragile content, under the write-guard deny
 // and the gate-integrity hash like its siblings, re-probed at every Claude Code pin
 // bump per CONTROL-PLANE-FACTS.
-export const HARNESS_HOOK_VERSION = '2.0.1'
+export const HARNESS_HOOK_VERSION = '2.0.2'
 
 const name = process.argv[2] ?? ''
 if (!/^[a-z][a-z-]*\.mjs$/.test(name) || name === 'launch.mjs') {
@@ -35,7 +35,7 @@ try {
   await import(new URL(name, import.meta.url).href)
 } catch (e) {
   process.stderr.write(
-    `launch.mjs: the hook ${name} FAILED TO LOAD (${e instanceof Error ? e.message : String(e)}) — failing closed, action blocked. A hook that cannot load is a guard that is not there: restore .claude/hooks/ from git history or run \`npx next-expo-supabase-agent-harness update --rollback\`; see docs/runbooks/harness-upgrade.md (RECOVERY).\n`,
+    `launch.mjs: the hook ${name} FAILED TO LOAD (${e instanceof Error ? e.message : String(e)}) — failing closed, action blocked. A hook that cannot load is a guard that is not there: restore .claude/hooks/ from git history or run \`npx next-expo-supabase-agent-harness@latest update --rollback\`; see docs/runbooks/harness-upgrade.md (RECOVERY).\n`,
   )
   process.exit(2)
 }

@@ -138,7 +138,7 @@ export const BASH_RULES = [
       'i',
     ),
     message:
-      "Blocked: a recursive force-delete (any flag spelling, any shell — `rm`, `Remove-Item`, `del`, `rd`) is forbidden by the harness. Use the non-force recursive form and let the shell tell you what it cannot remove. For ignored build output and tool caches (`apps/web/.next`, `apps/mobile/.expo`, `apps/mobile/dist`, `coverage`, `.stryker-tmp`, `.eslintcache`), run `npx next-expo-supabase-agent-harness doctor --clean`, which deletes each one only after git confirms it is ignored.",
+      "Blocked: a recursive force-delete (any flag spelling, any shell — `rm`, `Remove-Item`, `del`, `rd`) is forbidden by the harness. Use the non-force recursive form and let the shell tell you what it cannot remove. For ignored build output and tool caches (`apps/web/.next`, `apps/mobile/.expo`, `apps/mobile/dist`, `coverage`, `.stryker-tmp`, `.eslintcache`), run `npx next-expo-supabase-agent-harness@latest doctor --clean`, which deletes each one only after git confirms it is ignored.",
   },
   {
     id: 'shell-write-protected',
@@ -229,9 +229,11 @@ export const BASH_RULES = [
     // gen-lock-writer. `apply-proposal` must be a WHOLE argument (after whitespace, an
     // optional quote, and ending at whitespace, a quote, a separator or the end), so a
     // command that only names the verb's files, such as its test or a lint of it, is not
-    // matched.
+    // matched. 2.0.2: the README now documents a global install, whose command is the bare
+    // `next-expo-supabase-agent-harness`, so that name opens a match too, as does `npm`
+    // (`npm exec`); neither went through node, pnpm, npx or tsx.
     id: 'apply-proposal-invocation',
-    re: /\b(?:node|pnpm|npx|tsx)\b[^|;&]*\s["']?apply-proposal["']?(?=[\s"'|;&]|$)/,
+    re: /\b(?:node|pnpm|npm|npx|tsx|next-expo-supabase-agent-harness)\b[^|;&]*\s["']?apply-proposal["']?(?=[\s"'|;&]|$)/,
     message:
       'Blocked: `apply-proposal` writes a staged register edit into place, and applying it is the decision the write guard reserves for a human. Leave the proposal in harness-proposals/ and tell the user its id; they review the diff and apply it in their own terminal (HARNESS_ALLOW_SELF_EDIT=1 lifts this).',
     allowWhen: (_cmd, ctx) => ctx.selfEdit,
