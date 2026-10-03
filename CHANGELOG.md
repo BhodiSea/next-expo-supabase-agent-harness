@@ -11,10 +11,56 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
-## [Unreleased]
+## [2.0.1] — 2026-10-03
+
+**A security patch.** Five `next` advisories upstream published on 2026-09-30 covered the
+16.3.6 floor and pin 2.0.0 shipped, and two of them the 15.5.24 floor. The scheduled
+`floor-advisories` job reported them on 2026-10-02, hours before 2.0.0 was cut, and the
+2.0.0 floor decision did not read that run. 2.0.1 moves the floor and the pin to 16.3.8
+(15.5.27 on the 15 line) and records all five. No gate is added, the chain length does not
+change, and no ramp opens or moves. The `template/migrations.json` record withholds nothing
+and restates 2.0.0's twenty-vintage `rampExpiry` population. `scripts/lib/ramp-sites.mjs`
+`VINTAGES` grows by `2.0.0`.
+
+**This release reds existing installs, by design.** `update` refreshes the owned
+`tools/framework-floor.json` and leaves the seeded catalog alone, so `version-sync` reds on
+any `next` pin below the new floor until the consumer raises it. The remedy is in
+`docs/runbooks/harness-upgrade.md`, 2.0.1 section.
+
+### Security
+
+- **The `next` floor moves to 16.3.8 on the 16 line and 15.5.27 on the 15 line, and the
+  catalog pins 16.3.8.** Upstream published five advisories on 2026-09-30, none of them in
+  OSV on the day of review (2026-10-03):
+  GHSA-cjq9-62q9-8jv4 (CVE-2026-94483, High) is server-side request forgery in Image
+  Optimization through an allow-listed remote URL, for apps that configure
+  `images.remotePatterns`. GHSA-4jqv-mc3x-m676 (CVE-2026-94543) and GHSA-mcj8-r9mp-w47p
+  (CVE-2026-94484), both Moderate and on both lines, are cache poisoning of statically
+  generated and ISR pages, on the Pages Router when self-hosted and behind a root-level
+  catch-all page. GHSA-f87g-xv8r-7p7x (CVE-2026-94485, Moderate) is App Router metadata image
+  routes ignoring `dynamicParams` in webpack builds. GHSA-39w2-rjm5-chcv (CVE-2026-94486, Low)
+  is the `next dev` server's Model Context Protocol endpoint answering any origin.
+  Every one gives its patched version as an unannounced `16.3.?` (or `15.5.?`), so no
+  release is confirmed fixed. 16.3.8 and 15.5.27, the newest release on each line, came out
+  the same day, and the floor moves to them rather than wait; each row in
+  `tools/framework-floor.json` says the fix is unannounced. As shipped, the scaffold
+  configures no `images.remotePatterns`, is App Router only with no static generation or
+  ISR, and has no metadata image route, so of the five only the `next dev` disclosure
+  reached a tree that added none of those. The review window moves to 2026-10-03 through
+  2026-11-02. `pnpm-workspace.yaml` is seeded, so an existing install raises its own pin
+  (`docs/runbooks/harness-upgrade.md`, 2.0.1 section), and `scripts/ci/apply-framework-floor.mjs`
+  plays that remedy in the upgrade lane. A later release records the fixed versions once
+  upstream names them.
 
 ### Fixed
 
+- **`floor-advisories` reads an upper bound on an unannounced patch.** GHSA-cjq9-62q9-8jv4
+  gave its range as `>= 16.0.0 < 16.3.?`, and the job reported it as a range syntax no test
+  covers instead of judging it. An upper bound whose patch is `?` now reads as the whole
+  major.minor line (`< 16.3.?` means `< 16.4.0`), because the fix is somewhere on that line
+  and which release is unknown; a `?` anywhere else is still unreadable.
+  `tests/gates/floor-advisories.test.mjs` adds the evaluator cases and the advisory as the
+  run saw it. Factory only: nothing changes for an install.
 - **`publish-npm` waits up to ten minutes for the registry to show a new version.** After
   `npm publish`, the job reads the version back and fails unless the registry holds the
   attested tarball, with provenance, from the GitHub trusted publisher. It read ten times,

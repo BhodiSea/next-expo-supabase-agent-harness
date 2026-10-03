@@ -342,6 +342,28 @@ test('THE FIRST LIVE FINDING: GHSA-vcvr-r3jv-pc5j, upstream on its day and not y
   assert.match(r.out, /FLOOR ADVISORIES: 1 problem\(s\)/)
 })
 
+test('THE UNANNOUNCED FIX: GHSA-cjq9-62q9-8jv4 "< 16.3.?" is judged on the whole 16.3 line, not reported as unreadable', () => {
+  // Recorded from hygiene.yml run 37084357890 and the advisory page: High, published
+  // 2026-09-30, affected ">= 16.0.0 < 16.3.?", patched "16.3.?"; OSV answered 404 for it.
+  const cjq9 = upstreamAdvisory('GHSA-cjq9-62q9-8jv4', 'CVE-2026-94483', 'x', {
+    published_at: '2026-09-30T16:00:00Z',
+    vulnerabilities: [{ package: { ecosystem: 'npm', name: 'next' }, vulnerable_version_range: '>= 16.0.0 < 16.3.?', patched_versions: '16.3.?' }],
+  })
+  const responses = {
+    ...cleanResponses(),
+    'upstream:next': { status: 200, body: [upstreamAdvisory(RECORDED, null, '>= 16.0.0, < 16.3.3'), cjq9] },
+    ...notInOsv('GHSA-cjq9-62q9-8jv4'),
+  }
+  const r = run({ responses })
+  assert.equal(r.code, 1, r.out)
+  assert.doesNotMatch(r.out, /range syntax no test covers/)
+  assert.match(r.out, /GHSA-cjq9-62q9-8jv4 \(aliases: CVE-2026-94483\) listed by upstream .* affects next@16\.3\.3 \(floor, 16\.x line\), next@16\.3\.5 \(catalog pin\) — not recorded/)
+  assert.doesNotMatch(r.out, /next@15\.5\.24 \(floor/)
+  // Recorded under its GHSA id, it passes.
+  const recorded = run({ responses, floor: floorDoc([RECORDED, 'GHSA-cjq9-62q9-8jv4']) })
+  assert.equal(recorded.code, 0, recorded.out)
+})
+
 test('a patched version on the probe line itself clears the probe, whatever the free-text range says', () => {
   // GHSA-2xp9-vwfh-vxw4 as the vendor listed it: ">= 10.0.0 < 15.5.24" and "< 16.3.3", patched
   // "15.5.24, 16.3.3". Read alone, "< 16.3.3" covers 15.5.24; the patched list says it is fixed.
@@ -422,6 +444,18 @@ test('the range evaluator: each documented operator, a conjunction, a prerelease
   assert.equal(rangeIncludes('16.1.0', '16.1.0'), true)
   assert.equal(rangeIncludes('16.1.0', '16.1.1'), false)
   assert.equal(rangeIncludes('15.3.3-canary.0', '15.3.3-canary.0'), true)
+  // An upper bound on a patch the vendor has not announced yet (GHSA-cjq9-62q9-8jv4 read
+  // ">= 16.0.0 < 16.3.?" on 2026-10-03): the fix is somewhere on 16.3, so the whole line is in.
+  assert.equal(rangeIncludes('>= 16.0.0 < 16.3.?', '16.3.8'), true)
+  assert.equal(rangeIncludes('>= 16.0.0 < 16.3.?', '16.3.0'), true)
+  assert.equal(rangeIncludes('>= 16.0.0 < 16.3.?', '16.2.9'), true)
+  assert.equal(rangeIncludes('>= 16.0.0 < 16.3.?', '16.4.0'), false)
+  assert.equal(rangeIncludes('>= 16.0.0 < 16.3.?', '15.5.27'), false)
+  assert.equal(rangeIncludes('<= 15.5.?', '15.5.27'), true)
+  assert.equal(rangeIncludes('>= 16.0.0, < 16.3.?', '16.3.8'), true)
+  for (const unknown of ['>= 16.3.?', '> 16.3.?', '= 16.3.?', '16.3.?', '< 16.?.?', '< 16.3.??']) {
+    assert.equal(rangeIncludes(unknown, '16.3.3'), null, unknown)
+  }
   for (const unknown of ['^16.0.0', '~16.3.0', '16.x', '< 16.3', '>= 13.3, >= 14', '=> 11.1.4 < 12.3.5', '15.0.0 - 15.4.4', '>15.0.4 and <15.2.0', '10.0.0 <= 12.0.10', '< 1 || > 2', '>= 16.0.0,', '||', '', null, 7]) {
     assert.equal(rangeIncludes(/** @type {any} */ (unknown), '16.3.3'), null, String(unknown))
   }

@@ -3646,6 +3646,60 @@ Owned files re-planted when your copy still matches a released sha:
 `docs/harness/gates-catalog.md` and this runbook. Nothing here is ramped, withheld or
 seeded.
 
+## 2.0.1 — a security patch: the `next` floor moves to 16.3.8
+
+**No ramp here applies to any install.** 2.0.1 opens no ramp and moves no deadline. The
+population 2.0.0 reds is restated in this release's record, and the 1.1.0 and 2.0.0 sections
+above are still the sweep for an install below 1.1.0.
+
+**What `update` plants.** Owned files, re-planted when your copy still matches a released
+sha: `tools/framework-floor.json`, this runbook, and the hooks under `.claude/hooks/` (their
+version stamps). Nothing is withheld, and no seeded file changes on an existing install.
+
+### Expect `version-sync` to red on the `next` floor, whatever your `baseVersion`
+
+This one is not a ramp, and no `baseVersion` is exempt from it. The `next` floor moves from
+16.3.6 to **16.3.8** on the 16 line, and from 15.5.24 to **15.5.27** on the 15 line, for five
+advisories upstream published on 2026-09-30:
+
+- [GHSA-cjq9-62q9-8jv4](https://github.com/vercel/next.js/security/advisories/GHSA-cjq9-62q9-8jv4)
+  (High): server-side request forgery in Image Optimization through an allow-listed remote
+  URL. Only an app that configures `images.remotePatterns` is affected.
+- [GHSA-4jqv-mc3x-m676](https://github.com/vercel/next.js/security/advisories/GHSA-4jqv-mc3x-m676)
+  (Moderate, both lines): cache poisoning of statically generated and ISR pages on the Pages
+  Router, when self-hosted.
+- [GHSA-mcj8-r9mp-w47p](https://github.com/vercel/next.js/security/advisories/GHSA-mcj8-r9mp-w47p)
+  (Moderate, both lines): cache poisoning through a root-level catch-all page combined with
+  static generation or ISR.
+- [GHSA-f87g-xv8r-7p7x](https://github.com/vercel/next.js/security/advisories/GHSA-f87g-xv8r-7p7x)
+  (Moderate): App Router metadata image routes built with webpack ignore `dynamicParams`.
+- [GHSA-39w2-rjm5-chcv](https://github.com/vercel/next.js/security/advisories/GHSA-39w2-rjm5-chcv)
+  (Low): the `next dev` server's Model Context Protocol endpoint checks no origin. Production
+  builds are not affected.
+
+None of them names the release that fixes it yet: each lists its patched version as `16.3.?`
+(and `15.5.?` for the two cache poisonings). 16.3.8 and 15.5.27, the newest release on each
+line, came out the same day as the advisories, and the floor moves to them rather than wait.
+As shipped, the scaffold configures no `images.remotePatterns`, is App Router only with no
+static generation or ISR, and has no metadata image route, so of the five only the `next dev`
+disclosure reached a tree that added none of those. If yours added any of them, that
+advisory applies to it.
+
+`tools/framework-floor.json` is harness-owned, so `update` refreshes it. `pnpm-workspace.yaml`
+is seeded, so `update` does not touch your pins, and the first `pnpm validate` after the
+upgrade reds `version-sync` on a `next` pin below 16.3.8 (or 15.5.27 on the 15 line), naming
+the pin, the floor and the advisories. Raise the pin yourself:
+
+```
+# in the pnpm-workspace.yaml catalog: next: 16.3.8
+pnpm install && git add pnpm-lock.yaml pnpm-workspace.yaml
+pnpm validate
+```
+
+From 16.3.6 this is a patch on the same minor. No flag lowers the floor. Do not use
+`update --refresh-seeded pnpm-workspace.yaml` to take the pin: it replaces your whole catalog
+with the template's.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it
