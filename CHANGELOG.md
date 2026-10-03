@@ -11,6 +11,30 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [Unreleased]
+
+### Changed
+
+- **`init` prints its next steps as a numbered list.** It used to end with one 389-character
+  `next:` note carrying four commands, their order, two reasons and the rule the Stop hook
+  enforces. The steps now print one per line under `next steps:` (`git init`, `pnpm install`,
+  `git add -A && git commit` with the committed-lockfile reason, `pnpm validate`), and
+  `--report json` carries them as a `steps` array. `git init` is left out when the target is
+  already a git repository, and a retrofit keeps its note about merging the `.harness`
+  sibling configs. The list is `nextSteps()` in `installer/commands/init.mjs`, and
+  `check-ci-preconditions` and `tests/gates/next-steps-order.test.mjs` now read that function
+  for the committed-lockfile step and the `git init`-first order; both still go red when it
+  loses either. Contributed by @Soumo-git-hub (#162, #217).
+- **The README links the npm package and offers a global install.** A version badge beside
+  the OpenSSF badges points to the package's npm page, because GitHub's "Packages" panel lists
+  only packages published to GitHub Packages and so shows none for a package published to
+  npmjs.com. Beside the `npx` command the README now gives
+  `npm i -g next-expo-supabase-agent-harness`, and says why the install is global: `init`
+  scaffolds into the current directory and stops when it finds a `package-lock.json` there,
+  which a local `npm i` would create. The README's paragraph on how the package is published
+  and on the older `npx github:` form is gone; SECURITY.md (Verifying a release) and
+  docs/cli.md still cover both. Factory docs only: nothing changes for an install.
+
 ## [2.0.1] — 2026-10-03
 
 **A security patch.** Five `next` advisories upstream published on 2026-09-30 covered the
