@@ -9,8 +9,8 @@
 // other, and check-ci-preconditions only asks init's steps to name pnpm-lock.yaml.
 //
 // This test reads the files and never imports them: installer/commands/init.mjs is text here
-// exactly as scripts/lib/ci-preconditions.mjs reads it, with the same steps regex (not
-// exported there, so it is copied). Each slice is anchored narrowly: CONTRIBUTING's Local
+// exactly as scripts/lib/ci-preconditions.mjs reads it, and anchored on the same
+// `nextSteps` function. Each slice is anchored narrowly: CONTRIBUTING's Local
 // development list names `pnpm install` long before the recipe, and the recipe's own comment
 // names `git init`, so the slice starts at the `node installer/cli.mjs init --dir` line.
 // SOURCE: installer/commands/init.mjs · CONTRIBUTING.md · README.md · .github/ISSUE_TEMPLATE/
