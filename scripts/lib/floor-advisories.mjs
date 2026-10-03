@@ -237,9 +237,27 @@ const OPERATORS = /** @type {const} */ ({
   '=': (/** @type {number} */ c) => c === 0,
 })
 
-// One comparator: an operator (optional only when it stands alone) and an EXACT version.
-// Sticky, so a run of them must cover the text with nothing unread between.
-const COMPARATOR = /\s*(<=|>=|<|>|=)?\s*(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\s*/y
+// One comparator: an operator (optional only when it stands alone) and an EXACT version, or
+// an UNANNOUNCED PATCH (`16.3.?`, see unannouncedFix). Sticky, so a run of them must cover the
+// text with nothing unread between.
+const COMPARATOR = /\s*(<=|>=|<|>|=)?\s*(\d+\.\d+\.(?:\d+(?:-[0-9A-Za-z.-]+)?|\?))\s*/y
+
+/**
+ * An upper bound whose patch is `?`: the vendor published the advisory before naming the
+ * release that fixes it (all five next advisories of 2026-09-30 read "< 16.3.?" or list
+ * "16.3.?" as patched). The fix is some release on that major.minor line, and which one is
+ * unknown, so every release on the line is affected: `< 16.3.?` and `<= 16.3.?` both read as
+ * `< 16.4.0`. A `?` anywhere else (a lower bound, an equality, a bare version) says nothing
+ * certain and stays unreadable.
+ * @param {string} op
+ * @param {string} version
+ * @returns {{ op: '<', version: string } | null}
+ */
+function unannouncedFix(op, version) {
+  if (op !== '<' && op !== '<=') return null
+  const [major, minor] = version.split('.')
+  return { op: '<', version: `${major}.${String(Number(minor) + 1)}.0` }
+}
 
 /**
  * Whitespace-joined comparators, all of which must hold — the vendor's own form, as in
@@ -254,6 +272,12 @@ function conjunction(text) {
   while (COMPARATOR.lastIndex < text.length) {
     const m = COMPARATOR.exec(text)
     if (m === null) return null
+    if (m[2].endsWith('.?')) {
+      const bound = unannouncedFix(m[1] ?? '=', m[2])
+      if (bound === null) return null
+      parts.push({ ...bound, bare: false })
+      continue
+    }
     parts.push({ op: /** @type {keyof typeof OPERATORS} */ (m[1] ?? '='), version: m[2], bare: m[1] === undefined })
   }
   if (parts.length === 0 || (parts.length > 1 && parts.some((p) => p.bare))) return null
@@ -274,7 +298,8 @@ const isUpper = (c) => c.op === '<' || c.op === '<='
  *     documented pair, exactly one lower bound, a comma, then one upper bound above it
  *     (">= 16.0.0, < 16.3.3"), which is one conjunction. Read as alternatives, any other
  *     comma can only cover MORE versions than its author meant, never fewer.
- * Every comparator names an exact version (a prerelease allowed). Anything else — x-ranges,
+ * Every comparator names an exact version (a prerelease allowed), or an upper bound on a patch
+ * the vendor has not announced ("< 16.3.?", read as the whole 16.3 line). Anything else — x-ranges,
  * `^`, `~`, hyphen ranges, partial versions, `and`, `=>`, an empty alternative — returns
  * null, which the caller reports as a failure, because a range this function guessed at
  * could silently exclude the version it was asked about.
