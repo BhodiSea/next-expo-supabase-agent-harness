@@ -167,7 +167,7 @@ commit it, so the widening lands in the PR diff under CODEOWNERS.
 
 ### Then graduate
 
-Once `pnpm validate` is green, `npx next-expo-supabase-agent-harness graduate` advances
+Once `pnpm validate` is green, `npx next-expo-supabase-agent-harness@latest graduate` advances
 `baseVersion` to 0.4.0 and prints the failing gate with its detail bullets if anything
 still holds it back. Re-run validate: the NOTEs are gone and the checks are live.
 
@@ -242,7 +242,7 @@ moved the deadline unseen.)
 
 ### Then graduate
 
-`npx next-expo-supabase-agent-harness graduate` advances `baseVersion` to 0.5.0 once
+`npx next-expo-supabase-agent-harness@latest graduate` advances `baseVersion` to 0.5.0 once
 `pnpm validate` is green.
 
 ## 0.6.0 — NOTHING NEW EXPIRES, and one deadline moves LATER
@@ -403,7 +403,7 @@ this table cannot drift from what is actually required.
 
 ### Then graduate
 
-`npx next-expo-supabase-agent-harness graduate` advances `baseVersion` to 0.6.0 once
+`npx next-expo-supabase-agent-harness@latest graduate` advances `baseVersion` to 0.6.0 once
 `pnpm validate` is green — and it still refuses while any ramp NOTE stands, which is
 how you know the sweep was real.
 
@@ -558,7 +558,7 @@ edit to the paths it covers.
 
 ### Then graduate
 
-`npx next-expo-supabase-agent-harness graduate` advances `baseVersion` to 0.7.0
+`npx next-expo-supabase-agent-harness@latest graduate` advances `baseVersion` to 0.7.0
 once `pnpm validate` is green — and it still refuses while any ramp NOTE stands,
 including the three chain-side ones this release opens.
 
@@ -629,7 +629,7 @@ The escape ends at 0.9.0.
 ### Then graduate
 
 Sweep the reds (the 0.7.0 rows), paste the gate list, clear any containment
-NOTEs, then `npx next-expo-supabase-agent-harness graduate` — it refuses while a
+NOTEs, then `npx next-expo-supabase-agent-harness@latest graduate` — it refuses while a
 chain NOTE stands, and moving `baseVersion` to 0.8.0 is what retires every ramp
 at or below it. This section is executed, not reviewed: the upgrade lane's leg E
 runs exactly this page against a v0.3.0 install and reds the release if
@@ -694,7 +694,7 @@ every description of the harness counts it armed. The move is one command:
 
 Sweep the reds (the 0.8.0 rows), paste the gate list, clear any containment
 NOTEs with the corrected register rows, then
-`npx next-expo-supabase-agent-harness graduate`. A `baseVersion` 0.8.0 install
+`npx next-expo-supabase-agent-harness@latest graduate`. A `baseVersion` 0.8.0 install
 with a committed lockfile and installed hooks sweeps NOTHING — graduate reaches
 its success branch untouched, the first un-swept graduation in the lineage, and
 the upgrade lane's leg A holds the release to exactly that.
@@ -774,7 +774,7 @@ yours:
 Separately from the expiries, `update` parks one `seededSourceFixes` instruction
 covering five files it cannot edit for you: the two axe specs, the tenant
 switcher's link sizing, the rate limiter's outage rung, and its budget policy's
-new `fallback` field. `npx next-expo-supabase-agent-harness doctor` surfaces it,
+new `fallback` field. `npx next-expo-supabase-agent-harness@latest doctor` surfaces it,
 and each probe self-clears once your tree stops matching the broken shape. Those
 corrections are **not** on a deadline in this release — the checkers that demand
 them are ramped to 0.11.0.
@@ -782,7 +782,7 @@ them are ramped to 0.11.0.
 ### Then graduate
 
 Sweep the reds, then
-`npx next-expo-supabase-agent-harness graduate`, then re-run `pnpm validate`.
+`npx next-expo-supabase-agent-harness@latest graduate`, then re-run `pnpm validate`.
 
 ## 0.11.0 — THE SEVENTH ALARM, and the widest population the lineage has published
 
@@ -1053,7 +1053,7 @@ reds on a deprecated package your register has no row for. Two ways to clear it:
 ```
 # if you have never edited tools/eol.json: take the harness's register, which now
 # carries an eslint 9 row (overwrites when untouched, parks on drift)
-npx next-expo-supabase-agent-harness update --refresh-seeded tools/eol.json
+npx next-expo-supabase-agent-harness@latest update --refresh-seeded tools/eol.json
 
 # if you have your own rows: copy the eslint row from the parked or template copy into yours
 ```
@@ -1119,7 +1119,7 @@ against the local stack of Supabase CLI 2.115 and fails against 2.117, which app
 default privileges the way the platform documents them. If that assertion goes red after a
 CLI upgrade, the test is right and this migration is the fix. To pull the stricter version
 of the test, which covers all seven tables and TRUNCATE:
-`npx next-expo-supabase-agent-harness update --refresh-seeded supabase/tests/rls_structure.test.sql`,
+`npx next-expo-supabase-agent-harness@latest update --refresh-seeded supabase/tests/rls_structure.test.sql`,
 after the migration is applied.
 
 ### The authoring guidance now teaches the revoke this release shipped
@@ -2105,7 +2105,7 @@ rail and `audit_immutability` its audit trigger, both renamed. The fixture runs 
 
 **Your install keeps its suites.** They are seeded: `update` does not rewrite them, and
 nothing in your chain asks for the new ones. If you never edited a suite, pull the new one
-with `npx next-expo-supabase-agent-harness update --refresh-seeded supabase/tests/<file>`,
+with `npx next-expo-supabase-agent-harness@latest update --refresh-seeded supabase/tests/<file>`,
 the channel the 1.0.2 section uses for `rls_structure.test.sql`, then run
 `pnpm db:reset && pnpm test:rls`. If you did edit it, `--refresh-seeded` keeps your copy,
 parks the new one under `.harness/pending/supabase/tests/`, and exits 2: merge by hand, by
@@ -2606,7 +2606,7 @@ reads it. `format` checks it like any other file, so the agent writes it the way
 **What to do.**
 
 1. **List what is pending.** `doctor` lists each proposal as `info`, and so does
-   `npx next-expo-supabase-agent-harness apply-proposal` with no id. Run the installer of
+   `npx next-expo-supabase-agent-harness@latest apply-proposal` with no id. Run the installer of
    the harness version you installed or a later one.
 2. **Review one.** Add the id and `--dry-run`: the command prints the reason and a
    `git diff --no-index` of the current file against the proposed one, and writes nothing.
@@ -2802,7 +2802,7 @@ section shows, then run `doctor` again:
 ```
 # in the pnpm-workspace.yaml catalog: vitest: 4.1.11 and '@vitest/coverage-v8': 4.1.11
 pnpm install && git add pnpm-lock.yaml pnpm-workspace.yaml
-npx next-expo-supabase-agent-harness doctor
+npx next-expo-supabase-agent-harness@latest doctor
 ```
 
 `doctor` deletes `.harness/pending/pin-floors.json` once every floor is met and says so in
@@ -3244,7 +3244,7 @@ gone. On an install whose `baseVersion` is 1.1.0 or later it reds from the start
 
 **The sweep.**
 
-1. Pull the split: `npx next-expo-supabase-agent-harness update --refresh-seeded
+1. Pull the split: `npx next-expo-supabase-agent-harness@latest update --refresh-seeded
    supabase/functions/delete-account/`. An `index.ts` you never changed is replaced; one you
    changed stays, the new one is parked under `.harness/pending/`, and you carry your change
    into `handler.ts` by hand. Then `pnpm exec vitest run supabase/functions` runs the suite,
@@ -3700,6 +3700,56 @@ From 16.3.6 this is a patch on the same minor. No flag lowers the floor. Do not 
 `update --refresh-seeded pnpm-workspace.yaml` to take the pin: it replaces your whole catalog
 with the template's.
 
+## 2.0.2 — run the CLI at `@latest`; the installer refuses an older one
+
+**No ramp here applies to any install.** 2.0.2 opens no ramp and moves no deadline. The
+population 2.0.0 reds is restated in this release's record, and the 1.1.0 and 2.0.0 sections
+above are still the sweep for an install below 1.1.0.
+
+**What `update` plants.** Owned files, re-planted when your copy still matches a released
+sha: this runbook, the hooks under `.claude/hooks/` (their version stamps, and the write
+guard's `apply-proposal` rule), the gate scripts under `tools/` and the harness docs whose
+messages print a CLI command. Nothing is withheld, and no seeded file changes on an existing
+install.
+
+### Every printed command names `@latest`
+
+The gate messages, hooks and docs used to print `npx next-expo-supabase-agent-harness
+<command>`. When a global install is on your `PATH`, that bare form runs the global copy, at
+whatever release it was installed at. They now print `npx
+next-expo-supabase-agent-harness@latest <command>`, which always fetches the newest release.
+A fork you kept prints the old spelling, and it still runs.
+
+If you installed the CLI globally (`npm i -g next-expo-supabase-agent-harness`), run
+`npm i -g next-expo-supabase-agent-harness@latest` before `update` to move it to the newest
+release.
+
+### `update`, `enable`, `disable` and `eject` refuse a CLI older than the install
+
+Each writes the running CLI's copy of the template, so an older CLI used to move an install
+backwards without a word: a 2.0.0 CLI over a 2.0.1 install printed `harness update 2.0.1 →
+2.0.0` and rewrote 11 owned files. From the 2.0.2 CLI on, the four stop before their first
+write and print both versions and the command to run instead:
+
+```
+error: this install is v2.0.2 and this CLI is v2.0.1, an older release, so `update` would write v2.0.1 files over it. Run the current release instead: `npx next-expo-supabase-agent-harness@latest update` (with a global install, run `npm i -g next-expo-supabase-agent-harness@latest` first).
+```
+
+Running the same version as the install is still allowed. The check is in the installer, so
+only a 2.0.2 or later CLI makes it; an older CLI cannot be made to refuse.
+
+### `graduate` advances `baseVersion` to the install's version, not the CLI's
+
+`graduate` used to set `baseVersion` to the version of the CLI that ran it. Run at `@latest`
+on an install that had not been updated, it marked ramps the install does not carry as
+swept. It now advances `baseVersion` to the install's own `harnessVersion`, whichever CLI runs
+it. An install that is behind runs `update` first.
+
+If your install graduated with a newer CLI before 2.0.2, its `baseVersion` in
+`.harness/manifest.json` is above its `harnessVersion`. The checks ramped between the two
+then arrive as hard reds rather than NOTEs when you update. Nothing in 2.0.2 rewrites a
+recorded `baseVersion`.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it
@@ -3717,7 +3767,7 @@ by symptom:
    nothing left. This is the default remedy.
 3. **You want the pre-update tree back** (the update revealed a red you are not
    ready to sweep, or you suspect damage):
-   `npx next-expo-supabase-agent-harness update --rollback` — restores every
+   `npx next-expo-supabase-agent-harness@latest update --rollback` — restores every
    recorded path byte-for-byte (files first, manifest last), deletes files the
    update created, and keeps the blob so a repeated rollback is a no-op. The
    next `update` replaces the snapshot; `graduate` deletes it (restoring a
@@ -3747,12 +3797,12 @@ by symptom:
 
 1. **Sweep.** Run `pnpm validate` and fix everything the ramped check reports in
    its NOTE lines, exactly as if they were reds. Pull any new exemplars you want
-   first (`npx next-expo-supabase-agent-harness update --refresh-seeded <path>` — the
+   first (`npx next-expo-supabase-agent-harness@latest update --refresh-seeded <path>` — the
    update report names them).
 2. **Bump `baseVersion`** in `.harness/manifest.json` to the version the NOTE
    names (or the current release). This is a HUMAN decision: the file is
    write-guard-protected against agents, so edit it outside an agent session (a
-   plain editor is fine), or run `npx next-expo-supabase-agent-harness graduate` —
+   plain editor is fine), or run `npx next-expo-supabase-agent-harness@latest graduate` —
    it runs the ramp-aware validate and advances `baseVersion` only when zero
    ramp NOTEs remain. Do not bump past checks you have not swept — every ramped
    check at or below the new `baseVersion` goes live at once.
@@ -3770,7 +3820,7 @@ install keeps its old shape (and gets a NOTE naming the newer one) until you
 pull the file deliberately:
 
 ```
-npx next-expo-supabase-agent-harness update --refresh-seeded tools/perf-budget.json
+npx next-expo-supabase-agent-harness@latest update --refresh-seeded tools/perf-budget.json
 ```
 
 In this harness the pattern covers, among others:

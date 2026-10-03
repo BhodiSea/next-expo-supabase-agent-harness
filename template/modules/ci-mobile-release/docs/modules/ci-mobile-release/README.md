@@ -63,7 +63,7 @@ silently green.
 ## How enabling works
 
 ```
-npx next-expo-supabase-agent-harness enable ci-mobile-release
+npx next-expo-supabase-agent-harness@latest enable ci-mobile-release
 ```
 
 copies the files above and records them in `.harness/manifest.json`. The release

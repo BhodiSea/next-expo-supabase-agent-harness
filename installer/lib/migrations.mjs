@@ -26,7 +26,7 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { templateRoot, toPosix } from './copy.mjs'
-import { sha256 } from './manifest.mjs'
+import { installerVersion, sha256 } from './manifest.mjs'
 import { writeInstallFile } from './write-file.mjs'
 
 export function readTemplateMigrations() {
@@ -52,6 +52,28 @@ export function cmpVersions(a, b) {
     if (na !== nb) return na < nb ? -1 : 1
   }
   return 0
+}
+
+/**
+ * Refuse a CLI older than the install it is about to write into (2.0.2). `update`, `enable`,
+ * `disable` and `eject` write template bytes, and the bytes they hold are the running CLI's:
+ * an older CLI moved an install BACKWARDS without a word (a 2.0.0 CLI over a 2.0.1 scaffold
+ * printed `harness update 2.0.1 → 2.0.0` and rewrote 11 owned files). A global install stays
+ * at the release it was installed at, and a bare `npx next-expo-supabase-agent-harness`
+ * resolves to that copy, so this is the ordinary stale-CLI case. Same version is allowed: a
+ * re-sweep at the install's own release is how drift gets repaired.
+ * @param {{ harnessVersion?: unknown }} manifest
+ * @param {string} command the command line to repeat with `@latest`, e.g. `update`
+ */
+export function refuseOlderCli(manifest, command) {
+  const installed = manifest.harnessVersion
+  const running = installerVersion()
+  if (typeof installed !== 'string' || cmpVersions(running, installed) >= 0) return
+  throw new Error(
+    `this install is v${installed} and this CLI is v${running}, an older release, so \`${command}\` would write v${running} files over it. ` +
+      `Run the current release instead: \`npx next-expo-supabase-agent-harness@latest ${command}\` ` +
+      '(with a global install, run `npm i -g next-expo-supabase-agent-harness@latest` first).',
+  )
 }
 
 // migrations.json also carries a "//" doc key — and nested records carry their own.

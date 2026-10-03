@@ -1,7 +1,7 @@
 # Encryption invariants (always loaded; also hook- and lint-enforced)
 
 This rule is always loaded, and it holds only what applies while the opt-in `e2ee`
-module is OFF: until `npx next-expo-supabase-agent-harness enable e2ee` puts
+module is OFF: until `npx next-expo-supabase-agent-harness@latest enable e2ee` puts
 `@app/crypto` in `packages/platform/crypto/`, there is no encryption code for the
 full rule to govern. Every bullet names the check that holds it, and each of those
 checks runs in a base install. The full rule, `.claude/rules/e2ee.md`, ships with the

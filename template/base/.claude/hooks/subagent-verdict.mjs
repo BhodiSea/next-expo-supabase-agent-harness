@@ -112,7 +112,7 @@ import * as hookio from './lib/hookio.mjs'
 import * as roster from '../../tools/lib/agent-roster.mjs'
 import { TURN_LOG, recordTurnOutcome } from './lib/turn-outcomes.mjs'
 
-export const HARNESS_HOOK_VERSION = '2.0.1'
+export const HARNESS_HOOK_VERSION = '2.0.2'
 
 const AGENTS_DIR = '.claude/agents'
 const LEDGER = '.harness/reviewer-ledger.jsonl'

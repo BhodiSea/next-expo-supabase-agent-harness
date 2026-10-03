@@ -12,7 +12,7 @@ import process from 'node:process'
 // undefined, and the guarded call below records nothing.
 import * as hookio from './lib/hookio.mjs'
 
-export const HARNESS_HOOK_VERSION = '2.0.1'
+export const HARNESS_HOOK_VERSION = '2.0.2'
 
 const input = await hookio.readHookInput()
 const ti = input?.tool_input ?? {}

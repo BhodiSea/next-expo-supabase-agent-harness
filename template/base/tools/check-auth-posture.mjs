@@ -89,7 +89,7 @@ try {
 if (!existsSync(TUNABLES)) {
   fail(
     GATE,
-    `${TUNABLES} is missing — it is the seeded register holding this project's OWN values for the tunable auth keys (${POLICY} holds the floor and the bounds). Pull the seeded exemplar with \`npx next-expo-supabase-agent-harness update --refresh-seeded ${TUNABLES}\`.`,
+    `${TUNABLES} is missing — it is the seeded register holding this project's OWN values for the tunable auth keys (${POLICY} holds the floor and the bounds). Pull the seeded exemplar with \`npx next-expo-supabase-agent-harness@latest update --refresh-seeded ${TUNABLES}\`.`,
   )
 }
 let tunables
@@ -412,7 +412,7 @@ if (
   })
 ) {
   console.log(
-    `${GATE}: NOTE — ${String(mfaErrs.length)} [auth.mfa] finding(s) withheld by the ${MFA_RAMP} ramp. Apply the section from the template (\`npx next-expo-supabase-agent-harness update --refresh-seeded supabase/config.toml\` shows it) or copy it from docs/adr/20260812-mfa-aal2.md; until then the aal2 rail is inert on this install:`,
+    `${GATE}: NOTE — ${String(mfaErrs.length)} [auth.mfa] finding(s) withheld by the ${MFA_RAMP} ramp. Apply the section from the template (\`npx next-expo-supabase-agent-harness@latest update --refresh-seeded supabase/config.toml\` shows it) or copy it from docs/adr/20260812-mfa-aal2.md; until then the aal2 rail is inert on this install:`,
   )
   for (const e of mfaErrs) console.log(`  - ${e}`)
 } else {

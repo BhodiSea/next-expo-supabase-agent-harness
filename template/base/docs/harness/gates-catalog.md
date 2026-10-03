@@ -3103,7 +3103,7 @@ tests/gates/severity-contract.test.mjs.
 
 ## Opt-in modules
 
-`npx next-expo-supabase-agent-harness enable <module>` copies the module's files and
+`npx next-expo-supabase-agent-harness@latest enable <module>` copies the module's files and
 records it in `.harness/manifest.json`. Tiers: `core` = none, `standard` =
 ci-provenance + ci-mobile-release + ci-web-deploy, `strict` = all.
 

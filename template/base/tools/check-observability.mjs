@@ -210,7 +210,7 @@ if (
 if (policy === null) {
   fail(
     GATE,
-    `${POLICY} is missing — it is the reviewed sink register this gate judges against (the scan above ran on the shipped detector floor). Pull the seeded exemplar with \`npx next-expo-supabase-agent-harness update --refresh-seeded ${POLICY}\`; its shipped state declares zero sinks, which is the tree the harness installs.`,
+    `${POLICY} is missing — it is the reviewed sink register this gate judges against (the scan above ran on the shipped detector floor). Pull the seeded exemplar with \`npx next-expo-supabase-agent-harness@latest update --refresh-seeded ${POLICY}\`; its shipped state declares zero sinks, which is the tree the harness installs.`,
   )
 }
 

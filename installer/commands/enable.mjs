@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path'
 import { planTree } from '../lib/copy.mjs'
 import { MODULES, RETIRED_MODULES } from '../lib/layout.mjs'
 import { fileMode, readManifest, sha256, writeManifest } from '../lib/manifest.mjs'
+import { refuseOlderCli } from '../lib/migrations.mjs'
 import { createProvenance, readReleasedShas } from '../lib/provenance.mjs'
 import { writeInstallFile } from '../lib/write-file.mjs'
 
@@ -64,6 +65,15 @@ function keptOnDisable({ dest, ip, meta, provenance }) {
   return meta.mode === 'owned' && provenance.isFork(ip, meta.sha256, current)
 }
 
+/**
+ * @param {{ harnessVersion?: unknown }} manifest
+ * @param {string} moduleName
+ * @param {boolean} on
+ */
+function refuseOlderCliFor(manifest, moduleName, on) {
+  refuseOlderCli(manifest, `${on ? 'enable' : 'disable'} ${moduleName}`)
+}
+
 // eslint-disable-next-line sonarjs/cognitive-complexity -- ceiling is machine-enforced by scripts/complexity-ratchet.json (G16); this directive only silences the rule, the ratchet is what stops the score growing
 export async function enable(opts, moduleName, on, { releasedShas = readReleasedShas() } = {}) {
   if (RETIRED_MODULES.has(moduleName)) {
@@ -75,6 +85,7 @@ export async function enable(opts, moduleName, on, { releasedShas = readReleased
   const targetDir = opts.dir
   const manifest = readManifest(targetDir)
   if (!manifest) throw new Error('no .harness/manifest.json — run `init` first')
+  refuseOlderCliFor(manifest, moduleName, on)
 
   const modules = new Set(manifest.modules ?? [])
   const files = { ...manifest.files }

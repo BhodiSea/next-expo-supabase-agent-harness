@@ -30,7 +30,7 @@ patch was applied completely and consistently.
 ## How enabling works
 
 ```
-npx next-expo-supabase-agent-harness enable eas-update
+npx next-expo-supabase-agent-harness@latest enable eas-update
 ```
 
 copies the files above and records them in `.harness/manifest.json`. Then do the

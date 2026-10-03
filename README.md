@@ -8,24 +8,39 @@ A CLI that scaffolds a pnpm monorepo with a Next.js 16 web app and an Expo 57
 mobile app on one Supabase backend, plus Claude Code hooks and CI gates that
 block an agent turn or a merge until validation passes.
 
+The npm package is this CLI. `npx` downloads it and runs it in one step, from an empty
+folder for the new project:
+
 ```sh
 npx --yes next-expo-supabase-agent-harness@latest init
 ```
 
-Or install the CLI once and run it from any directory:
+Or install it globally once:
 
 ```sh
 npm i -g next-expo-supabase-agent-harness
+```
+
+and then, from an empty folder for the new project, run:
+
+```sh
 next-expo-supabase-agent-harness init
 ```
 
-Install it globally (`-g`): `init` scaffolds into the current directory and stops when it
-finds a `package-lock.json` there, which a local `npm i` would create.
+Either way, `init` asks for the project's details before it writes anything: its name, its
+package name, the app identifier, the Supabase project ref, the GitHub owner and a few more.
+Each question shows a default in brackets that Enter accepts, and `init --yes` accepts them
+all without asking. The scaffold is written into the current folder.
+
+Install with `-g`: a local `npm i` writes a `package-lock.json` into the folder, and `init`
+stops when it finds one. A global install stays at the version you installed, so run
+`npm i -g next-expo-supabase-agent-harness@latest` before `update` to move it to the newest
+release; `update` refuses to run from a CLI older than the project.
 
 To pin a release, take a version number from the
 [Releases](https://github.com/BhodiSea/next-expo-supabase-agent-harness/releases)
 page (the tag without its `v`) and use it in place of `latest`, or install
-`next-expo-supabase-agent-harness@<version>`. Then, in the new directory:
+`next-expo-supabase-agent-harness@<version>`. Once `init` has finished, in the same folder:
 
 ```sh
 git init          # first: the prepare script (lefthook install) needs a repository

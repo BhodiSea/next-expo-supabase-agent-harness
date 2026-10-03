@@ -70,7 +70,7 @@ if (!existsSync(BUDGET)) {
     GATE,
     `${BUDGET} is missing, so every screen's startup is unmeasured. It is ` +
       'write-guard-protected — restore it from git history, or seed one with ' +
-      '`npx next-expo-supabase-agent-harness update --refresh-seeded tools/startup-budget.json`.',
+      '`npx next-expo-supabase-agent-harness@latest update --refresh-seeded tools/startup-budget.json`.',
   )
 }
 

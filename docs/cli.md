@@ -8,6 +8,15 @@ npx --yes next-expo-supabase-agent-harness@<latest|version> <command> [flags]
 `github:BhodiSea/next-expo-supabase-agent-harness#<tag>` spelling fetches the
 repository at a git ref instead; npm 12 refuses it unless run with `--allow-git=root`.
 
+With a global install (`npm i -g next-expo-supabase-agent-harness`) the command is
+`next-expo-supabase-agent-harness <command> [flags]`, at the version you installed.
+`npm i -g next-expo-supabase-agent-harness@latest` moves it to the newest release.
+
+`update`, `enable`, `disable` and `eject` refuse to run when the CLI is older than
+the install (2.0.2). They write the CLI's own copy of the template, so an older CLI
+would move the install backwards. The error names both versions and the
+`npx next-expo-supabase-agent-harness@latest <command>` to run instead.
+
 `help`, `--help` or no command prints a shorter version of this page.
 `tests/gates/cli-docs-sync.test.mjs` fails if this page stops matching the
 installer source on commands, flags, modules, tiers or placeholders.
@@ -34,8 +43,9 @@ Scaffold the harness and reference app into a directory.
 
 ### `update`
 
-Apply the harness version you are running to an existing install. Files the
-harness owns are replaced. A file you have changed is kept, and the incoming
+Apply the harness version you are running to an existing install, which must
+not be older than the install itself (see above). Files the harness owns are
+replaced. A file you have changed is kept, and the incoming
 version is parked under `.harness/pending/` for you to merge.
 
 "Changed" means the bytes are not ones a release shipped. A file that still
@@ -120,8 +130,10 @@ reason. The report never changes the exit code.
 
 ### `graduate`
 
-`graduate [--dir .]` advances the install's `baseVersion` once ramped checks
-are clean. It runs validate and refuses while any ramp note remains.
+`graduate [--dir .]` advances the install's `baseVersion` to its
+`harnessVersion` once ramped checks are clean. It runs validate and refuses
+while any ramp note remains. The CLI's own version does not matter (2.0.2): an
+install that is behind runs `update` first.
 
 ### `enable <module>` and `disable <module>`
 

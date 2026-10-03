@@ -588,7 +588,7 @@ const errs = []
 for (const entry of budget.subjects) {
   if (!existsSync(resolve(process.cwd(), entry.subject))) {
     errs.push(
-      `subjects[] declares "${entry.subject}" but the file does not exist — restore it or remove the entry; harness exemplars can be pulled with \`npx next-expo-supabase-agent-harness update --refresh-seeded <path>\``,
+      `subjects[] declares "${entry.subject}" but the file does not exist — restore it or remove the entry; harness exemplars can be pulled with \`npx next-expo-supabase-agent-harness@latest update --refresh-seeded <path>\``,
     )
   }
 }

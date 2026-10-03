@@ -11,10 +11,69 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
-## [Unreleased]
+## [2.0.2] — 2026-10-03
+
+**A patch: the installer stops moving an install backwards.** `update`, `enable`, `disable`
+and `eject` write the running CLI's copy of the template, and an older CLI used to do that
+over a newer install without a word. A 2.0.0 CLI over a 2.0.1 install printed `harness
+update 2.0.1 → 2.0.0` and rewrote 11 owned files. A global install stays at the release it
+was installed at, and a bare `npx next-expo-supabase-agent-harness` resolves to that copy, so
+this was the ordinary stale-CLI case, and the README had just started offering
+`npm i -g`. From 2.0.2 the four refuse an older CLI, `graduate` advances `baseVersion` to the
+install's own version, and every command the harness prints names `@latest`. No gate is added,
+the chain length does not change, and no ramp opens or moves. The `template/migrations.json`
+record withholds nothing and restates 2.0.0's twenty-vintage `rampExpiry` population.
+`scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `2.0.1`.
+
+### Security
+
+- **The write guard's `apply-proposal` rule also matches the global command and `npm exec`.**
+  Applying a staged register edit is reserved for a human; the verb refuses without a
+  terminal, and the `apply-proposal-invocation` rule in `.claude/hooks/lib/guard-rules.mjs`
+  is the second layer. It matched the verb only behind `node`, `pnpm`, `npx` or `tsx`, so the
+  bare `next-expo-supabase-agent-harness apply-proposal <id>` a global install provides, and
+  `npm exec next-expo-supabase-agent-harness -- apply-proposal <id>`, were not denied. Both
+  are now, with deny cases for each in `tests/hooks/hook-contract.test.mjs`.
+
+### Fixed
+
+- **`update`, `enable`, `disable` and `eject` refuse a CLI older than the install.** Each
+  stops before its first write (before the rollback snapshot, and in `--dry-run` and
+  `--refresh-seeded` too), naming both versions and
+  `npx next-expo-supabase-agent-harness@latest <command>`, plus `npm i -g
+  next-expo-supabase-agent-harness@latest` for a global install. The same version is still
+  allowed. The check is `refuseOlderCli` in `installer/lib/migrations.mjs`, and
+  `tests/installer/version-mismatch.test.mjs` runs all four against a real scaffold whose
+  manifest claims a newer release and asserts the manifest is untouched and no snapshot
+  was taken. Because the check is in the installer, only a 2.0.2 or later CLI makes it.
+- **`graduate` advances `baseVersion` to the install's `harnessVersion`, not the CLI's
+  version.** Run at `@latest` on an install that had not been updated, it marked ramps the
+  install does not carry as swept, so they would arrive as hard reds rather than NOTEs on
+  the next `update`. It now targets the install's own version whichever CLI runs it, and
+  a `baseVersion` already at that version is a no-op. A `baseVersion` recorded above
+  `harnessVersion` before 2.0.2 is not rewritten.
 
 ### Changed
 
+- **Every CLI command the harness prints names `@latest`.** The gate messages under
+  `tools/`, the hooks, the upgrade runbook, the module READMEs and the other shipped docs
+  printed `npx next-expo-supabase-agent-harness <command>`, which runs a global copy when one
+  is on `PATH`. They now print `npx next-expo-supabase-agent-harness@latest <command>`, in 41 template
+  files. Every template file this release changes (49, with the other hook stamps) is owned,
+  so `update` re-plants it when unmodified; a kept fork prints the old spelling, which still
+  runs. `docs/cli.md` documents the global command, the
+  refusal and the `graduate` target.
+- **The README spells out both ways to run the CLI.** It says the npm package is the CLI
+  that `npx` runs. Then come three boxes: the `npx` command, `npm i -g
+  next-expo-supabase-agent-harness`, and `next-expo-supabase-agent-harness init` to run from
+  an empty folder. It says `init` asks for the project's details first, each with a default
+  that Enter accepts, and that `init --yes` accepts them all. It says why the install is
+  global (a local `npm i` writes a `package-lock.json`, and `init` stops when it finds one)
+  and that a global install stays at its version until `npm i -g …@latest`. An npm version
+  badge beside the OpenSSF badges links the package's npm page, because GitHub's "Packages"
+  panel lists only GitHub Packages. The README's paragraph on how the package is published
+  and on the older `npx github:` form is gone; SECURITY.md (Verifying a release) and
+  docs/cli.md still cover both. #220 made the first pass of this.
 - **`init` prints its next steps as a numbered list.** It used to end with one 389-character
   `next:` note carrying four commands, their order, two reasons and the rule the Stop hook
   enforces. The steps now print one per line under `next steps:` (`git init`, `pnpm install`,
@@ -25,15 +84,6 @@ This lineage's own history starts at 0.1.3.
   `check-ci-preconditions` and `tests/gates/next-steps-order.test.mjs` now read that function
   for the committed-lockfile step and the `git init`-first order; both still go red when it
   loses either. Contributed by @Soumo-git-hub (#162, #217).
-- **The README links the npm package and offers a global install.** A version badge beside
-  the OpenSSF badges points to the package's npm page, because GitHub's "Packages" panel lists
-  only packages published to GitHub Packages and so shows none for a package published to
-  npmjs.com. Beside the `npx` command the README now gives
-  `npm i -g next-expo-supabase-agent-harness`, and says why the install is global: `init`
-  scaffolds into the current directory and stops when it finds a `package-lock.json` there,
-  which a local `npm i` would create. The README's paragraph on how the package is published
-  and on the older `npx github:` form is gone; SECURITY.md (Verifying a release) and
-  docs/cli.md still cover both. Factory docs only: nothing changes for an install.
 
 ## [2.0.1] — 2026-10-03
 

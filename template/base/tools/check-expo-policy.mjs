@@ -550,7 +550,7 @@ function loadStoreTunables() {
   if (!existsSync(STORE_TUNABLES_FILE)) {
     fail(
       GATE,
-      `${STORE_TUNABLES_FILE} is missing — it holds this project's store decisions (export compliance, privacy-manifest rows, the account-deletion surface, icon policy; the harness floor is ${STORE_FILE}). Pull the seeded exemplar with \`npx next-expo-supabase-agent-harness update --refresh-seeded ${STORE_TUNABLES_FILE}\`.`,
+      `${STORE_TUNABLES_FILE} is missing — it holds this project's store decisions (export compliance, privacy-manifest rows, the account-deletion surface, icon policy; the harness floor is ${STORE_FILE}). Pull the seeded exemplar with \`npx next-expo-supabase-agent-harness@latest update --refresh-seeded ${STORE_TUNABLES_FILE}\`.`,
     )
   }
   const p = readJson(STORE_TUNABLES_FILE)

@@ -672,7 +672,7 @@ const rosterStems = new Set(rosterFiles.map((f) => f.slice(0, -3)))
 for (const reviewer of REVIEWER_AGENTS) {
   if (!rosterStems.has(reviewer)) {
     errs.push(
-      `${AGENTS_DIR}/${reviewer}.md: reviewer agent missing — the roster is harness-owned; run \`npx next-expo-supabase-agent-harness update\` to restore it`,
+      `${AGENTS_DIR}/${reviewer}.md: reviewer agent missing — the roster is harness-owned; run \`npx next-expo-supabase-agent-harness@latest update\` to restore it`,
     )
   }
 }

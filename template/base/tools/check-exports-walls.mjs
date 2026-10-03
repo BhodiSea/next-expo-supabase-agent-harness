@@ -38,7 +38,7 @@ try {
 } catch (e) {
   fail(
     GATE,
-    `${MODULES_FILE} is missing or not valid JSON (${e.message}) — it is harness-OWNED and ships with this release; restore it with \`npx next-expo-supabase-agent-harness update\` (or from git history), never by hand`,
+    `${MODULES_FILE} is missing or not valid JSON (${e.message}) — it is harness-OWNED and ships with this release; restore it with \`npx next-expo-supabase-agent-harness@latest update\` (or from git history), never by hand`,
   )
 }
 const isNameArray = (a) => Array.isArray(a) && a.every((m) => typeof m === 'string' && m !== '')

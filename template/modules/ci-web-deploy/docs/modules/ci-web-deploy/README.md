@@ -32,7 +32,7 @@ pipeline; this attests the GitHub-built artifact.*
 ## How enabling works
 
 ```
-npx next-expo-supabase-agent-harness enable ci-web-deploy
+npx next-expo-supabase-agent-harness@latest enable ci-web-deploy
 ```
 
 copies the file; the workflow runs on the next `v*` tag (or `workflow_dispatch`).

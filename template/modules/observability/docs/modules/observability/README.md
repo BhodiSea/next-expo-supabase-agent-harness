@@ -34,7 +34,7 @@ vendor SDK.
 ## How enabling works
 
 ```
-npx next-expo-supabase-agent-harness enable observability
+npx next-expo-supabase-agent-harness@latest enable observability
 ```
 
 copies the files; the manifest tests join `pnpm exec vitest run` (and therefore

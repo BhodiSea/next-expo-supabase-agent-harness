@@ -405,7 +405,7 @@ if (
 if (policy === null) {
   fail(
     GATE,
-    `${POLICY} is missing and the schema has ${String(links.severed.length)} severed link(s) and ${String(links.blocking.length)} delete-blocking link(s) that nobody has reviewed. Pull the reviewed exemplar with \`npx next-expo-supabase-agent-harness update --refresh-seeded ${POLICY}\` and edit it to match THIS schema's decisions — it is withheld on update precisely so it describes your rows rather than the harness's.`,
+    `${POLICY} is missing and the schema has ${String(links.severed.length)} severed link(s) and ${String(links.blocking.length)} delete-blocking link(s) that nobody has reviewed. Pull the reviewed exemplar with \`npx next-expo-supabase-agent-harness@latest update --refresh-seeded ${POLICY}\` and edit it to match THIS schema's decisions — it is withheld on update precisely so it describes your rows rather than the harness's.`,
   )
 }
 

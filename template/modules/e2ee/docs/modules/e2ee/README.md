@@ -75,7 +75,7 @@ absent global into the native binary. That is the whole reason for the split.
 ## How enabling works
 
 ```
-npx next-expo-supabase-agent-harness enable e2ee
+npx next-expo-supabase-agent-harness@latest enable e2ee
 ```
 
 copies `packages/platform/crypto/**` and these docs. The seven test files join

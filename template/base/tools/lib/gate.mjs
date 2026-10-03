@@ -317,7 +317,7 @@ export function rampNote(gate, minVersion, detail, opts) {
   if (live !== null && cmpDotted(live, until) >= 0) {
     console.error(
       `${gate}: RAMP EXPIRED — ${detail} was ramped from baseVersion ${minVersion} with a deadline of ${until}, and this install runs harness ${live}. ` +
-        'The escape is over: the finding below is a hard failure now. Sweep it, then `npx next-expo-supabase-agent-harness graduate`; ' +
+        'The escape is over: the finding below is a hard failure now. Sweep it, then `npx next-expo-supabase-agent-harness@latest graduate`; ' +
         'see docs/runbooks/harness-upgrade.md (ramps expire).',
     )
     return false
