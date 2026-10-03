@@ -106,7 +106,7 @@ function judgeUses(lines) {
  * @returns {string[]}
  */
 function judgeInitSteps(initSource) {
-  const steps = /^function nextSteps\([\s\S]*?^\}/m.exec(initSource)
+  const steps = /^( *)function nextSteps\([\s\S]*?^\1\}/m.exec(initSource)
   if (steps === null) {
     return [
       "installer/commands/init.mjs has no structured next-steps guidance — the shipped workflows demand a committed lockfile (cache: pnpm / --frozen-lockfile) and the init contract's next steps are the one place a consumer is told, so the closure cannot find its anchor",
