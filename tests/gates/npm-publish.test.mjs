@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import {
   SLSA_PROVENANCE_V1,
+  VERIFY_BUDGET,
   distTagFor,
   integrityOf,
   parseVersion,
@@ -194,6 +195,16 @@ test('CLI verify fails after the budget when the version never appears', async (
   assert.equal(r.code, 1)
   assert.equal(r.hits['/fixture-pkg/1.2.3'], 3)
   assert.match(r.stderr, /no record of this version/)
+})
+
+test('the default verify budget waits several minutes, as npm says a trusted publish can take', () => {
+  // v2.0.0 became readable 158 s after `npm publish` returned; a budget below five minutes
+  // would red that publish again.
+  const waitedSeconds = (VERIFY_BUDGET.attempts - 1) * VERIFY_BUDGET.pollSeconds
+  assert.ok(waitedSeconds >= 300, `the default budget waits ${String(waitedSeconds)} s`)
+  // ...and stays inside publish-npm's 30-minute job timeout, so the job reports the
+  // registry's answer rather than being cancelled.
+  assert.ok(waitedSeconds < 25 * 60, `the default budget waits ${String(waitedSeconds)} s`)
 })
 
 test('CLI verify fails at once on a record that exists and is wrong', async () => {
