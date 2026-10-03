@@ -2,6 +2,7 @@
 
 [![OpenSSF Baseline](https://www.bestpractices.dev/projects/14727/baseline)](https://www.bestpractices.dev/projects/14727)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/BhodiSea/next-expo-supabase-agent-harness/badge)](https://scorecard.dev/viewer/?uri=github.com/BhodiSea/next-expo-supabase-agent-harness)
+[![npm](https://img.shields.io/npm/v/next-expo-supabase-agent-harness)](https://www.npmjs.com/package/next-expo-supabase-agent-harness)
 
 A CLI that scaffolds a pnpm monorepo with a Next.js 16 web app and an Expo 57
 mobile app on one Supabase backend, plus Claude Code hooks and CI gates that
@@ -11,9 +12,20 @@ block an agent turn or a merge until validation passes.
 npx --yes next-expo-supabase-agent-harness@latest init
 ```
 
-To pin a release, replace `latest` with a version number from the
+Or install the CLI once and run it from any directory:
+
+```sh
+npm i -g next-expo-supabase-agent-harness
+next-expo-supabase-agent-harness init
+```
+
+Install it globally (`-g`): `init` scaffolds into the current directory and stops when it
+finds a `package-lock.json` there, which a local `npm i` would create.
+
+To pin a release, take a version number from the
 [Releases](https://github.com/BhodiSea/next-expo-supabase-agent-harness/releases)
-page (the tag without its `v`). Then, in the new directory:
+page (the tag without its `v`) and use it in place of `latest`, or install
+`next-expo-supabase-agent-harness@<version>`. Then, in the new directory:
 
 ```sh
 git init          # first: the prepare script (lefthook install) needs a repository
@@ -21,13 +33,6 @@ pnpm install
 git add -A && git commit -m "chore: scaffold"   # the first commit must include pnpm-lock.yaml
 pnpm validate
 ```
-
-The npm package is the tarball attached to the matching GitHub Release, published
-by this repository's release workflow through npm trusted publishing, so each
-version it publishes carries npm provenance as well as the release's build
-provenance attestation; see [Verifying a release](SECURITY.md#verifying-a-release). The older
-`npx github:BhodiSea/next-expo-supabase-agent-harness#<tag>` form still works, but
-npm 12 refuses git sources unless it is run with `--allow-git=root`.
 
 **Status: stable (2.0.x).** CI proves the scaffold on Linux only. The installer's
 unit tests also run on Windows. `pnpm validate` has never run in CI on macOS or
