@@ -40,7 +40,7 @@ function between(text, start, end) {
 const TEXTS = [
   {
     where: "installer/commands/init.mjs: init's next steps",
-    text: () => between(read('installer/commands/init.mjs'), /^function nextSteps\(/, /^\}/),
+    text: () => between(read('installer/commands/init.mjs'), /^\s*function nextSteps\(/, /^\s*\}$/),
   },
   {
     where: "CONTRIBUTING.md: the zero-edit scaffold recipe (from `node installer/cli.mjs init --dir` to the closing fence)",
