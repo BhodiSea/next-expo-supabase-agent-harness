@@ -327,14 +327,7 @@ export async function init(opts) {
     report.notes.push('consumed template checkout in place — installer/template trees removed')
   }
 
-  if (!existsSync(join(targetDir, '.git'))) {
-    report.steps.push('git init — the prepare script (`lefthook install`) needs a repository')
-  }
-  report.steps.push(
-    'pnpm install',
-    'git add -A && git commit — the first commit must include pnpm-lock.yaml (the shipped workflows run `pnpm install --frozen-lockfile`, which hard-fails without it, and the version-sync gate reds an absent lockfile)',
-    'pnpm validate — must be green before any agent turn ends',
-  )
+  report.steps.push(...nextSteps(targetDir))
   if (det.mode === 'retrofit') {
     report.notes.push('review .harness sibling configs and merge them into your existing configs')
   }
