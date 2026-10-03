@@ -21,9 +21,9 @@ import { test } from 'node:test'
 import { ciPreconditionProblems } from '../../scripts/lib/ci-preconditions.mjs'
 
 const INIT_STEPS_OK =
-  "report.steps.push(\n  'pnpm install',\n  'git add -A && git commit — the first commit must include pnpm-lock.yaml',\n  'pnpm validate — must be green before any agent turn ends',\n)"
+  "function nextSteps(targetDir) {\n  return [\n    'pnpm install',\n    'git add -A && git commit — the first commit must include pnpm-lock.yaml',\n    'pnpm validate — must be green before any agent turn ends',\n  ]\n}\n"
 const INIT_STEPS_REGRESSED =
-  "report.steps.push(\n  'pnpm install',\n  'git add -A && git commit',\n  'pnpm validate — must be green before any agent turn ends',\n)"
+  "function nextSteps(targetDir) {\n  return [\n    'pnpm install',\n    'git add -A && git commit',\n    'pnpm validate — must be green before any agent turn ends',\n  ]\n}\n"
 
 const wf = (file, text) => ({ file, text })
 const PINNED = 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0'
