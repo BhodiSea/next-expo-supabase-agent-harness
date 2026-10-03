@@ -19,7 +19,9 @@
 //           OIDC exchange never throws (it falls back to whatever other credential exists),
 //           so an exit 0 from `npm publish` alone proves nothing about how the version was
 //           published. A version not yet visible is retried within the budget, because the
-//           registry's read path can trail its write path by seconds.
+//           registry's read path trails its write path: npm answers a trusted publish with
+//           "Your package is being processed and may take a few minutes to become available",
+//           and 2.0.0 took about two and a half. The budget is VERIFY_BUDGET, ten minutes.
 //
 // The package name and version come from package.json (`--package` points the tests at a
 // fixture), and the version argument must equal it: the tag is the claim, package.json is
@@ -34,6 +36,15 @@ import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 export const SLSA_PROVENANCE_V1 = 'https://slsa.dev/provenance/v1'
+
+/**
+ * How long `verify` waits for a published version to become readable: 40 reads 15 seconds
+ * apart, about ten minutes. The v2.0.0 publish became readable 2 min 38 s after
+ * `npm publish` returned, 20 seconds after the 1.1.0 budget of ten reads had run out, so
+ * the job went red on a version that was published correctly.
+ * @type {Readonly<{ attempts: number, pollSeconds: number }>}
+ */
+export const VERIFY_BUDGET = Object.freeze({ attempts: 40, pollSeconds: 15 })
 
 const VERSION_SHAPE = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/
 const NAME_SHAPE = /^[a-z0-9][a-z0-9._-]*$/
@@ -149,8 +160,7 @@ function parseArgs(argv) {
   /** @type {string[]} */ const positionals = []
   let registry = 'https://registry.npmjs.org'
   let packagePath = fileURLToPath(new URL('../../package.json', import.meta.url))
-  let attempts = 10
-  let pollSeconds = 15
+  let { attempts, pollSeconds } = VERIFY_BUDGET
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--registry') registry = argv[(i += 1)] ?? ''
     else if (argv[i] === '--package') packagePath = argv[(i += 1)] ?? ''

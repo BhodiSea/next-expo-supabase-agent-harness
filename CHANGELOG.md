@@ -11,6 +11,22 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [Unreleased]
+
+### Fixed
+
+- **`publish-npm` waits up to ten minutes for the registry to show a new version.** After
+  `npm publish`, the job reads the version back and fails unless the registry holds the
+  attested tarball, with provenance, from the GitHub trusted publisher. It read ten times,
+  15 seconds apart. npm answers a trusted publish with "Your package is being processed and
+  may take a few minutes to become available", and 2.0.0 became readable 2 min 38 s after
+  `npm publish` returned, 20 seconds after the last read, so the job went red on a version
+  that was published correctly. The same check, run once the version was readable, passes.
+  `scripts/ci/npm-publish.mjs` now reads 40 times, 15 seconds apart, about ten minutes,
+  inside the job's 30-minute timeout, and `tests/gates/npm-publish.test.mjs` holds the
+  default budget to at least five minutes. A record that is readable and wrong still fails
+  at the first read. Nothing changes for an install.
+
 ## [2.0.0] — 2026-10-02
 
 **A major, the opt-in release: what an install carries is what it opted into, and the notes
