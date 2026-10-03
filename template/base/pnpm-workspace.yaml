@@ -122,7 +122,19 @@ catalog:
   # route is one import away. 16.3.6 is the release that fixes it, a patch on the same minor,
   # and OSV listed no advisory against 16.3.6 on the day of review (2026-10-02).
   # SOURCE: https://github.com/vercel/next.js/security/advisories/GHSA-vcvr-r3jv-pc5j
-  next: 16.3.6
+  #
+  # 2.0.1: the floor moves to 16.3.8 (and the 15.x floor to 15.5.27) for five advisories
+  # published upstream 2026-09-30: GHSA-cjq9-62q9-8jv4 (High, SSRF in Image Optimization
+  # through images.remotePatterns), GHSA-4jqv-mc3x-m676 and GHSA-mcj8-r9mp-w47p (cache
+  # poisoning of SSG/ISR pages, Pages Router or a root catch-all), GHSA-f87g-xv8r-7p7x
+  # (metadata image routes ignore dynamicParams) and GHSA-39w2-rjm5-chcv (next dev's MCP
+  # endpoint). The MCP one reaches every install's `next dev` (no production build); the
+  # other four reach no surface the scaffold ships, and each is a consumer's next feature
+  # away. Every one names its fix as an unannounced 16.3 (or 15.5) patch, so no release is
+  # confirmed fixed on the day of review (2026-10-03); 16.3.8 and 15.5.27 are the newest on
+  # each line, published the same day as the advisories.
+  # SOURCE: https://github.com/vercel/next.js/security/advisories/GHSA-cjq9-62q9-8jv4
+  next: 16.3.8
   next-safe-action: ^8.5.3
   tailwindcss: ^4.3.0 # v4 CSS-first, WEB ONLY — mobile pins v3 in apps/mobile (see below)
   '@tailwindcss/postcss': ^4.3.0

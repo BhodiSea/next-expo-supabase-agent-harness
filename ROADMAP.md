@@ -30,8 +30,11 @@ when they fall due.
   when a review window happens to end. Its first run is red on a real
   advisory, GHSA-vcvr-r3jv-pc5j, which covered the 16.x floor and the pin.
   The maintainer's floor decision is in 2.0.0: the floor and the catalog pin
-  move to 16.3.6 (issue #81). This bullet leaves the list once a scheduled
-  run of the released tree is green end to end.
+  move to 16.3.6 (issue #81). The first run after the 2.0.0 release was red
+  again, on five advisories upstream published on 2026-09-30, and 2.0.1 moves
+  the floor and the pin to 16.3.8 (15.5.27 on the 15 line) and records all
+  five. This bullet leaves the list once a scheduled run of the released tree
+  is green end to end.
 - **Find why the scheduled device lane's perf-harness phase goes red.** The
   mutation journey of issue #10 has passed since 1.0.0 fixed it, but
   `maestro-smoke` still failed on seven of the fourteen scheduled runs from

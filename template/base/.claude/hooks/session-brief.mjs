@@ -26,7 +26,7 @@
 // SOURCE: design/CONTROL-PLANE-FACTS.md (Fact 15, the SessionStart payload)
 import process from 'node:process'
 
-export const HARNESS_HOOK_VERSION = '2.0.0'
+export const HARNESS_HOOK_VERSION = '2.0.1'
 
 // Byte-identical to the CLI's line: the two must print the same brief on every tree.
 const UNLOADABLE = 'harness brief: unavailable (tools/lib/harness-brief.mjs did not load)\n'
