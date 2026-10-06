@@ -210,6 +210,20 @@ test('each step the script must not take is a printed next: line', () => {
   )
 })
 
+// 2.0.3 (#154). The new package's `./client` key needs a census entry, and the census is
+// harness-owned, so the step is a human's: the line names the file, says so, and gives the path.
+test('the census entry for the new ./client barrel is a next: line naming a human step (#154)', () => {
+  const dir = emptyRoot()
+  const next = nextLines(scaffold(dir))
+  const census = next.find((l) => l.includes('tools/exports-walls.json'))
+  assert.ok(census !== undefined, next.join('\n'))
+  assert.match(census, /@app\/release-notes/)
+  assert.match(census, /harness-owned/)
+  assert.match(census, /human/)
+  assert.match(census, /\.harness\/manifest\.json/)
+  assert.match(census, /Forking an owned file/)
+})
+
 test('a second run writes nothing: every stub already exists', () => {
   const dir = emptyRoot()
   scaffold(dir)

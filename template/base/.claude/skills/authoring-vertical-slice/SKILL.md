@@ -57,7 +57,9 @@ Only when nothing covers the need do you scaffold a new slice.
    a per-request Supabase client, returns zod DTOs from `@app/contracts` wrapped in the
    `ActionOutcome` envelope from `@app/errors`, never raw rows and never a thrown domain
    failure. Writes stay off `./client` (they set an owner column and emit events — server
-   barrel only). Delegate to the `dal-author` subagent.
+   barrel only). Delegate to the `dal-author` subagent. Every vertical's `./client` key needs
+   an entry in the census `tools/exports-walls.json`, Class-B included, and that entry is a
+   human's step (see Scaffold).
 4. **tRPC procedure (+ optional web Server Action)** — same reference. Add the procedure to
    `packages/api/src/routers/<slice>.ts` on `orgProcedure` (READS INCLUDED — the acting org
    is WHICH DATA a read is about), name an input schema, hand the call to the vertical. If the
@@ -70,7 +72,8 @@ Only when nothing covers the need do you scaffold a new slice.
    committed inventories: `pnpm gen` (the `contracts` gate regen-diffs
    `tools/generated/*.json`; the `parity` gate holds the mobile ledger to the action
    inventory). Class-B is the DEFAULT — mobile writes through the procedure. Class-A (mobile writes DIRECT to Supabase via the vertical
-   `./client`) is an explicit, reasoned security-census opt-in, never the reflex.
+   `./client`) is an explicit, reasoned opt-in, never the reflex: it widens what the
+   `./client` barrel carries, so the census entry's reason is a security review.
 5. **Web screen** — a segment under the org scope,
    `apps/web/app/(protected)/o/[orgSlug]/<slice>/`: `page.tsx`, its `page.meta.ts` (id,
    `titleKey`, the three state test ids) and `loading.tsx`. The segment IS the tenant
@@ -125,7 +128,12 @@ the mobile feature. A stub that cannot compile until the vertical resolves is co
 Each step the script must not take itself is a printed `next:` line (among them the catalog
 key, the registry regen, the browser spec, the query probes and the vertical's
 `package.json`); until they are done, `route-manifest` and `query-shapes` red with the
-findings those lines name. It deliberately does NOT create the
+findings those lines name. One `next:` line is a human's, not yours: the census entry for the
+new `./client` key. `tools/exports-walls.json` is harness-owned and hash-pinned, so the write
+guard denies your edit. Hand the `{package, reason}` entry to a human, who adds it under
+security-owner review and re-records the file's sha256 in `.harness/manifest.json` in the same
+reviewed commit; until then `boundaries` reds the package as NOT sanctioned. It deliberately
+does NOT create the
 migration file — `supabase/migrations/*` is append-only (timestamped, applied history), so a
 pre-created stub could never be filled in and would only invite a hand-edit of applied
 history. Compose the migration completely with `supabase migration new <slice>`, then write

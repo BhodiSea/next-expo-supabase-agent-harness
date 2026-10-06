@@ -174,7 +174,8 @@ function runStep(cmd) {
 // ---- STEP TELEMETRY (1.0.4) ------------------------------------------------------------
 // One `stop-step` record per step (`status`, integer `ms`, `skips`: the output lines the
 // SKIPPED test below matches, counted for a red step too, though only a green step's are
-// printed, and `stamps`: the STAMPED lines, counted the same way), plus one `validate-gate`
+// printed, `stamps`: the STAMPED lines, and `notes` (2.0.3, #152): the NOTE lines, both
+// counted the same way), plus one `validate-gate`
 // record per entry of the LAST `VALIDATE_TIMINGS` line in the step's FULL output — read here,
 // before spill() shortens it. `status` is `ok`, `fail`, or `stamped` for a green step whose
 // OWN line is a stamp hit (the rls runner riding its stamp: nothing in it re-ran). Appended to
@@ -195,6 +196,59 @@ const STAMPED_WHY = 'inputs unchanged since their last green run, so they did NO
 // (design/CONTROL-PLANE-FACTS.md, Fact 16). A fallback is never silent.
 const FALLBACK_RE = /^[\w-]+: FALLBACK MODEL — /
 const FALLBACK_WHY = "a reviewer verdict ran on a model other than the reviewer's pinned one"
+// A GATE'S NOTE (2.0.3, #152) is `<gate>: NOTE — …`: a ramp that is live (lib/gate.mjs
+// rampNote), a control that is switched off, a check that did not run. Anchored like the stamp
+// line. Through 2.0.2 a green step's NOTE reached the debug log at most, so neither the user nor
+// the agent saw it. Now a green run SHOWS the user the first NOTES_SHOWN through the same JSON
+// `systemMessage` as the fallbacks, and a red run lists them in its block. Each listed line is
+// cut at NOTE_MAX_POINTS code points and stripped of control and format characters, the rule
+// lib/gate.mjs applies to a field note; when the message is not the whole of them, every line
+// goes to NOTES_LOG, a name no step slug can produce, and the message names it only when the
+// write succeeded, as spill() does. The agent still does not see a green turn's NOTEs: that is
+// a change to what the hook does with a green chain, and a gate-proposal of its own.
+const NOTE_RE = /^[\w-]+: NOTE — /
+const NOTES_SHOWN = 10
+const NOTE_MAX_POINTS = 300
+const NOTES_LOG = `${SPILL_DIR}/_notes.log`
+
+// The rule of lib/gate.mjs sanitizeNote, copied: that function is not exported, and an install
+// may run this hook over a forked lib.
+/** @param {string} line @returns {string} */
+function boundNote(line) {
+  const text = line
+    .replace(/\p{White_Space}+/gu, ' ')
+    .replace(/[\p{Cc}\p{Cf}\p{Cs}]/gu, '')
+    .replace(/ {2,}/g, ' ')
+    .trim()
+  const points = [...text]
+  if (points.length <= NOTE_MAX_POINTS) return text
+  return `${points
+    .slice(0, NOTE_MAX_POINTS - 1)
+    .join('')
+    .trimEnd()}…`
+}
+
+/**
+ * The listed NOTE lines and what the listing left out. Writes NOTES_LOG only when the listing
+ * is not every line whole, and fails soft like spill(): bookkeeping never decides a turn.
+ * @param {string[]} lines @returns {{ listed: string, detail: string[] }}
+ */
+function listNotes(lines) {
+  const shown = lines.slice(0, NOTES_SHOWN).map(boundNote)
+  const detail = []
+  if (lines.length > NOTES_SHOWN) detail.push(`first ${String(NOTES_SHOWN)} shown`)
+  if (shown.some((line, i) => line !== lines[i])) detail.push(`listed lines cut at ${String(NOTE_MAX_POINTS)} characters`)
+  if (detail.length > 0) {
+    try {
+      mkdirSync(SPILL_DIR, { recursive: true })
+      writeFileSync(NOTES_LOG, `${lines.join('\n')}\n`)
+      detail.push(`all of them: ${NOTES_LOG}`)
+    } catch {
+      detail.push('the notes file could not be written')
+    }
+  }
+  return { listed: shown.join('\n'), detail }
+}
 
 /** @param {string} out @param {RegExp} re @returns {string[]} */
 function linesMatching(out, re) {
@@ -247,6 +301,7 @@ function recordStep(step, ok, startedAt, out) {
         ms: Math.round(performance.now() - startedAt),
         skips: linesMatching(out, SKIP_RE).length,
         stamps: stampLines.length,
+        notes: linesMatching(out, NOTE_RE).length,
       },
       ...lastValidateTimings(out).map(([gate, ms]) => ({ v: 1, kind: 'validate-gate', ...head, gate, ms })),
     ]
@@ -265,6 +320,8 @@ const skips = []
 const stamps = []
 // FALLBACK MODEL lines from green steps (1.1.0, #62), listed on both paths like the stamps.
 const fallbacks = []
+// NOTE lines from green steps (2.0.3, #152), listed on both paths within the bounds above.
+const gateNotes = []
 for (const [name, cmd] of STEPS) {
   const startedAt = performance.now()
   const { ok, out } = runStep(cmd)
@@ -273,6 +330,7 @@ for (const [name, cmd] of STEPS) {
     for (const line of linesMatching(out, SKIP_RE)) skips.push(`[${name}] ${line.trim()}`)
     for (const line of linesMatching(out, STAMP_RE)) stamps.push(`[${name}] ${line.trim()}`)
     for (const line of linesMatching(out, FALLBACK_RE)) fallbacks.push(`[${name}] ${line.trim()}`)
+    for (const line of linesMatching(out, NOTE_RE)) gateNotes.push(`[${name}] ${line.trim()}`)
   } else {
     failures.push(`### ${name} FAILED (${cmd})\n${spill(name, out)}`)
     failedGates.push(name)
@@ -287,7 +345,8 @@ if (configBroken) {
 
 // Floor evidence, on every run: a chain that had to be topped up from the floor, or a
 // floor that could not be read, is a fact about THIS turn and belongs in the transcript
-// whether the turn is green or red.
+// whether the turn is green or red. A red run puts these notes on stderr ahead of its block;
+// since 2.0.3 (#152) a green run also shows them to the user in its one JSON object.
 const notes = []
 if (injected.length > 0) {
   notes.push(
@@ -378,7 +437,7 @@ if (failures.length === 0) {
     process.exit(2)
   }
   // Green — but never let a loud skip masquerade as silence: surface any
-  // skipped layers so the transcript records what did NOT run.
+  // skipped layers so the debug log records what did NOT run.
   if (skips.length > 0) {
     process.stderr.write(`stop-validate-gate: green with skipped layers:\n${skips.join('\n')}\n`)
   }
@@ -386,13 +445,23 @@ if (failures.length === 0) {
   if (stamps.length > 0) {
     process.stderr.write(`stop-validate-gate: green with stamped layers (${STAMPED_WHY}):\n${stamps.join('\n')}\n`)
   }
-  // ...nor a verdict off its reviewer's pin pass unseen (1.1.0, #62). The debug log gets them
-  // with the rest; the user gets them as the one JSON object this hook ever prints on stdout.
+  // ...nor a verdict off its reviewer's pin, a gate's NOTE (2.0.3, #152) or the hook's own notes
+  // pass unseen. The debug log gets every line; the user gets them, the NOTEs bounded, as the
+  // one JSON object this hook ever prints on stdout, and stdout stays empty when there are none.
+  const shown = []
   if (fallbacks.length > 0) {
     const message = `stop-validate-gate: green, and ${String(fallbacks.length)} verdict(s) where ${FALLBACK_WHY}:\n${fallbacks.join('\n')}`
     process.stderr.write(`${message}\n`)
-    process.stdout.write(`${JSON.stringify({ systemMessage: message })}\n`)
+    shown.push(message)
   }
+  if (gateNotes.length > 0) {
+    process.stderr.write(`stop-validate-gate: green with NOTE lines:\n${gateNotes.join('\n')}\n`)
+    const { listed, detail } = listNotes(gateNotes)
+    const bounds = detail.length > 0 ? ` (${detail.join('; ')})` : ''
+    shown.push(`stop-validate-gate: green, with ${String(gateNotes.length)} NOTE line(s)${bounds}:\n${listed}`)
+  }
+  if (notes.length > 0) shown.push(notes.join('\n'))
+  if (shown.length > 0) process.stdout.write(`${JSON.stringify({ systemMessage: shown.join('\n\n') })}\n`)
   process.exit(0)
 }
 
@@ -408,5 +477,12 @@ const skipNote = skips.length > 0 ? `\n\nSkipped layers (did NOT run):\n${skips.
 const stampNote = stamps.length > 0 ? `\n\nStamped layers (${STAMPED_WHY}):\n${stamps.join('\n')}\n` : ''
 const fallbackNote =
   fallbacks.length > 0 ? `\n\nFallback models (${FALLBACK_WHY}):\n${fallbacks.join('\n')}\n` : ''
-process.stderr.write(header + failures.join('\n\n') + skipNote + stampNote + fallbackNote)
+// A green step's NOTE lines (2.0.3, #152), within the same bounds; a red step's own NOTEs are
+// already in its failure block.
+let gateNoteSection = ''
+if (gateNotes.length > 0) {
+  const { listed, detail } = listNotes(gateNotes)
+  gateNoteSection = `\n\nNOTE lines from green steps (${[String(gateNotes.length), ...detail].join('; ')}):\n${listed}\n`
+}
+process.stderr.write(header + failures.join('\n\n') + skipNote + stampNote + fallbackNote + gateNoteSection)
 process.exit(2)

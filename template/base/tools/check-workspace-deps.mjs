@@ -115,7 +115,7 @@ if (mobile !== null) {
       )
     } else if (!sanctioned.has(dep) && !MOBILE_UNIVERSAL.has(dep)) {
       errs.push(
-        `${dep} is a dependency of apps/mobile but is neither sanctioned in ${CENSUS} nor universally-importable — a package absent from the census is one the mobile bundle may not carry; add a reviewed census entry (if it has a Metro-safe ./client) or route the call through the API`,
+        `${dep} is a dependency of apps/mobile but is neither sanctioned in ${CENSUS} nor universally-importable — a package absent from the census is one the mobile bundle may not carry; route the call through the API, or (if it has a Metro-safe ./client) hand a human the reviewed {package, reason} entry: the census is harness-owned and hash-pinned, so an agent does not edit it, and the human adds the entry under the security owners' review (CODEOWNERS) and re-records the file's sha256 in .harness/manifest.json in the same reviewed commit (docs/runbooks/harness-upgrade.md, "Forking an owned file")`,
       )
     }
   }
