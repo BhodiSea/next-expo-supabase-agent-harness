@@ -708,19 +708,22 @@ The brief says what state the install is in, on every SessionStart (`startup`, `
 
 ```
 harness <version> (base <baseVersion>) · tier <core|standard|strict> · mode <bootstrap|retrofit>
-parked: <n>                                   (then up to five paths under .harness/pending/)
+parked: <n>                                   (then up to five `<path>` entries under .harness/pending/)
 last turn in this directory: green | none recorded | <n> consecutive block(s), cap <cap> | ended red at the cap (<gates>)
-reviewers owed by the current diff: <n>       (then up to five `<agent> (<path>)` entries)
+reviewers owed by the current diff: <n>       (then up to five <agent> (`<path>`) entries)
 ```
 
 It is an injection surface, so it is closed rather than merely short. The fields are
 enumerated and printed in that order. Every value passes a closed validator (versions are
 `x.y.z`, tier and mode come from closed sets, agent and gate names are lowercase words,
-paths are repository-relative with no `..` segment and at most 160 characters) or prints as
-`(unprintable)`. No file content is ever read into it. The whole brief is capped at 1,200
-characters and cut at a line with a fixed marker. A source that cannot be read prints
-`<field>: unavailable`. All of it lives in `tools/lib/harness-brief.mjs`, which the write
-guard covers; the hook and the CLI are thin wrappers.
+paths are repository-relative, at most 160 characters, from a closed set that admits the App
+Router's `(`, `)`, `[` and `]`, with no empty, `.` or `..` segment and none that starts with
+`-`) or prints as `(unprintable)`. Each path prints in a code span, and a backtick is not in
+its set, so no path can close the span. No file content is ever read into it. The whole
+brief is capped at 1,200 characters and cut at a line with a fixed marker. A source that
+cannot be read prints `<field>: unavailable`. All of it lives in
+`tools/lib/harness-brief.mjs`, which the write guard covers; the hook and the CLI are thin
+wrappers.
 
 - **The last turn** is read over the whole turn ledger, every session's records: a new
   session's id matches none of the earlier ones, so a session that ended red at the cap

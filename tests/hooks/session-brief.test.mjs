@@ -195,7 +195,7 @@ test('a parked file named as a sentence prints as (unprintable), and no byte of 
   assert.equal(r.code, 0, r.stderr)
   assert.match(r.stdout, /^parked: 2$/m)
   assert.match(r.stdout, /^ {2}- \(unprintable\)$/m)
-  assert.match(r.stdout, /^ {2}- tools\/check-types\.mjs$/m)
+  assert.match(r.stdout, /^ {2}- `tools\/check-types\.mjs`$/m)
   assert.ok(!r.stdout.includes(SECRET), r.stdout)
   assert.ok(!r.stdout.includes('instructions'), r.stdout)
 })
@@ -247,7 +247,7 @@ test('the hook\'s stdout equals `node tools/harness-status.mjs` on the same tree
   }
   const h = hook(healthy, PAYLOAD)
   assert.match(h.stdout, /^last turn in this directory: ended red at the cap \(types\)$/m)
-  assert.match(h.stdout, /^ {2}- security-reviewer \(supabase\/migrations\/20260930000000_x\.sql\)$/m)
+  assert.match(h.stdout, /^ {2}- security-reviewer \(`supabase\/migrations\/20260930000000_x\.sql`\)$/m)
 })
 
 // ── the owed set follows the Stop step, a forked lib included ───────────────────
@@ -272,7 +272,7 @@ test('a forked pre-1.1.0 git-diff.mjs: `unavailable` where v2 is live, the 1.0.x
   const ramped = hook(dir)
   assert.equal(ramped.code, 0, ramped.stderr)
   assert.match(ramped.stdout, /^reviewers owed by the current diff: 1$/m)
-  assert.match(ramped.stdout, /^ {2}- security-reviewer \(supabase\/migrations\/20260930000000_x\.sql\)$/m)
+  assert.match(ramped.stdout, /^ {2}- security-reviewer \(`supabase\/migrations\/20260930000000_x\.sql`\)$/m)
 })
 
 // ── it reads the project root, wherever the session's directory is ──────────────

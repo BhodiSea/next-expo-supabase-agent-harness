@@ -1193,6 +1193,7 @@
     ],
     "seedOnInitOnly": [
       "supabase/migrations/20261006000000_auth_trail_partition_schedule.sql"
+      "#153 — THE SESSION BRIEF PRINTS APP ROUTER PATHS. tools/lib/harness-brief.mjs (OWNED, re-planted when sha-unmodified) printed every App Router route group and dynamic segment as `(unprintable)` through 2.0.2, the way it prints a refused value. It now prints every path in a code span, admits `(`, `)`, `[` and `]`, and refuses an absolute path, an empty or `.` segment and a segment that starts with `-`. docs/harness/README.md and this release's runbook section (both OWNED) describe it. The brief judges nothing, so no verdict moves, nothing is withheld, and a kept fork of the lib keeps the old printer (#153)."
     ],
     "rampExpiry": {
       "//": "COMPUTED by scripts/check-ramp-ledger.mjs at version 2.0.3 and copied from its output, never typed. The vintage list is identical to 2.0.2's, and 2.0.0's, for the reason 1.0.4's was identical to 1.0.3's: a patch closes no new escape, but a direct hop from an old vintage crosses 2.0.0's record and meets its expiries on arrival, so the population is restated rather than inherited by implication.",

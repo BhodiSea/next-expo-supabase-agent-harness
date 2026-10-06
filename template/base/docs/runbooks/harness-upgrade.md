@@ -2244,10 +2244,10 @@ session's context when it starts, resumes, clears, compacts or forks, and
 ```
 harness 1.1.0 (base 1.0.4) · tier standard · mode bootstrap
 parked: 1
-  - .claude/settings.json
+  - `.claude/settings.json`
 last turn in this directory: green
 reviewers owed by the current diff: 1
-  - security-reviewer (supabase/migrations/20260930000000_x.sql)
+  - security-reviewer (`supabase/migrations/20260930000000_x.sql`)
 ```
 
 The hook blocks nothing, reads no stdin, writes nothing and exits 0 on every path. A value
@@ -3890,6 +3890,16 @@ notice saying so and creates the three months after the current one, exactly as
 `ensure_partitions` would, so from the next first of the month the scheduled job finds that month
 present and carries on. The rows already in the default partition stay there, and retention never
 drops them.
+### The session brief prints App Router paths (#153)
+
+Through 2.0.2 the brief (the SessionStart hook and `node tools/harness-status.mjs`) printed
+every App Router route group and dynamic segment, such as
+`apps/web/app/(protected)/o/[orgSlug]/page.tsx`, as `(unprintable)`, the way it prints a
+refused value. It now prints every path in a code span, `( ) [ ]` included, and refuses an
+absolute path, an empty or `.` segment and a segment that starts with `-`. `update` plants
+`tools/lib/harness-brief.mjs` and `docs/harness/README.md`, both owned. Nothing is left to
+you: the brief judges nothing, so no verdict moves. A fork of the lib you kept keeps the old
+printer.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

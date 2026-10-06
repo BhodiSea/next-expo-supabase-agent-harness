@@ -11,7 +11,8 @@
 // IT IS AN INJECTION SURFACE, so the output is closed, not merely short:
 //   - the renderer prints four fields in a fixed order and nothing else;
 //   - every value passes a closed validator (versions, tier and mode from closed sets, agent
-//     and gate names, repository-relative paths) or prints as `(unprintable)`;
+//     and gate names, repository-relative paths, each path in a code span) or prints as
+//     `(unprintable)`;
 //   - no file content is ever read into the output, only counts, names and paths;
 //   - the whole output is capped at BRIEF_CAP characters and cut at a line, with a marker;
 //   - a source that cannot be read prints `<field>: unavailable`, and nothing throws.
@@ -49,7 +50,11 @@ const VERSION_RE = /^\d+\.\d+\.\d+$/
 const TIERS = new Set(['core', 'standard', 'strict'])
 const MODES = new Set(['bootstrap', 'retrofit'])
 const NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/
-const PATH_RE = /^[A-Za-z0-9._@+/-]{1,160}$/
+// A printed path: repository-relative POSIX, at most 160 characters, from a closed set that
+// admits the App Router's ( ) [ ] (2.0.x, #153: route groups and dynamic segments printed as
+// `(unprintable)` through 2.0.2). No segment is empty, `.` or `..`, or starts with `-`. It
+// prints inside a code span; a backtick is not in the set, so no path can close the span.
+const PATH_RE = /^[A-Za-z0-9._@+()[\]/-]{1,160}$/
 
 /** @param {(v: unknown) => boolean} ok @returns {(v: unknown) => string} */
 const printer = (ok) => (v) => (ok(v) ? String(v) : UNPRINTABLE)
@@ -64,9 +69,13 @@ const gateName = printer(
   (v) =>
     typeof v === 'string' && v.split('/').length <= 2 && v.split('/').every((s) => NAME_RE.test(s)),
 )
-const path = printer(
-  (v) => typeof v === 'string' && PATH_RE.test(v) && !v.split('/').includes('..'),
-)
+/** @param {unknown} v */
+const pathOk = (v) =>
+  typeof v === 'string' &&
+  PATH_RE.test(v) &&
+  v.split('/').every((s) => s !== '' && s !== '.' && s !== '..' && !s.startsWith('-'))
+/** @param {unknown} v */
+const path = (v) => (pathOk(v) ? `\`${String(v)}\`` : UNPRINTABLE)
 const count = printer((v) => Number.isInteger(v) && Number(v) >= 0)
 
 // ── the renderer ────────────────────────────────────────────────────────────────
