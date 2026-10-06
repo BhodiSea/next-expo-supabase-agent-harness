@@ -756,6 +756,21 @@ test('2.0.0 — an install that predates a register update plants takes the reme
   assert.deepEqual(own.adopt, ['tools/eol.json'], 'a 1.1.0 install keeps its own registers')
 })
 
+test('2.0.3 — an install made before 0.9.5 takes notes-port.ts with the route that calls it; a later one takes neither', () => {
+  // Found when leg E (v0.3.0) went red after the sweep on dead-code and web-compile (#155):
+  // 0.9.5's derived pass copies the demo's tRPC route, which from 2.0.3 imports notes-port.ts.
+  const route = 'apps/web/app/api/trpc/[trpc]/route.ts'
+  const port = 'apps/web/lib/app-data/notes-port.ts'
+  const old = computeSweepSet(MIGRATIONS, '0.3.0', '2.0.3')
+  assert.ok(old.adopt.includes(route), 'below 0.9.5: the route the 0.9.5 fix pulls')
+  assert.ok(old.adopt.includes(port), 'below 0.9.5: the module that route imports')
+  for (const base of ['0.9.5', '1.1.0', '2.0.2']) {
+    const later = computeSweepSet(MIGRATIONS, base, '2.0.3')
+    assert.ok(!later.adopt.includes(route), `${base}: keeps its own route`)
+    assert.ok(!later.adopt.includes(port), `${base}: no caller, so no notes-port.ts`)
+  }
+})
+
 test('withNotesEventCatalog appends the runbook line once, and only where it can name noteEvents', () => {
   const client = "export { noteEvents } from './events.js'\n"
   assert.equal(withNotesEventCatalog(client), `${client}${NOTES_EVENT_CATALOG_LINE}\n`)

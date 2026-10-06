@@ -63,15 +63,25 @@ Only when nothing covers the need do you scaffold a new slice.
    is WHICH DATA a read is about), name an input schema, hand the call to the vertical. If the
    web surface writes this entity, add the twin Server Action at
    `apps/web/app/actions/<slice>.ts` — SAME contract, SAME vertical implementation, SAME
-   envelope, different transport. Then the MAIN THREAD regenerates the committed inventories:
-   `pnpm gen` (the `contracts` gate regen-diffs `tools/generated/*.json`; the `parity` gate
-   holds the mobile ledger to the action inventory). Class-B is the DEFAULT — mobile writes
-   through the procedure. Class-A (mobile writes DIRECT to Supabase via the vertical
+   envelope, different transport. It takes the org as a BOUND argument (the route's slug,
+   parsed with `OrgSlug`), resolves user and org with `requireOrgContext`, narrows the
+   client with `to<Slice>Port` from `apps/web/lib/app-data/<slice>-port.ts` (the one cast
+   apps/web has) and revalidates the org's path. Then the MAIN THREAD regenerates the
+   committed inventories: `pnpm gen` (the `contracts` gate regen-diffs
+   `tools/generated/*.json`; the `parity` gate holds the mobile ledger to the action
+   inventory). Class-B is the DEFAULT — mobile writes through the procedure. Class-A (mobile writes DIRECT to Supabase via the vertical
    `./client`) is an explicit, reasoned security-census opt-in, never the reflex.
-5. **Web screen** — `apps/web/**`. Read via `apps/web/lib/app-data/<slice>.ts` (the RSC read
-   seam: per-request client -> vertical `./client` -> match the outcome -> a render model),
+5. **Web screen** — a segment under the org scope,
+   `apps/web/app/(protected)/o/[orgSlug]/<slice>/`: `page.tsx`, its `page.meta.ts` (id,
+   `titleKey`, the three state test ids) and `loading.tsx`. The segment IS the tenant
+   selector; the page reads `orgSlug` from `params`. Read via `apps/web/lib/app-data/<slice>.ts`
+   (the RSC read seam: `requireOrgContext(orgSlug)` -> `to<Slice>Port(gate.data.client)` ->
+   vertical `./client`, scoped to the RESOLVED org -> match the outcome -> a render model),
    NEVER a Supabase query in a Server Component and NEVER a `fetch()` to the app's own
-   `/api/trpc`. Writes go through the Server Action from step 4. `getUser()`/`getClaims()`
+   `/api/trpc`. Render each state as `data-testid={meta.states.<key>}`, add the `titleKey` to
+   `apps/web/lib/i18n/catalog.ts`, regenerate the registry (`node tools/gen-web-routes.mjs`)
+   and name one state id in a spec under `apps/web/e2e`: `route-manifest` holds all four.
+   Writes go through the Server Action from step 4. `getUser()`/`getClaims()`
    server-side for rendering decisions — never `getSession()` (it decodes an
    attacker-controlled cookie without verifying the signature). RLS-scoped reads are never
    cached on a shared key.
@@ -106,7 +116,16 @@ node .claude/skills/authoring-vertical-slice/scripts/scaffold-slice.mjs <slice>
 ```
 
 `<slice>` is a single kebab-case argument (e.g. `release-notes`). The script is idempotent:
-it writes a file only if it does not already exist. It deliberately does NOT create the
+it writes a file only if it does not already exist. It writes the worked example's shape: the
+vertical's `src/` with every data seam (`data/{port,rows,errors,query-probes,<slice>}.ts`), the
+router, the Server Action, the web segment `apps/web/app/(protected)/o/[orgSlug]/<slice>/`
+(`page.tsx`, `page.meta.ts`, `loading.tsx`), the read seam `apps/web/lib/app-data/<slice>.ts`,
+`apps/web/lib/app-data/<slice>-port.ts` (the one narrowing function; no other stub casts) and
+the mobile feature. A stub that cannot compile until the vertical resolves is comment-only.
+Each step the script must not take itself is a printed `next:` line (among them the catalog
+key, the registry regen, the browser spec, the query probes and the vertical's
+`package.json`); until they are done, `route-manifest` and `query-shapes` red with the
+findings those lines name. It deliberately does NOT create the
 migration file — `supabase/migrations/*` is append-only (timestamped, applied history), so a
 pre-created stub could never be filled in and would only invite a hand-edit of applied
 history. Compose the migration completely with `supabase migration new <slice>`, then write
