@@ -37,6 +37,19 @@ this comment. -->
   renders every path the template ships and an uncommitted route-group page, and refuses
   each new case. `tools/lib/harness-brief.mjs`, `docs/harness/README.md` and
   `docs/runbooks/harness-upgrade.md` are owned and reach an install with `update`.
+- **The bash guard denies every spelling of the skip-hooks commit flag** (#222). The
+  `git-commit-no-verify` rule in `.claude/hooks/lib/guard-rules.mjs` caught `-n` only as a
+  later argument on its own and allowed nothing between `git` and `commit`, so
+  `git commit -nm x`, `-n` as the first argument, `-an` anywhere, `--no-verif` (git accepts an
+  unambiguous prefix of a long option) and `git -c k=v commit --no-verify` all committed past
+  lefthook's Biome, gitleaks and commitlint hooks. The rule now matches `n` in any short-flag
+  cluster, every prefix of `--no-verify` down to `--no-v`, and global options such as `-c`,
+  `-C` and `--git-dir=` before the subcommand. `git commit -m "x"`, `git commit -am "x"`,
+  `git commit --amend --no-edit`, `--no-verbose` and the scaffold's
+  `git -c user.email=… commit -qm` stay allowed. A message that only mentions ` -n` is now
+  denied, a false positive in the safe direction. `tests/hooks/hook-contract.test.mjs` denies
+  each spelling and allows each of those. No gate, step or ramp changes. `guard-rules.mjs` is
+  owned and reaches an install with `update`.
 - **The vertical-slice scaffold writes the worked example's shape** (#155).
   `scaffold-slice.mjs` wrote a slice's web page at `apps/web/app/<slice>/page.tsx`, outside
   the signed-in and org layouts and with no `page.meta.ts`, so a run with no edits turned
