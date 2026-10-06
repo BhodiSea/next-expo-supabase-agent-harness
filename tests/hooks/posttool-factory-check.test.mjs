@@ -15,7 +15,7 @@
 // Windows leg of installer-unit too.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, before, test } from 'node:test'
@@ -144,4 +144,83 @@ test('the adapter forwards stdout, stderr and an arbitrary exit code byte for by
   // Outside the template trees the adapter does not run the hook at all.
   const outside = runAdapter(stub, { tool_name: 'Write', tool_input: { file_path: join(stub, 'scripts/x.mjs') } })
   assert.deepEqual(outside, { code: 0, stdout: '', stderr: '' })
+})
+
+// 2.0.3 (#223). Through 2.0.2 the adapter stripped any layer's prefix but ran the hook from
+// template/base/, so an edit to template/stack/<p> was judged on template/base/<p>: a file
+// that is not there (the hook exits 0 on a failed read) or a different one. template/demo/ was
+// not in the prefix at all. Each fixture below is written ONLY under its own layer.
+const LAYERS = ['template/base', 'template/stack', 'template/demo', 'template/modules/e2ee', 'template/presets/tokens-metal']
+
+for (const layer of LAYERS) {
+  test(`${layer}: an uncited MANDATORY site written only under this layer is reported as it is in template/base`, () => {
+    const consumerPath = `packages/api/src/${layer.split('/').join('-')}-auth.ts`
+    const text = 'const claims = await jwtVerify(token, jwks)\n'
+    put(root, `${layer}/${consumerPath}`, text)
+    const r = runAdapter(root, { tool_name: 'Edit', tool_input: { file_path: join(root, layer, consumerPath) } })
+    assert.equal(r.code, 2, `${layer}: ${JSON.stringify(r)}`)
+    assert.ok(r.stderr.includes(`${consumerPath}:1`), r.stderr)
+    assert.equal(r.stdout, '')
+
+    // The same bytes at the same consumer path in template/base get the same verdict.
+    put(root, `template/base/${consumerPath}`, text)
+    const inBase = runAdapter(root, {
+      tool_name: 'Edit',
+      tool_input: { file_path: join(root, 'template/base', consumerPath) },
+    })
+    assert.deepEqual(r, inBase)
+  })
+}
+
+test('a layer edit is judged on that layer\'s bytes, never on template/base\'s file at the same consumer path', () => {
+  const consumerPath = 'packages/api/src/shadowed.ts'
+  put(root, `template/base/${consumerPath}`, 'const claims = await jwtVerify(token, jwks)\n')
+  put(root, `template/stack/${consumerPath}`, 'export const nothing = 1\n')
+  const stack = runAdapter(root, {
+    tool_name: 'Edit',
+    tool_input: { file_path: join(root, 'template/stack', consumerPath) },
+  })
+  assert.deepEqual(stack, { code: 0, stdout: '', stderr: '' })
+  const base = runAdapter(root, {
+    tool_name: 'Edit',
+    tool_input: { file_path: join(root, 'template/base', consumerPath) },
+  })
+  assert.equal(base.code, 2, base.stderr)
+})
+
+test('the hook runs from the layer root the edit is under, and loads its tables from template/base', () => {
+  // A stub that reports where it was started and which project directory it was handed.
+  const stub = mirror()
+  put(
+    stub,
+    SHIPPED,
+    [
+      "let raw = ''",
+      "process.stdin.on('data', (d) => { raw += d })",
+      "process.stdin.on('end', () => {",
+      '  const p = JSON.parse(raw).tool_input.file_path',
+      '  process.stdout.write(JSON.stringify({ p, cwd: process.cwd(), dir: process.env.CLAUDE_PROJECT_DIR }))',
+      '})',
+      '',
+    ].join('\n'),
+  )
+  const real = (p) => realpathSync.native(p)
+  for (const layer of LAYERS) {
+    mkdirSync(join(stub, layer), { recursive: true })
+    const r = runAdapter(stub, {
+      tool_name: 'Write',
+      tool_input: { file_path: join(stub, layer, 'apps/web/lib/x.ts') },
+    })
+    assert.equal(r.code, 0, `${layer}: ${JSON.stringify(r)}`)
+    const seen = JSON.parse(r.stdout)
+    assert.equal(seen.p, 'apps/web/lib/x.ts', layer)
+    assert.equal(real(seen.cwd), real(join(stub, layer)), `${layer}: cwd`)
+    assert.equal(real(seen.dir), real(join(stub, 'template/base')), `${layer}: CLAUDE_PROJECT_DIR`)
+  }
+
+  // Siblings that only share a prefix with a layer are not layers.
+  for (const rel of ['template/demo-index.json', 'template/migrations.json', 'template/modules/x.ts']) {
+    const r = runAdapter(stub, { tool_name: 'Write', tool_input: { file_path: join(stub, rel) } })
+    assert.deepEqual(r, { code: 0, stdout: '', stderr: '' }, rel)
+  }
 })
