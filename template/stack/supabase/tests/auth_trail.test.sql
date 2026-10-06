@@ -23,7 +23,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(23);
+SELECT plan(25);
 
 -- ── (1) shape: the wall, read from the catalog ──────────────────────────────
 SELECT has_schema('auth_trail', 'schema auth_trail exists');
@@ -212,6 +212,33 @@ SELECT results_eq(
   $$ VALUES (1) $$,
   'the broken-trail attempt lost its row (count still 1) — the failure direction is the recorded one'
 );
+
+-- ── (8) partition maintenance is scheduled ──────────────────────────────────
+-- ensure_partitions() runs once at migrate time. Without a schedule, the fifth
+-- month after apply has no partition, every sign-in row lands in the default
+-- partition, which retention never drops, and that month can never be created
+-- afterwards (20261006000000_auth_trail_partition_schedule.sql). Where pg_cron is
+-- installed, a job must call each maintenance function. Where it is not, the
+-- migration printed a NOTICE and the schedule is a manual step, so these SKIP with
+-- that reason rather than pass. The queries are strings, so a database without the
+-- cron schema never parses them.
+SELECT CASE WHEN to_regclass('cron.job') IS NULL
+  THEN skip('pg_cron is not installed here, so auth_trail''s partition jobs are a manual step (docs/adr/20260816-auth-event-trail.md)', 1)
+  ELSE isnt_empty(
+    $$ SELECT jobid FROM cron.job
+        WHERE active AND command ~ 'auth_trail\.ensure_partitions\(' $$,
+    'an active pg_cron job creates auth_trail.events'' month partitions ahead of time'
+  )
+END;
+
+SELECT CASE WHEN to_regclass('cron.job') IS NULL
+  THEN skip('pg_cron is not installed here, so auth_trail''s partition jobs are a manual step (docs/adr/20260816-auth-event-trail.md)', 1)
+  ELSE isnt_empty(
+    $$ SELECT jobid FROM cron.job
+        WHERE active AND command ~ 'auth_trail\.drop_partitions_older_than\(' $$,
+    'an active pg_cron job drops auth_trail.events'' partitions past retention'
+  )
+END;
 
 SELECT * FROM finish();
 

@@ -3760,6 +3760,137 @@ above are still the sweep for an install below 1.1.0.
 sha: this runbook and the hooks under `.claude/hooks/` (their version stamps). Each fix below
 says what else it delivers and what it leaves to you.
 
+### One migration you have to write yourself: schedule the auth-event trail's partitions (#146)
+
+**Only if your project adopted the auth-event trail** (`20260816000000_auth_event_trail.sql`,
+from 1.0.0). If it never did, there is nothing to do here.
+
+The trail's migration creates a partition for the month it ran in and the three after it, and
+nothing ever created another: the guarded pg_cron block in the audit migration schedules only
+audit's two jobs. From the fifth month after your database applied the trail, every sign-in
+row lands in `auth_trail.events_default`, which retention never drops, and PostgreSQL refuses to
+create a month's partition once the default partition holds rows in that month's range. The
+trail first shipped on 2026-08-16, so no database reaches that point before 2026-12-01.
+
+A fresh scaffold gets `supabase/migrations/20261006000000_auth_trail_partition_schedule.sql`,
+which schedules both maintenance functions under pg_cron running as `postgres`, the way the
+audit trail's are scheduled. **`update` does not plant it in your project**, for the 1.0.2
+reason: `supabase/migrations/` is your applied history.
+
+**First, see how long you have.** In the SQL editor, or `psql` as `postgres`, on each database
+that applied the trail:
+
+```sql
+SELECT max(c.relname) AS last_month_partition,
+       (SELECT count(*) FROM auth_trail.events_default) AS rows_in_default
+  FROM pg_catalog.pg_inherits i
+  JOIN pg_catalog.pg_class c ON c.oid = i.inhrelid
+ WHERE i.inhparent = 'auth_trail.events'::regclass
+   AND c.relname ~ '^events_[0-9]{4}_[0-9]{2}$';
+```
+
+`last_month_partition` is the last month that has a partition. Apply the migration below before
+that month ends and no sign-in ever lands in the default partition. While `rows_in_default` is 0,
+none has.
+
+**Then create your own migration:**
+
+```
+supabase migration new auth_trail_partition_schedule
+```
+
+and put this in it. It is the shipped file without its header comment, and the same file is
+right for every database you push it to, whatever the query returned on each:
+
+```sql
+-- adr: docs/adr/20260816-auth-event-trail.md
+
+-- On an existing install the catch-up below creates partitions of a table that takes a row
+-- on every sign-in, under an ACCESS EXCLUSIVE lock on the parent: fail fast rather than
+-- queue every sign-in behind a long-running reader.
+SET lock_timeout = '3s';
+
+DO $cron$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_available_extensions WHERE name = 'pg_cron') THEN
+    CREATE EXTENSION IF NOT EXISTS pg_cron;
+    PERFORM cron.schedule(
+      'auth-trail-ensure-partitions',
+      '15 3 1 * *',
+      $job$SELECT auth_trail.ensure_partitions(3)$job$
+    );
+    PERFORM cron.schedule(
+      'auth-trail-drop-old-partitions',
+      '45 3 1 * *',
+      $job$SELECT auth_trail.drop_partitions_older_than(interval '24 months')$job$
+    );
+  ELSE
+    RAISE NOTICE 'pg_cron unavailable: schedule auth_trail.ensure_partitions(3) and auth_trail.drop_partitions_older_than() manually (see docs/adr/20260816-auth-event-trail.md)';
+  END IF;
+EXCEPTION
+  WHEN insufficient_privilege OR feature_not_supported THEN
+    RAISE NOTICE 'pg_cron present but not schedulable here (%); schedule the auth_trail partition jobs manually', SQLERRM;
+END
+$cron$;
+
+-- Catch up now rather than at the first scheduled run. On a fresh database this creates
+-- nothing (the trail migration just made the same four months). On a database that applied
+-- the trail months ago it creates the months the schedule would otherwise reach only on the
+-- next first of the month. On a database already past its last month, the current month's
+-- rows sit in auth_trail.events_default, so that month can no longer be created and
+-- ensure_partitions() raises check_violation: create the three months after it instead,
+-- each exactly as ensure_partitions() would, so the schedule carries on from next month.
+-- The rows already in the default partition stay there.
+DO $catchup$
+DECLARE
+  _start date;
+  _name text;
+BEGIN
+  PERFORM auth_trail.ensure_partitions(3);
+EXCEPTION
+  WHEN check_violation THEN
+    RAISE NOTICE 'auth_trail.events_default already holds rows for this month (%); creating the next three months only', SQLERRM;
+    FOR _i IN 1..3 LOOP
+      _start := (date_trunc('month', now()) + make_interval(months => _i))::date;
+      _name := 'events_' || to_char(_start, 'YYYY_MM');
+      IF to_regclass('auth_trail.' || quote_ident(_name)) IS NULL THEN
+        EXECUTE format(
+          'CREATE TABLE auth_trail.%I PARTITION OF auth_trail.events FOR VALUES FROM (%L) TO (%L)',
+          _name, _start, (_start + interval '1 month')::date
+        );
+        EXECUTE format('ALTER TABLE auth_trail.%I ENABLE ROW LEVEL SECURITY', _name);
+        -- SOURCE: FORCE ROW LEVEL SECURITY subjects the table owner to policies; a partition carrying RLS with no policy of its own is deny-all for direct access [corpus: postgres/rls-force]
+        EXECUTE format('ALTER TABLE auth_trail.%I FORCE ROW LEVEL SECURITY', _name);
+        EXECUTE format(
+          'CREATE TRIGGER %I BEFORE TRUNCATE ON auth_trail.%I FOR EACH STATEMENT EXECUTE FUNCTION auth_trail.deny_mutation()',
+          _name || '_no_truncate', _name
+        );
+      END IF;
+    END LOOP;
+END
+$catchup$;
+```
+
+Then `pnpm db:reset && pnpm db:test` locally, and `supabase db push` for each hosted project.
+Where the migration prints the `pg_cron unavailable` notice, nothing was scheduled: run the two
+`SELECT`s in the `cron.schedule` calls yourself on the first of each month, before
+`last_month_partition` runs out. This update re-plants two owned files that describe the
+schedule: `docs/adr/20260816-auth-event-trail.md`, which records it, and
+`tools/conformance-map.json`, whose notes on scheduled deletion and on trail retention now name
+it. To pull the two pgTAP assertions that prove the jobs exist, after the migration is applied:
+`npx next-expo-supabase-agent-harness@latest update --refresh-seeded supabase/tests/auth_trail.test.sql`.
+That suite is seeded, so `update` keeps a copy you edited and parks the new one under
+`.harness/pending/`.
+
+**If `rows_in_default` was not 0**, sign-ins are already in the default partition. Once they
+include the current month's, PostgreSQL no longer creates that month's partition:
+`ensure_partitions` raises `updated partition constraint for default partition ... would be
+violated` and creates nothing. The migration's last block handles that database. It prints a
+notice saying so and creates the three months after the current one, exactly as
+`ensure_partitions` would, so from the next first of the month the scheduled job finds that month
+present and carries on. The rows already in the default partition stay there, and retention never
+drops them.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

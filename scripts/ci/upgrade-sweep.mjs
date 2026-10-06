@@ -437,6 +437,16 @@ const SWEEPS = {
       '1.0.0': ['tools/suppressions-allow.json'],
     },
   },
+  // 2.0.3 withholds ONE path, supabase/migrations/20261006000000_auth_trail_partition_schedule.sql
+  // (#146, part C), and a swept leg must not adopt it, for 1.0.2's reason restated: the DDL would
+  // sit unapplied beside the scaffold's applied history. Nothing else needs sweeping. A leg keeps
+  // its old seeded auth_trail.test.sql, whose assertions predate the schedule, so nothing on the
+  // leg judges whether the auth-event trail's partition maintenance is scheduled and it is green
+  // without the migration; adopting the edited suite would red it, since its two new assertions
+  // ask for the jobs this withheld migration creates. And only a database that applied the trail
+  // months ago is short of partitions, which no lane scaffold is. Empty, and written down,
+  // because computeSweepSet asks every withholding version for a reviewed posture.
+  '2.0.3': {},
 }
 
 /**
