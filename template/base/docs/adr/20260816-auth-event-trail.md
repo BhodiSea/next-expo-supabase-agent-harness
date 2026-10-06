@@ -61,6 +61,22 @@ trail is somebody quietly adding a read path).
   adopts the migration and the sections together.
 - Retention is a partition DROP (`auth_trail.drop_partitions_older_than`), owned
   by nobody the application can reach.
+- **Amended in 2.0.3: the partition maintenance is scheduled.** Until then this
+  record named no schedule, and nothing ran the maintenance after migrate time:
+  `ensure_partitions()` ran once at apply, creating the apply month and the three
+  after it, so from the fifth month every attempt landed in the default partition,
+  which retention never drops, and that month's partition could no longer be
+  created. `20261006000000_auth_trail_partition_schedule.sql` schedules both
+  functions under **pg_cron running as `postgres`**, exactly as the audit trail's
+  retention is scheduled ([20260202-audit-trail.md](./20260202-audit-trail.md),
+  Retention): `auth_trail.ensure_partitions(3)` at 03:15 and
+  `auth_trail.drop_partitions_older_than(interval '24 months')` at 03:45 on the
+  first of each month, fifteen minutes after audit's pair. The same guard applies:
+  a project without pg_cron gets a `NOTICE` and schedules the two calls itself, on
+  the first of each month, before the last month partition runs out. The migration
+  then creates any months the database is missing; on a database already past its
+  last month, whose current month can no longer be created, it creates the three
+  after it, and that month's rows stay in the default partition.
 
 ## Ceilings, stated
 
@@ -77,7 +93,8 @@ trail is somebody quietly adding a read path).
 
 - `supabase/tests/auth_trail.test.sql`: the whole privilege path as
   `supabase_auth_admin`, the closed vocabulary, immutability against the superuser,
-  client denial at the schema wall, and the broken-trail continue.
+  client denial at the schema wall, the broken-trail continue, and (where pg_cron is
+  installed, since 2.0.3) an active job for each partition maintenance function.
 - `tests/rls/auth-trail.test.ts`: a REAL failed `signInWithPassword` over HTTP, then
   the row counted through the operator read path — the wiring half only a live
   GoTrue can prove.

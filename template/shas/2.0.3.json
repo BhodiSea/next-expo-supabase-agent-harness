@@ -695,6 +695,9 @@
     "docs/adr/20260816-auth-event-trail.md": [
       {
         "sha256": "4df72292864e805a76bd1ebf5710db99f3fbd0f65f2fd07499e60466c8fdf518"
+      },
+      {
+        "sha256": "5b3a28452687c8940bbedd60aa128e52470ed3d252c1c210afd60c178066e044"
       }
     ],
     "docs/adr/20260920-authenticated-write-revoke.md": [
@@ -930,6 +933,24 @@
     ],
     "docs/runbooks/harness-upgrade.md": [
       {
+        "sha256": "088f4f802a8c4a1b39779b8f401a4f0e4694a359fd4394cd6227585c57fca688",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "31f9661201ac1c4b115decd83307e1d7bf5f8ccdeaf8f82e277f8e2f7711db12",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "336a0e54fd2dade10b94e5c0f50ce88a1109f472fe5ede49ff98c10e30a073f6",
         "sites": [
           [
@@ -939,7 +960,7 @@
         ]
       },
       {
-        "sha256": "41c7d1f51956ec822aa1c86f67735af10b56e10078dbde91a5f0453d111b483e",
+        "sha256": "4166c2739fedb911398c0b76488ff1f57afd8ab711b7f405c75860b2b087d765",
         "sites": [
           [
             14122,
@@ -948,7 +969,7 @@
         ]
       },
       {
-        "sha256": "45309324c15507fc814cb3aac51af48f29ff3c5d2ad2a94abb7c3c7dff63a8bb",
+        "sha256": "41c7d1f51956ec822aa1c86f67735af10b56e10078dbde91a5f0453d111b483e",
         "sites": [
           [
             14122,
@@ -1584,6 +1605,19 @@
       }
     ],
     "tools/conformance-map.json": [
+      {
+        "sha256": "aeb5c07188178177a0f9636f968999d970538ee24b7f1da546bf80c274ef56d6",
+        "sites": [
+          [
+            643559,
+            "APP_SCHEME"
+          ],
+          [
+            703420,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
       {
         "sha256": "bfa16e299b219ba5838582e00416c48d24fe7878421b3176c4bcd9d08c0e53e9",
         "sites": [
