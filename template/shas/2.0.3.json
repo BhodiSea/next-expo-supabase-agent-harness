@@ -157,6 +157,9 @@
     ".claude/hooks/stop-validate-gate.mjs": [
       {
         "sha256": "dd01ad3ec50059fd1d5329e681e54c9e8cc2d0d79357653b2cd9eeb3d6598322"
+      },
+      {
+        "sha256": "fd72e7922d08a293b4fa1b8ef0bc1a2632775a943c5f0f1666c3646b05b7c3df"
       }
     ],
     ".claude/hooks/subagent-verdict.mjs": [
@@ -727,6 +730,15 @@
         ]
       },
       {
+        "sha256": "ecb66850a0e8ad22e390b8a0daf6850426326d19ca5a6f4b498cad3aeedc2ac1",
+        "sites": [
+          [
+            20380,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "eedc666321d02698475e4ae0f4c9ad668d9b81a290eecc7b6b1f4bad46a3f271",
         "sites": [
           [
@@ -952,6 +964,15 @@
       },
       {
         "sha256": "41c7d1f51956ec822aa1c86f67735af10b56e10078dbde91a5f0453d111b483e",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "abe6c62ad80666b4e50f405a4a3af4ccc86d8b8d68b219fe36179cbf5f0d187c",
         "sites": [
           [
             14122,

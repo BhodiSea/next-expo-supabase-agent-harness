@@ -54,6 +54,24 @@ this comment. -->
   fresh scaffolds only (`seedOnInitOnly`); the runbook's 2.0.3 section gives an existing install
   the same SQL for a migration of its own and a query that shows how long it has (#146, part C).
 
+- **A green turn shows the gates' NOTE lines to the user** (#152). Gates print
+  `<gate>: NOTE — …` for a ramp that is live, a control that is switched off (the gzip ratchet)
+  or a check that did not run (the reviewer ledger with no merge base). From a green step the
+  Stop hook kept only `SKIPPED`, `STAMPED` and `FALLBACK MODEL` lines, and it wrote its own
+  notes (a floor it could not read, a previous turn that ended red, an unusable block cap) to
+  stderr, which reaches only the debug log when a hook exits 0. So on a green turn nobody saw
+  any of them. `stop-validate-gate.mjs` now adds them to the one JSON `systemMessage` it prints
+  on a green turn, after the fallback lines: the first ten NOTE lines, each cut at 300
+  characters and stripped of control and format characters, then the hook's own notes. When
+  the message cannot hold every line whole, all of them go to
+  `.harness/stop-output/_notes.log`, and the message names that file only when it was
+  written. A red turn's block lists a green step's NOTE lines too, and each `stop-step`
+  telemetry record gains a `notes` count. No exit code changes, so the agent still does not see
+  a green turn's notes; the user does. With no NOTE line, no fallback and no note of its own,
+  the hook prints nothing on stdout, as before. `tests/hooks/hook-contract.test.mjs` and
+  `tests/hooks/telemetry.test.mjs` hold it. The hook and `docs/harness/README.md` are owned
+  and reach an install with `update`; a kept fork of the hook keeps dropping the lines.
+
 ## [2.0.2] — 2026-10-03
 
 **A patch: the installer stops moving an install backwards.** `update`, `enable`, `disable`

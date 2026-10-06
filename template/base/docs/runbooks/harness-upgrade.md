@@ -3771,6 +3771,19 @@ absolute path, an empty or `.` segment and a segment that starts with `-`. `upda
 you: the brief judges nothing, so no verdict moves. A fork of the lib you kept keeps the old
 printer.
 
+### A green turn shows the gates' NOTE lines (#152)
+
+Through 2.0.2 the Stop hook dropped every `<gate>: NOTE — …` line from a green step, and its
+own notes (a floor it could not read, a previous turn that ended red) went to stderr, which a
+hook that exits 0 sends only to the debug log. On a green turn you now see them in the same
+message that shows `FALLBACK MODEL` lines: the first ten NOTE lines, each cut at 300
+characters, then the hook's own notes. When that is not every line whole, all of them are in
+`.harness/stop-output/_notes.log`. A red turn's block lists a green step's NOTE lines too.
+`update` plants `.claude/hooks/stop-validate-gate.mjs` and `docs/harness/README.md`, both
+owned. Nothing is left to you: no exit code changes and no verdict moves. A NOTE your gates
+print on every run, such as the reviewer ledger's no-merge-base line, now shows on every green
+turn; that is the line doing its job. A fork of the hook you kept keeps dropping the lines.
+
 ### One migration you have to write yourself: schedule the auth-event trail's partitions (#146)
 
 **Only if your project adopted the auth-event trail** (`20260816000000_auth_event_trail.sql`,
