@@ -1757,15 +1757,23 @@ test('stop gate (#62): a green run shows every FALLBACK MODEL line to the user t
   assert.ok(!out.systemMessage.includes('OK - 1 owed'), 'only FALLBACK MODEL lines are listed')
   assert.ok(green.stderr.includes(`[reviewer-verdicts] ${line}`), 'the debug log keeps them too')
 
-  // No such line: stdout stays EMPTY, so nothing is shown and nothing parses as JSON.
-  const quiet = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_FB: 'reviewer-verdicts: nothing to name' } })
-  assert.equal(quiet.code, 0, quiet.stderr)
-  assert.equal(quiet.stdout.trim(), '')
+  // No such line: stdout stays EMPTY, so nothing is shown and nothing parses as JSON. The
+  // fixture has no floor, and since 2.0.3 (#152) the hook's floor note is shown on a green run
+  // too, so these two cases get a floor that mirrors the chain.
+  const floor = join(proj, 'tools/stop.floor.json')
+  writeFileSync(floor, `${JSON.stringify({ comment: 'fixture', steps: [['reviewer-verdicts', step]] })}\n`)
+  try {
+    const quiet = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_FB: 'reviewer-verdicts: nothing to name' } })
+    assert.equal(quiet.code, 0, quiet.stderr)
+    assert.equal(quiet.stdout.trim(), '')
 
-  // A line that only CONTAINS the words is not one: the tag follows `<gate>: `.
-  const prose = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_FB: 'note: no FALLBACK MODEL — here' } })
-  assert.equal(prose.code, 0, prose.stderr)
-  assert.equal(prose.stdout.trim(), '')
+    // A line that only CONTAINS the words is not one: the tag follows `<gate>: `.
+    const prose = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_FB: 'note: no FALLBACK MODEL — here' } })
+    assert.equal(prose.code, 0, prose.stderr)
+    assert.equal(prose.stdout.trim(), '')
+  } finally {
+    rmSync(floor, { force: true })
+  }
 
   // A red run blocks through stderr as always, and lists the green step's lines there.
   writeFileSync(
@@ -1776,6 +1784,171 @@ test('stop gate (#62): a green run shows every FALLBACK MODEL line to the user t
   assert.equal(red.code, 2, red.stderr)
   assert.ok(red.stderr.includes('boom FAILED'), red.stderr)
   assert.ok(red.stderr.includes(`[reviewer-verdicts] ${line}`), `a red run lists them too:\n${red.stderr}`)
+})
+
+// A gate's NOTE line reaches the user on a green turn (2.0.3, #152). Gates print `<gate>: NOTE —
+// …` for a ramp that is live, a control that is switched off or a check that did not run.
+// Through 2.0.2 the hook kept only SKIPPED, STAMPED and FALLBACK MODEL lines from a green step,
+// so a NOTE reached the debug log at most, and the hook's own notes went to stderr alone. Now
+// the green run's one JSON `systemMessage` lists the first ten (each cut at 300 code points),
+// every line goes to .harness/stop-output/_notes.log when the message cannot hold them all, and
+// a red run lists a green step's NOTE lines in its block.
+const NOTE_LINE = 'build: NOTE — the gzip ratchet is OFF (no baseline recorded), so a sub-budget regression ships green.'
+const NOTES_LOG = '.harness/stop-output/_notes.log'
+
+/**
+ * Give the fixture a Stop chain of `node <file>` steps over scripts written here, so the bodies
+ * need no shell quoting and run on Windows too. Unless `floor` is false, the floor mirrors the
+ * chain, so the union adds nothing and the hook has no floor note to show.
+ * @param {Array<[string, string]>} steps [name, script body] @param {{ floor?: boolean }} [opts]
+ */
+function stopChain(steps, { floor = true } = {}) {
+  const chain = steps.map(([name, body]) => {
+    const file = `stop-step-${name}.mjs`
+    writeFileSync(join(proj, file), body)
+    return [name, `node ${file}`]
+  })
+  writeFileSync(
+    join(proj, 'tools/harness.config.mjs'),
+    `export const VALIDATE_STEPS = []\nexport const STOP_HOOK_STEPS = ${JSON.stringify(chain)}\n`,
+  )
+  if (floor) {
+    writeFileSync(join(proj, 'tools/stop.floor.json'), `${JSON.stringify({ comment: 'fixture', steps: chain })}\n`)
+  } else {
+    rmSync(join(proj, 'tools/stop.floor.json'), { force: true })
+  }
+}
+/** The shared fixture has no floor and no spill directory; every case that adds one removes it. */
+function clearStopChain() {
+  rmSync(join(proj, 'tools/stop.floor.json'), { force: true })
+  rmSync(join(proj, '.harness/stop-output'), { recursive: true, force: true })
+}
+/** @param {string[]} lines */
+const printLines = (lines) => lines.map((l) => `console.log(${JSON.stringify(l)})\n`).join('')
+
+test('stop gate (#152): a green run shows each gate NOTE line to the user through systemMessage, at exit 0', () => {
+  try {
+    stopChain([['validate', printLines([NOTE_LINE, 'build: OK'])]])
+    const green = runHook('stop-validate-gate.mjs', { stop_hook_active: false })
+    assert.equal(green.code, 0, green.stderr)
+    const out = JSON.parse(green.stdout)
+    assert.deepEqual(Object.keys(out), ['systemMessage'], green.stdout)
+    assert.ok(out.systemMessage.includes('stop-validate-gate: green, with 1 NOTE line(s)'), out.systemMessage)
+    assert.ok(out.systemMessage.includes(`[validate] ${NOTE_LINE}`), out.systemMessage)
+    assert.ok(!out.systemMessage.includes('build: OK'), 'only NOTE lines are listed')
+    assert.ok(!out.systemMessage.includes('_notes.log'), 'ten lines or fewer, uncut: no notes file is named')
+    assert.ok(green.stderr.includes(`[validate] ${NOTE_LINE}`), 'the debug log keeps them too')
+
+    // A line that only CONTAINS the word is not one: the tag follows `<gate>: `.
+    stopChain([['validate', printLines(['note: a NOTE — here', 'build: OK'])]])
+    const prose = runHook('stop-validate-gate.mjs', { stop_hook_active: false })
+    assert.equal(prose.code, 0, prose.stderr)
+    assert.equal(prose.stdout.trim(), '')
+  } finally {
+    clearStopChain()
+  }
+})
+
+test('stop gate (#152): NOTE lines are bounded at ten, each cut and stripped, and all of them go to _notes.log', () => {
+  try {
+    const twelve = Array.from({ length: 12 }, (_, i) => `build: NOTE — finding ${String(i + 1)}`)
+    stopChain([['validate', printLines([...twelve, 'build: OK'])]])
+    const r = runHook('stop-validate-gate.mjs', { stop_hook_active: false })
+    assert.equal(r.code, 0, r.stderr)
+    const { systemMessage } = JSON.parse(r.stdout)
+    assert.ok(systemMessage.includes('green, with 12 NOTE line(s) (first 10 shown'), systemMessage)
+    assert.equal(systemMessage.split('\n').filter((l) => l.startsWith('[validate] build: NOTE — ')).length, 10)
+    assert.ok(systemMessage.includes('finding 10\n') || systemMessage.endsWith('finding 10'), systemMessage)
+    assert.ok(!systemMessage.includes('finding 11'), systemMessage)
+    assert.ok(systemMessage.includes(NOTES_LOG), systemMessage)
+    const logged = readFileSync(join(proj, NOTES_LOG), 'utf8')
+    for (const line of twelve) assert.ok(logged.includes(`[validate] ${line}\n`), logged)
+    for (const line of twelve) assert.ok(r.stderr.includes(`[validate] ${line}`), 'stderr keeps every line')
+
+    // A notes file that cannot be written changes no outcome: still exit 0, still ten lines,
+    // and the message names no file it did not write.
+    rmSync(join(proj, '.harness/stop-output'), { recursive: true, force: true })
+    mkdirSync(join(proj, '.harness'), { recursive: true })
+    writeFileSync(join(proj, '.harness/stop-output'), 'a file where the spill directory goes\n')
+    const blocked = runHook('stop-validate-gate.mjs', { stop_hook_active: false })
+    assert.equal(blocked.code, 0, blocked.stderr)
+    const shown = JSON.parse(blocked.stdout).systemMessage
+    assert.equal(shown.split('\n').filter((l) => l.startsWith('[validate] build: NOTE — ')).length, 10)
+    assert.ok(!shown.includes('_notes.log'), shown)
+    rmSync(join(proj, '.harness/stop-output'), { force: true })
+
+    // Each listed line is cut at 300 code points and loses its control and format characters,
+    // the rule lib/gate.mjs applies to a field note; the notes file keeps the line whole.
+    const long = `build: NOTE — ${'x'.repeat(400)}`
+    const hostile = 'build: NOTE — red\u001b[31m text‮ reversed'
+    stopChain([['validate', printLines([long, hostile])]])
+    const cut = runHook('stop-validate-gate.mjs', { stop_hook_active: false })
+    assert.equal(cut.code, 0, cut.stderr)
+    const message = JSON.parse(cut.stdout).systemMessage
+    const listed = message.split('\n').filter((l) => l.startsWith('[validate] '))
+    assert.equal([...listed[0]].length, 300, listed[0])
+    assert.ok(listed[0].endsWith('…'), listed[0])
+    assert.equal(listed[1], '[validate] build: NOTE — red[31m text reversed')
+    assert.ok(message.includes(NOTES_LOG), 'a cut line is not the whole line, so the file is written and named')
+    assert.ok(readFileSync(join(proj, NOTES_LOG), 'utf8').includes(`[validate] ${long}\n`))
+  } finally {
+    clearStopChain()
+  }
+})
+
+test('stop gate (#152): NOTE and FALLBACK MODEL lines share the one JSON object', () => {
+  try {
+    const fallback =
+      "reviewer-verdicts: FALLBACK MODEL — security-reviewer's PASS ran on claude-fable-5-1, not its pin (opus): a listed fallback (harnessFallbackModels: fable)."
+    stopChain([
+      ['validate', printLines([NOTE_LINE, 'build: OK'])],
+      ['reviewer-verdicts', printLines([fallback])],
+    ])
+    const r = runHook('stop-validate-gate.mjs', { stop_hook_active: false })
+    assert.equal(r.code, 0, r.stderr)
+    assert.equal(r.stdout.trim().split('\n').length, 1, `one JSON object on one line:\n${r.stdout}`)
+    const { systemMessage } = JSON.parse(r.stdout)
+    assert.ok(
+      systemMessage.startsWith(`stop-validate-gate: green, and 1 verdict(s) where a reviewer verdict ran on a model other than the reviewer's pinned one:\n[reviewer-verdicts] ${fallback}`),
+      `the fallback block comes first, its text unchanged:\n${systemMessage}`,
+    )
+    assert.ok(systemMessage.includes(`[validate] ${NOTE_LINE}`), systemMessage)
+  } finally {
+    clearStopChain()
+  }
+})
+
+test("stop gate (#152): the hook's own notes reach the user on a green run (no floor file)", () => {
+  try {
+    stopChain([['ok', 'process.exit(0)\n']], { floor: false })
+    const r = runHook('stop-validate-gate.mjs', { stop_hook_active: false })
+    assert.equal(r.code, 0, r.stderr)
+    const { systemMessage } = JSON.parse(r.stdout)
+    assert.ok(systemMessage.includes('stop-validate-gate: could not read tools/stop.floor.json'), systemMessage)
+    assert.ok(!systemMessage.includes('NOTE line(s)'), 'no gate printed a NOTE, so none is listed')
+  } finally {
+    clearStopChain()
+  }
+})
+
+test('stop gate (#152): a red run lists the green steps\' NOTE lines in its block; a red step keeps its own', () => {
+  try {
+    stopChain([
+      ['validate', printLines([NOTE_LINE, 'build: OK'])],
+      ['boom', `${printLines(['unit: NOTE — the red step says this'])}process.exit(1)\n`],
+    ])
+    const r = runHook('stop-validate-gate.mjs', { stop_hook_active: false })
+    assert.equal(r.code, 2, r.stderr)
+    assert.equal(r.stdout.trim(), '', 'a red run blocks through stderr alone')
+    assert.ok(r.stderr.includes('boom FAILED'), r.stderr)
+    const section = r.stderr.slice(r.stderr.indexOf('NOTE lines from green steps (1)'))
+    assert.ok(section.startsWith('NOTE lines from green steps (1):'), r.stderr)
+    assert.ok(section.includes(`[validate] ${NOTE_LINE}`), section)
+    assert.ok(!section.includes('the red step says this'), 'a red step\'s NOTE stays in its failure block')
+    assert.ok(r.stderr.includes('unit: NOTE — the red step says this'), r.stderr)
+  } finally {
+    clearStopChain()
+  }
 })
 
 // ── symlink shadowing: the write-guard judges the DESTINATION, not the name ───

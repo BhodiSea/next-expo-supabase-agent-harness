@@ -172,6 +172,9 @@
     ".claude/hooks/stop-validate-gate.mjs": [
       {
         "sha256": "dd01ad3ec50059fd1d5329e681e54c9e8cc2d0d79357653b2cd9eeb3d6598322"
+      },
+      {
+        "sha256": "fd72e7922d08a293b4fa1b8ef0bc1a2632775a943c5f0f1666c3646b05b7c3df"
       }
     ],
     ".claude/hooks/subagent-verdict.mjs": [
@@ -244,9 +247,6 @@
         "sha256": "1ee0f6520a950e33f1c582fe20d30e7dd5601e8a3a0edb520921bffbed1c594e"
       },
       {
-        "sha256": "4761c616a24cdede8f0b2c1cdfd8d5cdbe79558eacb02090b8fb9afbd6ddd36c"
-      },
-      {
         "sha256": "9b4354376eec92c48be4de33cf96c9c6ebbf742a9030b3ca47d2849da2274d13"
       }
     ],
@@ -276,9 +276,6 @@
     ".claude/skills/authoring-vertical-slice/scripts/scaffold-slice.mjs": [
       {
         "sha256": "1c31ff465af6943a4b542ba09ab07335024e3fc7637ccff3b646bde7b3f24119"
-      },
-      {
-        "sha256": "6543a8f583e1b376f0c0a0b29d00388e26119d4a3197d5d63159cf7f8d9c97c4"
       },
       {
         "sha256": "de7244b7e0857d221193f7b86007d07b2339ac75105db159d59de78e8cbc6976"
@@ -757,6 +754,15 @@
     ],
     "docs/harness/README.md": [
       {
+        "sha256": "664d4853e03d60720d6211bb354ffc28696ae9d2430a4886660de174da211854",
+        "sites": [
+          [
+            20380,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "78fc48f30576bf2d89020c8eac4c68084f691d84a416202cba245f76f432b6a7",
         "sites": [
           [
@@ -766,10 +772,10 @@
         ]
       },
       {
-        "sha256": "ded9074347c9f13063d84038b5547f7b2bef8215aa2a379899173429a5b8b86c",
+        "sha256": "ecb66850a0e8ad22e390b8a0daf6850426326d19ca5a6f4b498cad3aeedc2ac1",
         "sites": [
           [
-            20141,
+            20380,
             "SECURITY_OWNERS"
           ]
         ]
@@ -1012,15 +1018,6 @@
         ]
       },
       {
-        "sha256": "4166c2739fedb911398c0b76488ff1f57afd8ab711b7f405c75860b2b087d765",
-        "sites": [
-          [
-            14122,
-            "SECURITY_OWNERS"
-          ]
-        ]
-      },
-      {
         "sha256": "41c7d1f51956ec822aa1c86f67735af10b56e10078dbde91a5f0453d111b483e",
         "sites": [
           [
@@ -1030,7 +1027,16 @@
         ]
       },
       {
-        "sha256": "58bd3db2409d9c245ab11346b2108e5e072ad1064600f216b972b72581af46dc",
+        "sha256": "abe6c62ad80666b4e50f405a4a3af4ccc86d8b8d68b219fe36179cbf5f0d187c",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "f60206ea7821b4fcac66b5ae5edba80e1c3121c2e9ec48654a4d0616aaa75e26",
         "sites": [
           [
             14122,

@@ -557,12 +557,13 @@
       ]
     },
     "stop-validate-gate.mjs": {
-      "//": "0.11.0. THE TURN-FATAL HOOK, and until this release it was required by nothing: no entry, no example, no pinned call-site count. Exit 2 is its mechanism (denyTool( is a PreToolUse shape), so the pin is 0. The examples are the two refusals that matter most — a BROKEN gate config blocks the turn even when the fallback chain would pass, and a green run must SURFACE skipped layers rather than reading as fully verified. 1.1.0 (#62) adds a third: a green run must SHOW the user each `<gate>: FALLBACK MODEL — ` line, a reviewer verdict on a model other than its pin, through a JSON systemMessage on stdout at exit 0, the one channel a hook that exits 0 has to the user (stderr goes to the debug log only; CONTROL-PLANE-FACTS Fact 16); with no such line stdout stays empty, and a red run lists them in its block message.",
+      "//": "0.11.0. THE TURN-FATAL HOOK, and until this release it was required by nothing: no entry, no example, no pinned call-site count. Exit 2 is its mechanism (denyTool( is a PreToolUse shape), so the pin is 0. The examples are the two refusals that matter most — a BROKEN gate config blocks the turn even when the fallback chain would pass, and a green run must SURFACE skipped layers rather than reading as fully verified. 1.1.0 (#62) adds a third: a green run must SHOW the user each `<gate>: FALLBACK MODEL — ` line, a reviewer verdict on a model other than its pin, through a JSON systemMessage on stdout at exit 0, the one channel a hook that exits 0 has to the user (stderr goes to the debug log only; CONTROL-PLANE-FACTS Fact 16); with no such line stdout stays empty, and a red run lists them in its block message. 2.0.3 (#152) adds a fourth: a green run must SHOW the user each `<gate>: NOTE — ` line from a green step, and the hook's own notes, in that same one JSON object; it lists the first ten, each cut at 300 code points and stripped of control and format characters, names `.harness/stop-output/_notes.log` only when it wrote every line there, and a red run lists a green step's NOTE lines in its block under `NOTE lines from green steps`.",
       "denyToolCallSites": 0,
       "denyExamples": [
         "gate-config BROKEN",
         "skipped layers",
-        "FALLBACK MODEL"
+        "FALLBACK MODEL",
+        "NOTE lines from green steps"
       ]
     },
     "posttool-fast-check.mjs": {
