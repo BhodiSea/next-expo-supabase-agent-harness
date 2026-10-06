@@ -521,7 +521,7 @@ test('tags at or above the version being cut, and below the lineage floor, are n
   assert.deepEqual(checkVintages(['v0.1.2', 'v0.1.3', 'v0.6.0'], '0.6.0', ['0.1.3']), [])
 })
 
-test('the GROWN list (2.0.2): v2.0.1 released means VINTAGES carries it, judged as the bump will', () => {
+test('the GROWN list (2.0.3): v2.0.2 released means VINTAGES carries it, judged as the bump will', () => {
   // The live-tag test below asks checkVintages about the CURRENT package version, and
   // checkVintages skips tags >= the version being cut — so at package 0.9.5 the entry
   // '0.9.5' is never demanded and its absence would stay green right up to the bump commit,
@@ -529,11 +529,11 @@ test('the GROWN list (2.0.2): v2.0.1 released means VINTAGES carries it, judged 
   // (0.8.0 pulled it for v0.7.0, 0.9.5 for v0.9.0, 0.9.9 for v0.9.5, 0.10.0 for v0.9.9,
   // 0.11.0 for v0.10.0, 0.11.1 for v0.11.0, 1.0.0 for v0.11.1, 1.0.1 for v1.0.0, 1.0.2 for
   // v1.0.1, 1.0.3 for v1.0.2, 1.0.4 for v1.0.3, 1.1.0 for v1.0.4, 2.0.0 for v1.1.0, 2.0.1
-  // for v2.0.0, and 2.0.2 for v2.0.1): the real released-tag set, judged as the 2.0.2 release
-  // will judge it, against the SHIPPED VINTAGES (the default argument — a local literal here
-  // would be the drift the one-definition test above exists to prevent). 2.0.0 was the first
-  // MAJOR hop since 1.0.0, and the first-segment compare is what orders every 1.x vintage
-  // below it.
+  // for v2.0.0, 2.0.2 for v2.0.1, and 2.0.3 for v2.0.2): the real released-tag set, judged as
+  // the 2.0.3 release will judge it, against the SHIPPED VINTAGES (the default argument — a
+  // local literal here would be the drift the one-definition test above exists to prevent).
+  // 2.0.0 was the first MAJOR hop since 1.0.0, and the first-segment compare is what orders
+  // every 1.x vintage below it.
   //
   // 0.10.0 WAS THE HOP THIS TEST WARNED ABOUT from 0.9.5 onward — 0.9.9 -> 0.10.0 is the
   // first minor to cross a two-digit segment, where a string compare would order '0.10.0'
@@ -564,8 +564,9 @@ test('the GROWN list (2.0.2): v2.0.1 released means VINTAGES carries it, judged 
     'v1.1.0',
     'v2.0.0',
     'v2.0.1',
+    'v2.0.2',
   ]
-  assert.deepEqual(checkVintages(tags, '2.0.2'), [])
+  assert.deepEqual(checkVintages(tags, '2.0.3'), [])
 
   // And the defect shape it guards: the list stopped at 0.9.0 — exactly the forgotten-entry
   // red the bump would otherwise be the first to surface. The comparison underneath is
