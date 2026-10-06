@@ -18,7 +18,16 @@ SOURCE: docs/harness/README.md (boundaries + error-channel doctrine)
 subpath. It exists once because where it was copy-pasted per consumer it drifted and
 the weakest copy silently won. Three consumers derive from it — the `check-exports-walls`
 wall, the `check-workspace-deps` allow-matrix, and the dependency-cruiser barrel rules —
-so edit the census (a `{{SECURITY_OWNERS}}` review), never a consumer.
+so a sanction changes in the census, never in a consumer.
+
+The census is harness-OWNED and hash-pinned, and every vertical needs an entry, because the
+anatomy law requires its `./client` key. An agent never edits the census: the write guard
+denies the edit, and `gate-integrity` reds one nobody re-recorded. Hand the `{package,
+reason}` entry to a human, naming what the `./client` barrel would carry into the native
+bundle. The human adds it under `{{SECURITY_OWNERS}}` review and re-records the file's
+sha256 in `.harness/manifest.json` in the same reviewed commit; from then on `update` parks
+each later upstream change to the census for them to merge
+(`docs/runbooks/harness-upgrade.md`, "Forking an owned file").
 
 - `.` is the SERVER barrel: `"use server"` leaves, the service-role client, Next-coupled
   imports. `./client` is the METRO-SAFE barrel: pure domain, zod, direct RLS reads.

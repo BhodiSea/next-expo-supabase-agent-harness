@@ -37,7 +37,31 @@ this comment. -->
   renders every path the template ships and an uncommitted route-group page, and refuses
   each new case. `tools/lib/harness-brief.mjs`, `docs/harness/README.md` and
   `docs/runbooks/harness-upgrade.md` are owned and reach an install with `update`.
-
+- **The vertical-slice scaffold writes the worked example's shape** (#155).
+  `scaffold-slice.mjs` wrote a slice's web page at `apps/web/app/<slice>/page.tsx`, outside
+  the signed-in and org layouts and with no `page.meta.ts`, so a run with no edits turned
+  `route-manifest` red. It wrote none of the example's data seams, and its Server Action stub
+  taught a write with no org and an `as unknown as <Slice>Database` cast at each call site,
+  which the example carried three times. The page is now a segment at
+  `apps/web/app/(protected)/o/[orgSlug]/<slice>/` with `page.meta.ts` and `loading.tsx`,
+  rendering each state id from `meta.states.*`. Comment-only stubs cover
+  `src/data/{port,rows,errors,query-probes,<slice>}.ts` and `apps/web/lib/app-data/<slice>.ts`,
+  each citing its section of `references/dal-dto.md`, and `apps/web/lib/app-data/<slice>-port.ts`
+  holds the one narrowing function, the only stub that casts. The Server Action stub binds the
+  org slug, takes the client, user and org from `requireOrgContext` and revalidates the org's
+  path. The migration `next:` line asks for the `org_id` shape of
+  `references/migration-rls.md`, and new `next:` lines name the catalog key, the registry
+  regen, the browser spec, the query probes and the vertical's `package.json`. On a fresh core
+  scaffold every `route-manifest` and `query-shapes` finding a run leaves is one of those
+  lines, and the three route steps turn `route-manifest` green. `SKILL.md` and `dal-dto.md`
+  teach the same route, narrowing and org-gated write. In the example (`--with-demo`),
+  `apps/web/lib/app-data/notes-port.ts` holds the one cast, and the Server Action, the read
+  seam and the tRPC route call it. No gate, step or ramp changes.
+  `tests/gates/scaffold-slice.test.mjs` runs the script into a temporary root. The script,
+  `SKILL.md` and `dal-dto.md` are owned and reach an install with `update`; `notes-port.ts` is
+  seeded and withheld from existing installs that carry the example (`seedOnInitOnly`), which
+  keep their casts. An install that takes the example's tRPC route whole pulls `notes-port.ts`
+  with it; the runbook's 2.0.3 section says when.
 - **The auth-event trail's partitions are created ahead of time, and old ones are dropped.**
   `20260816000000_auth_event_trail.sql` called `auth_trail.ensure_partitions()` once, at apply,
   and nothing scheduled it or `auth_trail.drop_partitions_older_than()`: the guarded pg_cron
@@ -53,6 +77,77 @@ this comment. -->
   pg_cron is not installed), and the trail's ADR records the schedule. The migration reaches
   fresh scaffolds only (`seedOnInitOnly`); the runbook's 2.0.3 section gives an existing install
   the same SQL for a migration of its own and a query that shows how long it has (#146, part C).
+
+- **A green turn shows the gates' NOTE lines to the user** (#152). Gates print
+  `<gate>: NOTE — …` for a ramp that is live, a control that is switched off (the gzip ratchet)
+  or a check that did not run (the reviewer ledger with no merge base). From a green step the
+  Stop hook kept only `SKIPPED`, `STAMPED` and `FALLBACK MODEL` lines, and it wrote its own
+  notes (a floor it could not read, a previous turn that ended red, an unusable block cap) to
+  stderr, which reaches only the debug log when a hook exits 0. So on a green turn nobody saw
+  any of them. `stop-validate-gate.mjs` now adds them to the one JSON `systemMessage` it prints
+  on a green turn, after the fallback lines: the first ten NOTE lines, each cut at 300
+  characters and stripped of control and format characters, then the hook's own notes. When
+  the message cannot hold every line whole, all of them go to
+  `.harness/stop-output/_notes.log`, and the message names that file only when it was
+  written. A red turn's block lists a green step's NOTE lines too, and each `stop-step`
+  telemetry record gains a `notes` count. No exit code changes, so the agent still does not see
+  a green turn's notes; the user does. With no NOTE line, no fallback and no note of its own,
+  the hook prints nothing on stdout, as before. `tests/hooks/hook-contract.test.mjs` and
+  `tests/hooks/telemetry.test.mjs` hold it. The hook and `docs/harness/README.md` are owned
+  and reach an install with `update`; a kept fork of the hook keeps dropping the lines.
+- **A new vertical no longer leads an agent into editing the owned `./client` census**
+  (#154). The anatomy law requires every vertical's `./client` key, `boundaries` reds a key
+  `tools/exports-walls.json` does not sanction, and its message, `check-workspace-deps`' and
+  `.claude/rules/boundaries.md` all said to edit the census. The census is harness-owned and
+  hash-pinned and an owned file cannot be proposed, so the edit landed and `gate-integrity`
+  called it tampering at the next validate, whose remedy reds `boundaries` again. A new
+  write-guard row, `exports-walls-census`, denies an agent's Edit or Write of the census, and
+  `WRITE_PROTECTED` rows gain an optional `message` the guard prints in place of the shared
+  text, which points at `harness-proposals/`. The census row's message names the human path:
+  hand the `{package, reason}` entry to a human, who adds it under security-owner review and
+  re-records the file's sha256 in `.harness/manifest.json` in the same reviewed commit, after
+  which `update` parks each later census change ("Forking an owned file"). Both `boundaries`
+  reds and a new `scaffold-slice` `next:` line name the same path, `dal-author.md` and the
+  slice `SKILL.md` stop presenting the census entry as a Class-A opt-in, and the stale
+  "SEEDED" comment in `check-exports-walls.mjs` is corrected. Every row without a `message`
+  prints the shared text byte for byte, and no verdict moves, because `gate-integrity` already
+  redded the edit the row denies. `tests/hooks/hook-contract.test.mjs`,
+  `tests/gates/check-boundaries.test.mjs` and `tests/gates/scaffold-slice.test.mjs` pin the
+  deny, the messages and the `next:` line. Every file this changes is owned and reaches an
+  install with `update`; the runbook's 2.0.3 section gives the human path for each new
+  vertical. An additive project census, which would let a project sanction its own vertical
+  without forking, is gate-proposal #160.
+- **The bash guard denies every spelling of the skip-hooks commit flag** (#222). The
+  `git-commit-no-verify` rule in `.claude/hooks/lib/guard-rules.mjs` caught `-n` only as a
+  later argument on its own and allowed nothing between `git` and `commit`, so
+  `git commit -nm x`, `-n` as the first argument, `-an` anywhere, `--no-verif` (git accepts an
+  unambiguous prefix of a long option) and `git -c k=v commit --no-verify` all committed past
+  lefthook's Biome, gitleaks and commitlint hooks. The rule now matches `n` in any short-flag
+  cluster, every prefix of `--no-verify` down to `--no-v`, and global options such as `-c`,
+  `-C` and `--git-dir=` before the subcommand. `git commit -m "x"`, `git commit -am "x"`,
+  `git commit --amend --no-edit`, `--no-verbose` and the scaffold's
+  `git -c user.email=… commit -qm` stay allowed. A message that only mentions ` -n` is now
+  denied, a false positive in the safe direction. `tests/hooks/hook-contract.test.mjs` denies
+  each spelling and allows each of those. No gate, step or ramp changes. `guard-rules.mjs` is
+  owned and reaches an install with `update`.
+- **The worked example builds its notes write context in one place** (#144). The tRPC router
+  built a write's `{ actorId, emit, now, orgId }` in a function, while the web Server Action
+  wrote it as an object literal with a no-op sink of its own and a `new Date()` nothing could
+  inject. Both dropped every event, but a sink wired at `createContext`'s `emit` would have
+  heard every tRPC write and no web one. The vertical now exports `noteWriteContext` from
+  `src/data/write-context.ts`, beside `NoteWriteContext`, and the router's `writeContext` and the
+  Server Action both call it. The new `apps/web/lib/request-ports.ts` holds the web host's one
+  event sink (it still drops events) and clock: the action builds its context from it, and the
+  tRPC route passes it to `createContext` (in the default tree too). `references/dal-dto.md` and
+  the scaffold's Server Action stub teach the builder and the ports instead of the fields. No
+  gate, step, ramp, row, event or generated file changes. The new
+  `apps/web/__tests__/notes-write-context.test.ts` drives `createNoteAction` with a recording
+  sink and a fixed instant and was red before the change; `envelope.test.ts` pins one
+  `notes.created` reaching an injected `emit` over tRPC.
+  `dal-dto.md` and `scaffold-slice.mjs` are owned and reach an install with `update`; the four
+  new files are seeded and withheld from existing installs (`seedOnInitOnly`), which keep both
+  copies. The runbook's 2.0.3 section says how to adopt the builder, and what to pull with an
+  example file taken whole.
 
 ## [2.0.2] — 2026-10-03
 

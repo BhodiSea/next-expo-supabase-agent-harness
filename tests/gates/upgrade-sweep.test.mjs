@@ -756,6 +756,47 @@ test('2.0.0 — an install that predates a register update plants takes the reme
   assert.deepEqual(own.adopt, ['tools/eol.json'], 'a 1.1.0 install keeps its own registers')
 })
 
+test('2.0.3 — an install made before 0.9.5 takes notes-port.ts with the route that calls it; a later one takes neither', () => {
+  // Found when leg E (v0.3.0) went red after the sweep on dead-code and web-compile (#155):
+  // 0.9.5's derived pass copies the demo's tRPC route, which from 2.0.3 imports notes-port.ts.
+  const route = 'apps/web/app/api/trpc/[trpc]/route.ts'
+  const port = 'apps/web/lib/app-data/notes-port.ts'
+  const old = computeSweepSet(MIGRATIONS, '0.3.0', '2.0.3')
+  assert.ok(old.adopt.includes(route), 'below 0.9.5: the route the 0.9.5 fix pulls')
+  assert.ok(old.adopt.includes(port), 'below 0.9.5: the module that route imports')
+  for (const base of ['0.9.5', '1.1.0', '2.0.2']) {
+    const later = computeSweepSet(MIGRATIONS, base, '2.0.3')
+    assert.ok(!later.adopt.includes(route), `${base}: keeps its own route`)
+    assert.ok(!later.adopt.includes(port), `${base}: no caller, so no notes-port.ts`)
+  }
+})
+
+test('2.0.3 — a swept install takes each module the derived pass now imports, and only below the version that copies its importer', () => {
+  // #144: the example's src/index.ts and data/notes.test.ts (0.7.0's derived pass) import the
+  // new write-context.ts, and its tRPC route (0.9.5's) imports the new request-ports.ts.
+  const builder = 'packages/verticals/notes/src/data/write-context.ts'
+  const ports = 'apps/web/lib/request-ports.ts'
+  const derived = (base, path) => computeSweepSet(MIGRATIONS, base, '2.0.3').adopt.includes(path)
+  assert.ok(derived('0.3.0', 'packages/verticals/notes/src/index.ts'), 'below 0.7.0: the barrel the 0.7.0 fix pulls')
+  for (const base of ['0.3.0', '0.6.0']) {
+    assert.ok(derived(base, builder), `${base}: the module that barrel imports`)
+    assert.ok(derived(base, ports), `${base}: the module the 0.9.5 route imports`)
+  }
+  for (const base of ['0.7.0', '0.9.0']) {
+    assert.ok(!derived(base, builder), `${base}: keeps its own barrel, so no write-context.ts`)
+    assert.ok(derived(base, ports), `${base}: still takes the 0.9.5 route, so request-ports.ts`)
+  }
+  for (const base of ['0.9.5', '1.1.0', '2.0.2']) {
+    assert.ok(!derived(base, builder), `${base}: no caller, so no write-context.ts`)
+    assert.ok(!derived(base, ports), `${base}: no caller, so no request-ports.ts`)
+  }
+  // Neither test is adopted: a swept install's own suites do not need them, and the web test
+  // would judge an action its install never received.
+  const old = computeSweepSet(MIGRATIONS, '0.3.0', '2.0.3').adopt
+  assert.ok(!old.includes('apps/web/__tests__/request-ports.test.ts'))
+  assert.ok(!old.includes('apps/web/__tests__/notes-write-context.test.ts'))
+})
+
 test('withNotesEventCatalog appends the runbook line once, and only where it can name noteEvents', () => {
   const client = "export { noteEvents } from './events.js'\n"
   assert.equal(withNotesEventCatalog(client), `${client}${NOTES_EVENT_CATALOG_LINE}\n`)

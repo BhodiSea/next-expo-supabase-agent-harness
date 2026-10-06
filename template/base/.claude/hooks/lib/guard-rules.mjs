@@ -262,8 +262,20 @@ export const BASH_RULES = [
     message: "Blocked: 'git reset --hard' destroys uncommitted work.",
   },
   {
+    // 2.0.3 (#222): through 2.0.2 this was /git\s+commit\s[^|;&]*(--no-verify|\s-n\b)/. Its
+    // short arm needed a space the `commit\s` prefix had already used and a word boundary
+    // right after the `n`, and the prefix admitted nothing between `git` and `commit`, so
+    // `-nm`, `-n` first, `-an` anywhere, `--no-verif` and `git -c k=v commit` all committed
+    // past lefthook. Now: global options before the subcommand (`-c k=v`, `-C dir`,
+    // `--git-dir=…`, each optionally followed by one value), `commit` only as a whole word
+    // (the lookahead leaves its space for the short arm), `n` anywhere in a short-flag
+    // cluster, and every prefix of `--no-verify` down to `--no-v`, since git accepts an
+    // unambiguous long-option prefix. `--no-ver` and shorter are ambiguous with
+    // `--no-verbose`, which git refuses, so denying them costs nothing; `--no-verbose` itself
+    // stays allowed. A message that merely mentions ` -n` is denied too: a false positive in
+    // the safe direction, which this tripwire already accepts.
     id: 'git-commit-no-verify',
-    re: /git\s+commit\s[^|;&]*(--no-verify|\s-n\b)/,
+    re: /git(?:\s+-[^\s|;&]*(?:\s+(?:"[^"]*"|'[^']*'|[^\s|;&"'-][^\s|;&]*))?)*\s+commit(?=\s)[^|;&]*?(?:--no-verify|--no-v(?:e(?:r(?:if?)?)?)?(?![\w-])|\s["']?-[A-Za-z]*n)/,
     message:
       'Blocked: bypassing commit hooks (--no-verify) defeats the gate; fix the failure instead.',
   },
@@ -379,6 +391,8 @@ export const MCP_RULES = [
 // ── write-guard: harness-protected paths (tamper evidence, layer 2) ──────────
 // Root-anchored (^…) against the POSIX-normalized project-relative path. Weakening any of
 // these weakens the gate; edits require HARNESS_ALLOW_SELF_EDIT=1 (checked by the guard).
+// Each row is { id, re, message? }: the optional `message` (2.0.3, #154) is printed in place
+// of the guard's shared deny text, for a row whose remedy that text does not describe.
 export const WRITE_PROTECTED = [
   { id: 'harness-config', re: /^tools\/harness\.config\.mjs$/ },
   { id: 'validate-runner', re: /^tools\/validate\.mjs$/ },
@@ -582,6 +596,19 @@ export const WRITE_PROTECTED = [
   // — the exact silent widening the closure was built to end — so the file has no
   // legitimate in-tree author at all: `update` refreshes it, nothing else writes it.
   { id: 'modules-register', re: /^tools\/modules\.json$/ },
+  // THE ./client CENSUS that list closes (2.0.3, #154). OWNED and hash-pinned, so
+  // gate-integrity reds an edit nobody re-recorded — but only at the next validate, and every
+  // new vertical needs an entry (the anatomy law requires its `./client` key, and `boundaries`
+  // reds a key nobody sanctioned), so the slice path led an agent straight into the edit. This
+  // denies it before it lands. The row carries its own `message` because the shared text's
+  // route, harness-proposals/, is a dead end here: an owned file is never proposable
+  // (installer/lib/proposals.mjs). It names the human path instead.
+  {
+    id: 'exports-walls-census',
+    re: /^tools\/exports-walls\.json$/,
+    message:
+      'harness-owned census: tools/exports-walls.json is hash-pinned by gate-integrity, and an owned file is not a register a proposal can change, so an agent never edits it. Stop and hand the {package, reason} entry to a human, naming the package and what its ./client barrel would carry into the native bundle. The human adds it under the security owners\' review (CODEOWNERS), in an agent session only with HARNESS_ALLOW_SELF_EDIT=1, and re-records the file\'s sha256 in .harness/manifest.json in the same reviewed commit. From then on `update` keeps their census and parks each later upstream change to it under .harness/pending/ for them to merge (docs/runbooks/harness-upgrade.md, "Forking an owned file"). SOURCE: docs/harness/README.md (tamper evidence)',
+  },
   { id: 'bundle-budget', re: /^tools\/bundle-budget\.json$/ },
   // The committed gzip-ratchet baseline: regenerated ONLY by `pnpm perf:baseline`
   // in a reviewed commit — an agent editing it would re-baseline its own regression.

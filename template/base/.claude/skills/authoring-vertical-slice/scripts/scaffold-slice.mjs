@@ -11,6 +11,14 @@
 // exactly once. The stub shapes below are modelled on the worked example, which `init --with-demo`
 // plants and the skill's references/*.md carry as regions generated from its source (2.0.0: a
 // default scaffold ships no vertical, so a stub cites the references, never an example path).
+//
+// The shape is the example's, file for file (#155): the web screen is a segment under the org
+// scope with its page.meta.ts and loading.tsx, every data seam the example has is a stub, and
+// the one narrowing cast lives in apps/web/lib/app-data/<slice>-port.ts and nowhere else. A
+// stub that cannot compile until the vertical resolves is comment-only, as the router stub is.
+// What the script must not do itself (a catalog key, a regenerated registry, a spec, the
+// vertical's package.json) is a printed `next:` line. So is the step no agent may take (#154):
+// the `./client` census entry, because tools/exports-walls.json is harness-owned.
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
@@ -30,8 +38,13 @@ const pascal = slice
   .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
   .join('')
 const camel = pascal.charAt(0).toLowerCase() + pascal.slice(1)
+const table = slice.replaceAll('-', '_')
 
 const vertical = join(base, 'packages', 'verticals', slice, 'src')
+// The org-scoped segment: the route IS the tenant selector, under the signed-in layout and the
+// org layout that resolves the slug against the caller's seats.
+const segment = join(base, 'apps', 'web', 'app', '(protected)', 'o', '[orgSlug]', slice)
+const appData = join(base, 'apps', 'web', 'lib', 'app-data')
 
 const files = [
   [
@@ -73,6 +86,59 @@ const files = [
       `// export { create${pascal}, delete${pascal}, type ${pascal}WriteContext, update${pascal} } from './data/${slice}.js'\n`,
   ],
   [
+    join(vertical, 'data', 'port.ts'),
+    '// The DAL\'s structural port: a hand-authored SUBSET of the PostgREST query builder this\n' +
+      '// vertical calls, with `data: unknown`, never the generated Database type (a generated type\n' +
+      '// makes rows look trustworthy at the entrance, the illusion the re-parse in rows.ts exists to\n' +
+      '// prevent). Fakeable in three lines, so every branch is reachable from a unit test. Export it\n' +
+      `// as ${pascal}Database; apps/web narrows its client to it in one place,\n` +
+      `// apps/web/lib/app-data/${slice}-port.ts.\n` +
+      "// See the skill's references/dal-dto.md (the three DAL laws, law 1).\n" +
+      '//\n' +
+      `// export interface ${pascal}Database {\n` +
+      '//   from(table: string): /* the select / insert / update / delete chains the DAL calls */\n' +
+      '// }\n',
+  ],
+  [
+    join(vertical, 'data', 'rows.ts'),
+    '// The row boundary: the ONE module that parses a row. snake_case columns in, the\n' +
+      '// @app/contracts record out, against a schema whose fields are BORROWED from the contract\'s\n' +
+      '// shape (never a restated bound). An explicit column projection, never select(\'*\'), and\n' +
+      '// rows.test.ts asserts it covers exactly the row schema\'s keys. Name the table once, here.\n' +
+      '// See the skill\'s references/dal-dto.md (the three DAL laws, law 2).\n' +
+      '//\n' +
+      `// export const ${table.toUpperCase()}_TABLE = '${table}'\n`,
+  ],
+  [
+    join(vertical, 'data', 'errors.ts'),
+    '// The ONE file in this vertical that builds an AppError. The DAL reads `error` before `data`\n' +
+      '// (PostgREST resolves rather than rejects, so reading data first renders an RLS denial as an\n' +
+      '// empty list) and maps the failure through this file, 42501 -> rlsDenied, into an outcome it\n' +
+      '// RETURNS: a domain failure is never thrown.\n' +
+      '// See the skill\'s references/dal-dto.md (the three DAL laws, law 3, and "error FIRST, always").\n',
+  ],
+  [
+    join(vertical, 'data', 'query-probes.ts'),
+    '// The query probes: the drivers tools/gen-query-shapes.mjs runs each DAL function through to\n' +
+      '// record what it asks the database for, which the query-shapes gate judges. Export `DAL`, a\n' +
+      `// namespace import of ./${slice}.js, and a non-empty QUERY_PROBES with one entry per branch of\n` +
+      '// every function it exports, then run `pnpm gen`. Until then query-shapes reds this file: a\n' +
+      '// probe module exists and the manifest is empty.\n' +
+      "// See the skill's references/dal-dto.md (the query probes).\n",
+  ],
+  [
+    join(vertical, 'data', `${slice}.ts`),
+    `// The DAL: the ONE implementation the tRPC procedure, the Server Action and the web read seam\n` +
+      `// all call. Every function TAKES the client (typed as ${pascal}Database from ./port.js),\n` +
+      '// returns an ActionOutcome of a DTO, never a row and never a throw for a domain failure.\n' +
+      `// Reads (list${pascal}, get${pascal}) take a scope { orgId } and go on ./client; writes take a\n` +
+      `// ${pascal}WriteContext { actorId, emit, now, orgId } and stay on the server barrel. ONE builder,\n` +
+      `// ${camel}WriteContext(actor, org, ports) in ./write-context.ts (its own module, so no probe owes\n` +
+      '// it a query), makes that context for every caller. Every list is keyset-paginated with an\n' +
+      '// unconditional LIMIT. No app-side owner filter: RLS decides who sees a row. See the skill\'s\n' +
+      '// references/dal-dto.md (the three DAL laws; reads, writes, and the barrel split).\n',
+  ],
+  [
     join(base, 'packages', 'api', 'src', 'routers', `${slice}.ts`),
     '// The tRPC router for this slice — copy the create-procedure region of references/dal-dto.md. Each procedure\n' +
       '// is three lines: pick a rung of the ladder (orgProcedure, READS INCLUDED — the acting\n' +
@@ -92,33 +158,143 @@ const files = [
     join(base, 'apps', 'web', 'app', 'actions', `${slice}.ts`),
     "'use server'\n" +
       '\n' +
-      '// The web write path for this slice — the twin of the ' +
-      camel +
-      ' tRPC procedure apps/mobile calls.\n' +
-      '// SAME @app/contracts schema, SAME @app/' +
-      slice +
-      ' implementation, SAME ActionOutcome envelope;\n' +
+      `// The web write path for this slice — the twin of the ${camel} tRPC procedure apps/mobile calls.\n` +
+      `// SAME @app/contracts schema, SAME @app/${slice} implementation, SAME ActionOutcome envelope;\n` +
       "// only the transport differs. 'use server' makes every export a public POST endpoint, so\n" +
-      '// validate with actionClient.inputSchema(...) first, resolve identity with getVerifiedUser()\n' +
-      '// (getUser under the hood — never getSession), mint the client with createRequestScopedClient()\n' +
-      '// narrowed `as unknown as <Slice>Database`, and revalidatePath on success only. Add this file\n' +
-      '// ONLY when the web surface writes this entity. See the skill\'s references/dal-dto.md.\n',
+      '// validate first with actionClient.bindArgsSchemas<[orgSlug: typeof OrgSlug]>([OrgSlug])\n' +
+      '// .inputSchema(...): the org is a BOUND argument, the slug of the segment the form renders\n' +
+      '// under, never a payload field. Then requireOrgContext(orgSlug) resolves the client, the\n' +
+      '// verified user (getUser under the hood, never getSession) and the org from the caller\'s\n' +
+      '// real seats; return the gate verbatim when it fails. Narrow the client with\n' +
+      `// to${pascal}Port(gate.data.client) from lib/app-data/${slice}-port.ts, build the write context\n` +
+      `// with ${camel}WriteContext({ userId: gate.data.userId }, gate.data.org, requestPorts()) from\n` +
+      '// lib/request-ports.ts, never an object literal, and on success only\n' +
+      `// revalidatePath(\`/o/\${gate.data.org.slug}/${slice}\`). Add this file ONLY when the web\n` +
+      '// surface writes this entity. See the skill\'s references/dal-dto.md (the optional web\n' +
+      '// Server Action).\n',
   ],
   [
-    join(base, 'apps', 'web', 'app', slice, 'page.tsx'),
-    '// The web screen for this slice. Read via apps/web/lib/app-data/' +
-      slice +
-      '.ts (the RSC read\n' +
-      '// seam: per-request client -> the vertical ./client fn -> match the outcome -> a render\n' +
-      '// model), NEVER a Supabase query in this component and NEVER a fetch() to /api/trpc. Writes\n' +
-      '// go through the Server Action. getVerifiedUser() for rendering decisions only — RLS is the\n' +
-      '// boundary. See apps/web/app/page.tsx + the skill\'s references/dal-dto.md (the web read seam).\n' +
+    join(segment, 'page.meta.ts'),
+    "import type { WebRouteMeta } from '../../../../../lib/routes'\n" +
       '\n' +
-      'export default async function ' +
-      pascal +
-      'Page() {\n' +
-      '  return null\n' +
+      `// One org's ${slice}. The registry (apps/web/lib/routes.generated.ts) and the browser tab read\n` +
+      '// this one declaration, and the route-manifest gate checks that the segment renders each\n' +
+      '// state test id below.\n' +
+      'export const meta = {\n' +
+      `  id: '${slice}',\n` +
+      `  titleKey: 'route.${camel}',\n` +
+      '  states: {\n' +
+      `    loading: '${slice}-loading',\n` +
+      `    empty: '${slice}-empty',\n` +
+      `    error: '${slice}-error',\n` +
+      '  },\n' +
+      '} as const satisfies WebRouteMeta\n',
+  ],
+  [
+    join(segment, 'page.tsx'),
+    "import { EmptyState } from '@app/design-system'\n" +
+      "import type { ReactNode } from 'react'\n" +
+      "import { requireOrgContext } from '../../../../../lib/auth/session'\n" +
+      "import { t } from '../../../../../lib/i18n'\n" +
+      "import { errorCopy } from '../../../../../lib/i18n/errors'\n" +
+      "import { meta } from './page.meta'\n" +
+      '\n' +
+      `// One org's ${slice}. The route segment IS the tenant selector. Read through\n` +
+      `// apps/web/lib/app-data/${slice}.ts (the RSC read seam: requireOrgContext(orgSlug) -> the\n` +
+      "// vertical ./client fn scoped to the RESOLVED org's id -> match the outcome -> a render\n" +
+      '// model), NEVER a Supabase query in this component and NEVER a fetch() to /api/trpc. Writes\n' +
+      "// go through the Server Action, bound to this segment's slug. Each state renders its test id\n" +
+      '// from meta.states.*, the form route-manifest names as the one that cannot drift. See the\n' +
+      "// skill's references/dal-dto.md (the web read seam).\n" +
+      '//\n' +
+      '// Until the read seam exists this page knows only whether the org gate admits the caller, so\n' +
+      `// it renders the error state or the empty one. Replace the gate with \`const model = await\n` +
+      `// load${pascal}Page(orgSlug)\` and render the model's states.\n` +
+      '\n' +
+      'export const metadata = { title: t(meta.titleKey) }\n' +
+      '\n' +
+      `export default async function ${pascal}Page({\n` +
+      '  params,\n' +
+      '}: {\n' +
+      '  readonly params: Promise<{ readonly orgSlug: string }>\n' +
+      '}): Promise<ReactNode> {\n' +
+      '  const { orgSlug } = await params\n' +
+      '  const gate = await requireOrgContext(orgSlug)\n' +
+      '\n' +
+      '  return (\n' +
+      '    <section className="mt-6 flex flex-col gap-6">\n' +
+      '      {gate.ok ? (\n' +
+      '        <EmptyState title={t(meta.titleKey)} testID={meta.states.empty} />\n' +
+      '      ) : (\n' +
+      '        <p role="alert" className="text-sm text-danger" data-testid={meta.states.error}>\n' +
+      '          {errorCopy(gate.error)}\n' +
+      '        </p>\n' +
+      '      )}\n' +
+      '    </section>\n' +
+      '  )\n' +
       '}\n',
+  ],
+  [
+    join(segment, 'loading.tsx'),
+    "import { Skeleton } from '@app/design-system'\n" +
+      "import type { ReactNode } from 'react'\n" +
+      "import { t } from '../../../../../lib/i18n'\n" +
+      "import { meta } from './page.meta'\n" +
+      '\n' +
+      `// The ${slice} route's loading UI: the App Router wraps the segment in a Suspense boundary, so\n` +
+      '// the org chrome streams at once and only this region waits. Skeletons shaped like what\n' +
+      '// arrives, never prose; `<output aria-busy>` is the live region (each Skeleton is aria-hidden),\n' +
+      '// and its test id is meta.states.loading, so the declared id and the rendered one cannot drift.\n' +
+      `export default function ${pascal}Loading(): ReactNode {\n` +
+      '  return (\n' +
+      '    <output\n' +
+      '      aria-busy="true"\n' +
+      '      aria-label={t(meta.titleKey)}\n' +
+      '      data-testid={meta.states.loading}\n' +
+      '      className="mt-6 flex flex-col gap-3"\n' +
+      '    >\n' +
+      '      <Skeleton fullWidth height={64} rounded="lg" />\n' +
+      '      <Skeleton fullWidth height={64} rounded="lg" />\n' +
+      '      <Skeleton fullWidth height={64} rounded="lg" />\n' +
+      '    </output>\n' +
+      '  )\n' +
+      '}\n',
+  ],
+  [
+    join(appData, `${slice}.ts`),
+    `// The RSC read seam for ${slice}, in one place and this order: requireOrgContext(orgSlug) ->\n` +
+      `// to${pascal}Port(gate.data.client) -> the vertical ./client read, scoped to the RESOLVED org's\n` +
+      "// id (never the slug) -> match the outcome -> a render model the page renders. A gate failure\n" +
+      '// is a domain outcome and rides the model. No caching (every read is RLS-scoped to the caller),\n' +
+      '// no fetch() to /api/trpc, and an infrastructure throw is left to the route\'s error.tsx. See\n' +
+      "// the skill's references/dal-dto.md (the web read seam).\n" +
+      '//\n' +
+      `// export async function load${pascal}Page(orgSlug: string): Promise<${pascal}PageModel> { ... }\n`,
+  ],
+  [
+    join(appData, `${slice}-port.ts`),
+    `// The ONE place apps/web narrows a Supabase client to @app/${slice}'s structural port. The\n` +
+      '// Server Action, the read seam and the tRPC route call it rather than repeating a cast.\n' +
+      '//\n' +
+      '// Why a double-cast at all: checking a full SupabaseServerClient against the shallow port\n' +
+      "// instantiates supabase-js's `.from()` overload set and sends tsc into TS2589 (\"excessively\n" +
+      '// deep"). The assertion is SOUND: the port is a hand-authored SUBSET of the surface the DAL\n' +
+      '// calls and the runtime value is a real client. RLS is unchanged, since it is the same\n' +
+      '// request-scoped client seen through a narrower type. The double-cast (never a single `as`)\n' +
+      '// says the two types are not directly comparable, which is the whole reason.\n' +
+      '//\n' +
+      `// Uncomment it once @app/${slice} exports ${pascal}Database (src/data/port.ts). See the skill's\n` +
+      '// references/dal-dto.md (the port narrowing).\n' +
+      '//\n' +
+      `// import type { ${pascal}Database } from '@app/${slice}'\n` +
+      "// import type { SupabaseServerClient } from '@app/supabase'\n" +
+      '//\n' +
+      `// export function to${pascal}Port(client: SupabaseServerClient): ${pascal}Database {\n` +
+      '//   // On a const, never in the return position: there no-unnecessary-type-assertion\n' +
+      '//   // reads the assertion as redundant, blind to the deep check that makes it load-bearing.\n' +
+      `//   const port = client as unknown as ${pascal}Database\n` +
+      '//   return port\n' +
+      '// }\n',
   ],
   [
     join(base, 'apps', 'mobile', 'src', 'features', slice, 'index.tsx'),
@@ -160,17 +336,48 @@ for (const [path, body] of files) {
 
 console.log(
   `next: compose the migration ONCE — \`supabase migration new ${slice}\` + the declarative ` +
-    `supabase/schemas/NN_${slice}.sql (ENABLE + FORCE RLS, four per-op policies on auth.uid(), ` +
-    'leading-column owner index, REVOKE service_role, GRANT authenticated)',
+    `supabase/schemas/NN_${slice}.sql in the org_id shape of references/migration-rls.md ` +
+    '(org_id NOT NULL with its FK as the tenant key, PRIMARY KEY (org_id, id), the freeze_org_id ' +
+    'trigger, ENABLE + FORCE RLS, four per-op policies on private.member_org_ids(), an ' +
+    'org_id-leading index carrying the list ORDER BY, REVOKE ALL from anon, service_role and ' +
+    'authenticated, then GRANT authenticated exactly what the policies admit)',
 )
 console.log(
   'next: add an ISOLATION_TARGET to tests/rls/db-context.ts AND an rls_targets row to ' +
-    'supabase/tests/rls_structure.test.sql for each user-scoped table',
+    'supabase/tests/rls_structure.test.sql for each org-scoped table',
+)
+console.log(
+  `next: add packages/verticals/${slice}/package.json (name @app/${slice}, exports "." -> ` +
+    './src/index.ts and "./client" -> ./src/client.ts) and its tsconfig.json, reference that ' +
+    'from the root and apps/web tsconfig.json, then run: pnpm install',
+)
+console.log(
+  `next: a HUMAN step, not an agent's: the "./client" key needs a {package, reason} entry for @app/${slice} ` +
+    'in tools/exports-walls.json, which is harness-owned and hash-pinned, so hand the entry (the package, ' +
+    'and what its ./client barrel would carry into the native bundle) to a human. They add it under the ' +
+    "security owners' review and re-record the file's sha256 in .harness/manifest.json in the same " +
+    'reviewed commit (docs/runbooks/harness-upgrade.md, "Forking an owned file"); until then boundaries ' +
+    'reds the package as NOT sanctioned',
 )
 console.log(
   `next: export the catalog from src/client.ts as EVENT_CATALOG (export { ${camel}Events as EVENT_CATALOG } from './events.js'), or its events are never catalogued`,
 )
 console.log('next: wire the router into appRouter (packages/api/src/index.ts), then run: pnpm gen')
+console.log(
+  'next: fill QUERY_PROBES in src/data/query-probes.ts (one per branch of every DAL export), ' +
+    'then run: pnpm gen (query-shapes reds an empty manifest while a probe module exists)',
+)
+console.log(
+  `next: add the key 'route.${camel}' (the page's titleKey) to apps/web/lib/i18n/catalog.ts`,
+)
+console.log(
+  'next: run node tools/gen-web-routes.mjs to regenerate apps/web/lib/routes.generated.ts ' +
+    '(pnpm gen does it too, but needs a local database)',
+)
+console.log(
+  `next: add a spec under apps/web/e2e that names one state id ('${slice}-empty') as a quoted ` +
+    'literal (route-manifest asks a browser test to render every route)',
+)
 console.log(
   'next: register the screen in apps/mobile/src/routes.ts + add its app/ route file rendering ' +
     '<Screen testID="<route-id>-screen"> (the device lane asserts that id)',

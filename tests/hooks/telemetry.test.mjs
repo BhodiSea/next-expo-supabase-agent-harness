@@ -178,7 +178,7 @@ test('Stop: a GREEN run appends one stop-step record per chain step, and validat
     assert.equal(s.session_id, 'sess-1')
     assert.equal(s.prompt_id, 'prompt-1')
     assert.ok(!Number.isNaN(Date.parse(s.at)), s.at)
-    assert.deepEqual(Object.keys(s), ['v', 'kind', 'at', 'session_id', 'prompt_id', 'step', 'status', 'ms', 'skips', 'stamps'])
+    assert.deepEqual(Object.keys(s), ['v', 'kind', 'at', 'session_id', 'prompt_id', 'step', 'status', 'ms', 'skips', 'stamps', 'notes'])
   }
   const gates = log.filter((x) => x.kind === 'validate-gate')
   assert.deepEqual(
@@ -279,6 +279,38 @@ test('Stop: a step riding its own stamp records `stamped`; member stamps are cou
     readLog(red)
       .filter((x) => x.kind === 'stop-step')
       .map((s) => [s.step, s.status, s.stamps]),
+    [['validate', 'fail', 1]],
+  )
+})
+
+// Notes (2.0.3, #152): `notes` counts a step's `<gate>: NOTE — ` lines, red or green, the way
+// `stamps` counts STAMPED ones. Prose that merely says NOTE is not counted.
+const NOTE_PRINT = (gate) => `console.log(${JSON.stringify(`${gate}: NOTE — a control is off in this tree`)})\n`
+
+test('Stop: `notes` counts each step\'s NOTE lines, red or green', () => {
+  const dir = install()
+  stopChain(dir, [
+    ['validate', `${NOTE_PRINT('build')}${NOTE_PRINT('reviewer-verdicts')}console.log('note: a NOTE — prose')\n`],
+    ['unit', GREEN_PLAIN],
+  ])
+  assert.equal(runHook(dir, 'stop-validate-gate.mjs', { ...IDS }).code, 0)
+  assert.deepEqual(
+    readLog(dir)
+      .filter((x) => x.kind === 'stop-step')
+      .map((s) => [s.step, s.status, s.notes]),
+    [
+      ['validate', 'ok', 2],
+      ['unit', 'ok', 0],
+    ],
+  )
+
+  const red = install()
+  stopChain(red, [['validate', `${NOTE_PRINT('build')}process.exit(1)\n`]])
+  assert.equal(runHook(red, 'stop-validate-gate.mjs', { ...IDS }).code, 2)
+  assert.deepEqual(
+    readLog(red)
+      .filter((x) => x.kind === 'stop-step')
+      .map((s) => [s.step, s.status, s.notes]),
     [['validate', 'fail', 1]],
   )
 })

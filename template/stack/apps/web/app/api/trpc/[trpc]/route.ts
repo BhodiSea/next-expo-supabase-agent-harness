@@ -12,6 +12,7 @@ import { fetchRequestHandler } from '@trpc/server/adapters/fetch'
 import { resolveHostSession } from '../../../../lib/auth/session'
 import { bucketForProcedure } from '../../../../lib/rate-limit'
 import { clientKeyFromHeaders, spendRateLimit } from '../../../../lib/rate-limit-runtime'
+import { requestPorts } from '../../../../lib/request-ports'
 import {
   createBearerScopedClient,
   createRequestScopedClient,
@@ -159,6 +160,12 @@ const handler = async (request: Request): Promise<Response> => {
   // each of them would be the same answer computed N times.
   const clientKey = clientKeyFromHeaders(request.headers)
 
+  // The host's event sink and this request's instant, from the ONE place apps/web keeps them,
+  // so a Server Action's write and a procedure's write reach the same sink. Minted once per
+  // request, like `clientKey`: every procedure in a batch shares the instant.
+  // SOURCE: apps/web/lib/request-ports.ts
+  const ports = requestPorts()
+
   return fetchRequestHandler({
     // Must match this route's own path. tRPC strips it to recover the procedure name, so a
     // mismatch turns every call into a "no procedure found" 404 that reads like a router bug.
@@ -168,8 +175,11 @@ const handler = async (request: Request): Promise<Response> => {
     createContext: () =>
       createContext({
         createClient: () => apiDb,
+        emit: ports.emit,
         headers: request.headers,
         minSupportedClient: MIN_SUPPORTED_CLIENT,
+        // A function, because createContext takes one; it answers the instant minted above.
+        now: () => ports.now,
         // SOURCE: docs/adr/20260204-rate-limiting.md (both seams, and what neither bounds)
         rateLimit: async ({ orgId, path, userId }) => {
           const decision = await spendRateLimit(bucketForProcedure(path), {

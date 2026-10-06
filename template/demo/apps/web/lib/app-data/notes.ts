@@ -1,7 +1,8 @@
-import { ListNotesSchema, listNotes, type NotesDatabase } from '@app/notes'
+import { ListNotesSchema, listNotes } from '@app/notes'
 import { requireOrgContext } from '../auth/session'
 import type { NotesPageModel } from './notes-model'
 import { toNotesPageModel } from './notes-model'
+import { toNotesPort } from './notes-port'
 
 // The RSC read seam. The whole chain, in one place and in this order:
 //
@@ -52,12 +53,9 @@ export async function loadNotesPage(orgSlug: string): Promise<NotesPageModel> {
   // throwing into error.tsx — the layout above has already decided whether to redirect.
   if (!gate.ok) return toNotesPageModel(gate)
 
-  // `as unknown as NotesDatabase`: the DAL's port is a deliberate hand-authored subset of
-  // supabase-js's surface (design/W1-STACK-SPEC.md §3), and checking a full
-  // SupabaseServerClient against it instantiates supabase-js's vast `.from()` overload set —
-  // TS2589. The assertion is sound (the runtime value IS a supabase client) and matches the
-  // Server Action and the tRPC route, which narrow the identical way.
-  const supabase = gate.data.client as unknown as NotesDatabase
+  // Narrowed to the DAL's port by ./notes-port.ts, the one function the Server Action and the
+  // tRPC route call too (it says why the narrowing is sound).
+  const supabase = toNotesPort(gate.data.client)
   // The FIRST page, newest first: no cursor. Parsing an empty object rather than hand-writing
   // `{ includeArchived: false, limit: 50 }` keeps the contract the single source of the page
   // size and the archived-default — `listNotes` requires a parsed `ListNotesSchema`, not a

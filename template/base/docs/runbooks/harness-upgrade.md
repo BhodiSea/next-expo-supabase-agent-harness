@@ -3771,6 +3771,19 @@ absolute path, an empty or `.` segment and a segment that starts with `-`. `upda
 you: the brief judges nothing, so no verdict moves. A fork of the lib you kept keeps the old
 printer.
 
+### A green turn shows the gates' NOTE lines (#152)
+
+Through 2.0.2 the Stop hook dropped every `<gate>: NOTE — …` line from a green step, and its
+own notes (a floor it could not read, a previous turn that ended red) went to stderr, which a
+hook that exits 0 sends only to the debug log. On a green turn you now see them in the same
+message that shows `FALLBACK MODEL` lines: the first ten NOTE lines, each cut at 300
+characters, then the hook's own notes. When that is not every line whole, all of them are in
+`.harness/stop-output/_notes.log`. A red turn's block lists a green step's NOTE lines too.
+`update` plants `.claude/hooks/stop-validate-gate.mjs` and `docs/harness/README.md`, both
+owned. Nothing is left to you: no exit code changes and no verdict moves. A NOTE your gates
+print on every run, such as the reviewer ledger's no-merge-base line, now shows on every green
+turn; that is the line doing its job. A fork of the hook you kept keeps dropping the lines.
+
 ### One migration you have to write yourself: schedule the auth-event trail's partitions (#146)
 
 **Only if your project adopted the auth-event trail** (`20260816000000_auth_event_trail.sql`,
@@ -3901,6 +3914,92 @@ notice saying so and creates the three months after the current one, exactly as
 `ensure_partitions` would, so from the next first of the month the scheduled job finds that month
 present and carries on. The rows already in the default partition stay there, and retention never
 drops them.
+
+### The vertical-slice scaffold writes the worked example's shape (#155)
+
+Through 2.0.2 `scaffold-slice.mjs` wrote a slice's web page at `apps/web/app/<slice>/`,
+outside the org scope and with no `page.meta.ts`, so a run with no edits turned
+`route-manifest` red. It wrote none of the example's data seams, and its Server Action stub
+taught a write with no org and a cast at each call site. It now writes the segment at
+`apps/web/app/(protected)/o/[orgSlug]/<slice>/` with its meta and loading state, a stub for
+every seam, and `apps/web/lib/app-data/<slice>-port.ts` as the one narrowing function, and it
+prints a `next:` line for each step it leaves to you. `update` plants the script, the skill's
+`SKILL.md` and `references/dal-dto.md`, all owned. The script runs only when you run it, so no
+slice you already have changes.
+
+If your install has the worked example (`--with-demo`, or any install made before 2.0.0),
+`update` withholds the example's new `apps/web/lib/app-data/notes-port.ts`: its three callers
+are seeded and keep their casts, so nothing would import it. Nothing is left to you. To adopt
+the one-cast shape, pull the file with
+`update --refresh-seeded apps/web/lib/app-data/notes-port.ts` and make
+`app/actions/notes.ts`, `lib/app-data/notes.ts` and `app/api/trpc/[trpc]/route.ts` call
+`toNotesPort`. From 2.0.3 the example's own copy of `app/api/trpc/[trpc]/route.ts` calls
+`toNotesPort`, so if you take that copy whole (on a demo install, or to apply 0.9.5's source
+fix to an install made before 0.9.5), pull `notes-port.ts` with it.
+
+### The `./client` census is a human's edit, and the messages say so (#154)
+
+Through 2.0.2 a new vertical led an agent into an edit of `tools/exports-walls.json`. The
+anatomy law requires every vertical's `./client` key, `boundaries` reds a key the census does
+not sanction, and its message said to edit the census. Nothing stopped that edit until
+`gate-integrity` called it tampering at the next validate, because the census is
+harness-owned and hash-pinned, and an owned file cannot be proposed. From 2.0.3 the write
+guard denies an agent's Edit or Write of the census (rule `exports-walls-census`) with a
+message naming the human path, both `boundaries` reds name it instead of "edit the census",
+and `scaffold-slice` prints it as a `next:` line. `update` plants the write guard and its rule
+table, both gate scripts, the scaffold script, the skill's `SKILL.md`,
+`.claude/rules/boundaries.md`, `.claude/agents/dal-author.md`, `docs/harness/README.md`,
+`docs/harness/gates-catalog.md` and `docs/security/threat-model.md`, all owned. No verdict
+moves: `gate-integrity` already redded the edit the new rule denies.
+
+**The human path, for each new vertical.** Add the `{package, reason}` entry to
+`tools/exports-walls.json` under your security owners' review, and in the same reviewed
+commit re-record the file's `sha256` in `.harness/manifest.json` ("Forking an owned file" in
+the 1.0.2 section). Edit the census outside an agent session or in one started with
+`HARNESS_ALLOW_SELF_EDIT=1`, and the manifest outside one: the settings deny list keeps
+`.harness/**` closed to the agent either way. From then on your census is a fork: `update` keeps it and, whenever a release
+changes the census, parks the incoming copy under `.harness/pending/` and exits 2 until you
+merge it and re-record.
+
+### The bash guard denies every spelling of the skip-hooks commit flag (#222)
+
+Through 2.0.2 the bash guard's `git-commit-no-verify` rule denied `git commit --no-verify` and
+a later, separate `-n`, and nothing else, so `git commit -nm x`, `-n` as the first argument,
+`-an` anywhere, an abbreviated `--no-verif` and `git -c k=v commit --no-verify` committed past
+lefthook. It now denies `-n` in any short-flag cluster, every prefix of `--no-verify` down to
+`--no-v`, and those spellings after global options such as `-c`, `-C` and `--git-dir=`.
+`update` plants `.claude/hooks/lib/guard-rules.mjs`, owned. Nothing is left to you. A commit
+message that only mentions ` -n` is now denied as well; put such a message in a file and
+commit with `git commit -F <file>`.
+
+### The worked example builds its notes write context in one place (#144)
+
+Through 2.0.2 the example built a note write's context twice. The tRPC router used a
+`writeContext` function, and the Server Action in `app/actions/notes.ts` wrote an object
+literal with a no-op event sink and a clock of its own. Both dropped every event, but a sink
+wired at `createContext`'s `emit` would have heard every tRPC write and no web one. From 2.0.3
+the vertical exports `noteWriteContext` (`src/data/write-context.ts`), which the router and the
+action both call, and `apps/web/lib/request-ports.ts` holds the web host's one sink (it still
+drops events) and clock, which the action and `app/api/trpc/[trpc]/route.ts` both use.
+`update` plants the skill's `references/dal-dto.md` and `scripts/scaffold-slice.mjs`, both
+owned, which now teach the builder and the ports.
+
+**Nothing is left to you.** No row, event or generated file changes, and no verdict moves.
+`update` withholds the four new files: `apps/web/lib/request-ports.ts` and
+`apps/web/__tests__/request-ports.test.ts` on every install, and the example's
+`packages/verticals/notes/src/data/write-context.ts` and
+`apps/web/__tests__/notes-write-context.test.ts`. Your route, action and vertical are seeded,
+so they keep their own copies and nothing would import the new modules.
+
+To adopt the new shape, pull what applies with `update --refresh-seeded <path>`. Any install
+can take `request-ports.ts` and pass `requestPorts()`'s `emit`, and its `now` as `() => now`,
+to `createContext` in `app/api/trpc/[trpc]/route.ts`. An install with the example also takes
+`write-context.ts`, exports `noteWriteContext` from the vertical's `src/index.ts`, makes the
+router's `writeContext` return `noteWriteContext(ctx.actor, { id: orgId }, ctx)`, and makes the
+Server Action call `noteWriteContext({ userId: gate.data.userId }, gate.data.org, requestPorts())`.
+If you take one of the example's files whole instead, pull what it imports with it: from 2.0.3
+its `app/api/trpc/[trpc]/route.ts` imports `request-ports.ts`, and its `src/index.ts` and
+`src/data/notes.test.ts` import `write-context.ts`.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

@@ -55,6 +55,9 @@ export {
   NOTE_ROW_KEYS,
   NOTES_TABLE,
 } from './data/rows.js'
+// The one builder for the write context above: the tRPC router and the web Server Action
+// both call it, so neither spells a context out by hand.
+export { noteWriteContext } from './data/write-context.js'
 // The export-walk cursor codec, beside the read it positions (server-only for
 // the same reason).
 export {

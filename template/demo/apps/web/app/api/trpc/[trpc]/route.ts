@@ -7,12 +7,13 @@ import {
   isCrossSiteRequest,
 } from '@app/api'
 import { optionalServerEnv } from '@app/env/optional'
-import type { NotesDatabase } from '@app/notes'
 import type { SupabaseServerClient } from '@app/supabase'
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch'
+import { toNotesPort } from '../../../../lib/app-data/notes-port'
 import { resolveHostSession } from '../../../../lib/auth/session'
 import { bucketForProcedure } from '../../../../lib/rate-limit'
 import { clientKeyFromHeaders, spendRateLimit } from '../../../../lib/rate-limit-runtime'
+import { requestPorts } from '../../../../lib/request-ports'
 import {
   createBearerScopedClient,
   createRequestScopedClient,
@@ -141,15 +142,10 @@ const handler = async (request: Request): Promise<Response> => {
     session = await resolveHostSession(db, token)
   }
 
-  // Narrowed to the DAL's structural port. `as unknown as`: checking a full SupabaseServerClient
-  // against NotesDatabase instantiates supabase-js's vast `.from()` overload set (TS2589,
-  // "excessively deep"). The assertion is SOUND — NotesDatabase is a hand-authored subset of
-  // exactly the supabase surface the DAL calls, and `db` is a real supabase client. The cast
-  // rides a `const` (never the createClient return position) for the same reason the sibling
-  // does: an assertion in a contextually-typed slot reads as redundant to no-unnecessary-type-
-  // assertion, which does not see the deep check that makes it load-bearing.
-  // SOURCE: apps/web/app/actions/notes.ts (the same NotesDatabase-subset cast, full rationale)
-  const notesDb = db as unknown as NotesDatabase
+  // Narrowed to the DAL's structural port by the one function apps/web has for it, the same
+  // one the Server Action and the read seam call.
+  // SOURCE: apps/web/lib/app-data/notes-port.ts (why the narrowing is sound)
+  const notesDb = toNotesPort(db)
 
   // The rate-limit port, closed over what only the HOST knows: which budget a procedure
   // spends from (lib/rate-limit.ts, the reviewed policy) and how to identify an anonymous
@@ -160,6 +156,12 @@ const handler = async (request: Request): Promise<Response> => {
   // each of them would be the same answer computed N times.
   const clientKey = clientKeyFromHeaders(request.headers)
 
+  // The host's event sink and this request's instant, from the ONE place apps/web keeps them,
+  // so a Server Action's write and a procedure's write reach the same sink. Minted once per
+  // request, like `clientKey`: every procedure in a batch shares the instant.
+  // SOURCE: apps/web/lib/request-ports.ts
+  const ports = requestPorts()
+
   return fetchRequestHandler({
     // Must match this route's own path. tRPC strips it to recover the procedure name, so a
     // mismatch turns every call into a "no procedure found" 404 that reads like a router bug.
@@ -169,8 +171,11 @@ const handler = async (request: Request): Promise<Response> => {
     createContext: () =>
       createContext({
         createClient: () => notesDb,
+        emit: ports.emit,
         headers: request.headers,
         minSupportedClient: MIN_SUPPORTED_CLIENT,
+        // A function, because createContext takes one; it answers the instant minted above.
+        now: () => ports.now,
         // SOURCE: docs/adr/20260204-rate-limiting.md (both seams, and what neither bounds)
         rateLimit: async ({ orgId, path, userId }) => {
           const decision = await spendRateLimit(bucketForProcedure(path), {

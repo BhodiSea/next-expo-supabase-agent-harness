@@ -19,6 +19,15 @@
     ],
     ".claude/agents/dal-author.md": [
       {
+        "sha256": "23903cedf2521b470f01bfb70de05f862dc6b158af7308ecce9fb987e4f83ad9",
+        "sites": [
+          [
+            6848,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "66a264b67bf4aa2d3e565c4e59b49b39d3e47f9fbcd30908c7bb8aefd472791f",
         "sites": [
           [
@@ -112,6 +121,12 @@
     ".claude/hooks/lib/guard-rules.mjs": [
       {
         "sha256": "3c775b6bab7eaefb57c2945f042387e234849b61d26bfae91dd8cdf081ac3603"
+      },
+      {
+        "sha256": "517f8e66c9a21e0da60d00aa2035aa15276869d7bd2460aa882a01b0e35462a0"
+      },
+      {
+        "sha256": "6b0cae4f5fe212bc07674305518eb48aeb3ccdb16015b86038c7a0b9fefda56c"
       }
     ],
     ".claude/hooks/lib/hookio.mjs": [
@@ -147,6 +162,9 @@
     ".claude/hooks/pretool-write-guard.mjs": [
       {
         "sha256": "a7867b078246f56f9b9d814f4b44f462deb72b9942352907f1e0ebafcd89b6df"
+      },
+      {
+        "sha256": "dddb4a7e8efba54fb8c2d775046d93b51d9309fffb05c4ee442555283afe5d2f"
       }
     ],
     ".claude/hooks/session-brief.mjs": [
@@ -157,6 +175,9 @@
     ".claude/hooks/stop-validate-gate.mjs": [
       {
         "sha256": "dd01ad3ec50059fd1d5329e681e54c9e8cc2d0d79357653b2cd9eeb3d6598322"
+      },
+      {
+        "sha256": "fd72e7922d08a293b4fa1b8ef0bc1a2632775a943c5f0f1666c3646b05b7c3df"
       }
     ],
     ".claude/hooks/subagent-verdict.mjs": [
@@ -170,6 +191,15 @@
         "sites": [
           [
             823,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "2721dd68538ef37e8603b42c5ad3b9ef54cb5436f9960fdbf66a6f86c47c9dfa",
+        "sites": [
+          [
+            1250,
             "SECURITY_OWNERS"
           ]
         ]
@@ -218,11 +248,20 @@
     ".claude/skills/authoring-vertical-slice/SKILL.md": [
       {
         "sha256": "1ee0f6520a950e33f1c582fe20d30e7dd5601e8a3a0edb520921bffbed1c594e"
+      },
+      {
+        "sha256": "9b4354376eec92c48be4de33cf96c9c6ebbf742a9030b3ca47d2849da2274d13"
       }
     ],
     ".claude/skills/authoring-vertical-slice/references/dal-dto.md": [
       {
         "sha256": "56d048b9d14ac8dac4c9a3d134b8560b32e0fe6e1accc151b31c43550a2d065e"
+      },
+      {
+        "sha256": "761c2f5a0d68049b8752c2d4ad218f3a097e3bc177bbcbb260d37eb2d7a14ae8"
+      },
+      {
+        "sha256": "826b3e15460a4c160a2cdf13aba9e5d6bf50a3a19cef804cecf9b056b62486bd"
       }
     ],
     ".claude/skills/authoring-vertical-slice/references/migration-rls.md": [
@@ -243,6 +282,12 @@
     ".claude/skills/authoring-vertical-slice/scripts/scaffold-slice.mjs": [
       {
         "sha256": "1c31ff465af6943a4b542ba09ab07335024e3fc7637ccff3b646bde7b3f24119"
+      },
+      {
+        "sha256": "54f1967ec6e797ad31a96838b5aebe84da727cc9117bd0527f68f9c20e4d6706"
+      },
+      {
+        "sha256": "de7244b7e0857d221193f7b86007d07b2339ac75105db159d59de78e8cbc6976"
       }
     ],
     ".claude/skills/designing-mobile-ui/SKILL.md": [
@@ -718,10 +763,28 @@
     ],
     "docs/harness/README.md": [
       {
+        "sha256": "664d4853e03d60720d6211bb354ffc28696ae9d2430a4886660de174da211854",
+        "sites": [
+          [
+            20380,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "78fc48f30576bf2d89020c8eac4c68084f691d84a416202cba245f76f432b6a7",
         "sites": [
           [
             20141,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "ecb66850a0e8ad22e390b8a0daf6850426326d19ca5a6f4b498cad3aeedc2ac1",
+        "sites": [
+          [
+            20380,
             "SECURITY_OWNERS"
           ]
         ]
@@ -742,6 +805,19 @@
       }
     ],
     "docs/harness/gates-catalog.md": [
+      {
+        "sha256": "ab80386a6331ac40b5da42d3cb47a3c91dd2556301e031072f48088343a1c01c",
+        "sites": [
+          [
+            26004,
+            "SECURITY_OWNERS"
+          ],
+          [
+            150236,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
       {
         "sha256": "fd22d51c7c2a12b9ed5dfce2fe38354e115da9995dffdedd196c22cb06748f6a",
         "sites": [
@@ -933,6 +1009,15 @@
         ]
       },
       {
+        "sha256": "1cea871b9d669bd74f301b2730ea843b43c4acdf7a5ea1d2c9a9f35c976c9410",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "31f9661201ac1c4b115decd83307e1d7bf5f8ccdeaf8f82e277f8e2f7711db12",
         "sites": [
           [
@@ -952,6 +1037,42 @@
       },
       {
         "sha256": "41c7d1f51956ec822aa1c86f67735af10b56e10078dbde91a5f0453d111b483e",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "994a4b89532cb268704840ad79ec4ee7dad32ae32585d1876e30300972da805f",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "abe6c62ad80666b4e50f405a4a3af4ccc86d8b8d68b219fe36179cbf5f0d187c",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "f60206ea7821b4fcac66b5ae5edba80e1c3121c2e9ec48654a4d0616aaa75e26",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "fa634c4147e9c1f9245498a029360af1fed0c3f2eb439552eabc4aebcdac637f",
         "sites": [
           [
             14122,
@@ -998,6 +1119,9 @@
     "docs/security/threat-model.md": [
       {
         "sha256": "1e388ea18a0dc8e3e13609a16cbae2779acb6f5e41c9689f84fb9a080b6a87ae"
+      },
+      {
+        "sha256": "32a7e757b1440f817fca54b6188ba495017f115eba3f82b2b8e10a28dcbb7cb8"
       }
     ],
     "docs/store/app-review-notes.md": [
@@ -1314,6 +1438,15 @@
     ],
     "tools/check-exports-walls.mjs": [
       {
+        "sha256": "60cf1bf9e1c023b32f6f12cf77600d309d0d9ef4f8e39fa7914646d058e5af0f",
+        "sites": [
+          [
+            2094,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "87f0e4b271bf6d43e2f2680ee11842a44dcdc8bd00b06edaa53701e87092d57e",
         "sites": [
           [
@@ -1519,6 +1652,9 @@
       }
     ],
     "tools/check-workspace-deps.mjs": [
+      {
+        "sha256": "6c0c24826e9f7daa4b6c2485c476a4e745c3fe30674cf0fd2d64f4c286d1bb55"
+      },
       {
         "sha256": "9e27d8c00525c601316230bb43f283516fe3e2c6d0588a3c269ed63d1a11bafe"
       }

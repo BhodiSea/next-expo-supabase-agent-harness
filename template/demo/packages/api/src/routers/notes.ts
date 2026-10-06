@@ -7,6 +7,7 @@ import {
   listNotes,
   NoteRefSchema,
   type NoteWriteContext,
+  noteWriteContext,
   UpdateNoteSchema,
   updateNote,
 } from '@app/notes'
@@ -39,15 +40,12 @@ import { orgProcedure, router } from '../trpc.js'
  * Assemble what a write needs beyond its input. It is a function, not a spread
  * at each call site, so `actorId` can only ever come from the VERIFIED actor and
  * `orgId` from the RESOLVED gate — there is no expression here a future edit
- * could accidentally point at the input instead.
+ * could accidentally point at the input instead. The context itself is built by
+ * the vertical's `noteWriteContext`, the same builder the web Server Action
+ * calls, and `ctx` is passed as its request ports: the host's sink and instant.
  */
 function writeContext(ctx: OrgContext, orgId: string): NoteWriteContext {
-  return {
-    actorId: ctx.actor.userId,
-    emit: ctx.emit,
-    now: ctx.now,
-    orgId,
-  }
+  return noteWriteContext(ctx.actor, { id: orgId }, ctx)
 }
 
 // The skill-region markers around `create` delimit the span the harness copies, verbatim,

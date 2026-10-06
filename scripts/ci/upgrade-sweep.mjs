@@ -437,16 +437,40 @@ const SWEEPS = {
       '1.0.0': ['tools/suppressions-allow.json'],
     },
   },
-  // 2.0.3 withholds ONE path, supabase/migrations/20261006000000_auth_trail_partition_schedule.sql
-  // (#146, part C), and a swept leg must not adopt it, for 1.0.2's reason restated: the DDL would
-  // sit unapplied beside the scaffold's applied history. Nothing else needs sweeping. A leg keeps
-  // its old seeded auth_trail.test.sql, whose assertions predate the schedule, so nothing on the
-  // leg judges whether the auth-event trail's partition maintenance is scheduled and it is green
-  // without the migration; adopting the edited suite would red it, since its two new assertions
-  // ask for the jobs this withheld migration creates. And only a database that applied the trail
-  // months ago is short of partitions, which no lane scaffold is. Empty, and written down,
-  // because computeSweepSet asks every withholding version for a reviewed posture.
-  '2.0.3': {},
+  // 2.0.3 withholds SIX paths, and a swept leg adopts three of them, each only below the
+  // version whose derived pass copies a file that imports it.
+  //   - supabase/migrations/20261006000000_auth_trail_partition_schedule.sql (#146, part C) is
+  //     never adopted, for 1.0.2's reason restated: the DDL would sit unapplied beside the
+  //     scaffold's applied history. A leg keeps its old seeded auth_trail.test.sql, whose
+  //     assertions predate the schedule, so nothing on the leg judges whether the auth-event
+  //     trail's partition maintenance is scheduled and it is green without the migration;
+  //     adopting the edited suite would red it, since its two new assertions ask for the jobs
+  //     this withheld migration creates. And only a database that applied the trail months ago
+  //     is short of partitions, which no lane scaffold is.
+  //   - apps/web/lib/app-data/notes-port.ts, the worked example's narrowing function (#155). An
+  //     install keeps the three casts its seeded callers already carry, which compile and judge
+  //     clean, so on its own the file has no caller and adopting it would plant a module
+  //     dead-code reds. The exception was found when leg E (v0.3.0) went red after the sweep on
+  //     dead-code and web-compile: an install made before 0.9.5 carries the example and crosses
+  //     0.9.5, whose DERIVED pass copies the demo's app/api/trpc/[trpc]/route.ts, and from 2.0.3
+  //     that copy calls toNotesPort. So such an install takes the file with the route that
+  //     imports it. An install made at 0.9.5 or later keeps its own route and takes nothing.
+  //   - apps/web/lib/request-ports.ts and packages/verticals/notes/src/data/write-context.ts,
+  //     the web host's ports and the example's write-context builder (#144), on the same
+  //     argument. From 2.0.3 the demo's tRPC route imports request-ports.ts, so an install made
+  //     before 0.9.5 takes it with that route; and the example's src/index.ts and
+  //     data/notes.test.ts import write-context.ts, and 0.7.0's derived pass copies both, so an
+  //     install made before 0.7.0 takes it with them. Anything later keeps its own callers,
+  //     on which either file would sit unimported.
+  //   - Their two tests, apps/web/__tests__/request-ports.test.ts and
+  //     apps/web/__tests__/notes-write-context.test.ts, are never adopted: no gate on a swept
+  //     leg asks for them, and the second judges a Server Action the leg never receives.
+  '2.0.3': {
+    adoptBelow: {
+      '0.7.0': ['packages/verticals/notes/src/data/write-context.ts'],
+      '0.9.5': ['apps/web/lib/app-data/notes-port.ts', 'apps/web/lib/request-ports.ts'],
+    },
+  },
 }
 
 /**
@@ -567,7 +591,8 @@ function crossedSweepsSet(migrations, baseVersion, headVersion, key) {
 
 /**
  * The paths a SWEEPS entry adopts only for an install made before a given version: the
- * remedy for a register `update` plants when absent, which such an install never had.
+ * remedy for a register `update` plants when absent, which such an install never had, or a
+ * module that a file only such an install receives from the derived pass now imports.
  * @param {Record<string, string[]> | undefined} below  version -> paths
  * @param {string} baseVersion
  * @returns {string[]}
