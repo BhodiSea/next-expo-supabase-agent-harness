@@ -147,6 +147,35 @@ test('RED: a package ships ./client without a census entry', () => {
   assert.ok(r.out.includes('@app/rogue') && r.out.includes('NOT sanctioned'), r.out)
 })
 
+// 2.0.3 (#154). The census is harness-OWNED and hash-pinned, and a new vertical cannot drop its
+// `./client` key (the anatomy law requires both barrels), so the remedy this red demands is a
+// census edit that only a human can land. The text must say so and name that path, instead of
+// "edit tools/exports-walls.json", which sends an agent into an edit gate-integrity reds.
+const OWNED_CENSUS_PATH = [/harness-owned/, /\.harness\/manifest\.json/, /Forking an owned file/]
+
+test('RED (2.0.3, #154): a new vertical with no sanction is told the census is harness-owned, and the human path', () => {
+  const packages = /** @type {[string, any][]} */ ([
+    ...PACKAGES,
+    [
+      'verticals/probe',
+      { name: '@app/probe', exports: { '.': './src/index.ts', './client': './src/client.ts' } },
+    ],
+  ])
+  const r = run(EXPORTS_WALLS, fixture({ packages }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('@app/probe') && r.out.includes('NOT sanctioned'), r.out)
+  for (const re of OWNED_CENSUS_PATH) assert.match(r.out, re)
+  assert.ok(!/edit tools\/exports-walls\.json/.test(r.out), r.out)
+})
+
+test('RED (2.0.3, #154): a mobile dependency absent from the census is told the same human path', () => {
+  const mobile = { ...MOBILE, dependencies: { ...MOBILE.dependencies, '@app/observability': 'workspace:*' } }
+  const r = run(WORKSPACE_DEPS, fixture({ mobile }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('@app/observability') && r.out.includes('absent from the census'), r.out)
+  for (const re of OWNED_CENSUS_PATH) assert.match(r.out, re)
+})
+
 test('RED: a census entry names a package that does not exist (stale sanction, two-way)', () => {
   const census = {
     comment: 'x',

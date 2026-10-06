@@ -535,6 +535,14 @@ const RULE_CANARIES = {
   // in-tree author at all; a fictional appended name would park a stale
   // sanction dormant forever.
   'modules-register': [pathDeny('tools/modules.json')],
+  // 2.0.3 (#154). The OWNED ./client census that list closes: every new vertical needs an
+  // entry, so the slice path led an agent into an edit only gate-integrity flagged, at the
+  // next validate. The deny carries its own message (pinned in the #154 test below), and
+  // the human escape lifts it like every other protected path.
+  'exports-walls-census': [
+    pathDeny('tools/exports-walls.json'),
+    pathAllow('tools/exports-walls.json', SELF_EDIT),
+  ],
   // The consumer's additive mutation surface — deleting a row un-mutates code a
   // human chose to protect, so either direction is a reviewed human act.
   'mutation-scope-extra': [pathDeny('tools/mutation-scope-extra.json')],
@@ -1149,6 +1157,59 @@ test('the write guard\'s tamper deny points a register edit at the proposal flow
   assert.match(reason, /harness-proposals\/<id>\.json/)
   assert.match(reason, /apply-proposal/)
   assert.match(reason, /SOURCE: docs\/harness\/README\.md \(tamper evidence\)$/)
+})
+
+// ── a row's own message (2.0.3, #154) ──────────────────────────────────────────────────────
+// The shared tamper text above sends a register edit to harness-proposals/, and an OWNED file
+// is never proposable (installer/lib/proposals.mjs), so for the ./client census that text is
+// a dead end. A row may carry its own `message`; the census row's names the human path. Every
+// row without one keeps the shared text, byte for byte.
+const SHARED_TAMPER_TEXT =
+  'harness-protected file: set HARNESS_ALLOW_SELF_EDIT=1 (human-in-the-loop) to modify the gate itself. To change a reviewed register under tools/ (an allowlist, a budget, a register), write the whole proposed file as a proposal in harness-proposals/<id>.json, which a human applies with `apply-proposal <id>` (docs/harness/README.md, "Proposing a register edit"). SOURCE: docs/harness/README.md (tamper evidence)'
+
+/** @param {Record<string, unknown>} toolInput @param {Record<string, string>} [env] */
+function writeGuardReason(toolInput, env) {
+  const r = runHook('pretool-write-guard.mjs', { tool_name: 'Edit', tool_input: toolInput }, env ? { env } : {})
+  if (!denied(r)) return null
+  return JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason
+}
+
+test('an Edit of the ./client census is denied with the human path, not the proposal flow (#154)', () => {
+  const edit = {
+    file_path: 'tools/exports-walls.json',
+    old_string: '"sanctioned": [',
+    new_string: '"sanctioned": [\n    { "package": "@app/probe", "reason": "r" },',
+  }
+  const reason = writeGuardReason(edit)
+  assert.ok(reason !== null, 'the census edit must be denied')
+  assert.match(reason, /tools\/exports-walls\.json/)
+  assert.match(reason, /harness-owned/)
+  assert.match(reason, /hash-pinned/)
+  // The human path: a human adds the entry and re-records the sha, and update parks from then on.
+  assert.match(reason, /\{package, reason\}/)
+  assert.match(reason, /\.harness\/manifest\.json/)
+  assert.match(reason, /Forking an owned file/)
+  assert.match(reason, /HARNESS_ALLOW_SELF_EDIT=1/)
+  assert.ok(!reason.includes('harness-proposals/'), reason)
+  assert.ok(!reason.includes('apply-proposal'), reason)
+  assert.match(reason, /SOURCE: docs\/harness\/README\.md \(tamper evidence\)$/)
+  // The human escape lifts it, as it lifts every protected path.
+  assert.equal(writeGuardReason(edit, SELF_EDIT), null)
+})
+
+test('a WRITE_PROTECTED row without a message prints the shared tamper text byte for byte (#154)', async () => {
+  const { WRITE_PROTECTED } = await import(GUARD_RULES.href)
+  const withMessage = WRITE_PROTECTED.filter((r) => r.message !== undefined).map((r) => r.id)
+  assert.deepEqual(withMessage, ['exports-walls-census'])
+  // One row from each shape: an exact register, a prefix row, a root config, the agent surface.
+  for (const file_path of [
+    'tools/i18n-allow.json',
+    'tools/lib/gate.mjs',
+    'eslint.config.mjs',
+    '.claude/rules/boundaries.md',
+  ]) {
+    assert.equal(writeGuardReason({ file_path, old_string: 'a', new_string: 'b' }), SHARED_TAMPER_TEXT, file_path)
+  }
 })
 
 // ── mcp-guard: the inline denies (no flat rule id, so no RULE_CANARIES entry) ──
