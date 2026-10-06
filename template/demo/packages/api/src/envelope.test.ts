@@ -3,7 +3,7 @@ import { appError } from '@app/errors'
 import type { NotesDatabase, PostgrestOutcome, PostgrestQuery, PostgrestTable } from '@app/notes'
 import { TRPCError } from '@trpc/server'
 import { describe, expect, it } from 'vitest'
-import { createContext, type Session } from './context.js'
+import { createContext, type DomainEvent, type Session } from './context.js'
 import { appRouter } from './index.js'
 import { createCallerFactory } from './trpc.js'
 
@@ -333,6 +333,34 @@ describe('seated-member writes reach the vertical (kill: gate short-circuit + wr
       ok: false,
       error: appError.notFound({ resource: 'note' }),
     })
+  })
+})
+
+// --- the host's sink hears a tRPC write ----------------------------------------
+//
+// `CreateContextOptions.emit` is where a host wires its event sink, and the web host now hands
+// it the same sink its Server Actions use (apps/web/lib/request-ports.ts). This pins the tRPC
+// half of that promise: the event a write emits reaches the sink the context was given, once.
+describe('a write’s event reaches the sink the host wired', () => {
+  it('notes.create emits exactly one notes.created to the injected emit', async () => {
+    const heard: DomainEvent[] = []
+    const ctx = await createContext({
+      createClient: () => fakeDatabase({ data: [NOTE_ROW], error: null }),
+      emit: (event) => {
+        heard.push(event)
+      },
+      headers: { authorization: 'Bearer test-token' },
+      now: () => NOW,
+      resolveSession: () => Promise.resolve(member),
+      serverVersion: SERVER_VERSION,
+    })
+    const caller = createCallerFactory(appRouter)(ctx)
+
+    await expect(caller.notes.create({ title: 'a heard create' })).resolves.toMatchObject({
+      ok: true,
+    })
+    expect(heard.map((event) => event.name)).toEqual(['notes.created'])
+    expect(heard[0]?.payload).toMatchObject({ actorId: ACTOR_ID, noteId: NOTE_ID, orgId: ORG_ID })
   })
 })
 
