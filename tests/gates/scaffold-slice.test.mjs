@@ -81,8 +81,9 @@ function scaffold(dir) {
 
 /** Run a tool with cwd inside the fixture, CI-shaped (a skip would read as a pass). */
 function tool(script, dir) {
-  const env = { ...process.env, CI: 'true' }
+  const env = { ...process.env }
   delete env.HARNESS_REQUIRE_TOOLCHAINS
+  env.CI = 'true'
   const res = spawnSync(process.execPath, [script], { cwd: dir, encoding: 'utf8', env })
   return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
 }
