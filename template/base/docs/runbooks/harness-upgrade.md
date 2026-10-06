@@ -3784,17 +3784,6 @@ owned. Nothing is left to you: no exit code changes and no verdict moves. A NOTE
 print on every run, such as the reviewer ledger's no-merge-base line, now shows on every green
 turn; that is the line doing its job. A fork of the hook you kept keeps dropping the lines.
 
-### The bash guard denies every spelling of the skip-hooks commit flag (#222)
-
-Through 2.0.2 the bash guard's `git-commit-no-verify` rule denied `git commit --no-verify` and
-a later, separate `-n`, and nothing else, so `git commit -nm x`, `-n` as the first argument,
-`-an` anywhere, an abbreviated `--no-verif` and `git -c k=v commit --no-verify` committed past
-lefthook. It now denies `-n` in any short-flag cluster, every prefix of `--no-verify` down to
-`--no-v`, and those spellings after global options such as `-c`, `-C` and `--git-dir=`.
-`update` plants `.claude/hooks/lib/guard-rules.mjs`, owned. Nothing is left to you. A commit
-message that only mentions ` -n` is now denied as well; put such a message in a file and
-commit with `git commit -F <file>`.
-
 ### One migration you have to write yourself: schedule the auth-event trail's partitions (#146)
 
 **Only if your project adopted the auth-event trail** (`20260816000000_auth_event_trail.sql`,
@@ -3971,6 +3960,17 @@ the 1.0.2 section). Edit the census outside an agent session or in one started w
 `.harness/**` closed to the agent either way. From then on your census is a fork: `update` keeps it and, whenever a release
 changes the census, parks the incoming copy under `.harness/pending/` and exits 2 until you
 merge it and re-record.
+
+### The bash guard denies every spelling of the skip-hooks commit flag (#222)
+
+Through 2.0.2 the bash guard's `git-commit-no-verify` rule denied `git commit --no-verify` and
+a later, separate `-n`, and nothing else, so `git commit -nm x`, `-n` as the first argument,
+`-an` anywhere, an abbreviated `--no-verif` and `git -c k=v commit --no-verify` committed past
+lefthook. It now denies `-n` in any short-flag cluster, every prefix of `--no-verify` down to
+`--no-v`, and those spellings after global options such as `-c`, `-C` and `--git-dir=`.
+`update` plants `.claude/hooks/lib/guard-rules.mjs`, owned. Nothing is left to you. A commit
+message that only mentions ` -n` is now denied as well; put such a message in a file and
+commit with `git commit -F <file>`.
 
 ## RECOVERY — when an `update` is interrupted or fails
 
