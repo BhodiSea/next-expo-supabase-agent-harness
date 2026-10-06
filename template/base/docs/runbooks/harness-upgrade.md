@@ -3760,6 +3760,17 @@ above are still the sweep for an install below 1.1.0.
 sha: this runbook and the hooks under `.claude/hooks/` (their version stamps). Each fix below
 says what else it delivers and what it leaves to you.
 
+### The session brief prints App Router paths (#153)
+
+Through 2.0.2 the brief (the SessionStart hook and `node tools/harness-status.mjs`) printed
+every App Router route group and dynamic segment, such as
+`apps/web/app/(protected)/o/[orgSlug]/page.tsx`, as `(unprintable)`, the way it prints a
+refused value. It now prints every path in a code span, `( ) [ ]` included, and refuses an
+absolute path, an empty or `.` segment and a segment that starts with `-`. `update` plants
+`tools/lib/harness-brief.mjs` and `docs/harness/README.md`, both owned. Nothing is left to
+you: the brief judges nothing, so no verdict moves. A fork of the lib you kept keeps the old
+printer.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

@@ -715,15 +715,6 @@
     ],
     "docs/harness/README.md": [
       {
-        "sha256": "78fc48f30576bf2d89020c8eac4c68084f691d84a416202cba245f76f432b6a7",
-        "sites": [
-          [
-            20141,
-            "SECURITY_OWNERS"
-          ]
-        ]
-      },
-      {
         "sha256": "eedc666321d02698475e4ae0f4c9ad668d9b81a290eecc7b6b1f4bad46a3f271",
         "sites": [
           [
@@ -922,15 +913,6 @@
     "docs/runbooks/harness-upgrade.md": [
       {
         "sha256": "7bf30b0ccc99a370d37ab60f4118184c6d7bd023bbe2ca6760fb8373238f8b00",
-        "sites": [
-          [
-            14122,
-            "SECURITY_OWNERS"
-          ]
-        ]
-      },
-      {
-        "sha256": "e015a0e17ce2ccb8563c1ca1b0956892b75115699214993faed7648dcc4bac27",
         "sites": [
           [
             14122,
@@ -1769,9 +1751,6 @@
     "tools/lib/harness-brief.mjs": [
       {
         "sha256": "aacdf82dbf91838476e9fa166df18713f8f125d8c7ccb32d8b76e041e1a61a7f"
-      },
-      {
-        "sha256": "d8e5b3aadec6fe8d70457c3d69a5a0086bf64dbcd709a2a4bb9c20a707690701"
       }
     ],
     "tools/lib/i18n-tree.mjs": [
