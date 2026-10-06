@@ -1,17 +1,17 @@
 // The FACTORY's PostToolUse adapter (.claude/hooks/posttool-factory-check.mjs), which had no
 // test until 1.1.0 (#69). It runs the SHIPPED posttool-source-check over this repository's own
-// edits, translating only the path it is told about (template/base/<p> becomes <p>), and its
-// whole contract is that the verdict is the shipped hook's: stdout, stderr and exit code passed
-// through unaltered. Until 1.1.0 it forwarded stderr and the exit code only. That was enough
-// while the shipped hook spoke only by exiting 2; once an advisory-class site answers with a
-// PostToolUse `additionalContext` object on stdout at exit 0, an adapter that drops stdout
-// turns the message into silence.
+// edits, translating only the path it is told about (template/<layer>/<p> becomes <p>, run from
+// that layer's root), and its whole contract is that the verdict is the shipped hook's: stdout,
+// stderr and exit code passed through unaltered. Until 1.1.0 it forwarded stderr and the exit
+// code only. That was enough while the shipped hook spoke only by exiting 2; once an
+// advisory-class site answers with a PostToolUse `additionalContext` object on stdout at exit
+// 0, an adapter that drops stdout turns the message into silence.
 //
 // The layout is copied, not pointed at: the adapter resolves the shipped hook and its hookio
 // relative to its own file (../../template/base/…), so the temp directory mirrors the repo —
 // .claude/hooks/<adapter>, template/base/.claude and template/base/tools/lib — and each fixture
-// file is written where the spawned hook reads it, under template/base/, because the adapter
-// runs the hook with template/base/ as its cwd. Only `node` is spawned, so this runs on the
+// file is written under the layer its edit names, because since 2.0.3 (#223) the adapter runs
+// the hook with that layer's root as its cwd. Only `node` is spawned, so this runs on the
 // Windows leg of installer-unit too.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'

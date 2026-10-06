@@ -148,6 +148,18 @@ this comment. -->
   new files are seeded and withheld from existing installs (`seedOnInitOnly`), which keep both
   copies. The runbook's 2.0.3 section says how to adopt the builder, and what to pull with an
   example file taken whole.
+- **The factory's per-edit citation check reads every template layer** (#223).
+  `.claude/hooks/posttool-factory-check.mjs` runs the shipped `posttool-source-check` on this
+  repository's own edits. It stripped the layer prefix from the edited path but always ran the
+  hook from `template/base/`, so an edit to `template/stack/<p>`, `template/modules/<module>/<p>`
+  or `template/presets/<preset>/<p>` was judged on `template/base/<p>`. That file is usually
+  not there, and the hook exits 0 when its read fails, so an uncited decision site in those
+  layers passed unread; where it is there, the verdict was on the wrong bytes.
+  `template/demo/` was not a layer at all. The adapter now runs the hook from the root of the
+  layer the edit is under, with `template/demo/` added, and the hook still loads its tables
+  from `template/base/`. `tests/hooks/posttool-factory-check.test.mjs` writes each fixture only
+  under its own layer and was red before the change. Factory only: nothing changes for an
+  install.
 
 ## [2.0.2] — 2026-10-03
 
