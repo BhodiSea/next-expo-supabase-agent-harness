@@ -3,10 +3,14 @@
 //
 // Copied from the @app/notes shape, so the same laws hold:
 //
-//   src/domain/   pure functions — the deterministic row id (push-token-id.ts)
-//                 and the keyset cursor codec (cursor.ts). No IO, no client.
-//   src/data/     the DAL. Takes a client, returns DTOs, never rows, never
-//                 throws for a domain failure.
+//   src/domain/   pure functions — the keyset cursor codec (cursor.ts). No IO,
+//                 no client.
+//   src/data/     the DAL (push-tokens.ts) and the structural port it is
+//                 written against (port.ts). Takes a client, returns DTOs, never
+//                 rows, never throws for a domain failure.
+//   src/server/   the deterministic row id (push-token-id.ts). It hashes with
+//                 node:crypto, which a domain file may not import, and it
+//                 throws on a non-UUID owner, which a data file may not do.
 //
 // One rule this package obeys structurally: a vertical MUST NOT import another
 // vertical (dependency-cruiser's `verticals-not-into-verticals`). That is why the
@@ -20,13 +24,16 @@
 // There is deliberately NO ./client barrel: registering and deregistering a token
 // are WRITES, so the mobile app reaches them through the tRPC client
 // (push.registerToken / push.removeToken mutations), not a direct-read barrel.
+// The anatomy laws ask every vertical for both barrels, so applying the slice
+// adds one reviewed `dual-barrel` row to tools/vertical-anatomy-allow.json
+// (APPLY.md step 8).
 // ---------------------------------------------------------------------------
 
+export type { PushTokensDatabase } from './data/port.js'
 export {
-  type PushTokensDatabase,
+  listTokens,
   type PushTokenWriteContext,
   registerToken,
-  listTokens,
   removeToken,
 } from './data/push-tokens.js'
 // The keyset codec. The server mints cursors and clients hold them, so both

@@ -1,0 +1,51 @@
+// ---------------------------------------------------------------------------
+// The database port the push-token DAL is written against (push-notifications
+// module). Installed to packages/verticals/push/src/data/port.ts.
+//
+// A deliberate hand-authored subset of the supabase-js query builder — the same
+// technique as the notes vertical's src/data/port.ts — widened here with
+// `upsert` because registerToken() is an idempotent INSERT ... ON CONFLICT DO
+// UPDATE. `data` is `unknown` on purpose: the row shape is whatever migration is
+// deployed, so it is re-parsed at the exit rather than trusted at the entrance,
+// and the port is fake-able in a few lines for a unit test with no container.
+//
+// It is its own file because the vertical-anatomy laws (the `boundaries` gate)
+// require it: a file that speaks PostgREST must import a port.ts that exists,
+// so a port declared inline in the DAL is an undeclared one.
+// ---------------------------------------------------------------------------
+
+/** The failure half of a PostgREST response. */
+export interface PushTokensFailure {
+  readonly code?: string | undefined
+  readonly details?: string | null | undefined
+  readonly hint?: string | null | undefined
+  readonly message: string
+}
+
+/** PostgREST resolves `{ data, error }`; it never rejects for a database failure. */
+export interface PushTokensOutcome {
+  readonly data: unknown
+  readonly error: PushTokensFailure | null
+}
+
+export interface PushTokensQuery extends PromiseLike<PushTokensOutcome> {
+  eq(column: string, value: string): PushTokensQuery
+  limit(count: number): PushTokensQuery
+  or(filters: string): PushTokensQuery
+  order(column: string, options: { readonly ascending: boolean }): PushTokensQuery
+  select(columns: string): PushTokensQuery
+}
+
+export interface PushTokensTable {
+  delete(): PushTokensQuery
+  select(columns: string): PushTokensQuery
+  upsert(
+    values: Readonly<Record<string, unknown>>,
+    options: { readonly onConflict: string },
+  ): PushTokensQuery
+}
+
+/** The one method the DAL needs from a Supabase client. */
+export interface PushTokensDatabase {
+  from(table: string): PushTokensTable
+}

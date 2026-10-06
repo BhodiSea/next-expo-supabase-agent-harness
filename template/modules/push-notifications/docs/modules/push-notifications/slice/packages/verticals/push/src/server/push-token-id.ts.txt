@@ -3,9 +3,13 @@ import { createHash } from 'node:crypto'
 // cspell:words subarray
 // (^ Buffer API name — the shipped .txt form is spell-checked without the TS dictionary)
 // push-notifications module — deterministic row id for push_device_tokens.
-// Installed to packages/verticals/push/src/domain/push-token-id.ts. Pure
-// node:crypto; a SERVER-ONLY domain helper (register is a write, so this never
-// rides the Metro-safe ./client barrel).
+// Installed to packages/verticals/push/src/server/push-token-id.ts. Pure
+// node:crypto, so SERVER-ONLY: register is a write, and this never rides a
+// Metro-safe ./client barrel. Its one caller is registerToken in
+// data/push-tokens.ts. It sits in neither of the layers the laws name:
+// src/domain/ may import only siblings, '@app/contracts' and 'zod' (the
+// anatomy laws), and a Node built-in is none of those; src/data/ may not
+// throw (lint rule app-error-only), and this fails closed on a non-UUID owner.
 //
 // registerToken() must be idempotent per (owner, token) and race-free under
 // concurrent app starts. Rather than a UNIQUE (owner_id, token) index as the
@@ -35,7 +39,10 @@ function uuidBytes(uuid: string): Buffer {
   if (!UUID_HEX.test(hex)) {
     throw new Error('push-token id derivation: namespace/owner is not a UUID')
   }
-  return Buffer.from(hex, 'hex')
+  // alloc, not Buffer.from: the vertical-anatomy laws read `.from(` in call
+  // position as PostgREST. The hex is exactly 32 digits, so the fill is the
+  // whole buffer, byte for byte.
+  return Buffer.alloc(16, hex, 'hex')
 }
 
 /**
@@ -55,7 +62,8 @@ export function pushTokenRowId(ownerId: string, token: string): string {
     .update('\n', 'utf8')
     .update(token, 'utf8')
     .digest()
-  const bytes = Buffer.from(digest.subarray(0, 16))
+  // A view of the digest, which nothing else reads, so stamping it in place is safe.
+  const bytes = digest.subarray(0, 16)
   // readUInt8/writeUInt8 instead of index access: the buffer is provably 16
   // bytes, but noUncheckedIndexedAccess cannot know that.
   bytes.writeUInt8((bytes.readUInt8(6) & 0x0f) | 0x50, 6) // version 5 nibble

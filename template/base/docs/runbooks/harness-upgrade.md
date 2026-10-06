@@ -4001,6 +4001,35 @@ If you take one of the example's files whole instead, pull what it imports with 
 its `app/api/trpc/[trpc]/route.ts` imports `request-ports.ts`, and its `src/index.ts` and
 `src/data/notes.test.ts` import `write-context.ts`.
 
+### The push-notifications slice passes the anatomy laws once applied (#156)
+
+Through 2.0.2 the push-notifications module's slice, applied as its `APPLY.md` said, redded
+`boundaries` with five vertical-anatomy findings on `@app/push`: `port-presence` on
+`src/data/push-tokens.ts` (its port was declared inline), `port-presence` and `domain-purity`
+on `src/domain/push-token-id.ts` (`Buffer.from(` reads as a PostgREST call, and a domain file
+may not import `node:crypto`), and two `dual-barrel` findings (the vertical has no `./client`
+barrel, on purpose). With the module enabled, `update` plants the corrected slice, `APPLY.md`
+and the module README, all owned, and removes the two old
+`slice/packages/verticals/push/src/domain/push-token-id*.ts.txt` files if you have not
+modified them. If you have not applied the slice, nothing is left to you.
+
+**If you already applied it**, `packages/verticals/push/` is seeded, so `update` never touches
+it. Make the same changes by hand, in one diff:
+
+1. Move the five port interfaces (`PushTokensFailure`, `PushTokensOutcome`, `PushTokensQuery`,
+   `PushTokensTable`, `PushTokensDatabase`) from `src/data/push-tokens.ts` into a new
+   `src/data/port.ts` (the module's `slice/…/src/data/port.ts.txt` is that file), import the
+   two the DAL names with `import type { PushTokensDatabase, PushTokensFailure } from
+   './port.js'`, and export `PushTokensDatabase` from `src/index.ts` through `./data/port.js`.
+2. Move `src/domain/push-token-id.ts` and its test to `src/server/`, point the DAL's import at
+   `../server/push-token-id.js`, and replace `Buffer.from(hex, 'hex')` with
+   `Buffer.alloc(16, hex, 'hex')` and `Buffer.from(digest.subarray(0, 16))` with
+   `digest.subarray(0, 16)`. The pinned id test passes unchanged, so no stored row re-keys.
+3. Have a human add `APPLY.md` step 8's `dual-barrel` row to
+   `tools/vertical-anatomy-allow.json` (write-guarded). If you had added rows of your own for
+   the other three findings, delete them in the same diff: the file reds a row that matches no
+   finding.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

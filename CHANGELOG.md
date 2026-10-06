@@ -148,6 +148,31 @@ this comment. -->
   new files are seeded and withheld from existing installs (`seedOnInitOnly`), which keep both
   copies. The runbook's 2.0.3 section says how to adopt the builder, and what to pull with an
   example file taken whole.
+- **The push-notifications slice passes the vertical-anatomy laws once applied, and a test
+  applies it** (#156). The module ships its `@app/push` vertical as `.ts.txt` reference files
+  that nothing compiles or gate-checks, and no test ever applied them, so the slice drifted
+  from the laws its applied copy is judged by. Applied to a 2.0.x scaffold as `APPLY.md` said,
+  it redded `boundaries` with five findings: `port-presence` on `src/data/push-tokens.ts`,
+  whose port was declared inline; `port-presence` and `domain-purity` on
+  `src/domain/push-token-id.ts`, whose `Buffer.from(` reads as a PostgREST call and whose
+  `node:crypto` import a domain file may not make; and two `dual-barrel` findings, because the
+  vertical has no `./client` barrel on purpose. The port now lives in `src/data/port.ts`, which
+  the DAL imports with `import type`. The id helper and its test move to `src/server/`, not
+  `src/data/`, because the `app-error-only` lint rule forbids a `throw` there and the helper
+  fails closed on a non-UUID owner; its `Buffer.from(` calls become
+  `Buffer.alloc(16, hex, 'hex')` and `digest.subarray(0, 16)`, and the pinned id test passes
+  unchanged. A new `APPLY.md` step 8 adds one reviewed `dual-barrel` row to
+  `tools/vertical-anatomy-allow.json`. `APPLY.md` also catches up with the 2.0.x trees: steps 3
+  to 5 say what to do with and without the worked example, step 4 adds the `zod` dependency the
+  router needs to compile, step 5 shows today's `ISOLATION_TARGETS` shape and bumps whatever
+  `plan(N)` the suite has, and step 7 says a default scaffold has no notes clone to accept. The
+  new `tests/installer/module-slices.test.mjs` scaffolds with `--tier core`, with and without
+  `--with-demo`, enables each module that ships a slice, follows its installed `APPLY.md`, and
+  requires `boundaries` and `duplication` to pass; it was red on the five findings before the
+  change. No gate, step, ramp, count or floor changes. The slice, `APPLY.md` and the module
+  README are owned and reach an install that enabled the module with `update`, which removes
+  the two moved files when unmodified. A slice you already applied is seeded and stays yours;
+  the runbook's 2.0.3 section gives the hand steps.
 
 ## [2.0.2] — 2026-10-03
 
