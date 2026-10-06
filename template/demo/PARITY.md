@@ -24,9 +24,9 @@ five).
 
 | Action | Web | Mobile | Notes |
 | --- | --- | --- | --- |
-| notes.create | — | apps/mobile/src/features/notes/NoteComposer.tsx | Mobile: the composer creates optimistically (useCreateNote). Web: the write path exists (apps/web/app/actions/notes.ts) but no notes screen is wired to it yet — W9 adds the web screen. |
+| notes.create | apps/web/app/(protected)/o/[orgSlug]/notes/note-composer.tsx | apps/mobile/src/features/notes/NoteComposer.tsx | Mobile: the composer creates optimistically (useCreateNote). Web: the notes route's composer submits through the Server Action twin (apps/web/app/actions/notes.ts), which runs the same @app/notes createNote; web does not call the procedure over HTTP. |
 | notes.get | — | — | Single-note read: no note-detail screen on either surface yet. Reserved for the note-detail route W9 seeds. |
-| notes.list | — | apps/mobile/src/features/notes/NotesPanel.tsx | Mobile: the home panel + the matrix (keyset) list notes. Web: no notes list screen yet — W9 adds it (the app-data read exists at apps/web/lib/app-data/notes.ts). |
+| notes.list | apps/web/app/(protected)/o/[orgSlug]/notes/page.tsx | apps/mobile/src/features/notes/NotesPanel.tsx | Mobile: the home panel + the matrix (keyset) list notes. Web: the notes route renders the first page through the RSC read (apps/web/lib/app-data/notes.ts), the same @app/notes listNotes; web does not call the procedure over HTTP. |
 | notes.remove | — | — | Delete affordance not surfaced on either surface yet; the procedure exists ahead of the UI. W9 wires it into the note row. |
 | notes.update | — | — | Edit affordance not surfaced yet; the procedure exists ahead of the UI. W9 wires it into the note-detail screen. |
 | system.exportMyData | — | — | DSR delivery surface: the Art. 20 portability export (tools/data-flow.json export.surface), invoked per docs/runbooks/data-subject-requests.md as the subject — deliberately not a screen on either surface; it exists to be called when a request arrives, like system.me it belongs to the account layer, not a rendered page. |

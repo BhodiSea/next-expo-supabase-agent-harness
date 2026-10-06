@@ -148,6 +148,34 @@ this comment. -->
   new files are seeded and withheld from existing installs (`seedOnInitOnly`), which keep both
   copies. The runbook's 2.0.3 section says how to adopt the builder, and what to pull with an
   example file taken whole.
+- **A note create past its quota reports `quotaExceeded`, not a retryable `unavailable`**
+  (#147, part A). The notes table's per-org quota trigger raises SQLSTATE `53400`, and the
+  example's mapper (`packages/verticals/notes/src/data/errors.ts`) had no case for it, so the
+  code fell into class 53's retryable fallback. A create past the quota came back as
+  `unavailable`, the one kind the kernel calls safe to retry, and the web showed "The service
+  is temporarily unavailable. Try again shortly." instead of the quota copy, though waiting
+  never frees a quota. The mapper now matches `53400` before that fallback and returns
+  `quotaExceeded` with `@app/supabase`'s own sentence for the code, so the web shows "This
+  organization has reached its limit." Every other class-53 code is still `unavailable`. No
+  gate, step or ramp changes. A new `notes.test.ts` case, red before the change, sends `53400`
+  through `createNote`. The mapper is seeded, so `update` does not change it in an existing
+  install with the example; the runbook's 2.0.3 section gives the case to add by hand. The
+  wrap of the platform mapper that removes the copied SQLSTATE table is part B, after #159.
+- **The worked example's parity ledger names the web notes route for `notes.create` and
+  `notes.list`** (#148). `template/demo/PARITY.md` marked both web cells `—` and said no notes
+  screen was wired yet, while the notes route renders the composer, which submits through
+  `createNoteAction`, and the list, which it loads through `loadNotesPage`. The `parity` gate
+  stayed green because it checks only that a path cell exists and that a `—` cell gives a
+  reason. The two web cells now name `note-composer.tsx` and `page.tsx` under
+  `apps/web/app/(protected)/o/[orgSlug]/notes/`, and their Notes cells say web reaches each
+  action through the Server Action or RSC twin, which runs the same `@app/notes` function, not
+  over HTTP. No gate, step or ramp changes, and `template/demo-index.json` does not change.
+  `tests/gates/check-mobile-parity.test.mjs` pins both cells and each screen's call, and was
+  red before the edit. `PARITY.md` is seeded, so existing installs keep their copy. An install
+  made with `--with-demo` by 2.0.0 to 2.0.2, or any 1.x install, can make the same two edits by
+  hand, copying the rows from this release's `template/demo/PARITY.md`. A 2.0.x install that
+  ejects without them keeps both rows as a conflict, and `parity` then reds them as stale, so
+  delete the two rows by hand after `eject`.
 - **The factory's per-edit citation check reads every template layer** (#223).
   `.claude/hooks/posttool-factory-check.mjs` runs the shipped `posttool-source-check` on this
   repository's own edits. It stripped the layer prefix from the edited path but always ran the
