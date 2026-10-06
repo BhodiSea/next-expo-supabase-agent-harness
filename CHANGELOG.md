@@ -148,6 +148,20 @@ this comment. -->
   new files are seeded and withheld from existing installs (`seedOnInitOnly`), which keep both
   copies. The runbook's 2.0.3 section says how to adopt the builder, and what to pull with an
   example file taken whole.
+- **Three copied bodies are one** (#149). Each pair sat under the duplication gate's 70-token
+  floor, so none was reported. `serverPublicCredentials` in
+  `packages/platform/supabase/src/server-env.ts` repeated `publicCredentials` from
+  `public-env.ts`, and now returns it: the import runs server to public only, and nothing
+  reachable from `./client` imports `server-env.ts`. The mobile theme and locale stores each
+  kept a listener set with its own `emit` and `subscribe`; both now take them from the new
+  `apps/mobile/src/lib/change-signal.ts`, which imports nothing and has its own vitest suite
+  (listed in both `apps/mobile/jest.config.js` copies, so no runner runs it twice). The
+  example's `noteCreated` and `noteDeleted` differed only in the event name; one private
+  `lifecycleEvent(name)` in `events.ts` now builds both. No export, emitted event, gate or
+  threshold changes, and the tests that pinned the old behaviour pass unedited. This reaches
+  new scaffolds only: every source file it touches is seeded, and `change-signal.ts` and its
+  test are withheld from existing installs (`seedOnInitOnly`). The runbook's 2.0.3 section
+  says how to adopt the module.
 
 ## [2.0.2] — 2026-10-03
 

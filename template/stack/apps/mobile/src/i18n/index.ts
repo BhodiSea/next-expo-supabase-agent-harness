@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { createChangeSignal } from '../lib/change-signal'
 import { type Catalog, en, type Message, type MessageKey } from './catalog'
 import { pseudoCatalog } from './pseudo'
 
@@ -132,11 +133,7 @@ function negotiate(): Locale {
 }
 
 let current: Locale = 'en'
-const listeners = new Set<() => void>()
-
-function emit(): void {
-  for (const listener of listeners) listener()
-}
+const { emit, subscribe } = createChangeSignal()
 
 /**
  * Hand the resolved direction to the platform. On this host the direction is applied
@@ -302,13 +299,6 @@ function resolve(locale: Locale, message: Message, params?: TranslationParams): 
 /** Translate with the ACTIVE locale — usable outside React (routes, ErrorBoundary). */
 export function t(key: MessageKey, params?: TranslationParams): string {
   return translate(current, key, params)
-}
-
-function subscribe(callback: () => void): () => void {
-  listeners.add(callback)
-  return () => {
-    listeners.delete(callback)
-  }
 }
 
 function getSnapshot(): Locale {

@@ -74,6 +74,7 @@ module.exports = {
     '<rootDir>/src/i18n/i18n\\.test\\.ts$',
     '<rootDir>/src/routes\\.test\\.ts$',
     '<rootDir>/src/lib/kv\\.test\\.ts$',
+    '<rootDir>/src/lib/change-signal\\.test\\.ts$',
     '<rootDir>/src/lib/sse\\.test\\.ts$',
     '<rootDir>/src/features/actions/fuzzyScore\\.test\\.ts$',
     '<rootDir>/src/features/actions/recents\\.test\\.ts$',
