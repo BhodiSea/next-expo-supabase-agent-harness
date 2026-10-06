@@ -85,6 +85,22 @@ this comment. -->
   vertical. An additive project census, which would let a project sanction its own vertical
   without forking, is gate-proposal #160.
 
+- **The auth-event trail's partitions are created ahead of time, and old ones are dropped.**
+  `20260816000000_auth_event_trail.sql` called `auth_trail.ensure_partitions()` once, at apply,
+  and nothing scheduled it or `auth_trail.drop_partitions_older_than()`: the guarded pg_cron
+  block in the audit migration schedules only audit's pair. From the fifth month after apply,
+  every sign-in row landed in `auth_trail.events_default`, which retention never drops, and that
+  month's partition could no longer be created. The new seeded migration
+  `supabase/migrations/20261006000000_auth_trail_partition_schedule.sql` schedules both under
+  pg_cron as `postgres` with audit's guard, horizon and 24-month retention, fifteen minutes after
+  audit's jobs, then creates any missing months at once. Where the current month's rows already
+  sit in the default partition, it creates the three months after it instead, so the schedule
+  carries on from the next month. `supabase/tests/auth_trail.test.sql`
+  gains two assertions that an active job calls each function (they skip, with the reason, where
+  pg_cron is not installed), and the trail's ADR records the schedule. The migration reaches
+  fresh scaffolds only (`seedOnInitOnly`); the runbook's 2.0.3 section gives an existing install
+  the same SQL for a migration of its own and a query that shows how long it has (#146, part C).
+
 ## [2.0.2] — 2026-10-03
 
 **A patch: the installer stops moving an install backwards.** `update`, `enable`, `disable`
