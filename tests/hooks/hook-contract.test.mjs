@@ -412,7 +412,34 @@ const RULE_CANARIES = {
   ],
   'git-force-push': [bashDeny('git push --force origin main')],
   'git-reset-hard': [bashDeny('git reset --hard HEAD~1')],
-  'git-commit-no-verify': [bashDeny('git commit --no-verify -m "skip hooks"')],
+  // 2.0.3 (#222): through 2.0.2 the short-flag arm needed a space the `commit\s` prefix had
+  // already used and a word boundary after the `n`, and the prefix allowed nothing between
+  // `git` and `commit`, so the first six spellings below were allowed. `-n` in any short-flag
+  // cluster, any prefix of `--no-verify` git accepts, and global options before the
+  // subcommand are now denied.
+  'git-commit-no-verify': [
+    bashDeny('git commit --no-verify -m "skip hooks"'),
+    bashDeny('git commit -nm x'),
+    bashDeny('git commit -n -m x'),
+    bashDeny('git commit -an -m x'),
+    bashDeny('git commit -m x -an'),
+    bashDeny('git commit --no-verif -m x'),
+    bashDeny('git -c core.x=y commit --no-verify -m x'),
+    bashDeny('git commit -m x -n'),
+    bashDeny('git commit --no-verify -m x'),
+    bashDeny('git commit --no-v -m x'),
+    bashDeny("git commit -m x '-n'"),
+    bashDeny('git -C ../other --no-pager commit -n -m x'),
+    bashDeny('git --git-dir=.git --work-tree=. commit -nm x'),
+    bashAllow('git commit -m "x"'),
+    bashAllow('git commit -am "x"'),
+    bashAllow('git commit --amend --no-edit'),
+    // The zero-edit scaffold's baseline commit: global options alone are not a bypass.
+    bashAllow('git -c user.email=x@y.z -c user.name=x commit -qm "chore: baseline"'),
+    // `--no-verbose` shares the `--no-ver` prefix but is not a prefix of `--no-verify`.
+    bashAllow('git commit --no-verbose -m x'),
+    bashAllow('git commit-tree HEAD^{tree} -m x'),
+  ],
   'fork-bomb': [bashDeny(':(){ :|:& };:')],
   'read-env-file': [
     bashDeny('cat .env.local'),

@@ -262,8 +262,20 @@ export const BASH_RULES = [
     message: "Blocked: 'git reset --hard' destroys uncommitted work.",
   },
   {
+    // 2.0.3 (#222): through 2.0.2 this was /git\s+commit\s[^|;&]*(--no-verify|\s-n\b)/. Its
+    // short arm needed a space the `commit\s` prefix had already used and a word boundary
+    // right after the `n`, and the prefix admitted nothing between `git` and `commit`, so
+    // `-nm`, `-n` first, `-an` anywhere, `--no-verif` and `git -c k=v commit` all committed
+    // past lefthook. Now: global options before the subcommand (`-c k=v`, `-C dir`,
+    // `--git-dir=…`, each optionally followed by one value), `commit` only as a whole word
+    // (the lookahead leaves its space for the short arm), `n` anywhere in a short-flag
+    // cluster, and every prefix of `--no-verify` down to `--no-v`, since git accepts an
+    // unambiguous long-option prefix. `--no-ver` and shorter are ambiguous with
+    // `--no-verbose`, which git refuses, so denying them costs nothing; `--no-verbose` itself
+    // stays allowed. A message that merely mentions ` -n` is denied too: a false positive in
+    // the safe direction, which this tripwire already accepts.
     id: 'git-commit-no-verify',
-    re: /git\s+commit\s[^|;&]*(--no-verify|\s-n\b)/,
+    re: /git(?:\s+-[^\s|;&]*(?:\s+(?:"[^"]*"|'[^']*'|[^\s|;&"'-][^\s|;&]*))?)*\s+commit(?=\s)[^|;&]*?(?:--no-verify|--no-v(?:e(?:r(?:if?)?)?)?(?![\w-])|\s["']?-[A-Za-z]*n)/,
     message:
       'Blocked: bypassing commit hooks (--no-verify) defeats the gate; fix the failure instead.',
   },

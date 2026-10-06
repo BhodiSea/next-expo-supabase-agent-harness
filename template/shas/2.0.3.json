@@ -112,6 +112,9 @@
     ".claude/hooks/lib/guard-rules.mjs": [
       {
         "sha256": "3c775b6bab7eaefb57c2945f042387e234849b61d26bfae91dd8cdf081ac3603"
+      },
+      {
+        "sha256": "e49c686554fc6b5a1fce96c54bee3ab89726ab53328106ebc9d55dcca5e36ee5"
       }
     ],
     ".claude/hooks/lib/hookio.mjs": [
@@ -970,6 +973,15 @@
       },
       {
         "sha256": "41c7d1f51956ec822aa1c86f67735af10b56e10078dbde91a5f0453d111b483e",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "543853816f9782ad19e35eed1d300d4a18332386f04c711fed03672a416fce6c",
         "sites": [
           [
             14122,
