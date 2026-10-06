@@ -141,6 +141,12 @@ if (
 // SOURCE: docs/harness/README.md (tamper evidence)
 // `.find`, not `.some` (1.0.4): the verdict is the same, and the matching row's `id` is what
 // the telemetry record names.
+//
+// A row may carry its own `message` (2.0.3, #154). The shared text sends a register edit to
+// harness-proposals/, which is a dead end for a harness-OWNED file, since no owned file is
+// proposable; such a row names its own human path. Every row without one prints the shared
+// text byte for byte, and a row whose message is not a non-empty string falls back to it:
+// the verdict is a deny either way.
 const protectedRow =
   process.env.HARNESS_ALLOW_SELF_EDIT === '1'
     ? undefined
@@ -148,7 +154,9 @@ const protectedRow =
 if (protectedRow !== undefined) {
   denyTool(
     'PreToolUse',
-    'harness-protected file: set HARNESS_ALLOW_SELF_EDIT=1 (human-in-the-loop) to modify the gate itself. To change a reviewed register under tools/ (an allowlist, a budget, a register), write the whole proposed file as a proposal in harness-proposals/<id>.json, which a human applies with `apply-proposal <id>` (docs/harness/README.md, "Proposing a register edit"). SOURCE: docs/harness/README.md (tamper evidence)',
+    typeof protectedRow.message === 'string' && protectedRow.message !== ''
+      ? protectedRow.message
+      : 'harness-protected file: set HARNESS_ALLOW_SELF_EDIT=1 (human-in-the-loop) to modify the gate itself. To change a reviewed register under tools/ (an allowlist, a budget, a register), write the whole proposed file as a proposal in harness-proposals/<id>.json, which a human applies with `apply-proposal <id>` (docs/harness/README.md, "Proposing a register edit"). SOURCE: docs/harness/README.md (tamper evidence)',
     telemetry(protectedRow.id),
   )
 }

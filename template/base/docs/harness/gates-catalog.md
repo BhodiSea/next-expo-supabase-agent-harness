@@ -353,6 +353,15 @@ the stale arm permanently dormant; unknown or retired names red (ramped for pre-
 installs until 1.1.0, `exports-walls-module-closure-ramp-expiry`, expired — hard for
 every install since 1.1.0), and a missing or malformed module list fails closed unramped
 naming `update`.
+**The census is harness-owned (2.0.3, #154).** `tools/exports-walls.json` is hash-pinned by
+`gate-integrity`, and every vertical needs an entry, because the anatomy law below requires
+its `./client` key. So each red whose remedy is a census edit names the human path instead of
+"edit the census": a human adds the `{package, reason}` entry under {{SECURITY_OWNERS}}
+review and re-records the file's sha256 in `.harness/manifest.json` in the same reviewed
+commit, after which `update` parks each later upstream change to the census for them to merge
+(the upgrade runbook's "Forking an owned file"). The write guard's `exports-walls-census` row
+denies an agent's edit with the same path, and `scaffold-slice` prints it as a `next:` line.
+No verdict changes: `gate-integrity` already redded the edit the row denies.
 **check-workspace-deps** (the declared-dependency allow-matrix):
 apps/mobile may take a runtime `@app/*` dependency only if it is sanctioned OR
 universally-importable (the error/event kernel, the wire contracts, the RN-only design

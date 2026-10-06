@@ -109,6 +109,7 @@ Rule tables from `.claude/hooks/lib/guard-rules.mjs`, in source order. Each rule
 - `expo-plugins` — protected path `^tools\/expo-plugins\.json$`
 - `store-policy` — protected path `^tools\/store-policy\.json$`
 - `modules-register` — protected path `^tools\/modules\.json$`
+- `exports-walls-census` — harness-owned census: tools/exports-walls.json is hash-pinned by gate-integrity, and an owned file is not a register a proposal can change, so an agent never edits it.
 - `bundle-budget` — protected path `^tools\/bundle-budget\.json$`
 - `perf-baseline` — protected path `^tools\/perf-baseline\.json$`
 - `perf-budget` — protected path `^tools\/perf-budget\.json$`

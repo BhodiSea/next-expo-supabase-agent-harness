@@ -3793,6 +3793,30 @@ the one-cast shape, pull the file with
 `toNotesPort`, so if you take that copy whole (on a demo install, or to apply 0.9.5's source
 fix to an install made before 0.9.5), pull `notes-port.ts` with it.
 
+### The `./client` census is a human's edit, and the messages say so (#154)
+
+Through 2.0.2 a new vertical led an agent into an edit of `tools/exports-walls.json`. The
+anatomy law requires every vertical's `./client` key, `boundaries` reds a key the census does
+not sanction, and its message said to edit the census. Nothing stopped that edit until
+`gate-integrity` called it tampering at the next validate, because the census is
+harness-owned and hash-pinned, and an owned file cannot be proposed. From 2.0.3 the write
+guard denies an agent's Edit or Write of the census (rule `exports-walls-census`) with a
+message naming the human path, both `boundaries` reds name it instead of "edit the census",
+and `scaffold-slice` prints it as a `next:` line. `update` plants the write guard and its rule
+table, both gate scripts, the scaffold script, the skill's `SKILL.md`,
+`.claude/rules/boundaries.md`, `.claude/agents/dal-author.md`, `docs/harness/README.md`,
+`docs/harness/gates-catalog.md` and `docs/security/threat-model.md`, all owned. No verdict
+moves: `gate-integrity` already redded the edit the new rule denies.
+
+**The human path, for each new vertical.** Add the `{package, reason}` entry to
+`tools/exports-walls.json` under your security owners' review, and in the same reviewed
+commit re-record the file's `sha256` in `.harness/manifest.json` ("Forking an owned file" in
+the 1.0.2 section). Edit the census outside an agent session or in one started with
+`HARNESS_ALLOW_SELF_EDIT=1`, and the manifest outside one: the settings deny list keeps
+`.harness/**` closed to the agent either way. From then on your census is a fork: `update` keeps it and, whenever a release
+changes the census, parks the incoming copy under `.harness/pending/` and exits 2 until you
+merge it and re-record.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

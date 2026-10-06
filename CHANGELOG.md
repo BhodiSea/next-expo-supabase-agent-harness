@@ -62,6 +62,28 @@ this comment. -->
   seeded and withheld from existing installs that carry the example (`seedOnInitOnly`), which
   keep their casts. An install that takes the example's tRPC route whole pulls `notes-port.ts`
   with it; the runbook's 2.0.3 section says when.
+- **A new vertical no longer leads an agent into editing the owned `./client` census**
+  (#154). The anatomy law requires every vertical's `./client` key, `boundaries` reds a key
+  `tools/exports-walls.json` does not sanction, and its message, `check-workspace-deps`' and
+  `.claude/rules/boundaries.md` all said to edit the census. The census is harness-owned and
+  hash-pinned and an owned file cannot be proposed, so the edit landed and `gate-integrity`
+  called it tampering at the next validate, whose remedy reds `boundaries` again. A new
+  write-guard row, `exports-walls-census`, denies an agent's Edit or Write of the census, and
+  `WRITE_PROTECTED` rows gain an optional `message` the guard prints in place of the shared
+  text, which points at `harness-proposals/`. The census row's message names the human path:
+  hand the `{package, reason}` entry to a human, who adds it under security-owner review and
+  re-records the file's sha256 in `.harness/manifest.json` in the same reviewed commit, after
+  which `update` parks each later census change ("Forking an owned file"). Both `boundaries`
+  reds and a new `scaffold-slice` `next:` line name the same path, `dal-author.md` and the
+  slice `SKILL.md` stop presenting the census entry as a Class-A opt-in, and the stale
+  "SEEDED" comment in `check-exports-walls.mjs` is corrected. Every row without a `message`
+  prints the shared text byte for byte, and no verdict moves, because `gate-integrity` already
+  redded the edit the row denies. `tests/hooks/hook-contract.test.mjs`,
+  `tests/gates/check-boundaries.test.mjs` and `tests/gates/scaffold-slice.test.mjs` pin the
+  deny, the messages and the `next:` line. Every file this changes is owned and reaches an
+  install with `update`; the runbook's 2.0.3 section gives the human path for each new
+  vertical. An additive project census, which would let a project sanction its own vertical
+  without forking, is gate-proposal #160.
 
 ## [2.0.2] — 2026-10-03
 

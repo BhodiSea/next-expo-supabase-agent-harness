@@ -278,6 +278,18 @@ rule denies an agent the command itself. The written register is left uncommitte
 `gate-integrity` fails until a human commits it, and the commit carries it into the pull
 request under CODEOWNERS.
 
+**An owned file has no proposal, so its deny names the human path (2.0.3).** A
+`WRITE_PROTECTED` row in `.claude/hooks/lib/guard-rules.mjs` may carry its own `message`,
+which the write guard prints in place of the shared text. The shared text points at
+`harness-proposals/`, and no harness-owned file is proposable, so a row over an owned file
+that ordinary work leads an agent to names its own path. The census row,
+`exports-walls-census` over `tools/exports-walls.json`, is one: every new vertical needs a
+census entry, and the census is owned and hash-pinned. Its deny tells the agent to hand the
+`{package, reason}` entry to a human, who adds it under CODEOWNERS review and re-records the
+file's sha256 in `.harness/manifest.json` in the same reviewed commit (the upgrade
+runbook's "Forking an owned file"). `HARNESS_ALLOW_SELF_EDIT=1` lifts the row like every
+other protected path, and a row without a `message` prints the shared text byte for byte.
+
 ### What `HARNESS_ALLOW_SELF_EDIT=1` relaxes
 
 Each check below looks for the exact string `1`. The guards read the environment the
