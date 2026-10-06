@@ -59,7 +59,9 @@ this comment. -->
   seam and the tRPC route call it. No gate, step or ramp changes.
   `tests/gates/scaffold-slice.test.mjs` runs the script into a temporary root. The script,
   `SKILL.md` and `dal-dto.md` are owned and reach an install with `update`; `notes-port.ts` is
-  seeded and withheld from existing demo installs (`seedOnInitOnly`), which keep their casts.
+  seeded and withheld from existing installs that carry the example (`seedOnInitOnly`), which
+  keep their casts. An install that takes the example's tRPC route whole pulls `notes-port.ts`
+  with it; the runbook's 2.0.3 section says when.
 
 ## [2.0.2] — 2026-10-03
 

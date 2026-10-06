@@ -437,13 +437,19 @@ const SWEEPS = {
       '1.0.0': ['tools/suppressions-allow.json'],
     },
   },
-  // 2.0.3 withholds ONE path, the worked example's apps/web/lib/app-data/notes-port.ts (#155),
-  // and a swept leg adopts nothing. Every leg is a default scaffold, which carries no example,
-  // so the file has no caller there and adopting it would plant a module dead-code reds. A
-  // demo install keeps the three casts its seeded callers already carry, which compile and
-  // judge clean. Empty, and written down, because computeSweepSet asks every withholding
-  // version for a reviewed posture.
-  '2.0.3': {},
+  // 2.0.3 withholds ONE path, the worked example's apps/web/lib/app-data/notes-port.ts (#155).
+  // An install keeps the three casts its seeded callers already carry, which compile and judge
+  // clean, so on its own the file has no caller and adopting it would plant a module dead-code
+  // reds. The exception was found when leg E (v0.3.0) went red after the sweep on dead-code and
+  // web-compile: an install made before 0.9.5 carries the example and crosses 0.9.5, whose
+  // DERIVED pass copies the demo's app/api/trpc/[trpc]/route.ts, and from 2.0.3 that copy calls
+  // toNotesPort. So such an install takes the file with the route that imports it. An install
+  // made at 0.9.5 or later keeps its own route and takes nothing.
+  '2.0.3': {
+    adoptBelow: {
+      '0.9.5': ['apps/web/lib/app-data/notes-port.ts'],
+    },
+  },
 }
 
 /**
@@ -564,7 +570,8 @@ function crossedSweepsSet(migrations, baseVersion, headVersion, key) {
 
 /**
  * The paths a SWEEPS entry adopts only for an install made before a given version: the
- * remedy for a register `update` plants when absent, which such an install never had.
+ * remedy for a register `update` plants when absent, which such an install never had, or a
+ * module that a file only such an install receives from the derived pass now imports.
  * @param {Record<string, string[]> | undefined} below  version -> paths
  * @param {string} baseVersion
  * @returns {string[]}

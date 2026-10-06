@@ -3783,12 +3783,15 @@ prints a `next:` line for each step it leaves to you. `update` plants the script
 `SKILL.md` and `references/dal-dto.md`, all owned. The script runs only when you run it, so no
 slice you already have changes.
 
-If your install has the worked example (`--with-demo`), `update` withholds the example's new
-`apps/web/lib/app-data/notes-port.ts`: its three callers are seeded and keep their casts, so
-nothing would import it. Nothing is left to you. To adopt the one-cast shape, pull the file
-with `update --refresh-seeded apps/web/lib/app-data/notes-port.ts` and make
+If your install has the worked example (`--with-demo`, or any install made before 2.0.0),
+`update` withholds the example's new `apps/web/lib/app-data/notes-port.ts`: its three callers
+are seeded and keep their casts, so nothing would import it. Nothing is left to you. To adopt
+the one-cast shape, pull the file with
+`update --refresh-seeded apps/web/lib/app-data/notes-port.ts` and make
 `app/actions/notes.ts`, `lib/app-data/notes.ts` and `app/api/trpc/[trpc]/route.ts` call
-`toNotesPort`.
+`toNotesPort`. From 2.0.3 the example's own copy of `app/api/trpc/[trpc]/route.ts` calls
+`toNotesPort`, so if you take that copy whole (on a demo install, or to apply 0.9.5's source
+fix to an install made before 0.9.5), pull `notes-port.ts` with it.
 
 ## RECOVERY — when an `update` is interrupted or fails
 
