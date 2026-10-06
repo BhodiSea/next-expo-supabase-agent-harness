@@ -13,6 +13,7 @@ import {
 } from './notes.js'
 import type { NotesDatabase, PostgrestOutcome, PostgrestQuery, PostgrestTable } from './port.js'
 import { NOTE_COLUMNS } from './rows.js'
+import { noteWriteContext } from './write-context.js'
 
 // ---------------------------------------------------------------------------
 // A fake PostgREST client, in twenty lines. This is the payoff of typing the
@@ -363,6 +364,43 @@ describe('getNote', () => {
         message: 'the notes store rejected the read',
       }),
     )
+  })
+})
+
+describe('noteWriteContext', () => {
+  // The one builder both transports call (the tRPC router and the web Server Action), so what
+  // it assembles is what every write receives.
+  const ports = {
+    emit: (event: NoteEvent): void => {
+      emitted.push(event)
+    },
+    now: NOW,
+  }
+
+  it('takes actorId from the actor and orgId from the org', () => {
+    const context = noteWriteContext({ userId: ACTOR_ID }, { id: ORG_ID }, ports)
+    expect(context.actorId).toBe(ACTOR_ID)
+    expect(context.orgId).toBe(ORG_ID)
+  })
+
+  it('passes the sink and the instant through unchanged', () => {
+    const context = noteWriteContext({ userId: ACTOR_ID }, { id: ORG_ID }, ports)
+    expect(context.emit).toBe(ports.emit)
+    expect(context.now).toBe(NOW)
+  })
+
+  it('carries exactly the four fields, whatever else the actor, org and ports hold', () => {
+    // The tRPC router passes its whole request context as `ports`, and the Server Action passes
+    // the gate's whole org summary. Neither may ride into the write context.
+    const actor = { displayName: 'Sam', email: 'sam@example.test', userId: ACTOR_ID }
+    const org = { id: ORG_ID, name: 'Acme', role: 'owner', slug: 'acme' }
+    const wide = { ...ports, requestId: 'r-1', serverVersion: '1.2.3' }
+    expect(noteWriteContext(actor, org, wide)).toEqual({
+      actorId: ACTOR_ID,
+      emit: ports.emit,
+      now: NOW,
+      orgId: ORG_ID,
+    })
   })
 })
 

@@ -178,11 +178,19 @@ test('the Server Action stub teaches the org-gated write', () => {
     'OrgSlug',
     'requireOrgContext(orgSlug)',
     'toReleaseNotesPort(gate.data.client)',
+    // #144: the write context comes from the vertical's one builder and the host's request
+    // ports, never from a literal that names its fields.
+    'releaseNotesWriteContext({ userId: gate.data.userId }, gate.data.org, requestPorts())',
     'revalidatePath(`/o/${gate.data.org.slug}/release-notes`)',
   ]) {
     assert.ok(action.includes(needle), `the stub names ${needle}:\n${action}`)
   }
-  for (const stale of ['getVerifiedUser()', 'createRequestScopedClient()', "revalidatePath('/release-notes')"]) {
+  for (const stale of [
+    'getVerifiedUser()',
+    'createRequestScopedClient()',
+    "revalidatePath('/release-notes')",
+    'take actorId from',
+  ]) {
     assert.ok(!action.includes(stale), `the stub no longer teaches ${stale}:\n${action}`)
   }
 })

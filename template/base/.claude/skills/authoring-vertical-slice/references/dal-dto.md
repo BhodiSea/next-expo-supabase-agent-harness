@@ -61,7 +61,12 @@ not even carry the field, and the `WITH CHECK` re-rejects anything else with SQL
 - **Writes** (`createNote`, `updateNote`, `deleteNote`) stay OFF `./client`: they set an
   ownership column from a verified actor and emit an event, so they belong where the actor was
   verified. They take a `WriteContext` (`{ actorId, emit, now, orgId }`) alongside the
-  client and input.
+  client and input, and ONE builder makes it for every caller:
+  `<slice>WriteContext(actor, org, ports)` in `src/data/write-context.ts`, exported from the
+  server barrel beside the type (`noteWriteContext` is the pattern). It takes `actorId` from
+  the verified actor and `orgId` from the resolved org, and passes the caller's `emit` and
+  `now` through. Its own module, not `data/<slice>.ts`: `query-probes.ts` re-exports that
+  file as the DAL, and generation fails on an exported function no probe drives.
 - **Every list query is keyset-paginated with an unconditional LIMIT.** Opaque base64url
   cursor over `{ createdAt, id }`, an `or(...)` seek expressing the two lexicographic cases
   (never OFFSET), `limit + 1` fetched as the has-more sentinel. `createdAt` rides the cursor
@@ -118,10 +123,11 @@ The rung split says something real:
   That block is `packages/api/src/routers/notes.ts` verbatim, so it names notes: rename
   `Note` and `note` to your slice when you copy it.
 
-  Assemble the `WriteContext` in a small `writeContext(ctx, orgId)` function so `actorId`
-  can only ever come from `ctx.actor.userId` (the verified actor) and `orgId` from the
-  RESOLVED gate — there is no expression in it a future edit could accidentally point at
-  the input instead.
+  Assemble the `WriteContext` in a small `writeContext(ctx, orgId)` function that hands the
+  vertical's builder `ctx.actor` (the verified actor), the RESOLVED gate's id and `ctx` itself
+  as the ports (`noteWriteContext(ctx.actor, { id: orgId }, ctx)`), so there is no expression
+  in it a future edit could accidentally point at the input instead, and `emit` and `now` are
+  the ones the host handed `createContext`.
 - **`orgProcedure` is not the isolation boundary.** It produces a good error BEFORE the
   round trip; the boundary is the RLS policies, which key on `public.memberships` at
   statement time and are indifferent to everything this rung believes. A bug here yields a
@@ -158,8 +164,13 @@ Add it only when the WEB surface writes this entity. It is the procedure's twin 
   caller's real seats. Return the gate verbatim when it fails, so an anonymous or seatless
   caller is refused on the data channel, not left to surface as an opaque RLS denial.
 - Narrow the gate's client with `to<Slice>Port(gate.data.client)` (the port narrowing,
-  below) and build the write context from the gate, never from the input: `actorId` is
-  `gate.data.userId` and `orgId` is the RESOLVED `gate.data.org.id`.
+  below).
+- Build the write context with the vertical's builder and the host's request ports, never
+  with an object literal:
+  `<slice>WriteContext({ userId: gate.data.userId }, gate.data.org, requestPorts())`. The
+  actor is the verified user and the org the RESOLVED one, never anything from the input, and
+  `requestPorts()` (`apps/web/lib/request-ports.ts`) is the event sink and instant the tRPC
+  route hands `createContext`, so a sink wired there hears both transports.
 - On success only, ``revalidatePath(`/o/${gate.data.org.slug}/<slice>`)``: the org's path, so
   one tenant's write never invalidates another's entry. Invalidating on failure refetches
   identical data and makes a rejected write look like a slow one.

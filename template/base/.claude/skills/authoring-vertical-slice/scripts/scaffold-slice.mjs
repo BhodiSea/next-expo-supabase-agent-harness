@@ -131,10 +131,11 @@ const files = [
       `// all call. Every function TAKES the client (typed as ${pascal}Database from ./port.js),\n` +
       '// returns an ActionOutcome of a DTO, never a row and never a throw for a domain failure.\n' +
       `// Reads (list${pascal}, get${pascal}) take a scope { orgId } and go on ./client; writes take a\n` +
-      `// ${pascal}WriteContext { actorId, emit, now, orgId } and stay on the server barrel. Every list is\n` +
-      '// keyset-paginated with an unconditional LIMIT. No app-side owner filter: RLS decides who\n' +
-      '// sees a row. See the skill\'s references/dal-dto.md (the three DAL laws; reads, writes, and\n' +
-      '// the barrel split).\n',
+      `// ${pascal}WriteContext { actorId, emit, now, orgId } and stay on the server barrel. ONE builder,\n` +
+      `// ${camel}WriteContext(actor, org, ports) in ./write-context.ts (its own module, so no probe owes\n` +
+      '// it a query), makes that context for every caller. Every list is keyset-paginated with an\n' +
+      '// unconditional LIMIT. No app-side owner filter: RLS decides who sees a row. See the skill\'s\n' +
+      '// references/dal-dto.md (the three DAL laws; reads, writes, and the barrel split).\n',
   ],
   [
     join(base, 'packages', 'api', 'src', 'routers', `${slice}.ts`),
@@ -164,8 +165,9 @@ const files = [
       '// under, never a payload field. Then requireOrgContext(orgSlug) resolves the client, the\n' +
       '// verified user (getUser under the hood, never getSession) and the org from the caller\'s\n' +
       '// real seats; return the gate verbatim when it fails. Narrow the client with\n' +
-      `// to${pascal}Port(gate.data.client) from lib/app-data/${slice}-port.ts, take actorId from\n` +
-      '// gate.data.userId and orgId from gate.data.org.id, and on success only\n' +
+      `// to${pascal}Port(gate.data.client) from lib/app-data/${slice}-port.ts, build the write context\n` +
+      `// with ${camel}WriteContext({ userId: gate.data.userId }, gate.data.org, requestPorts()) from\n` +
+      '// lib/request-ports.ts, never an object literal, and on success only\n' +
       `// revalidatePath(\`/o/\${gate.data.org.slug}/${slice}\`). Add this file ONLY when the web\n` +
       '// surface writes this entity. See the skill\'s references/dal-dto.md (the optional web\n' +
       '// Server Action).\n',
