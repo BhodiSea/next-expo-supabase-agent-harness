@@ -11,6 +11,33 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [2.0.3] — 2026-10-06
+
+**A patch: the first of the v2.0.x defect fixes.** Each item that lands after this bump adds
+its entry below. No gate is added, the chain length does not change, and no ramp opens or
+moves. The `template/migrations.json` record restates 2.0.0's twenty-vintage `rampExpiry`
+population, and `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `2.0.2`.
+
+### Fixed
+
+<!-- Entries from the 2.0.3 items that land after the version bump go here. The cut removes
+this comment. -->
+
+- **The session brief prints App Router paths instead of `(unprintable)`** (#153). The path
+  validator in `tools/lib/harness-brief.mjs` had no `(`, `)`, `[` or `]`, so every route
+  group and dynamic segment, `apps/web/app/(protected)/o/[orgSlug]/page.tsx` and
+  `apps/web/app/api/trpc/[trpc]/route.ts` among them, printed as `(unprintable)` in the
+  SessionStart brief and in `node tools/harness-status.mjs`. That is how the brief prints a
+  refused value, so an ordinary page edit read like an injection attempt, and the path that
+  summoned accessibility, design or web-security was lost. The set now admits those four
+  characters, and every printed path sits in a code span that a path cannot close, because
+  a backtick is not in the set. The validator also refuses what it used to let through: an
+  absolute path, an empty or `.` segment, and a segment that starts with `-`. The brief
+  judges nothing, so no verdict moves and no ramp opens. `tests/gates/harness-brief.test.mjs`
+  renders every path the template ships and an uncommitted route-group page, and refuses
+  each new case. `tools/lib/harness-brief.mjs`, `docs/harness/README.md` and
+  `docs/runbooks/harness-upgrade.md` are owned and reach an install with `update`.
+
 ## [2.0.2] — 2026-10-03
 
 **A patch: the installer stops moving an install backwards.** `update`, `enable`, `disable`

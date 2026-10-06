@@ -24,6 +24,7 @@ import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { walkFiles } from '../../template/base/tools/lib/fs-walk.mjs'
 import { collectBrief, renderBrief } from '../../template/base/tools/lib/harness-brief.mjs'
 
 const TEMPLATE = fileURLToPath(new URL('../../template/base/', import.meta.url))
@@ -122,10 +123,10 @@ test('the brief prints its four fields in a fixed order, and nothing else', asyn
     [
       'harness 1.1.0 (base 1.0.4) · tier standard · mode retrofit',
       'parked: 1',
-      '  - .claude/settings.json',
+      '  - `.claude/settings.json`',
       'last turn in this directory: green',
       'reviewers owed by the current diff: 1',
-      '  - security-reviewer (supabase/migrations/20260930000000_x.sql)',
+      '  - security-reviewer (`supabase/migrations/20260930000000_x.sql`)',
       '',
     ].join('\n'),
   )
@@ -229,6 +230,44 @@ test('the path validator refuses a newline, a sentence, a `..` segment and a 161
   assert.ok(text.includes(at160), 'a 160-character path prints')
 })
 
+// 2.0.x (#153): an App Router route group `(x)` or dynamic segment `[x]` is an ordinary path.
+// Through 2.0.2 the set had no ( ) [ ], so 22 template paths, the ones a page edit summons
+// accessibility and design for among them, printed as an injection attempt would.
+test('every path the template ships prints in a code span, App Router route groups and dynamic segments included', () => {
+  const paths = new Set(['base', 'stack', 'demo'].flatMap((t) => walkFiles(join(TEMPLATE, '..', t))))
+  assert.ok(paths.size > 600, `walked ${String(paths.size)} template paths`)
+  const lineOf = (p) => {
+    const f = healthy()
+    f.parked.paths = [p]
+    return renderBrief(f).split('\n')[2]
+  }
+  const lines = new Map([...paths].map((p) => [p, lineOf(p)]))
+  assert.deepEqual([...paths].filter((p) => lines.get(p) === '  - (unprintable)'), [], 'refused')
+  assert.deepEqual([...paths].filter((p) => lines.get(p) !== `  - \`${p}\``), [], 'not in a code span')
+})
+
+test('an uncommitted route-group page prints in a code span for the reviewers it summons', async () => {
+  const dir = repoWithTriggers('approuter')
+  put(dir, '.harness/manifest.json', manifest())
+  const page = 'apps/web/app/(protected)/o/[orgSlug]/notes/page.tsx'
+  put(dir, page, 'export default function Page() { return null }\n')
+  const text = await briefOf(dir)
+  assert.ok(text.split('\n').includes(`  - accessibility-reviewer (\`${page}\`)`), text)
+  assert.ok(!text.includes('(unprintable)'), text)
+})
+
+test('the path validator also refuses an absolute path, an empty or `.` segment, a `-`-leading segment and a backtick', () => {
+  for (const bad of ['/etc/passwd', 'a//b', './x', 'a/./b', '-rf', 'a/-x', 'a/`b`/c', 'a/']) {
+    const parked = healthy()
+    parked.parked.paths = [bad]
+    assertRefused(renderBrief(parked), bad)
+    assert.ok(renderBrief(parked).split('\n').includes('  - (unprintable)'), bad)
+    const owed = healthy()
+    owed.reviewers.owed = [{ agent: 'security-reviewer', path: bad }]
+    assert.ok(renderBrief(owed).split('\n').includes('  - security-reviewer ((unprintable))'), bad)
+  }
+})
+
 test('a count or a cap that is not a non-negative integer is unprintable too', () => {
   const f = healthy()
   f.lastTurn = { kind: 'blocks', blocks: 'three', cap: 8 }
@@ -278,7 +317,7 @@ test('1,000 parked files on disk: counted whole, five named, three obligation fi
   put(dir, '.harness/pending/pin-floors.json', '{}\n')
   const text = await briefOf(dir)
   assert.match(text, /^parked: 1000$/m)
-  assert.match(text, /^ {2}- tools\/f0000\.mjs$/m)
+  assert.match(text, /^ {2}- `tools\/f0000\.mjs`$/m)
   assert.match(text, /^ {2}- … and 995 more$/m)
   for (const obligation of ['dependencies.json', 'source-fixes.json', 'pin-floors.json']) {
     assert.ok(!text.includes(obligation), text)
@@ -399,7 +438,7 @@ test('with no upstream the owed set is the 1.0.x one: uncommitted changes, as th
   put(dir, '.harness/manifest.json', manifest())
   assert.match(await briefOf(dir), /^reviewers owed by the current diff: 0$/m)
   put(dir, 'supabase/migrations/20260930000000_x.sql', 'select 1;\n')
-  assert.match(await briefOf(dir), /^ {2}- security-reviewer \(supabase\/migrations\/20260930000000_x\.sql\)$/m)
+  assert.match(await briefOf(dir), /^ {2}- security-reviewer \(`supabase\/migrations\/20260930000000_x\.sql`\)$/m)
   git(dir, 'add', '-A')
   git(dir, 'commit', '-qm', 'migration')
   assert.match(await briefOf(dir), /^reviewers owed by the current diff: 0$/m, 'a commit clears the 1.0.x set')
@@ -422,7 +461,7 @@ test('with an upstream on a 1.1.0 install the owed set is the reviewer ledger v2
   put(dir, '.harness/manifest.json', manifest())
   const text = await briefOf(dir)
   assert.match(text, /^reviewers owed by the current diff: 3$/m, text)
-  assert.match(text, /^ {2}- security-reviewer \(supabase\/migrations\/20260930000000_x\.sql\)$/m)
+  assert.match(text, /^ {2}- security-reviewer \(`supabase\/migrations\/20260930000000_x\.sql`\)$/m)
   assert.match(text, /^ {2}- torvalds-reviewer \(/m)
   assert.match(text, /^ {2}- citation-verifier \(/m)
 })
