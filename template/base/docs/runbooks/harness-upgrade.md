@@ -2244,10 +2244,10 @@ session's context when it starts, resumes, clears, compacts or forks, and
 ```
 harness 1.1.0 (base 1.0.4) · tier standard · mode bootstrap
 parked: 1
-  - .claude/settings.json
+  - `.claude/settings.json`
 last turn in this directory: green
 reviewers owed by the current diff: 1
-  - security-reviewer (supabase/migrations/20260930000000_x.sql)
+  - security-reviewer (`supabase/migrations/20260930000000_x.sql`)
 ```
 
 The hook blocks nothing, reads no stdin, writes nothing and exits 0 on every path. A value

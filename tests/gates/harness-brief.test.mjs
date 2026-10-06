@@ -123,10 +123,10 @@ test('the brief prints its four fields in a fixed order, and nothing else', asyn
     [
       'harness 1.1.0 (base 1.0.4) · tier standard · mode retrofit',
       'parked: 1',
-      '  - .claude/settings.json',
+      '  - `.claude/settings.json`',
       'last turn in this directory: green',
       'reviewers owed by the current diff: 1',
-      '  - security-reviewer (supabase/migrations/20260930000000_x.sql)',
+      '  - security-reviewer (`supabase/migrations/20260930000000_x.sql`)',
       '',
     ].join('\n'),
   )
@@ -317,7 +317,7 @@ test('1,000 parked files on disk: counted whole, five named, three obligation fi
   put(dir, '.harness/pending/pin-floors.json', '{}\n')
   const text = await briefOf(dir)
   assert.match(text, /^parked: 1000$/m)
-  assert.match(text, /^ {2}- tools\/f0000\.mjs$/m)
+  assert.match(text, /^ {2}- `tools\/f0000\.mjs`$/m)
   assert.match(text, /^ {2}- … and 995 more$/m)
   for (const obligation of ['dependencies.json', 'source-fixes.json', 'pin-floors.json']) {
     assert.ok(!text.includes(obligation), text)
@@ -438,7 +438,7 @@ test('with no upstream the owed set is the 1.0.x one: uncommitted changes, as th
   put(dir, '.harness/manifest.json', manifest())
   assert.match(await briefOf(dir), /^reviewers owed by the current diff: 0$/m)
   put(dir, 'supabase/migrations/20260930000000_x.sql', 'select 1;\n')
-  assert.match(await briefOf(dir), /^ {2}- security-reviewer \(supabase\/migrations\/20260930000000_x\.sql\)$/m)
+  assert.match(await briefOf(dir), /^ {2}- security-reviewer \(`supabase\/migrations\/20260930000000_x\.sql`\)$/m)
   git(dir, 'add', '-A')
   git(dir, 'commit', '-qm', 'migration')
   assert.match(await briefOf(dir), /^reviewers owed by the current diff: 0$/m, 'a commit clears the 1.0.x set')
@@ -461,7 +461,7 @@ test('with an upstream on a 1.1.0 install the owed set is the reviewer ledger v2
   put(dir, '.harness/manifest.json', manifest())
   const text = await briefOf(dir)
   assert.match(text, /^reviewers owed by the current diff: 3$/m, text)
-  assert.match(text, /^ {2}- security-reviewer \(supabase\/migrations\/20260930000000_x\.sql\)$/m)
+  assert.match(text, /^ {2}- security-reviewer \(`supabase\/migrations\/20260930000000_x\.sql`\)$/m)
   assert.match(text, /^ {2}- torvalds-reviewer \(/m)
   assert.match(text, /^ {2}- citation-verifier \(/m)
 })
