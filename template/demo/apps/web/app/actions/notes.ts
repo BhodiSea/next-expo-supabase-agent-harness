@@ -3,9 +3,10 @@
 import { type NewNoteInput, type NoteView, OrgSlug } from '@app/contracts'
 import type { ActionOutcome } from '@app/errors'
 import { appError, outcomeErr } from '@app/errors'
-import { CreateNoteSchema, createNote, type NotesDatabase, type NoteWriteContext } from '@app/notes'
+import { CreateNoteSchema, createNote, type NoteWriteContext } from '@app/notes'
 import { revalidatePath } from 'next/cache'
 import { foldActionResult } from '../../lib/action-outcome'
+import { toNotesPort } from '../../lib/app-data/notes-port'
 import { requireOrgContext } from '../../lib/auth/session'
 import { enforceActionRateLimit } from '../../lib/rate-limit-runtime'
 import { actionClient } from '../../lib/safe-action'
@@ -59,16 +60,9 @@ const runCreateNote = actionClient
     const gate = await requireOrgContext(orgSlug)
     if (!gate.ok) return gate
 
-    // Narrowed to the DAL's structural port via `as unknown as`. This is the sanctioned
-    // escape for a vendor client that is too deeply generic to check structurally: supabase-js's
-    // `.from()` carries an overload set so large that verifying a full SupabaseServerClient
-    // satisfies even the shallow NotesDatabase port sends tsc into TS2589 ("excessively deep").
-    // The assertion is SOUND, not a lie — NotesDatabase is a hand-authored SUBSET of exactly the
-    // supabase surface the DAL calls (design/W1-STACK-SPEC.md §3), and the runtime value is a
-    // real supabase client. RLS is unchanged: the same request-scoped client, viewed through the
-    // narrower port. The double-cast (never a single `as NotesDatabase`) is deliberate — it
-    // documents that the two types are not directly comparable, which is the whole reason.
-    const supabase = gate.data.client as unknown as NotesDatabase
+    // Narrowed to the DAL's structural port by the one function apps/web has for it
+    // (lib/app-data/notes-port.ts, which says why that narrowing is sound).
+    const supabase = toNotesPort(gate.data.client)
     // `orgId` is the RESOLVED org's id; `actorId` is the VERIFIED user's. Neither is reachable
     // from `parsedInput`, which is what makes this function's scope a server fact rather than a
     // request assertion. apps/web wires no event sink, so events are dropped here exactly as

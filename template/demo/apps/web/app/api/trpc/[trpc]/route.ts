@@ -7,9 +7,9 @@ import {
   isCrossSiteRequest,
 } from '@app/api'
 import { optionalServerEnv } from '@app/env/optional'
-import type { NotesDatabase } from '@app/notes'
 import type { SupabaseServerClient } from '@app/supabase'
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch'
+import { toNotesPort } from '../../../../lib/app-data/notes-port'
 import { resolveHostSession } from '../../../../lib/auth/session'
 import { bucketForProcedure } from '../../../../lib/rate-limit'
 import { clientKeyFromHeaders, spendRateLimit } from '../../../../lib/rate-limit-runtime'
@@ -141,15 +141,10 @@ const handler = async (request: Request): Promise<Response> => {
     session = await resolveHostSession(db, token)
   }
 
-  // Narrowed to the DAL's structural port. `as unknown as`: checking a full SupabaseServerClient
-  // against NotesDatabase instantiates supabase-js's vast `.from()` overload set (TS2589,
-  // "excessively deep"). The assertion is SOUND — NotesDatabase is a hand-authored subset of
-  // exactly the supabase surface the DAL calls, and `db` is a real supabase client. The cast
-  // rides a `const` (never the createClient return position) for the same reason the sibling
-  // does: an assertion in a contextually-typed slot reads as redundant to no-unnecessary-type-
-  // assertion, which does not see the deep check that makes it load-bearing.
-  // SOURCE: apps/web/app/actions/notes.ts (the same NotesDatabase-subset cast, full rationale)
-  const notesDb = db as unknown as NotesDatabase
+  // Narrowed to the DAL's structural port by the one function apps/web has for it, the same
+  // one the Server Action and the read seam call.
+  // SOURCE: apps/web/lib/app-data/notes-port.ts (why the narrowing is sound)
+  const notesDb = toNotesPort(db)
 
   // The rate-limit port, closed over what only the HOST knows: which budget a procedure
   // spends from (lib/rate-limit.ts, the reviewed policy) and how to identify an anonymous

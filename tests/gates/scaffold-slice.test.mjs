@@ -163,7 +163,7 @@ test('`as unknown as` is written once, in the narrowing function, and in no othe
     ),
     port,
   )
-  assert.ok(port.includes('//   return client as unknown as ReleaseNotesDatabase'), port)
+  assert.ok(port.includes('//   const port = client as unknown as ReleaseNotesDatabase'), port)
   assert.ok(port.includes('TS2589'), `the rationale is written here, once:\n${port}`)
 })
 
