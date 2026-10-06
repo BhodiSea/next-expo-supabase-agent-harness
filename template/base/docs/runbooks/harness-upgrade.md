@@ -3771,16 +3771,18 @@ absolute path, an empty or `.` segment and a segment that starts with `-`. `upda
 you: the brief judges nothing, so no verdict moves. A fork of the lib you kept keeps the old
 printer.
 
-### The bash guard denies every spelling of the skip-hooks commit flag (#222)
+### A green turn shows the gates' NOTE lines (#152)
 
-Through 2.0.2 the bash guard's `git-commit-no-verify` rule denied `git commit --no-verify` and
-a later, separate `-n`, and nothing else, so `git commit -nm x`, `-n` as the first argument,
-`-an` anywhere, an abbreviated `--no-verif` and `git -c k=v commit --no-verify` committed past
-lefthook. It now denies `-n` in any short-flag cluster, every prefix of `--no-verify` down to
-`--no-v`, and those spellings after global options such as `-c`, `-C` and `--git-dir=`.
-`update` plants `.claude/hooks/lib/guard-rules.mjs`, owned. Nothing is left to you. A commit
-message that only mentions ` -n` is now denied as well; put such a message in a file and
-commit with `git commit -F <file>`.
+Through 2.0.2 the Stop hook dropped every `<gate>: NOTE — …` line from a green step, and its
+own notes (a floor it could not read, a previous turn that ended red) went to stderr, which a
+hook that exits 0 sends only to the debug log. On a green turn you now see them in the same
+message that shows `FALLBACK MODEL` lines: the first ten NOTE lines, each cut at 300
+characters, then the hook's own notes. When that is not every line whole, all of them are in
+`.harness/stop-output/_notes.log`. A red turn's block lists a green step's NOTE lines too.
+`update` plants `.claude/hooks/stop-validate-gate.mjs` and `docs/harness/README.md`, both
+owned. Nothing is left to you: no exit code changes and no verdict moves. A NOTE your gates
+print on every run, such as the reviewer ledger's no-merge-base line, now shows on every green
+turn; that is the line doing its job. A fork of the hook you kept keeps dropping the lines.
 
 ### One migration you have to write yourself: schedule the auth-event trail's partitions (#146)
 
@@ -3934,6 +3936,41 @@ the one-cast shape, pull the file with
 `toNotesPort`. From 2.0.3 the example's own copy of `app/api/trpc/[trpc]/route.ts` calls
 `toNotesPort`, so if you take that copy whole (on a demo install, or to apply 0.9.5's source
 fix to an install made before 0.9.5), pull `notes-port.ts` with it.
+
+### The `./client` census is a human's edit, and the messages say so (#154)
+
+Through 2.0.2 a new vertical led an agent into an edit of `tools/exports-walls.json`. The
+anatomy law requires every vertical's `./client` key, `boundaries` reds a key the census does
+not sanction, and its message said to edit the census. Nothing stopped that edit until
+`gate-integrity` called it tampering at the next validate, because the census is
+harness-owned and hash-pinned, and an owned file cannot be proposed. From 2.0.3 the write
+guard denies an agent's Edit or Write of the census (rule `exports-walls-census`) with a
+message naming the human path, both `boundaries` reds name it instead of "edit the census",
+and `scaffold-slice` prints it as a `next:` line. `update` plants the write guard and its rule
+table, both gate scripts, the scaffold script, the skill's `SKILL.md`,
+`.claude/rules/boundaries.md`, `.claude/agents/dal-author.md`, `docs/harness/README.md`,
+`docs/harness/gates-catalog.md` and `docs/security/threat-model.md`, all owned. No verdict
+moves: `gate-integrity` already redded the edit the new rule denies.
+
+**The human path, for each new vertical.** Add the `{package, reason}` entry to
+`tools/exports-walls.json` under your security owners' review, and in the same reviewed
+commit re-record the file's `sha256` in `.harness/manifest.json` ("Forking an owned file" in
+the 1.0.2 section). Edit the census outside an agent session or in one started with
+`HARNESS_ALLOW_SELF_EDIT=1`, and the manifest outside one: the settings deny list keeps
+`.harness/**` closed to the agent either way. From then on your census is a fork: `update` keeps it and, whenever a release
+changes the census, parks the incoming copy under `.harness/pending/` and exits 2 until you
+merge it and re-record.
+
+### The bash guard denies every spelling of the skip-hooks commit flag (#222)
+
+Through 2.0.2 the bash guard's `git-commit-no-verify` rule denied `git commit --no-verify` and
+a later, separate `-n`, and nothing else, so `git commit -nm x`, `-n` as the first argument,
+`-an` anywhere, an abbreviated `--no-verif` and `git -c k=v commit --no-verify` committed past
+lefthook. It now denies `-n` in any short-flag cluster, every prefix of `--no-verify` down to
+`--no-v`, and those spellings after global options such as `-c`, `-C` and `--git-dir=`.
+`update` plants `.claude/hooks/lib/guard-rules.mjs`, owned. Nothing is left to you. A commit
+message that only mentions ` -n` is now denied as well; put such a message in a file and
+commit with `git commit -F <file>`.
 
 ### The worked example builds its notes write context in one place (#144)
 

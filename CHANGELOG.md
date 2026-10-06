@@ -37,19 +37,6 @@ this comment. -->
   renders every path the template ships and an uncommitted route-group page, and refuses
   each new case. `tools/lib/harness-brief.mjs`, `docs/harness/README.md` and
   `docs/runbooks/harness-upgrade.md` are owned and reach an install with `update`.
-- **The bash guard denies every spelling of the skip-hooks commit flag** (#222). The
-  `git-commit-no-verify` rule in `.claude/hooks/lib/guard-rules.mjs` caught `-n` only as a
-  later argument on its own and allowed nothing between `git` and `commit`, so
-  `git commit -nm x`, `-n` as the first argument, `-an` anywhere, `--no-verif` (git accepts an
-  unambiguous prefix of a long option) and `git -c k=v commit --no-verify` all committed past
-  lefthook's Biome, gitleaks and commitlint hooks. The rule now matches `n` in any short-flag
-  cluster, every prefix of `--no-verify` down to `--no-v`, and global options such as `-c`,
-  `-C` and `--git-dir=` before the subcommand. `git commit -m "x"`, `git commit -am "x"`,
-  `git commit --amend --no-edit`, `--no-verbose` and the scaffold's
-  `git -c user.email=… commit -qm` stay allowed. A message that only mentions ` -n` is now
-  denied, a false positive in the safe direction. `tests/hooks/hook-contract.test.mjs` denies
-  each spelling and allows each of those. No gate, step or ramp changes. `guard-rules.mjs` is
-  owned and reaches an install with `update`.
 - **The vertical-slice scaffold writes the worked example's shape** (#155).
   `scaffold-slice.mjs` wrote a slice's web page at `apps/web/app/<slice>/page.tsx`, outside
   the signed-in and org layouts and with no `page.meta.ts`, so a run with no edits turned
@@ -75,6 +62,74 @@ this comment. -->
   seeded and withheld from existing installs that carry the example (`seedOnInitOnly`), which
   keep their casts. An install that takes the example's tRPC route whole pulls `notes-port.ts`
   with it; the runbook's 2.0.3 section says when.
+- **The auth-event trail's partitions are created ahead of time, and old ones are dropped.**
+  `20260816000000_auth_event_trail.sql` called `auth_trail.ensure_partitions()` once, at apply,
+  and nothing scheduled it or `auth_trail.drop_partitions_older_than()`: the guarded pg_cron
+  block in the audit migration schedules only audit's pair. From the fifth month after apply,
+  every sign-in row landed in `auth_trail.events_default`, which retention never drops, and that
+  month's partition could no longer be created. The new seeded migration
+  `supabase/migrations/20261006000000_auth_trail_partition_schedule.sql` schedules both under
+  pg_cron as `postgres` with audit's guard, horizon and 24-month retention, fifteen minutes after
+  audit's jobs, then creates any missing months at once. Where the current month's rows already
+  sit in the default partition, it creates the three months after it instead, so the schedule
+  carries on from the next month. `supabase/tests/auth_trail.test.sql`
+  gains two assertions that an active job calls each function (they skip, with the reason, where
+  pg_cron is not installed), and the trail's ADR records the schedule. The migration reaches
+  fresh scaffolds only (`seedOnInitOnly`); the runbook's 2.0.3 section gives an existing install
+  the same SQL for a migration of its own and a query that shows how long it has (#146, part C).
+
+- **A green turn shows the gates' NOTE lines to the user** (#152). Gates print
+  `<gate>: NOTE — …` for a ramp that is live, a control that is switched off (the gzip ratchet)
+  or a check that did not run (the reviewer ledger with no merge base). From a green step the
+  Stop hook kept only `SKIPPED`, `STAMPED` and `FALLBACK MODEL` lines, and it wrote its own
+  notes (a floor it could not read, a previous turn that ended red, an unusable block cap) to
+  stderr, which reaches only the debug log when a hook exits 0. So on a green turn nobody saw
+  any of them. `stop-validate-gate.mjs` now adds them to the one JSON `systemMessage` it prints
+  on a green turn, after the fallback lines: the first ten NOTE lines, each cut at 300
+  characters and stripped of control and format characters, then the hook's own notes. When
+  the message cannot hold every line whole, all of them go to
+  `.harness/stop-output/_notes.log`, and the message names that file only when it was
+  written. A red turn's block lists a green step's NOTE lines too, and each `stop-step`
+  telemetry record gains a `notes` count. No exit code changes, so the agent still does not see
+  a green turn's notes; the user does. With no NOTE line, no fallback and no note of its own,
+  the hook prints nothing on stdout, as before. `tests/hooks/hook-contract.test.mjs` and
+  `tests/hooks/telemetry.test.mjs` hold it. The hook and `docs/harness/README.md` are owned
+  and reach an install with `update`; a kept fork of the hook keeps dropping the lines.
+- **A new vertical no longer leads an agent into editing the owned `./client` census**
+  (#154). The anatomy law requires every vertical's `./client` key, `boundaries` reds a key
+  `tools/exports-walls.json` does not sanction, and its message, `check-workspace-deps`' and
+  `.claude/rules/boundaries.md` all said to edit the census. The census is harness-owned and
+  hash-pinned and an owned file cannot be proposed, so the edit landed and `gate-integrity`
+  called it tampering at the next validate, whose remedy reds `boundaries` again. A new
+  write-guard row, `exports-walls-census`, denies an agent's Edit or Write of the census, and
+  `WRITE_PROTECTED` rows gain an optional `message` the guard prints in place of the shared
+  text, which points at `harness-proposals/`. The census row's message names the human path:
+  hand the `{package, reason}` entry to a human, who adds it under security-owner review and
+  re-records the file's sha256 in `.harness/manifest.json` in the same reviewed commit, after
+  which `update` parks each later census change ("Forking an owned file"). Both `boundaries`
+  reds and a new `scaffold-slice` `next:` line name the same path, `dal-author.md` and the
+  slice `SKILL.md` stop presenting the census entry as a Class-A opt-in, and the stale
+  "SEEDED" comment in `check-exports-walls.mjs` is corrected. Every row without a `message`
+  prints the shared text byte for byte, and no verdict moves, because `gate-integrity` already
+  redded the edit the row denies. `tests/hooks/hook-contract.test.mjs`,
+  `tests/gates/check-boundaries.test.mjs` and `tests/gates/scaffold-slice.test.mjs` pin the
+  deny, the messages and the `next:` line. Every file this changes is owned and reaches an
+  install with `update`; the runbook's 2.0.3 section gives the human path for each new
+  vertical. An additive project census, which would let a project sanction its own vertical
+  without forking, is gate-proposal #160.
+- **The bash guard denies every spelling of the skip-hooks commit flag** (#222). The
+  `git-commit-no-verify` rule in `.claude/hooks/lib/guard-rules.mjs` caught `-n` only as a
+  later argument on its own and allowed nothing between `git` and `commit`, so
+  `git commit -nm x`, `-n` as the first argument, `-an` anywhere, `--no-verif` (git accepts an
+  unambiguous prefix of a long option) and `git -c k=v commit --no-verify` all committed past
+  lefthook's Biome, gitleaks and commitlint hooks. The rule now matches `n` in any short-flag
+  cluster, every prefix of `--no-verify` down to `--no-v`, and global options such as `-c`,
+  `-C` and `--git-dir=` before the subcommand. `git commit -m "x"`, `git commit -am "x"`,
+  `git commit --amend --no-edit`, `--no-verbose` and the scaffold's
+  `git -c user.email=… commit -qm` stay allowed. A message that only mentions ` -n` is now
+  denied, a false positive in the safe direction. `tests/hooks/hook-contract.test.mjs` denies
+  each spelling and allows each of those. No gate, step or ramp changes. `guard-rules.mjs` is
+  owned and reaches an install with `update`.
 - **The worked example builds its notes write context in one place** (#144). The tRPC router
   built a write's `{ actorId, emit, now, orgId }` in a function, while the web Server Action
   wrote it as an object literal with a no-op sink of its own and a `new Date()` nothing could
@@ -93,22 +148,6 @@ this comment. -->
   new files are seeded and withheld from existing installs (`seedOnInitOnly`), which keep both
   copies. The runbook's 2.0.3 section says how to adopt the builder, and what to pull with an
   example file taken whole.
-
-- **The auth-event trail's partitions are created ahead of time, and old ones are dropped.**
-  `20260816000000_auth_event_trail.sql` called `auth_trail.ensure_partitions()` once, at apply,
-  and nothing scheduled it or `auth_trail.drop_partitions_older_than()`: the guarded pg_cron
-  block in the audit migration schedules only audit's pair. From the fifth month after apply,
-  every sign-in row landed in `auth_trail.events_default`, which retention never drops, and that
-  month's partition could no longer be created. The new seeded migration
-  `supabase/migrations/20261006000000_auth_trail_partition_schedule.sql` schedules both under
-  pg_cron as `postgres` with audit's guard, horizon and 24-month retention, fifteen minutes after
-  audit's jobs, then creates any missing months at once. Where the current month's rows already
-  sit in the default partition, it creates the three months after it instead, so the schedule
-  carries on from the next month. `supabase/tests/auth_trail.test.sql`
-  gains two assertions that an active job calls each function (they skip, with the reason, where
-  pg_cron is not installed), and the trail's ADR records the schedule. The migration reaches
-  fresh scaffolds only (`seedOnInitOnly`); the runbook's 2.0.3 section gives an existing install
-  the same SQL for a migration of its own and a query that shows how long it has (#146, part C).
 
 ## [2.0.2] — 2026-10-03
 

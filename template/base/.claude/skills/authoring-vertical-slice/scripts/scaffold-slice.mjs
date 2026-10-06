@@ -17,7 +17,8 @@
 // the one narrowing cast lives in apps/web/lib/app-data/<slice>-port.ts and nowhere else. A
 // stub that cannot compile until the vertical resolves is comment-only, as the router stub is.
 // What the script must not do itself (a catalog key, a regenerated registry, a spec, the
-// vertical's package.json) is a printed `next:` line.
+// vertical's package.json) is a printed `next:` line. So is the step no agent may take (#154):
+// the `./client` census entry, because tools/exports-walls.json is harness-owned.
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
@@ -349,6 +350,14 @@ console.log(
   `next: add packages/verticals/${slice}/package.json (name @app/${slice}, exports "." -> ` +
     './src/index.ts and "./client" -> ./src/client.ts) and its tsconfig.json, reference that ' +
     'from the root and apps/web tsconfig.json, then run: pnpm install',
+)
+console.log(
+  `next: a HUMAN step, not an agent's: the "./client" key needs a {package, reason} entry for @app/${slice} ` +
+    'in tools/exports-walls.json, which is harness-owned and hash-pinned, so hand the entry (the package, ' +
+    'and what its ./client barrel would carry into the native bundle) to a human. They add it under the ' +
+    "security owners' review and re-record the file's sha256 in .harness/manifest.json in the same " +
+    'reviewed commit (docs/runbooks/harness-upgrade.md, "Forking an owned file"); until then boundaries ' +
+    'reds the package as NOT sanctioned',
 )
 console.log(
   `next: export the catalog from src/client.ts as EVENT_CATALOG (export { ${camel}Events as EVENT_CATALOG } from './events.js'), or its events are never catalogued`,

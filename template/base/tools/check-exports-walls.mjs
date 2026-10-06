@@ -22,6 +22,12 @@ const GATE = 'boundaries'
 const CENSUS = 'tools/exports-walls.json'
 const MODULES_FILE = 'tools/modules.json'
 const PACKAGES_DIR = 'packages'
+// The census is harness-OWNED and hash-pinned (2.0.3, #154), so a finding below whose remedy
+// adds, removes or fixes an entry asks for a human's edit: the write guard's
+// exports-walls-census row denies an agent's, and gate-integrity reds one nobody re-recorded.
+// The reds name that path. Until 2.0.3 they said "edit the census", which sent an agent
+// building a new vertical into the one edit the next validate calls tampering.
+const HUMAN_PATH = `${CENSUS} is harness-owned and hash-pinned, so an agent does not edit it: stop and hand a human the {package, reason} entry, or the census change, that a finding above asks for. The human makes it under {{SECURITY_OWNERS}} review and re-records the file's sha256 in .harness/manifest.json in the same reviewed commit; from then on \`update\` keeps their census and parks each later upstream change to it under .harness/pending/ for them to merge (docs/runbooks/harness-upgrade.md, "Forking an owned file").`
 
 if (!existsSync(CENSUS)) skipOrFail(GATE, `${CENSUS} not found (no census surface yet)`)
 if (!existsSync(PACKAGES_DIR)) skipOrFail(GATE, `${PACKAGES_DIR}/ not found (no workspace yet)`)
@@ -107,9 +113,11 @@ for (const entry of census.sanctioned) {
 }
 
 // The module-name closure (1.0.0): a `module` value must name a module this
-// release actually ships. The census is SEEDED, so a pre-1.0.0 tree may carry a
-// typo'd name it was never told about — those findings ramp; a fresh or 1.0.0+
-// tree reds hard.
+// release actually ships. The census is OWNED, not seeded as this comment said until
+// 2.0.3 (#154): `update` re-plants the shipped copy, so a typo'd name can only be a
+// local edit, a fork whose sha a human re-recorded, which a pre-1.0.0 tree may carry
+// without ever having been told about the closure. Those findings ramped until 1.1.0;
+// a fresh or 1.0.0+ tree reds hard.
 const moduleNameProblems = []
 for (const entry of census.sanctioned) {
   if (typeof entry.module !== 'string' || knownModules.has(entry.module)) continue
@@ -154,7 +162,7 @@ if (moduleNameProblems.length > 0) {
 for (const [name, { hasClient }] of declared) {
   if (hasClient && !sanctioned.has(name)) {
     errs.push(
-      `${name} exports a "./client" barrel but is NOT sanctioned in ${CENSUS} — a Metro-safe barrel on a package that may hold a server graph is how the service-role reaches the native bundle; add a reviewed {package, reason} entry, or remove the "./client" key`,
+      `${name} exports a "./client" barrel but is NOT sanctioned in ${CENSUS} — a Metro-safe barrel on a package that may hold a server graph is how the service-role reaches the native bundle; remove the "./client" key (a vertical keeps it, because the anatomy law requires both barrels), or hand a human the reviewed {package, reason} entry, as below`,
     )
   }
 }
@@ -210,7 +218,7 @@ function staleSanction(name, providedBy, demo) {
 failures(
   GATE,
   errs,
-  `The census is the single source the boundaries gate and the dependency-cruiser barrel rules derive from; edit ${CENSUS} ({{SECURITY_OWNERS}} review), never a per-consumer copy.`,
+  `The census is the single source the boundaries gate and the dependency-cruiser barrel rules derive from, so a sanction changes in ${CENSUS}, never in a per-consumer copy. ${HUMAN_PATH}`,
 )
 ok(
   GATE,

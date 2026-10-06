@@ -98,9 +98,15 @@ the first run):
    the vertical's `./client` + TanStack Query). Default EVERY write to Class-B and
    keep writes OFF the `./client` barrel — they set ownership columns and emit
    events, and a package that handles elevated writes stays hardened to the single
-   `.` key. Class-A is an explicit, reasoned exception: adding a package to the
-   `./client` census (`tools/exports-walls.json`) is a `{{SECURITY_OWNERS}}`
-   security-census decision, never a convenience.
+   `.` key. Class-A is an explicit, reasoned exception, never a convenience: it widens
+   what the vertical's `./client` barrel carries, so its census reason is a
+   `{{SECURITY_OWNERS}}` security-census decision. The census entry itself is not a
+   Class-A opt-in: every vertical needs one, Class-B included, because the anatomy law
+   requires the `./client` key. `tools/exports-walls.json` is harness-OWNED and
+   hash-pinned, so you never write it (the write guard denies the edit). List the
+   `{package, reason}` entry in your report as a human step: a human adds it under that
+   review and re-records the file's sha256 in `.harness/manifest.json` in the same
+   reviewed commit.
 9. **Routers are three lines.** A procedure picks a rung of the ladder
    (`publicProcedure` → `authedProcedure` → `orgProcedure`), names an input
    schema, and hands the call to `@app/<x>` (`routers/notes.ts` is the shape).
