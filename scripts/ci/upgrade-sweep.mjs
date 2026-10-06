@@ -437,7 +437,8 @@ const SWEEPS = {
       '1.0.0': ['tools/suppressions-allow.json'],
     },
   },
-  // 2.0.3 withholds TWO paths, and a swept leg adopts one of them, and only below 0.9.5.
+  // 2.0.3 withholds SIX paths, and a swept leg adopts three of them, each only below the
+  // version whose derived pass copies a file that imports it.
   //   - supabase/migrations/20261006000000_auth_trail_partition_schedule.sql (#146, part C) is
   //     never adopted, for 1.0.2's reason restated: the DDL would sit unapplied beside the
   //     scaffold's applied history. A leg keeps its old seeded auth_trail.test.sql, whose
@@ -454,9 +455,20 @@ const SWEEPS = {
   //     0.9.5, whose DERIVED pass copies the demo's app/api/trpc/[trpc]/route.ts, and from 2.0.3
   //     that copy calls toNotesPort. So such an install takes the file with the route that
   //     imports it. An install made at 0.9.5 or later keeps its own route and takes nothing.
+  //   - apps/web/lib/request-ports.ts and packages/verticals/notes/src/data/write-context.ts,
+  //     the web host's ports and the example's write-context builder (#144), on the same
+  //     argument. From 2.0.3 the demo's tRPC route imports request-ports.ts, so an install made
+  //     before 0.9.5 takes it with that route; and the example's src/index.ts and
+  //     data/notes.test.ts import write-context.ts, and 0.7.0's derived pass copies both, so an
+  //     install made before 0.7.0 takes it with them. Anything later keeps its own callers,
+  //     on which either file would sit unimported.
+  //   - Their two tests, apps/web/__tests__/request-ports.test.ts and
+  //     apps/web/__tests__/notes-write-context.test.ts, are never adopted: no gate on a swept
+  //     leg asks for them, and the second judges a Server Action the leg never receives.
   '2.0.3': {
     adoptBelow: {
-      '0.9.5': ['apps/web/lib/app-data/notes-port.ts'],
+      '0.7.0': ['packages/verticals/notes/src/data/write-context.ts'],
+      '0.9.5': ['apps/web/lib/app-data/notes-port.ts', 'apps/web/lib/request-ports.ts'],
     },
   },
 }

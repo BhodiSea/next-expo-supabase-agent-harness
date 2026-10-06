@@ -62,6 +62,24 @@ this comment. -->
   seeded and withheld from existing installs that carry the example (`seedOnInitOnly`), which
   keep their casts. An install that takes the example's tRPC route whole pulls `notes-port.ts`
   with it; the runbook's 2.0.3 section says when.
+- **The worked example builds its notes write context in one place** (#144). The tRPC router
+  built a write's `{ actorId, emit, now, orgId }` in a function, while the web Server Action
+  wrote it as an object literal with a no-op sink of its own and a `new Date()` nothing could
+  inject. Both dropped every event, but a sink wired at `createContext`'s `emit` would have
+  heard every tRPC write and no web one. The vertical now exports `noteWriteContext` from
+  `src/data/write-context.ts`, beside `NoteWriteContext`, and the router's `writeContext` and the
+  Server Action both call it. The new `apps/web/lib/request-ports.ts` holds the web host's one
+  event sink (it still drops events) and clock: the action builds its context from it, and the
+  tRPC route passes it to `createContext` (in the default tree too). `references/dal-dto.md` and
+  the scaffold's Server Action stub teach the builder and the ports instead of the fields. No
+  gate, step, ramp, row, event or generated file changes. The new
+  `apps/web/__tests__/notes-write-context.test.ts` drives `createNoteAction` with a recording
+  sink and a fixed instant and was red before the change; `envelope.test.ts` pins one
+  `notes.created` reaching an injected `emit` over tRPC.
+  `dal-dto.md` and `scaffold-slice.mjs` are owned and reach an install with `update`; the four
+  new files are seeded and withheld from existing installs (`seedOnInitOnly`), which keep both
+  copies. The runbook's 2.0.3 section says how to adopt the builder, and what to pull with an
+  example file taken whole.
 
 - **The auth-event trail's partitions are created ahead of time, and old ones are dropped.**
   `20260816000000_auth_event_trail.sql` called `auth_trail.ensure_partitions()` once, at apply,

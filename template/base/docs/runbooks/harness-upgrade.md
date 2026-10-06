@@ -3924,6 +3924,35 @@ the one-cast shape, pull the file with
 `toNotesPort`, so if you take that copy whole (on a demo install, or to apply 0.9.5's source
 fix to an install made before 0.9.5), pull `notes-port.ts` with it.
 
+### The worked example builds its notes write context in one place (#144)
+
+Through 2.0.2 the example built a note write's context twice. The tRPC router used a
+`writeContext` function, and the Server Action in `app/actions/notes.ts` wrote an object
+literal with a no-op event sink and a clock of its own. Both dropped every event, but a sink
+wired at `createContext`'s `emit` would have heard every tRPC write and no web one. From 2.0.3
+the vertical exports `noteWriteContext` (`src/data/write-context.ts`), which the router and the
+action both call, and `apps/web/lib/request-ports.ts` holds the web host's one sink (it still
+drops events) and clock, which the action and `app/api/trpc/[trpc]/route.ts` both use.
+`update` plants the skill's `references/dal-dto.md` and `scripts/scaffold-slice.mjs`, both
+owned, which now teach the builder and the ports.
+
+**Nothing is left to you.** No row, event or generated file changes, and no verdict moves.
+`update` withholds the four new files: `apps/web/lib/request-ports.ts` and
+`apps/web/__tests__/request-ports.test.ts` on every install, and the example's
+`packages/verticals/notes/src/data/write-context.ts` and
+`apps/web/__tests__/notes-write-context.test.ts`. Your route, action and vertical are seeded,
+so they keep their own copies and nothing would import the new modules.
+
+To adopt the new shape, pull what applies with `update --refresh-seeded <path>`. Any install
+can take `request-ports.ts` and pass `requestPorts()`'s `emit`, and its `now` as `() => now`,
+to `createContext` in `app/api/trpc/[trpc]/route.ts`. An install with the example also takes
+`write-context.ts`, exports `noteWriteContext` from the vertical's `src/index.ts`, makes the
+router's `writeContext` return `noteWriteContext(ctx.actor, { id: orgId }, ctx)`, and makes the
+Server Action call `noteWriteContext({ userId: gate.data.userId }, gate.data.org, requestPorts())`.
+If you take one of the example's files whole instead, pull what it imports with it: from 2.0.3
+its `app/api/trpc/[trpc]/route.ts` imports `request-ports.ts`, and its `src/index.ts` and
+`src/data/notes.test.ts` import `write-context.ts`.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

@@ -229,6 +229,9 @@
       },
       {
         "sha256": "761c2f5a0d68049b8752c2d4ad218f3a097e3bc177bbcbb260d37eb2d7a14ae8"
+      },
+      {
+        "sha256": "826b3e15460a4c160a2cdf13aba9e5d6bf50a3a19cef804cecf9b056b62486bd"
       }
     ],
     ".claude/skills/authoring-vertical-slice/references/migration-rls.md": [
@@ -252,6 +255,9 @@
       },
       {
         "sha256": "6543a8f583e1b376f0c0a0b29d00388e26119d4a3197d5d63159cf7f8d9c97c4"
+      },
+      {
+        "sha256": "a51101ce758001d3f61f4a12429c833de82f64df383e052b23254079c308b2fa"
       }
     ],
     ".claude/skills/designing-mobile-ui/SKILL.md": [
@@ -952,6 +958,15 @@
       },
       {
         "sha256": "336a0e54fd2dade10b94e5c0f50ce88a1109f472fe5ede49ff98c10e30a073f6",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "3f93949a7e992c90bf9b7f0fcb7e1cb31de8f70d306329557055299625ad4c17",
         "sites": [
           [
             14122,

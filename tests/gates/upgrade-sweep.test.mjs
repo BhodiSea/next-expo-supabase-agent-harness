@@ -771,6 +771,32 @@ test('2.0.3 — an install made before 0.9.5 takes notes-port.ts with the route 
   }
 })
 
+test('2.0.3 — a swept install takes each module the derived pass now imports, and only below the version that copies its importer', () => {
+  // #144: the example's src/index.ts and data/notes.test.ts (0.7.0's derived pass) import the
+  // new write-context.ts, and its tRPC route (0.9.5's) imports the new request-ports.ts.
+  const builder = 'packages/verticals/notes/src/data/write-context.ts'
+  const ports = 'apps/web/lib/request-ports.ts'
+  const derived = (base, path) => computeSweepSet(MIGRATIONS, base, '2.0.3').adopt.includes(path)
+  assert.ok(derived('0.3.0', 'packages/verticals/notes/src/index.ts'), 'below 0.7.0: the barrel the 0.7.0 fix pulls')
+  for (const base of ['0.3.0', '0.6.0']) {
+    assert.ok(derived(base, builder), `${base}: the module that barrel imports`)
+    assert.ok(derived(base, ports), `${base}: the module the 0.9.5 route imports`)
+  }
+  for (const base of ['0.7.0', '0.9.0']) {
+    assert.ok(!derived(base, builder), `${base}: keeps its own barrel, so no write-context.ts`)
+    assert.ok(derived(base, ports), `${base}: still takes the 0.9.5 route, so request-ports.ts`)
+  }
+  for (const base of ['0.9.5', '1.1.0', '2.0.2']) {
+    assert.ok(!derived(base, builder), `${base}: no caller, so no write-context.ts`)
+    assert.ok(!derived(base, ports), `${base}: no caller, so no request-ports.ts`)
+  }
+  // Neither test is adopted: a swept install's own suites do not need them, and the web test
+  // would judge an action its install never received.
+  const old = computeSweepSet(MIGRATIONS, '0.3.0', '2.0.3').adopt
+  assert.ok(!old.includes('apps/web/__tests__/request-ports.test.ts'))
+  assert.ok(!old.includes('apps/web/__tests__/notes-write-context.test.ts'))
+})
+
 test('withNotesEventCatalog appends the runbook line once, and only where it can name noteEvents', () => {
   const client = "export { noteEvents } from './events.js'\n"
   assert.equal(withNotesEventCatalog(client), `${client}${NOTES_EVENT_CATALOG_LINE}\n`)
