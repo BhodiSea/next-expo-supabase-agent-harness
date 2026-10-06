@@ -4001,6 +4001,25 @@ If you take one of the example's files whole instead, pull what it imports with 
 its `app/api/trpc/[trpc]/route.ts` imports `request-ports.ts`, and its `src/index.ts` and
 `src/data/notes.test.ts` import `write-context.ts`.
 
+### Three copied bodies are one (#149)
+
+Through 2.0.2 three bodies were copied, each under the duplication gate's 70-token floor, so
+none was reported. `serverPublicCredentials` in `packages/platform/supabase/src/server-env.ts`
+repeated `publicCredentials` from `public-env.ts`; the mobile theme and locale stores each
+kept a listener set with its own `emit` and `subscribe`; and the example's `noteCreated` and
+`noteDeleted` differed only in the event name. From 2.0.3 the server function returns
+`publicCredentials()`, both stores call `createChangeSignal()` from the new
+`apps/mobile/src/lib/change-signal.ts`, and one private `lifecycleEvent(name)` builds the two
+note events. No export, emitted event or gate changes.
+
+**Nothing is left to you.** Every source file this touches is seeded, so your copies stay as
+they are, and `update` withholds `change-signal.ts` and `change-signal.test.ts`: your stores
+keep their own listener sets and would not import the module. To adopt it, pull both with
+`update --refresh-seeded <path>`, replace each store's listener set, `emit` and `subscribe` with
+`const { emit, subscribe } = createChangeSignal()`, and add
+`'<rootDir>/src/lib/change-signal\\.test\\.ts$'` to `testPathIgnorePatterns` in
+`apps/mobile/jest.config.js`, because the suite runs under vitest.
+
 ### The push-notifications slice passes the anatomy laws once applied (#156)
 
 Through 2.0.2 the push-notifications module's slice, applied as its `APPLY.md` said, redded

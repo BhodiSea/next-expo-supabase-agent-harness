@@ -437,7 +437,7 @@ const SWEEPS = {
       '1.0.0': ['tools/suppressions-allow.json'],
     },
   },
-  // 2.0.3 withholds SIX paths, and a swept leg adopts three of them, each only below the
+  // 2.0.3 withholds EIGHT paths, and a swept leg adopts three of them, each only below the
   // version whose derived pass copies a file that imports it.
   //   - supabase/migrations/20261006000000_auth_trail_partition_schedule.sql (#146, part C) is
   //     never adopted, for 1.0.2's reason restated: the DDL would sit unapplied beside the
@@ -465,6 +465,10 @@ const SWEEPS = {
   //   - Their two tests, apps/web/__tests__/request-ports.test.ts and
   //     apps/web/__tests__/notes-write-context.test.ts, are never adopted: no gate on a swept
   //     leg asks for them, and the second judges a Server Action the leg never receives.
+  //   - apps/mobile/src/lib/change-signal.ts and its test (#149) are never adopted. The mobile
+  //     theme and locale stores import the module from 2.0.3, and no record's derived pass
+  //     copies either store, so a leg keeps its own listener sets and nothing on it imports
+  //     the module.
   '2.0.3': {
     adoptBelow: {
       '0.7.0': ['packages/verticals/notes/src/data/write-context.ts'],

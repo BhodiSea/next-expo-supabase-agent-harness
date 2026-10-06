@@ -1,5 +1,6 @@
 import { parseWebPublicEnv, serverEnv } from '@app/env'
-import { isSecretKey, requireCredentials, type SupabaseCredentials } from './credentials.js'
+import { isSecretKey, type SupabaseCredentials } from './credentials.js'
+import { publicCredentials } from './public-env.js'
 
 // ---------------------------------------------------------------------------
 // The SERVER half of the environment. Imported only from `src/index.ts`'s
@@ -8,8 +9,10 @@ import { isSecretKey, requireCredentials, type SupabaseCredentials } from './cre
 // That separation is the whole reason this file is not merged into
 // `public-env.ts`. `@app/env`'s `.` barrel names every server secret in its
 // schema; `client.ts` is bundled by Metro; a single import edge from one to the
-// other would put the secret schema into a native binary. Two files, one edge
-// each, and the edge that matters is absent by construction rather than by
+// other would put the secret schema into a native binary. Two files, and the
+// import between them runs server to public only: this file reads the public
+// pair through `public-env.ts`, and nothing `client.ts` reaches imports this
+// file, so the edge that matters is absent by construction rather than by
 // review.
 // SOURCE: tools/exports-walls.json (@app/env: the `.` barrel parses the full
 // server environment) · design/W1-STACK-SPEC.md §4
@@ -26,18 +29,12 @@ import { isSecretKey, requireCredentials, type SupabaseCredentials } from './cre
  * decorative in a single commit.
  */
 export function serverPublicCredentials(): SupabaseCredentials {
-  // The PUBLIC pair, read from the web-public schema — not from serverEnv. The
-  // two schemas are disjoint by design: NEXT_PUBLIC_* is inlined into the browser
+  // A server's ordinary credentials ARE the public pair, so this is the browser's
+  // read, not a copy of it: the web-public schema, never serverEnv. The two
+  // schemas are disjoint by design: NEXT_PUBLIC_* is inlined into the browser
   // bundle, the service key never is, and merging them would let a server-only
   // secret be requested by name from a module the client also reaches.
-  const env = parseWebPublicEnv()
-  return requireCredentials(
-    {
-      publishableKey: env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE,
-      url: env.NEXT_PUBLIC_SUPABASE_URL,
-    },
-    'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_PUBLISHABLE',
-  )
+  return publicCredentials()
 }
 
 /**

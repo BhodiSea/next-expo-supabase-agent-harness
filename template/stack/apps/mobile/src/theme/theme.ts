@@ -2,6 +2,7 @@ import { type Palette, palettes, type ThemeName } from '@app/design-tokens/nativ
 import { useSyncExternalStore } from 'react'
 import type { ImageStyle, TextStyle, ViewStyle } from 'react-native'
 import { Appearance } from 'react-native'
+import { createChangeSignal } from '../lib/change-signal'
 import { kvGet, kvSet } from '../lib/kv'
 
 // Light/dark theming — the desktop original's store logic (module-level store +
@@ -48,11 +49,7 @@ function resolveTheme(preference: ThemePreference): ThemeName {
 
 let preference: ThemePreference = readPreference()
 let resolved: ThemeName = resolveTheme(preference)
-const listeners = new Set<() => void>()
-
-function emit(): void {
-  for (const listener of listeners) listener()
-}
+const { emit, subscribe } = createChangeSignal()
 
 // While the preference is `system`, an OS theme flip must repaint live.
 function onSystemChange(): void {
@@ -98,13 +95,6 @@ const CYCLE: Record<ThemePreference, ThemePreference> = {
 /** @public — seam API: the pure cycle step, exported for tests and custom toggles. */
 export function nextPreference(current: ThemePreference): ThemePreference {
   return CYCLE[current]
-}
-
-function subscribe(callback: () => void): () => void {
-  listeners.add(callback)
-  return () => {
-    listeners.delete(callback)
-  }
 }
 
 // The snapshot covers BOTH facets: a preference change and a resolved-theme
