@@ -5,7 +5,7 @@
 // gate that cannot go red is decoration.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
@@ -165,3 +165,40 @@ test('skip — absent action inventory skips locally (exit 0, SKIPPED)', () => {
   assert.equal(r.status, 0, r.stdout + r.stderr)
   assert.match(r.stdout, /SKIPPED/)
 })
+
+// Not a gate proof: a content check on the worked example's own ledger (#148). The gate only
+// asks that a path cell exist and that an exempt cell carry a reason, so it stayed green while
+// template/demo/PARITY.md called the web notes route's two actions unsurfaced. Pin both cells to
+// the screens that reach them, and each screen to its call, so neither row can drift back to —.
+const DEMO = fileURLToPath(new URL('../../template/demo/', import.meta.url))
+
+// The demo ledger's rows by action, cells split the way the gate splits them.
+function demoRows() {
+  const rows = new Map()
+  for (const line of readFileSync(join(DEMO, 'PARITY.md'), 'utf8').split('\n')) {
+    if (!line.trim().startsWith('|')) continue
+    const cells = line
+      .trim()
+      .replace(/^\|/, '')
+      .replace(/\|$/, '')
+      .split('|')
+      .map((c) => c.trim())
+    rows.set(cells[0], cells)
+  }
+  return rows
+}
+
+for (const [action, screen, call] of [
+  ['notes.create', 'apps/web/app/(protected)/o/[orgSlug]/notes/note-composer.tsx', 'createNoteAction('],
+  ['notes.list', 'apps/web/app/(protected)/o/[orgSlug]/notes/page.tsx', 'loadNotesPage('],
+]) {
+  test(`demo PARITY.md names the web notes route for ${action}, and that screen reaches it`, () => {
+    const row = demoRows().get(action)
+    assert.ok(row, `template/demo/PARITY.md has no ${action} row`)
+    assert.equal(row[1], screen, `the ${action} web cell must name the screen that surfaces it`)
+    assert.ok(
+      readFileSync(join(DEMO, screen), 'utf8').includes(call),
+      `template/demo/${screen} no longer calls ${call} — the ledger names a screen that does not reach ${action}`,
+    )
+  })
+}
