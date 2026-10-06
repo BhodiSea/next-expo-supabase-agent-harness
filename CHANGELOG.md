@@ -148,6 +148,19 @@ this comment. -->
   new files are seeded and withheld from existing installs (`seedOnInitOnly`), which keep both
   copies. The runbook's 2.0.3 section says how to adopt the builder, and what to pull with an
   example file taken whole.
+- **A note create past its quota reports `quotaExceeded`, not a retryable `unavailable`**
+  (#147, part A). The notes table's per-org quota trigger raises SQLSTATE `53400`, and the
+  example's mapper (`packages/verticals/notes/src/data/errors.ts`) had no case for it, so the
+  code fell into class 53's retryable fallback. A create past the quota came back as
+  `unavailable`, the one kind the kernel calls safe to retry, and the web showed "The service
+  is temporarily unavailable. Try again shortly." instead of the quota copy, though waiting
+  never frees a quota. The mapper now matches `53400` before that fallback and returns
+  `quotaExceeded` with `@app/supabase`'s own sentence for the code, so the web shows "This
+  organization has reached its limit." Every other class-53 code is still `unavailable`. No
+  gate, step or ramp changes. A new `notes.test.ts` case, red before the change, sends `53400`
+  through `createNote`. The mapper is seeded, so `update` does not change it in an existing
+  install with the example; the runbook's 2.0.3 section gives the case to add by hand. The
+  wrap of the platform mapper that removes the copied SQLSTATE table is part B, after #159.
 
 ## [2.0.2] — 2026-10-03
 

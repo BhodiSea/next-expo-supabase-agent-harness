@@ -4001,6 +4001,37 @@ If you take one of the example's files whole instead, pull what it imports with 
 its `app/api/trpc/[trpc]/route.ts` imports `request-ports.ts`, and its `src/index.ts` and
 `src/data/notes.test.ts` import `write-context.ts`.
 
+### A note create past its quota reports `quotaExceeded` (#147)
+
+**Only if your project carries the worked example** (`init --with-demo`). If it does not,
+there is nothing to do here.
+
+Through 2.0.2 the example's notes mapper had no case for SQLSTATE `53400`, which the notes
+table's per-org quota trigger raises, so the code fell into class 53's retryable fallback. A
+create past the quota came back as `unavailable`, and the web told the user to try again
+shortly, though only deleting notes or raising the ceiling frees a quota. From 2.0.3 the
+mapper returns `quotaExceeded`, and the web shows the quota copy. Every other class-53 code is
+still `unavailable`.
+
+**`update` does not change your mapper.** `packages/verticals/notes/src/data/errors.ts` is
+seeded, so add the case by hand. Declare the code beside the others:
+
+```ts
+const QUOTA_EXCEEDED = '53400'
+```
+
+and give it its own case in `mapPostgrestFailure`'s switch, before `default`:
+
+```ts
+    case QUOTA_EXCEEDED:
+      return appError.quotaExceeded({ message: 'a per-org quota refused the write' })
+```
+
+`src/data/notes.test.ts` pins it in the template with a `createNote` case that fails with
+`53400` and expects that error. A vertical of your own that copied this mapper for a table
+with a quota trigger has the same gap and takes the same case. No verdict moves, and nothing
+is withheld.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it
