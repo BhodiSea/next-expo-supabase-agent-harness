@@ -218,11 +218,17 @@
     ".claude/skills/authoring-vertical-slice/SKILL.md": [
       {
         "sha256": "1ee0f6520a950e33f1c582fe20d30e7dd5601e8a3a0edb520921bffbed1c594e"
+      },
+      {
+        "sha256": "4761c616a24cdede8f0b2c1cdfd8d5cdbe79558eacb02090b8fb9afbd6ddd36c"
       }
     ],
     ".claude/skills/authoring-vertical-slice/references/dal-dto.md": [
       {
         "sha256": "56d048b9d14ac8dac4c9a3d134b8560b32e0fe6e1accc151b31c43550a2d065e"
+      },
+      {
+        "sha256": "761c2f5a0d68049b8752c2d4ad218f3a097e3bc177bbcbb260d37eb2d7a14ae8"
       }
     ],
     ".claude/skills/authoring-vertical-slice/references/migration-rls.md": [
@@ -243,6 +249,9 @@
     ".claude/skills/authoring-vertical-slice/scripts/scaffold-slice.mjs": [
       {
         "sha256": "1c31ff465af6943a4b542ba09ab07335024e3fc7637ccff3b646bde7b3f24119"
+      },
+      {
+        "sha256": "6543a8f583e1b376f0c0a0b29d00388e26119d4a3197d5d63159cf7f8d9c97c4"
       }
     ],
     ".claude/skills/designing-mobile-ui/SKILL.md": [
@@ -931,6 +940,15 @@
       },
       {
         "sha256": "41c7d1f51956ec822aa1c86f67735af10b56e10078dbde91a5f0453d111b483e",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "5860d70249615d1c9552e31bf22ffc788efb929ed155dfc9c104aca7144bd76d",
         "sites": [
           [
             14122,

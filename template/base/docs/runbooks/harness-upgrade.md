@@ -3771,6 +3771,25 @@ absolute path, an empty or `.` segment and a segment that starts with `-`. `upda
 you: the brief judges nothing, so no verdict moves. A fork of the lib you kept keeps the old
 printer.
 
+### The vertical-slice scaffold writes the worked example's shape (#155)
+
+Through 2.0.2 `scaffold-slice.mjs` wrote a slice's web page at `apps/web/app/<slice>/`,
+outside the org scope and with no `page.meta.ts`, so a run with no edits turned
+`route-manifest` red. It wrote none of the example's data seams, and its Server Action stub
+taught a write with no org and a cast at each call site. It now writes the segment at
+`apps/web/app/(protected)/o/[orgSlug]/<slice>/` with its meta and loading state, a stub for
+every seam, and `apps/web/lib/app-data/<slice>-port.ts` as the one narrowing function, and it
+prints a `next:` line for each step it leaves to you. `update` plants the script, the skill's
+`SKILL.md` and `references/dal-dto.md`, all owned. The script runs only when you run it, so no
+slice you already have changes.
+
+If your install has the worked example (`--with-demo`), `update` withholds the example's new
+`apps/web/lib/app-data/notes-port.ts`: its three callers are seeded and keep their casts, so
+nothing would import it. Nothing is left to you. To adopt the one-cast shape, pull the file
+with `update --refresh-seeded apps/web/lib/app-data/notes-port.ts` and make
+`app/actions/notes.ts`, `lib/app-data/notes.ts` and `app/api/trpc/[trpc]/route.ts` call
+`toNotesPort`.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

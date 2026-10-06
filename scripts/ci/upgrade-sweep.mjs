@@ -437,6 +437,13 @@ const SWEEPS = {
       '1.0.0': ['tools/suppressions-allow.json'],
     },
   },
+  // 2.0.3 withholds ONE path, the worked example's apps/web/lib/app-data/notes-port.ts (#155),
+  // and a swept leg adopts nothing. Every leg is a default scaffold, which carries no example,
+  // so the file has no caller there and adopting it would plant a module dead-code reds. A
+  // demo install keeps the three casts its seeded callers already carry, which compile and
+  // judge clean. Empty, and written down, because computeSweepSet asks every withholding
+  // version for a reviewed posture.
+  '2.0.3': {},
 }
 
 /**

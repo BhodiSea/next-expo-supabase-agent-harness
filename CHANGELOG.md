@@ -37,6 +37,29 @@ this comment. -->
   renders every path the template ships and an uncommitted route-group page, and refuses
   each new case. `tools/lib/harness-brief.mjs`, `docs/harness/README.md` and
   `docs/runbooks/harness-upgrade.md` are owned and reach an install with `update`.
+- **The vertical-slice scaffold writes the worked example's shape** (#155).
+  `scaffold-slice.mjs` wrote a slice's web page at `apps/web/app/<slice>/page.tsx`, outside
+  the signed-in and org layouts and with no `page.meta.ts`, so a run with no edits turned
+  `route-manifest` red. It wrote none of the example's data seams, and its Server Action stub
+  taught a write with no org and an `as unknown as <Slice>Database` cast at each call site,
+  which the example carried three times. The page is now a segment at
+  `apps/web/app/(protected)/o/[orgSlug]/<slice>/` with `page.meta.ts` and `loading.tsx`,
+  rendering each state id from `meta.states.*`. Comment-only stubs cover
+  `src/data/{port,rows,errors,query-probes,<slice>}.ts` and `apps/web/lib/app-data/<slice>.ts`,
+  each citing its section of `references/dal-dto.md`, and `apps/web/lib/app-data/<slice>-port.ts`
+  holds the one narrowing function, the only stub that casts. The Server Action stub binds the
+  org slug, takes the client, user and org from `requireOrgContext` and revalidates the org's
+  path. The migration `next:` line asks for the `org_id` shape of
+  `references/migration-rls.md`, and new `next:` lines name the catalog key, the registry
+  regen, the browser spec, the query probes and the vertical's `package.json`. On a fresh core
+  scaffold every `route-manifest` and `query-shapes` finding a run leaves is one of those
+  lines, and the three route steps turn `route-manifest` green. `SKILL.md` and `dal-dto.md`
+  teach the same route, narrowing and org-gated write. In the example (`--with-demo`),
+  `apps/web/lib/app-data/notes-port.ts` holds the one cast, and the Server Action, the read
+  seam and the tRPC route call it. No gate, step or ramp changes.
+  `tests/gates/scaffold-slice.test.mjs` runs the script into a temporary root. The script,
+  `SKILL.md` and `dal-dto.md` are owned and reach an install with `update`; `notes-port.ts` is
+  seeded and withheld from existing demo installs (`seedOnInitOnly`), which keep their casts.
 
 ## [2.0.2] — 2026-10-03
 
