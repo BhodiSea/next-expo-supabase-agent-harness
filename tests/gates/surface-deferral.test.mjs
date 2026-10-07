@@ -608,7 +608,7 @@ function changesStep() {
 
 /** Copy the CLI and the libs it imports into a fixture, where the step's relative path finds them. */
 function installCli(/** @type {string} */ dir) {
-  for (const rel of ['ci/surface-deferral.mjs', 'lib/surface-deferral.mjs', 'lib/gate.mjs', 'lib/fs-walk.mjs']) {
+  for (const rel of ['ci/surface-deferral.mjs', 'lib/surface-deferral.mjs', 'lib/gate.mjs', 'lib/fs-walk.mjs', 'lib/closed-text.mjs']) {
     mkdirSync(dirname(join(dir, 'tools', rel)), { recursive: true })
     copyFileSync(join(TOOLS, rel), join(dir, 'tools', rel))
   }

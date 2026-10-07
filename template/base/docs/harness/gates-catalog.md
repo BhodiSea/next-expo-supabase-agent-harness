@@ -36,6 +36,28 @@ note. And when a failed Stop step's output is long, the Stop hook keeps its head
 and writes the whole output to `.harness/stop-output/<step>.log`, so a note from a gate in
 the middle of a long `validate --report-all` run may appear only in that file.
 
+Since 2.1.0 a gate can also report an advisory finding as a closed record rather than a
+free-text NOTE. `noteAdvisory(record)` (`tools/lib/gate.mjs`) checks the record against a
+closed schema: `v: 1`, a `producer` from a closed set (`duplication`, `query-shapes`,
+`parity`, `contracts`, `i18n`, `embeddings`), a `rule` from that producer's closed family
+list, a `status` of `advisory`, `ramp-withheld` or `blocking`, a `subject` of one or two
+subject ids, a 12-hex `fp`, an optional `until`, integer `counts`, and `facts` holding only
+numbers, booleans and values the printers in `tools/lib/closed-text.mjs` accept, nested at
+most three deep. A record that fits prints one `<producer>: NOTE — ` line rendered from the
+record alone, naming its family and its `key12` (the first 12 hex digits of
+sha256(producer|rule|subject), the one id the harness prints); an `advisory` line never
+contains the word `ramp`, and a `ramp-withheld` line contains `(ramp)`, so `graduate` counts
+it as outstanding. A record that does not fit is not written, and a fixed line naming only
+its producer prints instead. `noteComplete({ producer, leg })` records that a producer's leg
+ran to its verdict; a gate writes it immediately before its final verdict and never on an
+early exit, so a skip, a `fail()`, a stamp hit or a crash leaves the leg incomplete.
+`duplication` is the first producer to write one (leg `l0`). Both append one JSON line to
+`<dir>/<pid>.jsonl` when `HARNESS_ADVISORY_REPORT_DIR` names a directory and write nothing
+when it is unset. Like the `--ci-parity` record, they print nothing else, decide no verdict,
+swallow their own errors and never write into the project tree. `rampNote` takes an
+optional `subject: { rule, subject }` beside `until`: when the ramp withholds, it also
+writes a `ramp-withheld` record, and the NOTE line it prints does not change.
+
 ## Honest losses (stated plainly, so nobody discovers them in an incident)
 
 - **The audit trail covers mutations only.** `audit.events` records every INSERT,

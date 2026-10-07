@@ -19,6 +19,11 @@ import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { walkFiles } from './lib/fs-walk.mjs'
+// A NAMESPACE import (2.1.0, #185) for `noteComplete` alone: it is new, and an install may run
+// this gate over a forked tools/lib/gate.mjs that `update` parked. A named import of an export
+// that file lacks fails at link time; through the namespace it is undefined, the guarded call
+// is a no-op, and only the record is lost.
+import * as gateLib from './lib/gate.mjs'
 import { fail, failures, ok, skipOrFail } from './lib/gate.mjs'
 
 const GATE = 'duplication'
@@ -294,6 +299,14 @@ const errs = clones.map(
 // always been unconditional in practice. Removing the branch changes no behaviour on any
 // real tree — it deletes a deadline that could not arrive.
 // SOURCE: scripts/check-ramp-ledger.mjs (never-armed ramps)
+//
+// THE LEG TERMINATOR (2.1.0, #185). `duplication` is the first converted producer: its L0 leg,
+// this whole-tree scan, records that it ran to a verdict, immediately before that verdict,
+// so a green tree and a red one both write it. The no-source skip and a malformed allow file
+// exit earlier and write none, and neither does a crash. The red text and the verdict do not
+// change; the families' records arrive with the extractor (#186).
+// SOURCE: docs/harness/gates-catalog.md ("Shared behavior")
+gateLib.noteComplete?.({ producer: 'duplication', leg: 'l0' })
 failures(GATE, errs)
 ok(
   GATE,

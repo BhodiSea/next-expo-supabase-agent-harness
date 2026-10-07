@@ -11,6 +11,42 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [Unreleased]
+
+**2.1.0 work that lands before the 2.1.0 bump.** The bump is its own commit, made when the
+release is cut: it opens the 2.1.0 section and its `template/migrations.json` record, and
+moves these entries there. Until then the owned files they change are recorded in
+`template/shas/2.0.3.json`, the table of the version `package.json` names, so `update` and
+`gate-integrity` recognise them.
+
+### Added
+
+- **One home for every closed printer, an advisory recorder, and the converted-gates ratchet**
+  (#185). `tools/lib/closed-text.mjs` is new and imports nothing. It holds the path printer,
+  the name set and `(unprintable)`, moved from `tools/lib/harness-brief.mjs` (the brief's
+  bytes do not move), `ACTION_RE`, moved from `tools/check-mobile-parity.mjs` (parity's
+  output does not move), and the printers the Single Home plan needs: symbols, SQL names,
+  signatures rebuilt from tokens, enums and numbers, dotted callees of up to four segments,
+  i18n keys, testIDs, subject ids and `key12`. N3's case labels print an identifier through
+  the symbol printer and a literal of up to 12 characters as itself, anything longer as
+  `#n`, and `renderDiffersAt` prints aligned arms, two names for one value joined by ` / `.
+  `tools/lib/gate.mjs` gains the recorder: `noteAdvisory` checks a record against a closed
+  schema, appends it to `HARNESS_ADVISORY_REPORT_DIR` and prints one NOTE line rendered from
+  the record alone; `noteComplete` writes a producer leg's terminator; `advisoryKey` is the
+  record's identity; and `rampNote` takes an optional `subject` that records what it
+  withholds without changing its NOTE. With the variable unset nothing is written. The
+  recorder decides no verdict and swallows its own errors. `tools/check-duplication.mjs`
+  writes its L0 terminator right before its verdict, green or red, and none on the
+  no-source skip or a malformed allow file; its red text and verdict do not change.
+  `tools/lib/closed-text.mjs` joins the stamp machinery in `tools/lib/stamp-inputs.mjs`, so
+  every warm stamp re-proves once after `update`. In the factory, `scripts/advisory-ratchet.json`
+  lists the converted producers (`duplication`, with no family yet) and
+  `tests/gates/advisory-ratchet.test.mjs` reds a listed producer that never calls
+  `noteComplete`, or a family outside the recorder's enum. No gate, step or ramp is added or
+  moved. The new and changed files under `tools/`, `docs/harness/README.md`,
+  `docs/harness/gates-catalog.md` and `.github/workflows/quality-gate.yml` (whose
+  `edge-functions` filter names the new module) are owned and reach an install with `update`.
+
 ## [2.0.3] — 2026-10-06
 
 **A patch: the first of the v2.0.x defect fixes.** Each item that lands after this bump adds

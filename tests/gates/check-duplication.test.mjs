@@ -4,11 +4,12 @@
 // and a baseVersion predating the check downgrades a clone to a ramp NOTE (in this
 // lineage the check ships in 0.1.0, so every real install is live).
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
+import process from 'node:process'
 import { test } from 'node:test'
 
 // The gate imports its `./lib/*` relative to its own file, so spawning it with cwd = a
@@ -42,7 +43,9 @@ function runReal(treeFiles, extra = {}) {
     mkdirSync(join(dir, '.harness'), { recursive: true })
     writeFileSync(join(dir, '.harness/manifest.json'), extra.manifest)
   }
-  const res = spawnSync('node', [GATE], { cwd: dir, encoding: 'utf8' })
+  const env = { ...process.env, ...extra.env }
+  if (extra.env?.HARNESS_ADVISORY_REPORT_DIR === undefined) delete env.HARNESS_ADVISORY_REPORT_DIR
+  const res = spawnSync('node', [GATE], { cwd: dir, encoding: 'utf8', env })
   rmSync(dir, { recursive: true, force: true })
   return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
 }
@@ -240,3 +243,59 @@ for (const [label, flags] of [
     }
   })
 }
+
+// ── the L0 leg terminator (2.1.0, #185) ─────────────────────────────────────────
+// `duplication` is the first converted producer: under HARNESS_ADVISORY_REPORT_DIR its scan
+// writes exactly one {producer: 'duplication', leg: 'l0', complete: true} right before its
+// verdict, green or red, and none on an early exit. The red text and the verdict do not move.
+
+/** Every record the gate run wrote into `dir`. @param {string} dir */
+function recorded(dir) {
+  if (!existsSync(dir)) return []
+  return readdirSync(dir).flatMap((f) =>
+    readFileSync(join(dir, f), 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l)),
+  )
+}
+
+const TERMINATOR = { v: 1, producer: 'duplication', leg: 'l0', complete: true }
+
+/** @param {string} tag */
+const reportDir = (tag) => join(mkdtempSync(join(tmpdir(), `epah-dup-advisory-${tag}-`)), 'report')
+
+test('duplication: a green tree writes exactly one L0 terminator', () => {
+  const dir = reportDir('green')
+  const r = runReal({ 'apps/mobile/src/a.ts': BLOCK('summariseAlpha') }, { env: { HARNESS_ADVISORY_REPORT_DIR: dir } })
+  assert.equal(r.code, 0, r.out)
+  assert.deepEqual(recorded(dir), [TERMINATOR])
+})
+
+test('duplication: a red tree writes exactly one L0 terminator, and its red text is unchanged', () => {
+  const tree = { 'apps/mobile/src/a.ts': BLOCK('summariseAlpha'), 'apps/mobile/src/b.ts': BLOCK('summariseBeta') }
+  const dir = reportDir('red')
+  const recordedRun = runReal(tree, { env: { HARNESS_ADVISORY_REPORT_DIR: dir } })
+  const plain = runReal(tree)
+  assert.equal(recordedRun.code, 1, recordedRun.out)
+  assert.equal(recordedRun.out, plain.out, 'the variable changes no output')
+  assert.deepEqual(recorded(dir), [TERMINATOR])
+})
+
+test('duplication: the no-source skip writes no terminator, locally or in CI', () => {
+  for (const ci of ['', 'true']) {
+    const dir = reportDir(`skip${ci}`)
+    const r = runReal({ 'README.md': '# nothing to scan\n' }, { env: { HARNESS_ADVISORY_REPORT_DIR: dir, CI: ci, HARNESS_REQUIRE_TOOLCHAINS: '' } })
+    assert.equal(r.code, ci === 'true' ? 1 : 0, r.out)
+    assert.deepEqual(recorded(dir), [])
+  }
+})
+
+test('duplication: a malformed allow file writes no terminator', () => {
+  for (const allow of ['{ not json', '{"allow": {}}', '{"allow": [{"fingerprint": "x"}]}']) {
+    const dir = reportDir('allow')
+    const r = runReal({ 'apps/mobile/src/a.ts': BLOCK('summariseAlpha') }, { allow, env: { HARNESS_ADVISORY_REPORT_DIR: dir } })
+    assert.equal(r.code, 1, r.out)
+    assert.deepEqual(recorded(dir), [], allow)
+  }
+})

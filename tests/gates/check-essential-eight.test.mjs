@@ -524,7 +524,7 @@ const E8_EDITS = {
   'a workflow': (dir) => appendFileSync(join(dir, '.github', 'workflows', 'ci.yml'), '# edited\n'),
   'the workflow set (a new file)': (dir) => writeFileSync(join(dir, '.github', 'workflows', 'new.yml'), 'name: new\n'),
 }
-for (const lib of ['essential-eight.mjs', 'live-controls.mjs', 'fs-walk.mjs', 'gate.mjs', 'stamp-inputs.mjs']) {
+for (const lib of ['essential-eight.mjs', 'live-controls.mjs', 'fs-walk.mjs', 'gate.mjs', 'stamp-inputs.mjs', 'closed-text.mjs']) {
   E8_EDITS[`tools/lib/${lib}`] = (dir) => appendFileSync(join(dir, 'tools', 'lib', lib), '\n// edited\n')
 }
 

@@ -25,13 +25,13 @@
 // build-generated — a gate that reds on a stale artifact beats a graph that regenerates it).
 // SOURCE: docs/harness/gates-catalog.md (parity gate) [corpus: harness/doctrine]
 import { existsSync, readFileSync } from 'node:fs'
+// `namespace.action` (ACTION_RE): one copy, in the closed printers' home (2.1.0, #185).
+import { ACTION_RE } from './lib/closed-text.mjs'
 import { fail, failures, ok, skipOrFail } from './lib/gate.mjs'
 
 const GATE = 'parity'
 const INVENTORY = 'tools/generated/action-inventory.json'
 const PARITY = 'PARITY.md'
-// `namespace.action`: lowercase-kebab namespace, camel-ish action, DIGITS ADMITTED in both.
-const ACTION_RE = /^[a-z][a-z0-9-]*\.[A-Za-z][A-Za-z0-9]*$/
 // The exemption markers a surface cell may hold instead of a screen path. Em/en dash, plain
 // hyphen, or n/a — a cell saying "this action is deliberately not surfaced here".
 const EXEMPT = new Set(['—', '–', '-', 'n/a', 'N/A'])
