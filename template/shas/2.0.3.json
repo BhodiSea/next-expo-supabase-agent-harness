@@ -833,6 +833,19 @@
     ],
     "docs/harness/gates-catalog.md": [
       {
+        "sha256": "2541d341c765fa0b08cd65ecbfba15831a1d2851fb465660f0a00ab02b73b774",
+        "sites": [
+          [
+            27862,
+            "SECURITY_OWNERS"
+          ],
+          [
+            152094,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
         "sha256": "a454f3913dd7d8d796144f90358e3bef29d16b0bbb50680f2ec0833a7798bd02",
         "sites": [
           [
@@ -854,19 +867,6 @@
           ],
           [
             150236,
-            "SECURITY_TXT_EXPIRES"
-          ]
-        ]
-      },
-      {
-        "sha256": "efd3826ffadc9b0f3b56023e8eb51e9b3b48ffe8347fb61eb22b1fea3fbed8f2",
-        "sites": [
-          [
-            27862,
-            "SECURITY_OWNERS"
-          ],
-          [
-            152094,
             "SECURITY_TXT_EXPIRES"
           ]
         ]
@@ -2024,7 +2024,7 @@
     ],
     "tools/lib/complexity.mjs": [
       {
-        "sha256": "81f7a9982015332e6bc644e96f6218e4d35d955a49cfce1a25692b622b1c85a3"
+        "sha256": "6330f6822264a4c70e293dfa01b097c19fda15e14263b20db660ae63003345d1"
       }
     ],
     "tools/lib/conformance-map.mjs": [
@@ -2121,7 +2121,7 @@
     ],
     "tools/lib/homes.mjs": [
       {
-        "sha256": "c668d2a85360ac31ed1477a64e0b75a060ae342f7b05f774edf7854b972f8883"
+        "sha256": "b38d0ff31ea24a27ffb842b12afb5e4a91fdb4f4cfedb70ea004c557e40d285c"
       }
     ],
     "tools/lib/i18n-tree.mjs": [
@@ -2131,7 +2131,7 @@
     ],
     "tools/lib/importers.mjs": [
       {
-        "sha256": "d83193fdb48c4bfd5947cd5271af8dd33768f5ef2cd3625dfd6e7dd558cb8773"
+        "sha256": "830e709d15117eaacd418492e383165c87acf19e8e15f689f49ad8e38c61f2eb"
       }
     ],
     "tools/lib/inventory.mjs": [
@@ -2232,7 +2232,7 @@
     ],
     "tools/lib/shapes.mjs": [
       {
-        "sha256": "6b8beb794db35d0aa77869015098793dc7d4210bc14e2db98bbf51b35757031f"
+        "sha256": "4adaf1bb89870c569898183fa116e5a1e98ffdd54c8adfd210ff97af9ef8a23b"
       }
     ],
     "tools/lib/source-text.mjs": [

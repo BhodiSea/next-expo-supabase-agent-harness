@@ -2505,9 +2505,12 @@ exits 1. The TypeScript legs read through the project's own `typescript`; when i
 load they are written incomplete, the run exits 1 and records the missing prerequisite, and
 the SQL legs still run. A name no closed printer can carry (one with a `$`, a `#private` or
 quoted member, an over-long name) gets no record, and SQL overloads are told apart by
-their argument types. `home()` reads only the `architecture` rules at `error` severity
-(cycles and dependency types included), and a rule condition it does not know refuses the
-home rather than allow one the step would red. The thresholds are provisional until the
+their argument types. A `CREATE OR REPLACE` that keeps every input name is read as
+replacing that overload, even where PostgreSQL adds one because only a type changed. Only
+a callable declared at a file's top level is an export, and the module graph reads
+side-effect imports and `export type *` as dependency-cruiser does. `home()` reads only the
+`architecture` rules at `error` severity (cycles and dependency types included), and a rule
+condition it does not know refuses the home rather than allow one the step would red. The thresholds are provisional until the
 exact rule's gate-proposal freezes them.
 **Anti-vacuity:** paste a 30-token function a package exports into a package that depends
 on it → `--sweep --json` lists an `exact` record with home `import`, and `--explain` on its

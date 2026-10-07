@@ -67,11 +67,15 @@ moves these entries there. Until then the owned files they change are recorded i
   It also exports `endOfBlockComment`, so the extractor ends a nested comment where the parser
   does. A name no closed printer can carry (one with a `$`, a `#private` or quoted member, an
   over-long name) gets no record, so it never costs its leg completeness. SQL overloads
-  are told apart by their argument types, and a `DROP FUNCTION` drops the signature it names.
-  The importer index counts every name an export goes by, re-export barrels included;
-  `home()` reads only the `architecture` rules at `error` severity, cycles and dependency
-  types included, and a rule condition it does not know refuses the home; call sites count
-  method calls and JSX uses. The `--sweep --json` document arrives whole through a pipe.
+  are told apart by their argument types, read as PostgreSQL reads them (an `ARRAY[...]`
+  default, an unnamed `text ARRAY`); a `CREATE OR REPLACE` that respells a type replaces the
+  overload with the same input names, and a `DROP FUNCTION` drops the signature it names.
+  Only a callable declared at a file's top level is an export, and JSX text compares as it
+  renders. The importer index counts every name an export goes by, re-export barrels
+  included, and its module graph reads side-effect imports and `export type *`; `home()`
+  reads only the `architecture` rules at `error` severity, cycles and dependency types
+  included, and a rule condition it does not know refuses the home; call sites count method
+  calls and JSX uses. The `--sweep --json` document arrives whole through a pipe.
   `tools/lib/vertical-anatomy.mjs` exports the predicate its domain, events and client-reach
   scans apply, and `tools/lib/gate.mjs` exports `advisoryRecordOk`; neither scan's findings
   move. Without `typescript` the TS legs are written incomplete, the sweep exits 1 and records

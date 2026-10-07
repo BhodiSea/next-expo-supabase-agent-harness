@@ -274,7 +274,7 @@ jobs:
       # TypeScript through the root's own `typescript`, which installer-unit never installs:
       # there their parser cases SKIP loudly by name. This job has the root toolchain, and
       # HARNESS_TEST_REQUIRE_TYPESCRIPT=1 turns a parser that cannot load into a failure. The
-      # floor is these modules' own (measured 99.0/91.7/99.2; floors sit ~6 under).
+      # floor is these modules' own (measured 99.0/92.1/99.2; floors sit ~6 under).
       - name: machinery-shapes (the Single Home extractor and sweep's proofs, with the parser installed)
         env:
           HARNESS_TEST_REQUIRE_TYPESCRIPT: '1'
