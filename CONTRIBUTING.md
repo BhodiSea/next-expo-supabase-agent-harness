@@ -53,6 +53,57 @@ and vulnerabilities through the private channel in [SECURITY.md](SECURITY.md).
 
 ## Local development
 
+### Your first change
+
+You do not need the whole list below to make a first change. Clone the
+repository with a plain `git clone`, which also fetches the release tags that
+some checks compare against. The test suites and the `node scripts/` checks
+need only Node 22 or later, with no install. `pnpm install` is for the lint,
+type and dead-code checks (`eslint`, `tsc` and `knip`) and for the zero-edit
+scaffold at the end of the list; without it, the i18n tests that need the
+TypeScript parser skip by name, and `lint.yml` runs them with it.
+
+While you work, run the commands that cover your kind of change. The times were
+measured twice on a fresh clone with no install, on Node 22 in a 4-core Linux
+container on 2026-10-07. Your machine will differ, and they are not CI figures.
+
+```sh
+# A doc fix: README.md, CONTRIBUTING.md, CHANGELOG.md, or a page under template/
+node scripts/check-claims.mjs    # recomputes the numbers the docs state (under 1 s)
+node scripts/hygiene.mjs         # leaked strings, unearned maturity and standards claims (under 1 s)
+GITHUB_BASE_REF=main CI=true node --test "tests/gates/**/*.test.mjs"   # many of these read the docs (about 2 min)
+
+# An installer change: installer/
+GITHUB_BASE_REF=main CI=true node --test "tests/installer/**/*.test.mjs"   # about 60 s
+node scripts/check-syntax.mjs    # about 13 s
+node scripts/hygiene.mjs         # the {{TOKEN}} placeholder closure (ground rule 4)
+
+# A hook change: template/base/.claude/hooks/
+GITHUB_BASE_REF=main CI=true node --test "tests/hooks/**/*.test.mjs"   # about 40 s
+
+# A gate change: template/base/tools/
+GITHUB_BASE_REF=main CI=true node --test tests/gates/check-<gate>.test.mjs   # the gate's own tests (a few seconds)
+GITHUB_BASE_REF=main CI=true node --test "tests/gates/**/*.test.mjs"        # about 2 min
+```
+
+The hooks, the gate scripts and nearly every shipped doc under `template/` are
+owned files: each release records their bytes, so that `update` can tell an
+untouched copy from an edited one. After changing one, run
+`node scripts/generate-released-shas.mjs --current` and commit what it writes;
+`node scripts/check-released-shas.mjs --verify-tags` (about 10 s) names the
+file and fails until you do. A new gate or guard rule also needs its can-fail proof
+registered in `tests/canary/injections.json` (ground rule 6), which
+`node scripts/check-canary-coverage.mjs` checks; at about 6 min it is the
+slowest check in the list.
+
+CI runs the whole list below, and builds scaffolds from your branch, on every
+pull request. A red check on a first pull request is normal: the review will
+say which check failed and why, so open the pull request anyway. If you ran
+only the commands above, say so in the pull request and leave the template's
+"full list" box unticked.
+
+### Everything CI blocks on
+
 This list is the whole of what CI blocks on. Run all of it — a subset is how four
 of these came to be red at once behind a single early failure.
 

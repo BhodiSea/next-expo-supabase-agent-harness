@@ -227,6 +227,15 @@ this comment. -->
   README are owned and reach an install that enabled the module with `update`, which removes
   the two moved files when unmodified. A slice you already applied is seeded and stays yours;
   the runbook's 2.0.3 section gives the hand steps.
+- **CONTRIBUTING says which commands cover a first change, and how long they take** (#167).
+  "Local development" opened with every check CI blocks on, and never said which of them a
+  given kind of change needs, how long each takes, or that the test suites need no install. A
+  new "Your first change" subsection at its top gives the commands for a doc fix, an installer
+  change, a hook change and a gate change, with times from one run on a fresh clone with no
+  install. It also says when to regenerate the released-sha table, which check is the slowest,
+  and that a red check on a first pull request is normal. The full list follows under its own
+  heading, unchanged, and `check-claims` still finds every `lint.yml` blocker in it. Factory
+  only: nothing changes for an install.
 
 ## [2.0.2] — 2026-10-03
 
