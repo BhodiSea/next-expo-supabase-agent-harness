@@ -344,7 +344,9 @@ function leafTokens(ts, fn, sf) {
   }
   const kids = fn.getChildren(sf)
   const open = kids.findIndex((k) => k.kind === ts.SyntaxKind.OpenParenToken)
-  const params = kids.findIndex((k) => k.kind === ts.SyntaxKind.SyntaxList && k.pos >= fn.parameters.pos)
+  const params = kids.findIndex(
+    (k) => k.kind === ts.SyntaxKind.SyntaxList && k.pos >= fn.parameters.pos,
+  )
   const start = open !== -1 ? open : params
   const bare = open === -1
   for (let i = start; i < kids.length; i += 1) {
@@ -718,7 +720,14 @@ function normaliseSql(fn, statement) {
       literals.push(t.raw)
       continue
     }
-    const value = sqlSlot(t.value, { tokens, i, schema: fn.schema, name: fn.name, bound, numbering })
+    const value = sqlSlot(t.value, {
+      tokens,
+      i,
+      schema: fn.schema,
+      name: fn.name,
+      bound,
+      numbering,
+    })
     if (value === null) continue
     stream.push(value)
     verbatim.push(value)
@@ -759,7 +768,9 @@ function extractSqlTree() {
 function foldSqlDir(dir) {
   const live = new Map()
   if (!existsSync(dir)) return live
-  for (const f of readdirSync(dir).filter((n) => n.endsWith('.sql')).sort()) {
+  for (const f of readdirSync(dir)
+    .filter((n) => n.endsWith('.sql'))
+    .sort()) {
     foldSqlFile(`${dir}/${f}`, live)
   }
   return live
@@ -851,7 +862,12 @@ function assignSubjects(callables) {
   const seen = new Map()
   for (const c of callables) {
     if (c.lang === 'sql') c.subject = `sql:${c.name}`
-    else if (c.kind === 'function' && c.exported && c.scope === '' && counts.get(pkgForm(c)) === 1) {
+    else if (
+      c.kind === 'function' &&
+      c.exported &&
+      c.scope === '' &&
+      counts.get(pkgForm(c)) === 1
+    ) {
       c.subject = pkgForm(c)
     } else c.subject = `${c.path}#${qualified(c)}`
     // Two callables of one name in one file (an overload, a same-named helper in two

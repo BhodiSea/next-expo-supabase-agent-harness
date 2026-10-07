@@ -201,7 +201,9 @@ export function statementSpans(raw) {
   }
   out.push({ text: cur, start, end: raw.length })
 
-  return out.map((s) => ({ ...s, text: s.text.replace(/\s+/g, ' ').trim() })).filter((s) => s.text !== '')
+  return out
+    .map((s) => ({ ...s, text: s.text.replace(/\s+/g, ' ').trim() }))
+    .filter((s) => s.text !== '')
 }
 
 /**

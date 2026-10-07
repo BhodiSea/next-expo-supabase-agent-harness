@@ -84,7 +84,10 @@ function readModule(path, text) {
     defaultName: null,
   }
   for (const m of text.matchAll(LOCAL_DECL)) mod.local.add(m[2])
-  const def = /\bexport\s+default\s+(?:async\s+)?(?:(?:function\s*\*?|class)\s+)?([A-Za-z_$][\w$]*)/.exec(text)
+  const def =
+    /\bexport\s+default\s+(?:async\s+)?(?:(?:function\s*\*?|class)\s+)?([A-Za-z_$][\w$]*)/.exec(
+      text,
+    )
   if (/\bexport\s+default\b/.test(text)) mod.local.add('default')
   if (def !== null && !['function', 'class', 'async'].includes(def[1])) mod.defaultName = def[1]
   readExportLists(text, mod)
@@ -101,7 +104,9 @@ function readExportLists(text, mod) {
       else mod.reexports.set(local, { spec: m[3], name: imported })
     }
   }
-  for (const m of text.matchAll(/\bexport\s*\*\s*(?:as\s+([A-Za-z_$][\w$]*)\s+)?from\s*(['"])([^'"]+)\2/g)) {
+  for (const m of text.matchAll(
+    /\bexport\s*\*\s*(?:as\s+([A-Za-z_$][\w$]*)\s+)?from\s*(['"])([^'"]+)\2/g,
+  )) {
     if (m[1] === undefined) mod.stars.push(m[3])
     else mod.namespaces.set(m[1], m[3])
   }
@@ -110,7 +115,10 @@ function readExportLists(text, mod) {
 function readImports(text, mod) {
   const re = /\bimport\s+(?:type\s+)?([^'"`;]*?)\s*from\s*(['"])([^'"]+)\2/g
   for (const m of text.matchAll(re)) mod.imports.push(importClause(m[1], m[3]))
-  for (const re2 of [/\bimport\s*\(\s*(['"])([^'"]+)\1\s*\)/g, /\brequire\s*\(\s*(['"])([^'"]+)\1\s*\)/g]) {
+  for (const re2 of [
+    /\bimport\s*\(\s*(['"])([^'"]+)\1\s*\)/g,
+    /\brequire\s*\(\s*(['"])([^'"]+)\1\s*\)/g,
+  ]) {
     for (const m of text.matchAll(re2)) mod.imports.push({ spec: m[2], names: [], all: true })
   }
 }
@@ -284,7 +292,8 @@ class ImporterIndex {
       const target = this.resolve(path, re.spec)
       return target === null ? [] : this.definitionsOf(target, re.name, seen)
     }
-    if (mod.namespaces.has(name)) return this.everyDefinition(this.resolve(path, mod.namespaces.get(name)), seen)
+    if (mod.namespaces.has(name))
+      return this.everyDefinition(this.resolve(path, mod.namespaces.get(name)), seen)
     if (name === 'default') return []
     for (const spec of mod.stars) {
       const target = this.resolve(path, spec)

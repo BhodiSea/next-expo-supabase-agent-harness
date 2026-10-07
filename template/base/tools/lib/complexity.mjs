@@ -87,7 +87,10 @@ class Tree {
     if (!this.sources.has(path)) {
       const kind = path.endsWith('.tsx') ? this.ts.ScriptKind.TSX : this.ts.ScriptKind.TS
       const text = readFileSync(path, 'utf8')
-      this.sources.set(path, this.ts.createSourceFile(path, text, this.ts.ScriptTarget.Latest, true, kind))
+      this.sources.set(
+        path,
+        this.ts.createSourceFile(path, text, this.ts.ScriptTarget.Latest, true, kind),
+      )
     }
     return this.sources.get(path)
   }
@@ -110,7 +113,8 @@ class Tree {
     for (const imp of this.importers.importersOf(c.path, name)) {
       if (imp.file === c.path) continue
       for (const local of imp.locals) {
-        for (const call of this.callsIn(imp.file).get(local) ?? []) out.push({ path: imp.file, call })
+        for (const call of this.callsIn(imp.file).get(local) ?? [])
+          out.push({ path: imp.file, call })
       }
     }
     return out
@@ -155,7 +159,10 @@ function soleExpression(ts, fn) {
 /** An expression without its parentheses and `as`/`satisfies` wrappers; undefined for none. */
 export function unwrap(ts, e) {
   let n = e ?? undefined
-  while (n !== undefined && (ts.isParenthesizedExpression(n) || ts.isAsExpression(n) || ts.isSatisfiesExpression(n))) {
+  while (
+    n !== undefined &&
+    (ts.isParenthesizedExpression(n) || ts.isAsExpression(n) || ts.isSatisfiesExpression(n))
+  ) {
     n = n.expression
   }
   return n
@@ -238,7 +245,9 @@ function singleCallHelpers(ts, file) {
 function isDeclarationName(ts, id) {
   const p = id.parent
   return (
-    (ts.isFunctionDeclaration(p) || ts.isVariableDeclaration(p) || ts.isPropertyAccessExpression(p)) &&
+    (ts.isFunctionDeclaration(p) ||
+      ts.isVariableDeclaration(p) ||
+      ts.isPropertyAccessExpression(p)) &&
     p.name === id
   )
 }
@@ -273,7 +282,9 @@ function helperSplits(tree, file) {
     const caller = enclosing(ts, h.calls[0], byNode)
     if (caller === null || caller === h.c) continue
     const locals = localsOf(ts, caller.node)
-    const taken = h.calls[0].arguments.filter((a) => ts.isIdentifier(a) && locals.has(a.text)).length
+    const taken = h.calls[0].arguments.filter(
+      (a) => ts.isIdentifier(a) && locals.has(a.text),
+    ).length
     const entry = perCaller.get(caller) ?? { helpers: [], conjoined: 0 }
     entry.helpers.push(h.c)
     if (taken >= 3) entry.conjoined += 1
@@ -282,7 +293,10 @@ function helperSplits(tree, file) {
   const out = new Map()
   for (const [caller, { helpers, conjoined }] of perCaller) {
     if (helpers.length < 2 && conjoined < 1) continue
-    const lines = helpers.map((h) => h.line).sort((a, b) => a - b).slice(0, 4)
+    const lines = helpers
+      .map((h) => h.line)
+      .sort((a, b) => a - b)
+      .slice(0, 4)
     out.set(caller, { helpers: helpers.length, conjoined, lines })
   }
   return out
@@ -331,19 +345,22 @@ const SINGLE_CONSUMER_EXCLUDED = [
 ]
 
 /** A declaration's fingerprint: its text with whitespace runs collapsed, hashed to 12 hex. */
-const textFp = (text) => createHash('sha256').update(text.replace(/\s+/g, ' ')).digest('hex').slice(0, 12)
+const textFp = (text) =>
+  createHash('sha256').update(text.replace(/\s+/g, ' ')).digest('hex').slice(0, 12)
 
 /** The exported interface/type/function/class declarations of a file: name → {kind, line, fp}. */
 function exportedDeclarations(ts, file) {
   const out = new Map()
   const exported = (node, name) =>
-    (ts.getModifiers?.(node) ?? node.modifiers ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword) ||
-    file.localExports.has(name)
+    (ts.getModifiers?.(node) ?? node.modifiers ?? []).some(
+      (m) => m.kind === ts.SyntaxKind.ExportKeyword,
+    ) || file.localExports.has(name)
   for (const st of file.sf.statements) {
     const kind = declarationKind(ts, st)
     if (kind === null) continue
     for (const name of declaredNames(ts, st, kind)) {
-      if (exported(st, name)) out.set(name, { kind, line: lineAt(file.sf, st), fp: textFp(st.getText(file.sf)) })
+      if (exported(st, name))
+        out.set(name, { kind, line: lineAt(file.sf, st), fp: textFp(st.getText(file.sf)) })
     }
   }
   return out
@@ -356,7 +373,9 @@ function declarationKind(ts, st) {
   if (ts.isFunctionDeclaration(st) && st.body !== undefined) return 'function'
   if (ts.isVariableStatement(st)) {
     const fnish = st.declarationList.declarations.every(
-      (d) => d.initializer !== undefined && (ts.isArrowFunction(d.initializer) || ts.isFunctionExpression(d.initializer)),
+      (d) =>
+        d.initializer !== undefined &&
+        (ts.isArrowFunction(d.initializer) || ts.isFunctionExpression(d.initializer)),
     )
     return fnish ? 'function' : null
   }
@@ -365,7 +384,9 @@ function declarationKind(ts, st) {
 
 function declaredNames(ts, st, kind) {
   if (kind === 'function' && ts.isVariableStatement(st)) {
-    return st.declarationList.declarations.filter((d) => ts.isIdentifier(d.name)).map((d) => d.name.text)
+    return st.declarationList.declarations
+      .filter((d) => ts.isIdentifier(d.name))
+      .map((d) => d.name.text)
   }
   return st.name === undefined ? [] : [st.name.text]
 }
@@ -436,7 +457,10 @@ function boolSelector(tree, c) {
     const split = topLevelSplit(ts, fn, p.name.text)
     const literalSites = sites.filter(({ call }) => {
       const a = call.arguments[index]
-      return a !== undefined && (a.kind === ts.SyntaxKind.TrueKeyword || a.kind === ts.SyntaxKind.FalseKeyword)
+      return (
+        a !== undefined &&
+        (a.kind === ts.SyntaxKind.TrueKeyword || a.kind === ts.SyntaxKind.FalseKeyword)
+      )
     }).length
     if (split || literalSites >= 2) {
       const param = symbol.ok(p.name.text) ? { param: p.name.text } : {}
@@ -456,7 +480,8 @@ function guardValue(ts, e) {
   if (u.kind === ts.SyntaxKind.NullKeyword) return 'null'
   if (ts.isIdentifier(u) && u.text === 'undefined') return 'undefined'
   if (ts.isNumericLiteral(u) && u.text === '0') return 'zero'
-  if ((ts.isStringLiteral(u) || ts.isNoSubstitutionTemplateLiteral(u)) && u.text === '') return 'empty-string'
+  if ((ts.isStringLiteral(u) || ts.isNoSubstitutionTemplateLiteral(u)) && u.text === '')
+    return 'empty-string'
   if (u.kind === ts.SyntaxKind.FalseKeyword) return 'false'
   return null
 }
@@ -475,15 +500,19 @@ function guardTest(ts, cond) {
   const eq = [ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.EqualsEqualsToken].includes(op)
   if (!eq) return null
   const sized = sizeOf(ts, unwrap(ts, u.left))
-  if (sized !== null && ts.isNumericLiteral(u.right) && u.right.text === '0') return { subject: sized, test: 'empty' }
-  const nul = u.right.kind === ts.SyntaxKind.NullKeyword || (ts.isIdentifier(u.right) && u.right.text === 'undefined')
+  if (sized !== null && ts.isNumericLiteral(u.right) && u.right.text === '0')
+    return { subject: sized, test: 'empty' }
+  const nul =
+    u.right.kind === ts.SyntaxKind.NullKeyword ||
+    (ts.isIdentifier(u.right) && u.right.text === 'undefined')
   if (nul && ts.isIdentifier(u.left)) return { subject: u.left.text, test: 'null' }
   return null
 }
 
 /** `x.length` / `x.size` → `x`. */
 function sizeOf(ts, e) {
-  if (e === undefined || !ts.isPropertyAccessExpression(e) || !ts.isIdentifier(e.expression)) return null
+  if (e === undefined || !ts.isPropertyAccessExpression(e) || !ts.isIdentifier(e.expression))
+    return null
   return ['length', 'size'].includes(e.name.text) ? e.expression.text : null
 }
 
@@ -528,20 +557,34 @@ function generalPath(ts, st, guard) {
 /** A `for (… of subject)` whose accumulator starts at the guarded value and is returned. */
 function forOfPath(ts, statements, i, guard) {
   const st = statements[i]
-  if (!ts.isForOfStatement(st) || !ts.isIdentifier(st.expression) || st.expression.text !== guard.subject) {
+  if (
+    !ts.isForOfStatement(st) ||
+    !ts.isIdentifier(st.expression) ||
+    st.expression.text !== guard.subject
+  ) {
     return false
   }
   if (guard.test !== 'empty') return false
   const last = statements.at(-1)
-  if (!ts.isReturnStatement(last) || last.expression === undefined || !ts.isIdentifier(last.expression)) return false
-  const acc = last.expression.text
-  return statements.slice(0, i).some(
-    (s) =>
-      ts.isVariableStatement(s) &&
-      s.declarationList.declarations.some(
-        (d) => ts.isIdentifier(d.name) && d.name.text === acc && guardValue(ts, d.initializer) === guard.returns,
-      ),
+  if (
+    !ts.isReturnStatement(last) ||
+    last.expression === undefined ||
+    !ts.isIdentifier(last.expression)
   )
+    return false
+  const acc = last.expression.text
+  return statements
+    .slice(0, i)
+    .some(
+      (s) =>
+        ts.isVariableStatement(s) &&
+        s.declarationList.declarations.some(
+          (d) =>
+            ts.isIdentifier(d.name) &&
+            d.name.text === acc &&
+            guardValue(ts, d.initializer) === guard.returns,
+        ),
+    )
 }
 
 /** @param {Tree} tree @param {Callable} c @param {TsFile} file */
@@ -552,9 +595,15 @@ function edgeGuard(tree, c, file) {
     const guard = earlyReturn(ts, st)
     if (guard === null) continue
     for (let j = i + 1; j < statements.length; j += 1) {
-      const kind = forOfPath(ts, statements, j, guard) ? 'for-of' : generalPath(ts, statements[j], guard)
+      const kind = forOfPath(ts, statements, j, guard)
+        ? 'for-of'
+        : generalPath(ts, statements[j], guard)
       if (kind !== null) {
-        return { returns: guard.returns, generalLine: lineAt(file.sf, statements[j]), generalKind: kind }
+        return {
+          returns: guard.returns,
+          generalLine: lineAt(file.sf, statements[j]),
+          generalKind: kind,
+        }
       }
     }
   }

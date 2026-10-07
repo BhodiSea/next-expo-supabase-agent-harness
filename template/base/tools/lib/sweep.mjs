@@ -41,8 +41,6 @@
 // units, never a locale.
 // SOURCE: docs/harness/gates-catalog.md (duplication gate) [corpus: harness/doctrine]
 import { createHash } from 'node:crypto'
-import { COMPLEXITY_FAMILIES, complexityHits } from './complexity.mjs'
-import { differsAt } from './differs.mjs'
 import {
   dottedCallee,
   enumOf,
@@ -54,6 +52,8 @@ import {
   symbol,
   UNPRINTABLE,
 } from './closed-text.mjs'
+import { COMPLEXITY_FAMILIES, complexityHits } from './complexity.mjs'
+import { differsAt } from './differs.mjs'
 import { advisoryKey, advisoryRecordOk, noteMissingPrerequisite } from './gate.mjs'
 import { home, loadForbidden } from './homes.mjs'
 import { loadParser } from './i18n-tree.mjs'
@@ -133,7 +133,12 @@ function exactRecord(index, lang, members) {
     status: 'advisory',
     subject: fp,
     fp,
-    counts: { members: members.length, workspaces: workspaceCount(members), tokens: members[0].tokens, params },
+    counts: {
+      members: members.length,
+      workspaces: workspaceCount(members),
+      tokens: members[0].tokens,
+      params,
+    },
     facts: {
       tier: rule === 'exact' ? 'owed' : 'advisory',
       lang,
@@ -153,7 +158,12 @@ function smallRecord(lang, members) {
     status: 'advisory',
     subject: fp,
     fp,
-    counts: { members: members.length, workspaces: workspaceCount(members), tokens: members[0].tokens, params: 0 },
+    counts: {
+      members: members.length,
+      workspaces: workspaceCount(members),
+      tokens: members[0].tokens,
+      params: 0,
+    },
     facts: { tier: 'advisory', lang, members: members.map(member) },
   }
 }
@@ -196,7 +206,8 @@ function candidatePairs(pool) {
   for (const bucket of buckets.values()) {
     if (bucket.length < 2 || bucket.length > NEAR_MISS.idiom) continue
     for (let x = 0; x < bucket.length; x += 1) {
-      for (let y = x + 1; y < bucket.length; y += 1) pairs.add(`${String(bucket[x])},${String(bucket[y])}`)
+      for (let y = x + 1; y < bucket.length; y += 1)
+        pairs.add(`${String(bucket[x])},${String(bucket[y])}`)
     }
   }
   return [...pairs].map((p) => p.split(',').map(Number))
@@ -218,7 +229,11 @@ function nearMissRecord(index, x, y, j) {
     status: 'advisory',
     subject: `${a.subject} ${b.subject}`,
     fp: sha(`${a.alpha} ${b.alpha}`).slice(0, 12),
-    counts: { members: 2, workspaces: workspaceCount([a, b]), tokens: Math.min(a.tokens, b.tokens) },
+    counts: {
+      members: 2,
+      workspaces: workspaceCount([a, b]),
+      tokens: Math.min(a.tokens, b.tokens),
+    },
     facts: {
       tier: 'advisory',
       lang: a.lang,
@@ -266,11 +281,41 @@ function complexityRecords(index) {
  * @type {readonly SweepFamily[]}
  */
 export const SWEEP_FAMILIES = Object.freeze([
-  { producer: PRODUCER, leg: 'exact-sql', rules: EXACT_RULES, parser: false, records: (ix) => exactRecords(ix, 'sql') },
-  { producer: PRODUCER, leg: 'exact-ts', rules: EXACT_RULES, parser: true, records: (ix) => exactRecords(ix, 'ts') },
-  { producer: PRODUCER, leg: 'near-miss-sql', rules: ['near-miss'], parser: false, records: (ix) => nearMissRecords(ix, 'sql') },
-  { producer: PRODUCER, leg: 'near-miss-ts', rules: ['near-miss'], parser: true, records: (ix) => nearMissRecords(ix, 'ts') },
-  { producer: PRODUCER, leg: 'complexity', rules: COMPLEXITY_FAMILIES, parser: true, records: complexityRecords },
+  {
+    producer: PRODUCER,
+    leg: 'exact-sql',
+    rules: EXACT_RULES,
+    parser: false,
+    records: (ix) => exactRecords(ix, 'sql'),
+  },
+  {
+    producer: PRODUCER,
+    leg: 'exact-ts',
+    rules: EXACT_RULES,
+    parser: true,
+    records: (ix) => exactRecords(ix, 'ts'),
+  },
+  {
+    producer: PRODUCER,
+    leg: 'near-miss-sql',
+    rules: ['near-miss'],
+    parser: false,
+    records: (ix) => nearMissRecords(ix, 'sql'),
+  },
+  {
+    producer: PRODUCER,
+    leg: 'near-miss-ts',
+    rules: ['near-miss'],
+    parser: true,
+    records: (ix) => nearMissRecords(ix, 'ts'),
+  },
+  {
+    producer: PRODUCER,
+    leg: 'complexity',
+    rules: COMPLEXITY_FAMILIES,
+    parser: true,
+    records: complexityRecords,
+  },
 ])
 
 /**
@@ -293,7 +338,13 @@ export function byRank(a, b) {
 function buildIndex(ts) {
   const { files, callables } = extractTree(ts)
   const importers = buildImporters()
-  return { ts, files, callables, importers, homes: { importers, census: readCensus(), forbidden: loadForbidden() } }
+  return {
+    ts,
+    files,
+    callables,
+    importers,
+    homes: { importers, census: readCensus(), forbidden: loadForbidden() },
+  }
 }
 
 /** Run one leg: its records when it completes, nothing and incomplete when it cannot. */
@@ -339,12 +390,18 @@ export function sweep(ts) {
 // `@`, `#` + digit or `<` outside one.
 
 const KEY12 = /^[0-9a-f]{12}$/
-const STATUS_TEXT = { advisory: 'advisory (no verdict)', 'ramp-withheld': 'withheld', blocking: 'blocking' }
+const STATUS_TEXT = {
+  advisory: 'advisory (no verdict)',
+  'ramp-withheld': 'withheld',
+  blocking: 'blocking',
+}
 const TIER = enumOf(['owed', 'advisory'])
 
 /** A member's place, `path:line`, in one code span; a name through its printer. */
 function place(m) {
-  return path.ok(m?.path) && Number.isInteger(m?.line) ? `\`${m.path}:${String(m.line)}\`` : UNPRINTABLE
+  return path.ok(m?.path) && Number.isInteger(m?.line)
+    ? `\`${m.path}:${String(m.line)}\``
+    : UNPRINTABLE
 }
 const nameOf = (m) => (sqlName.ok(m?.name) ? sqlName.print(m.name) : dottedCallee.print(m?.name))
 const memberText = (m) => `${place(m)} ${nameOf(m)}`
@@ -373,15 +430,18 @@ const HOME_TEXT = {
 function moveText(r) {
   const { home: kind, lang, target } = r.facts
   const params = r.counts.params ?? 0
-  const withParams = params > 0 ? ` with ${String(params)} literal parameter${params === 1 ? '' : 's'}` : ''
+  const withParams =
+    params > 0 ? ` with ${String(params)} literal parameter${params === 1 ? '' : 's'}` : ''
   if (kind === 'import') {
     return `import ${nameOf(target)} from ${place(target)} in every other member's file, and delete their copies`
   }
   if (kind === 'module' && lang === 'sql') {
     return `one function in schema \`private\`, added by a forward migration, called by every member${withParams}`
   }
-  if (kind === 'module') return `one new module in this workspace, called by every member${withParams}`
-  if (kind === 'lift') return `a new package under \`packages/shared/\` that every member imports${withParams}`
+  if (kind === 'module')
+    return `one new module in this workspace, called by every member${withParams}`
+  if (kind === 'lift')
+    return `a new package under \`packages/shared/\` that every member imports${withParams}`
   return 'none: no module every member may import exists or may be created, so this stays advisory'
 }
 
@@ -396,7 +456,10 @@ export function explainRecord(r) {
   const key = advisoryKey(r).slice(0, 12)
   const lines = [
     `${r.producer}: ${r.rule} ${key12.print(key)} · ${STATUS_TEXT[r.status] ?? UNPRINTABLE} · tier ${TIER.print(r.facts.tier)}`,
-    `subject    ${r.subject.split(' ').map((id) => subjectId.print(id)).join(' and ')}`,
+    `subject    ${r.subject
+      .split(' ')
+      .map((id) => subjectId.print(id))
+      .join(' and ')}`,
   ]
   const members = r.facts.members ?? (r.facts.member === undefined ? [] : [r.facts.member])
   for (const m of members) lines.push(`member     ${memberText(m)}`)
@@ -415,7 +478,9 @@ export function explainRecord(r) {
 /** @param {any} ts */
 function explainMain(ts, arg) {
   if (typeof arg !== 'string' || !KEY12.test(arg)) {
-    console.error(`${PRODUCER}: --explain takes one key12, the 12 hex digits a NOTE or an issue prints`)
+    console.error(
+      `${PRODUCER}: --explain takes one key12, the 12 hex digits a NOTE or an issue prints`,
+    )
     return 1
   }
   const doc = sweep(ts)
@@ -440,7 +505,10 @@ function explainMain(ts, arg) {
 export async function sweepMain(argv, load) {
   const ts = await loadParser(load)
   if (ts === null) {
-    noteMissingPrerequisite(PRODUCER, 'typescript could not be loaded, so the sweep\'s TS legs did not run')
+    noteMissingPrerequisite(
+      PRODUCER,
+      "typescript could not be loaded, so the sweep's TS legs did not run",
+    )
   }
   const at = argv.indexOf('--explain')
   if (at !== -1) return explainMain(ts, argv[at + 1])

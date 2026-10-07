@@ -39,7 +39,11 @@ function literalConsts(ts, sf) {
     for (const d of st.declarationList.declarations) {
       const init = unwrap(ts, d.initializer)
       if (!ts.isIdentifier(d.name) || init === undefined) continue
-      if (ts.isStringLiteral(init) || ts.isNumericLiteral(init) || ts.isNoSubstitutionTemplateLiteral(init)) {
+      if (
+        ts.isStringLiteral(init) ||
+        ts.isNumericLiteral(init) ||
+        ts.isNoSubstitutionTemplateLiteral(init)
+      ) {
         out.set(d.name.text, init.getText(sf))
       }
     }
@@ -63,7 +67,8 @@ function caseLabel(ts, clause, consts, sf) {
     const text = dottedCallee.ok(named) ? named : undefined
     return { kind: 'identifier', text, key: value === undefined ? `name:${named}` : `lit:${value}` }
   }
-  const cooked = e !== undefined && (ts.isStringLiteral(e) || ts.isNumericLiteral(e)) ? e.text : null
+  const cooked =
+    e !== undefined && (ts.isStringLiteral(e) || ts.isNumericLiteral(e)) ? e.text : null
   const text = cooked !== null && LITERAL_LABEL.test(cooked) ? cooked : undefined
   return { kind: 'literal', text, key: `lit:${clause.expression.getText(sf)}` }
 }
@@ -71,7 +76,10 @@ function caseLabel(ts, clause, consts, sf) {
 /** The callee an arm's statements return or evaluate first, or null. */
 function armCallee(ts, statements) {
   for (const st of statements) {
-    const e = ts.isReturnStatement(st) || ts.isExpressionStatement(st) ? unwrap(ts, st.expression) : undefined
+    const e =
+      ts.isReturnStatement(st) || ts.isExpressionStatement(st)
+        ? unwrap(ts, st.expression)
+        : undefined
     const call = e !== undefined && ts.isAwaitExpression(e) ? unwrap(ts, e.expression) : e
     if (call !== undefined && ts.isCallExpression(call)) return calleeText(ts, call.expression)
     if (ts.isReturnStatement(st) || ts.isThrowStatement(st)) return null
@@ -139,7 +147,11 @@ function alignArms(A, B) {
   // Equal callee pairs sit together, so the renderer can say "same pair"; then A's order.
   const pair = ({ fact }) => `${fact.aCallee ?? ''} ${fact.bCallee ?? ''}`
   arms.sort((x, y) => cmp(pair(x), pair(y)) || x.order - y.order)
-  return { arms: arms.map(({ fact }) => fact), aOnly: unmatched(A, matched), bOnly: unmatched(B, matched) }
+  return {
+    arms: arms.map(({ fact }) => fact),
+    aOnly: unmatched(A, matched),
+    bOnly: unmatched(B, matched),
+  }
 }
 
 /** A stream run's alignment key: tokens joined, with numbered slots collapsed. */
@@ -184,7 +196,11 @@ export function differsAt(ts, a, b) {
   const none = { labels: 0, groups: 0 }
   if (a.lang !== 'ts') {
     const left = unaligned(sqlStatementKeys(a), sqlStatementKeys(b))
-    return { arms: [], aOnly: { ...none, statements: left.a }, bOnly: { ...none, statements: left.b } }
+    return {
+      arms: [],
+      aOnly: { ...none, statements: left.a },
+      bOnly: { ...none, statements: left.b },
+    }
   }
   const sa = topSwitch(ts, a.node)
   const sb = topSwitch(ts, b.node)
@@ -192,7 +208,10 @@ export function differsAt(ts, a, b) {
   const arms = both
     ? alignArms(caseGroups(ts, sa, a.file.sf), caseGroups(ts, sb, b.file.sf))
     : { arms: [], aOnly: none, bOnly: none }
-  const left = unaligned(tsStatementKeys(ts, a, both ? sa : null), tsStatementKeys(ts, b, both ? sb : null))
+  const left = unaligned(
+    tsStatementKeys(ts, a, both ? sa : null),
+    tsStatementKeys(ts, b, both ? sb : null),
+  )
   return {
     arms: arms.arms,
     aOnly: { ...arms.aOnly, statements: left.a },
