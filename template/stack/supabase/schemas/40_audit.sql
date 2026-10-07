@@ -28,7 +28,8 @@
 --     names them — including the two policies that are the read and write paths;
 --   * audit.write_row(), which calls private.caller_id();
 --   * the monthly partitions, created at runtime by audit.ensure_partitions() and
---     removed by audit.drop_partitions_older_than();
+--     removed by audit.drop_partitions_older_than(), whose regclass forms maintain the
+--     auth-event trail's partitions too (2.0.3);
 --   * the pg_cron schedule, which is a per-project setting rather than a schema fact;
 --   * the AFTER triggers on the org-scoped tables in `public`.
 --
@@ -101,15 +102,22 @@ REVOKE ALL ON TABLE audit.events FROM anon, authenticated, service_role;
 -- Layers 3 and 4 of append-only. Layer 3 survives a role holding BYPASSRLS (verified:
 -- `postgres` on Supabase holds rolbypassrls and the trigger still fires); layer 4
 -- exists because TRUNCATE produces no OLD/NEW pair, so no row trigger can see it.
+--
+-- ONE FUNCTION FOR BOTH TRAILS (2.0.3, supabase/migrations/20261007000000_trail_shared_functions.sql).
+-- auth_trail.events' triggers execute this function too, so the message names the schema
+-- the trigger fired in rather than `audit`: a refusal on either trail names that trail,
+-- and the text for audit.events is unchanged. 45_auth_trail.sql declares tables only, so
+-- the trail's triggers are the migration's, like every other object it holds.
 CREATE OR REPLACE FUNCTION audit.deny_mutation()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = ''
 AS $deny$
 BEGIN
-  RAISE EXCEPTION 'audit.events is append-only (% on % refused)', TG_OP, TG_TABLE_NAME
+  RAISE EXCEPTION '%.events is append-only (% on % refused)', TG_TABLE_SCHEMA, TG_OP, TG_TABLE_NAME
     USING ERRCODE = '42501',
-          HINT = 'Rows are never updated or deleted. Remove history by dropping a partition: audit.drop_partitions_older_than(interval).';
+          HINT = 'Rows are never updated or deleted. Remove history by dropping a partition: '
+            || TG_TABLE_SCHEMA || '.drop_partitions_older_than(interval).';
 END
 $deny$;
 

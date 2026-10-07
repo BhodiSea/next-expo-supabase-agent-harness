@@ -48,8 +48,8 @@
 -- file's SQL for a migration of its own, without the second half where the trail was never
 -- adopted. The DROP FUNCTION and the REVOKEs from authenticated are the decisions the records
 -- explain:
--- adr: docs/adr/20260816-auth-event-trail.md
 -- adr: docs/adr/20260202-audit-trail.md
+-- adr: docs/adr/20260816-auth-event-trail.md
 
 -- CREATE OR REPLACE TRIGGER takes SHARE ROW EXCLUSIVE on a trail that takes a row on every
 -- sign-in, and on every partition under it: fail fast rather than queue every writer behind a

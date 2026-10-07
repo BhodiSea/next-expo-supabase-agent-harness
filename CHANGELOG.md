@@ -227,6 +227,33 @@ this comment. -->
   README are owned and reach an install that enabled the module with `update`, which removes
   the two moved files when unmodified. A slice you already applied is seeded and stays yours;
   the runbook's 2.0.3 section gives the hand steps.
+- **The two append-only trails share one `deny_mutation()` and one pair of partition
+  functions** (#146, parts A, B, D and E). The auth-event trail had copied the audit trail's
+  `deny_mutation()`, `ensure_partitions(int)` and `drop_partitions_older_than(interval)` line
+  for line, one schema over. No gate reads `supabase/**/*.sql` for clones, and the copies had
+  drifted: the trail's maintenance was never scheduled (part C, above), its partition
+  functions were revoked from `PUBLIC` only, and nothing proved that a new month got its
+  `TRUNCATE` guard. The new seeded migration
+  `supabase/migrations/20261007000000_trail_shared_functions.sql` makes `audit.deny_mutation()`
+  name the schema it fired in, so a refusal on `auth_trail.events` still says `auth_trail` and
+  the text for `audit.events` is unchanged. It adds `audit.ensure_partitions(regclass, int)` and
+  `audit.drop_partitions_older_than(regclass, interval)`, which take the parent, derive the
+  schema and the partition names from it, and refuse any parent but `audit.events` and
+  `auth_trail.events`. The four old signatures become one-line wrappers, so the pg_cron jobs
+  that call them by name keep working and none is re-pointed. Every trigger on the trail is
+  re-pointed in place, the trail's wrappers are revoked from `anon` and `authenticated` as
+  audit's are, and `auth_trail.deny_mutation()` is dropped without `CASCADE`. Everything stays
+  `SECURITY INVOKER` with an empty `search_path`, and `tools/tenancy.json` does not change. The
+  cost is the trails' independence: one `CREATE OR REPLACE` of `audit.deny_mutation()` now
+  reaches both, which both ADRs record. `supabase/tests/auth_trail.test.sql` gains thirteen
+  assertions (plan 25 to 38). Six of them were red without the migration: one trigger
+  function for both trails, no copy in `auth_trail`, the shared pair closed to client roles
+  and to any other parent, and wrappers with no DDL of their own. The other seven pass before
+  and after: a month partition refuses `TRUNCATE`, so does a month each trail's maintenance
+  creates during the run, and each refusal names its trail. `supabase/schemas/40_audit.sql`
+  declares the new body. No gate, step or ramp changes. The migration reaches fresh scaffolds
+  only (`seedOnInitOnly`); the runbook's 2.0.3 section gives an existing install the same SQL
+  for a migration of its own, with its second half left out where the trail was never adopted.
 
 ## [2.0.2] — 2026-10-03
 

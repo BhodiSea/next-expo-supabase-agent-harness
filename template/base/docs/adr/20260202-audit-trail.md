@@ -127,6 +127,20 @@ than a migration that fails to apply.
 - `supabase db reset` exercises the whole path: the seed writes through the policy
   wall as impersonated users, so every seeded row produces a real audit row written
   by a real trigger under real RLS.
+- **Amended in 2.0.3: this trail's machinery serves the auth-event trail too.**
+  [20260816-auth-event-trail.md](./20260816-auth-event-trail.md) had copied
+  `deny_mutation()`, `ensure_partitions(int)` and `drop_partitions_older_than(interval)`
+  one schema over, and the copies drifted. `20261007000000_trail_shared_functions.sql`
+  makes `audit.deny_mutation()` raise for both trails, naming the schema it fired in
+  (`TG_TABLE_SCHEMA`), so the text for `audit.events` is unchanged. It adds
+  `audit.ensure_partitions(regclass, int)` and
+  `audit.drop_partitions_older_than(regclass, interval)`, which derive the schema and
+  the partition names from the parent and refuse every parent but `audit.events` and
+  `auth_trail.events`. The old signatures stay as one-line wrappers, because the
+  pg_cron jobs call them by name. All of them stay `SECURITY INVOKER` with an empty
+  `search_path`, and EXECUTE is revoked from `PUBLIC`, `anon` and `authenticated`.
+  The function keeps its name in `audit`, so `tools/tenancy.json` and the tenancy gate
+  are unchanged.
 
 ## Honest losses
 
@@ -138,6 +152,12 @@ than a migration that fails to apply.
   send whatever it likes. `actor_id` is the field with integrity, because it comes
   from the verified JWT and is cross-checked by the insert policy. The two are
   documented separately so nobody builds an investigation on the wrong one.
+- **The two trails' immutability layers are no longer independent** (2.0.3). One
+  `CREATE OR REPLACE FUNCTION audit.deny_mutation()` now disarms layers 3 and 4 on
+  both trails, where it used to take two, and the auth-event trail's triggers depend
+  on a function in this schema, so a `DROP SCHEMA audit CASCADE` removes them too.
+  The trade was taken for the other direction: one fix to the function reaches both
+  trails, through the name the tenancy gate already holds this trail's triggers to.
 - **A DEFAULT partition is a trap as well as a backstop.** It guarantees a write
   never fails when maintenance has stopped, but a month partition cannot be created
   once the default holds rows for that month. The maintenance function creates three
