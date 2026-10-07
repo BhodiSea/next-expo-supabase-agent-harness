@@ -2,28 +2,33 @@
 // only, over the trees and streams shapes.mjs already built. Two alignments:
 //
 //   - SWITCH ARMS. When both bodies hold a top-level `switch`, its arms align by label. A
-//     label naming a file-local `const` initialised with a string or number literal aligns
-//     on that literal (N3), compared the way `lit` compares it, as the verbatim token; the
-//     value never enters a fact, so two mappers that name one SQLSTATE differently align
-//     instead of printing false one-sided arms. Every other label aligns by its own text.
-//     An arm's callee is the dotted callee of the call it returns or evaluates first; "same"
-//     means equal callee text. Arms are counted both as labels and as case groups (the
-//     labels that share one body).
+//     label naming a file-local `const` (not a `let` or `var`, which may be reassigned)
+//     initialised with a string or number literal aligns on that literal (N3), compared the
+//     way `lit` compares it, as the verbatim token; the value never enters a fact, so two
+//     mappers that name one SQLSTATE differently align instead of printing false one-sided
+//     arms. Every other label aligns by its own text. `as`, `satisfies` and parentheses are
+//     looked through, on a label and on a const's initialiser alike. An arm's callee is the
+//     dotted callee of the call or `new` it returns, throws or evaluates first, read through
+//     braces; "same" means equal callee text. Arms are counted both as labels and as case
+//     groups (the labels that share one body).
 //   - TOP-LEVEL STATEMENTS (the switch aside). They align by their normalised tokens with
 //     the bound-name slots collapsed to `$`, so one extra statement does not renumber the
 //     rest; the longest common subsequence aligns, and what is left over is one-sided. For
-//     SQL the statements are the body's `;`-separated runs of the normalised stream.
+//     SQL the statements are the body's `;`-separated runs of the normalised stream, between
+//     its `$$` delimiters, so a header that differs is never counted as a body statement.
 //
 // The facts are the shape closed-text.mjs's renderDiffersAt reads, flat so they fit a record:
 // { arms: [{ aKind, aLabel?, bKind, bLabel?, aCallee?, bCallee? }], aOnly, bOnly }, each kind
 // 'identifier' or 'literal', and `aOnly` / `bOnly` { labels, groups, statements }. An arm is
 // listed only when its two callees differ, ordered by callee pair and then by A's arm order,
-// so equal pairs sit together. A label's text is kept only when a closed printer can print
-// it (a literal written in the case itself must fit the case-label form; otherwise the
-// renderer prints the arm's index), and a callee only when the dotted-callee printer admits
-// it; a missing callee means the arm calls nothing.
+// so equal pairs sit together. A label's text is kept only when the printer renderDiffersAt
+// uses for its kind can print it: a name must be a symbol, so a dotted one (`Code.Unique`)
+// takes the literal kind with no text, and a literal written in the case itself must fit the
+// case-label form; a label with no text prints as its arm's index. A callee is kept only
+// when the dotted-callee printer admits it; a missing callee means the arm calls nothing, or
+// nothing that printer can name.
 // SOURCE: docs/harness/gates-catalog.md (duplication gate) [corpus: harness/doctrine]
-import { dottedCallee } from './closed-text.mjs'
+import { dottedCallee, symbol } from './closed-text.mjs'
 import { calleeText, unwrap } from './complexity.mjs'
 
 /** @typedef {import('./shapes.mjs').Callable} Callable */
@@ -31,11 +36,15 @@ import { calleeText, unwrap } from './complexity.mjs'
 const LITERAL_LABEL = /^[A-Za-z0-9_]{1,12}$/
 const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0)
 
+/** Is a variable statement a `const` (not `let`, `var` or `using`)? */
+const isConst = (ts, st) =>
+  (st.declarationList.flags & ts.NodeFlags.BlockScoped) === ts.NodeFlags.Const
+
 /** The file's top-level `const NAME = <string or number literal>`s: name → verbatim token. */
 function literalConsts(ts, sf) {
   const out = new Map()
   for (const st of sf.statements) {
-    if (!ts.isVariableStatement(st)) continue
+    if (!ts.isVariableStatement(st) || !isConst(ts, st)) continue
     for (const d of st.declarationList.declarations) {
       const init = unwrap(ts, d.initializer)
       if (!ts.isIdentifier(d.name) || init === undefined) continue
@@ -57,34 +66,50 @@ function topSwitch(ts, fn) {
   return fn.body.statements.find((st) => ts.isSwitchStatement(st)) ?? null
 }
 
-/** One case label: its kind, its printable text, and the key it aligns on. */
+/**
+ * One case label: its kind, its printable text, and the key it aligns on. A name the symbol
+ * printer refuses (a dotted `Code.Unique`) takes the literal kind with no text, whose
+ * printer falls back to the arm's index.
+ */
 function caseLabel(ts, clause, consts, sf) {
   if (!ts.isCaseClause(clause)) return { kind: 'identifier', text: 'default', key: 'default' }
   const e = unwrap(ts, clause.expression)
-  const named = e === undefined ? null : calleeText(ts, e)
+  const named = calleeText(ts, e)
   if (named !== null) {
     const value = consts.get(named)
-    const text = dottedCallee.ok(named) ? named : undefined
-    return { kind: 'identifier', text, key: value === undefined ? `name:${named}` : `lit:${value}` }
+    const key = value === undefined ? `name:${named}` : `lit:${value}`
+    return symbol.ok(named) ? { kind: 'identifier', text: named, key } : { kind: 'literal', key }
   }
-  const cooked =
-    e !== undefined && (ts.isStringLiteral(e) || ts.isNumericLiteral(e)) ? e.text : null
+  const cooked = ts.isStringLiteral(e) || ts.isNumericLiteral(e) ? e.text : null
   const text = cooked !== null && LITERAL_LABEL.test(cooked) ? cooked : undefined
-  return { kind: 'literal', text, key: `lit:${clause.expression.getText(sf)}` }
+  return { kind: 'literal', text, key: `lit:${e.getText(sf)}` }
 }
 
-/** The callee an arm's statements return or evaluate first, or null. */
+/** The call or `new` a statement returns, throws or evaluates, past an `await`; or undefined. */
+function statementCall(ts, st) {
+  const e =
+    ts.isReturnStatement(st) || ts.isThrowStatement(st) || ts.isExpressionStatement(st)
+      ? unwrap(ts, st.expression)
+      : undefined
+  const call = e !== undefined && ts.isAwaitExpression(e) ? unwrap(ts, e.expression) : e
+  return call !== undefined && (ts.isCallExpression(call) || ts.isNewExpression(call))
+    ? call
+    : undefined
+}
+
+/**
+ * The callee an arm's statements return, throw or evaluate first, read through braces: null
+ * when the arm returns or throws before any call, undefined when it runs off its end.
+ */
 function armCallee(ts, statements) {
   for (const st of statements) {
-    const e =
-      ts.isReturnStatement(st) || ts.isExpressionStatement(st)
-        ? unwrap(ts, st.expression)
-        : undefined
-    const call = e !== undefined && ts.isAwaitExpression(e) ? unwrap(ts, e.expression) : e
-    if (call !== undefined && ts.isCallExpression(call)) return calleeText(ts, call.expression)
+    const inner = ts.isBlock(st) ? armCallee(ts, st.statements) : undefined
+    if (inner !== undefined) return inner
+    const call = statementCall(ts, st)
+    if (call !== undefined) return calleeText(ts, call.expression)
     if (ts.isReturnStatement(st) || ts.isThrowStatement(st)) return null
   }
-  return null
+  return undefined
 }
 
 /** A switch's case groups: labels that share one body, with that body's callee. */
@@ -95,7 +120,7 @@ function caseGroups(ts, sw, sf) {
   for (const clause of sw.caseBlock.clauses) {
     labels.push(caseLabel(ts, clause, consts, sf))
     if (clause.statements.length === 0) continue
-    groups.push({ labels, callee: armCallee(ts, clause.statements) })
+    groups.push({ labels, callee: armCallee(ts, clause.statements) ?? null })
     labels = []
   }
   if (labels.length > 0) groups.push({ labels, callee: null })
@@ -167,10 +192,17 @@ function tsStatementKeys(ts, c, sw) {
   )
 }
 
-/** The `;`-separated runs of a SQL callable's normalised stream, as alignment keys. */
+/**
+ * The `;`-separated runs of a SQL callable's body, as alignment keys. The body is the stream
+ * between its `$$` delimiters (a nested dollar quote is one literal token, never a `$$`); a
+ * body written as a quoted string has none, and the whole stream stands in.
+ */
 function sqlStatementKeys(c) {
+  const open = c.stream.indexOf('$$')
+  const close = c.stream.lastIndexOf('$$')
+  const body = open !== -1 && close > open ? c.stream.slice(open + 1, close) : c.stream
   const runs = [[]]
-  for (const t of c.stream) {
+  for (const t of body) {
     if (t === ';') runs.push([])
     else runs.at(-1).push(t)
   }

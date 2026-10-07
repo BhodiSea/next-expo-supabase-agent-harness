@@ -563,6 +563,136 @@ treeTest("sweep: row 10's differs-at renders the plan's golden, byte for byte", 
   )
 })
 
+/** The differs-at facts of `mapA` (in a.ts) against `mapB` (in b.ts). */
+const differsOf = (srcA, srcB) =>
+  inTree(
+    { 'packages/k/package.json': pkg('@app/k'), 'packages/k/src/a.ts': srcA, 'packages/k/src/b.ts': srcB },
+    () => {
+      const { callables } = extractTree(ts)
+      const of = (name) => callables.find((c) => c.name === name)
+      return differsAt(ts, of('mapA'), of('mapB'))
+    },
+  )
+
+// An arm that throws, an arm in braces, and an arm that constructs: each one's callee is the
+// call it ends on, so arms that map apart are listed and arms that agree are not.
+const THROWING = ({ name, unique, fk, check }) => `const UNIQUE = '23505'
+const FK = '23503'
+const CHECK = '23514'
+
+export function ${name}(code: string, op: string): never {
+  switch (code) {
+    case UNIQUE:
+      throw ${unique}({ op })
+    case FK: {
+      const detail = { op }
+      return ${fk}(detail)
+    }
+    case CHECK:
+      throw new ${check}(op)
+    default: {
+      throw unclassified(op)
+    }
+  }
+}
+`
+
+treeTest('sweep: differs-at reads the callee of an arm that throws, sits in braces or constructs', () => {
+  const facts = differsOf(
+    THROWING({ name: 'mapA', unique: 'appError.conflict', fk: 'appError.validation', check: 'ConflictError' }),
+    THROWING({ name: 'mapB', unique: 'appError.validation', fk: 'appError.conflict', check: 'ValidationError' }),
+  )
+  assert.equal(
+    renderDiffersAt(facts),
+    [
+      'DIFFERS AT  case `CHECK`: `ConflictError` | `ValidationError` · case `UNIQUE`: `appError.conflict` | `appError.validation` · case `FK`: `appError.validation` | `appError.conflict`',
+      'B ONLY      0 labels in 0 case groups',
+    ].join('\n'),
+  )
+})
+
+treeTest('sweep: a dotted case label prints as its arm index, never as (unprintable)', () => {
+  const mapper = (name, unique, fk, plain) => `export function ${name}(code: Code): AppError {
+  switch (code) {
+    case Code.Unique:
+      return ${unique}()
+    case Code.Fk:
+      return ${fk}()
+    case PLAIN:
+      return ${plain}()
+    default:
+      return unclassified()
+  }
+}
+`
+  const facts = differsOf(
+    mapper('mapA', 'appError.conflict', 'appError.validation', 'retry'),
+    mapper('mapB', 'appError.validation', 'appError.conflict', 'abort'),
+  )
+  // The symbol printer refuses `.`, so a dotted label keeps no text and takes the kind
+  // whose printer falls back to the arm's index.
+  assert.deepEqual(
+    facts.arms.map((arm) => [arm.aKind, arm.aLabel, arm.bKind, arm.bLabel]),
+    [
+      ['literal', undefined, 'literal', undefined],
+      ['literal', undefined, 'literal', undefined],
+      ['identifier', 'PLAIN', 'identifier', 'PLAIN'],
+    ],
+  )
+  assert.equal(
+    renderDiffersAt(facts),
+    [
+      'DIFFERS AT  case `#0`: `appError.conflict` | `appError.validation` · case `#1`: `appError.validation` | `appError.conflict` · case `PLAIN`: `retry` | `abort`',
+      'B ONLY      0 labels in 0 case groups',
+    ].join('\n'),
+  )
+})
+
+treeTest('sweep: only a const label aligns on its value, and a wrapped literal label on the literal', () => {
+  const facts = differsOf(
+    `let UNIQUE = '23505'
+const FK = '23503'
+const CHECK = '23514'
+
+export function mapA(code: string): AppError {
+  switch (code) {
+    case UNIQUE:
+      return appError.conflict()
+    case FK:
+      return appError.validation()
+    case CHECK:
+      return appError.validation()
+    default:
+      return unclassified()
+  }
+}
+`,
+    `export function mapB(code: string): AppError {
+  switch (code) {
+    case '23505':
+      return appError.conflict()
+    case '23503' as Code:
+      return appError.conflict()
+    case ('23514'):
+      return appError.conflict()
+    default:
+      return unclassified()
+  }
+}
+`,
+  )
+  // A `let` may be reassigned, so UNIQUE aligns by its name and finds no arm in B.
+  assert.deepEqual(facts.aOnly, { labels: 1, groups: 1, statements: 0 })
+  assert.deepEqual(facts.bOnly, { labels: 1, groups: 1, statements: 0 })
+  assert.equal(
+    renderDiffersAt(facts),
+    [
+      'DIFFERS AT  case `FK` / `23503`: `appError.validation` | `appError.conflict` · case `CHECK` / `23514`: same pair',
+      'B ONLY      1 label in 1 case group',
+    ].join('\n'),
+  )
+})
+
 treeTest('sweep: --explain names the home and the move in the fixed vocabulary', () => {
   inTree(DOGFOOD, () => {
     const doc = sweep(ts)
@@ -641,6 +771,31 @@ treeTest('sweep: a near-miss pairs two bodies one statement apart, and says whic
   )
 })
 
+const TOUCH = (name, security) => `CREATE FUNCTION private.${name}(p_id uuid) RETURNS void
+LANGUAGE plpgsql SECURITY ${security} SET search_path = '' AS $$
+BEGIN
+  UPDATE public.notes SET updated_at = now() WHERE id = p_id AND deleted_at IS NULL;
+  UPDATE public.tasks SET updated_at = now() WHERE note_id = p_id AND deleted_at IS NULL;
+  DELETE FROM public.drafts WHERE note_id = p_id AND created_at < now() - interval '1 day';
+END;
+$$;
+`
+
+treeTest('sweep: a SQL near-miss whose bodies are equal has no one-sided statement, however the headers differ', () => {
+  inTree(
+    {
+      'supabase/migrations/20260101000000_a.sql': TOUCH('touch_a', 'DEFINER'),
+      'supabase/migrations/20260102000000_b.sql': TOUCH('touch_b', 'INVOKER'),
+    },
+    () => {
+      const near = sweep(ts).records.filter((r) => r.rule === 'near-miss')
+      assert.deepEqual(near.map((r) => r.subject), ['sql:private.touch_a sql:private.touch_b'])
+      // The statements are the body's: the header that differs is not glued to the first one.
+      assert.deepEqual([near[0].facts.aOnly.statements, near[0].facts.bOnly.statements], [0, 0])
+    },
+  )
+})
+
 treeTest('sweep: a record the closed schema refuses is dropped, and its leg is incomplete', () => {
   // A space is outside the closed path printer, so a class in `odd dir/` cannot be printed.
   inTree(
@@ -662,7 +817,11 @@ treeTest('sweep: a #private method, a quoted method name and a $ name are never 
   // Each would be a record (intent-hiding, or an exact class of the two $ copies) that no
   // closed printer can name; the extractor leaves them out rather than drop a leg.
   const out = []
-  t.mock.method(process.stdout, 'write', (s) => out.push(String(s)) > 0)
+  t.mock.method(process.stdout, 'write', (s, drained) => {
+    out.push(String(s))
+    if (typeof drained === 'function') drained()
+    return true
+  })
   return inTree(
     {
       'packages/k/package.json': pkg('@app/k'),
@@ -686,9 +845,29 @@ treeTest('sweep: a #private method, a quoted method name and a $ name are never 
   )
 })
 
+treeTest('sweep: --sweep --json through a shell pipe delivers the whole document', () => {
+  const { raw } = docOf('demo')
+  // spawnSync reads through a socketpair, whose buffer is large; a pipe holds 64 KiB, so a
+  // longer document arrives whole only when the gate waits for its write to drain.
+  assert.ok(raw.length > 65536, `the demo document is ${String(raw.length)} bytes, too short to fill a pipe`)
+  const piped = spawnSync(
+    'sh',
+    ['-c', '"$0" "$1" --sweep --json | (sleep 1; cat)', process.execPath, join(SCAFFOLDS.demo, 'tools/check-duplication.mjs')],
+    { cwd: SCAFFOLDS.demo, encoding: 'utf8', env: cleanEnv() },
+  )
+  assert.equal(piped.status, 0, piped.stderr)
+  assert.ok(piped.stdout === raw, `${String(piped.stdout.length)} of ${String(raw.length)} bytes arrived`)
+  assert.equal(JSON.parse(piped.stdout).complete, true)
+})
+
 treeTest('sweep: sweepMain prints the document and an explain in-process, and fails closed', (t) => {
   const out = []
-  t.mock.method(process.stdout, 'write', (s) => out.push(String(s)) > 0)
+  // A write's callback says it drained; sweepMain waits for it before it returns.
+  t.mock.method(process.stdout, 'write', (s, drained) => {
+    out.push(String(s))
+    if (typeof drained === 'function') drained()
+    return true
+  })
   t.mock.method(console, 'log', (s) => out.push(`${String(s)}\n`))
   t.mock.method(console, 'error', () => {})
   const run = (argv, load) => {

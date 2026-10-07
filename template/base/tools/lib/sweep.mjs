@@ -517,6 +517,10 @@ export async function sweepMain(argv, load) {
     return 1
   }
   const doc = sweep(ts)
-  process.stdout.write(`${JSON.stringify(doc)}\n`)
+  // A pipe takes stdout's writes asynchronously and the caller exits on return, so return
+  // only once the write has drained: what a full pipe still held would be dropped.
+  await new Promise((resolve) => {
+    process.stdout.write(`${JSON.stringify(doc)}\n`, () => resolve(undefined))
+  })
   return doc.complete ? 0 : 1
 }
