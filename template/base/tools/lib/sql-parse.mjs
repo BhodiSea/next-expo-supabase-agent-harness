@@ -101,8 +101,12 @@ function endOfLineComment(raw, i) {
   return j
 }
 
-/** Past a block comment at `i`. PostgreSQL nests these, unlike C. */
-function endOfBlockComment(raw, i) {
+/**
+ * Past a block comment at `i`. PostgreSQL nests these, unlike C. Exported (2.1.0, #186) for
+ * lib/shapes.mjs's tokeniser, which must end a comment where this scanner ends it.
+ * @param {string} raw @param {number} i
+ */
+export function endOfBlockComment(raw, i) {
   let j = i + 2
   let depth = 1
   while (j < raw.length && depth > 0) {

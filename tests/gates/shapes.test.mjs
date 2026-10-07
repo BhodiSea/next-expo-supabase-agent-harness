@@ -408,6 +408,135 @@ test("shapes: a backslash in a SQL string is an ordinary character, so `'a\\'` e
   )
 })
 
+/** The SQL callables of one migration, by name. @param {string} sql */
+const sqlOf = (sql) =>
+  inTree({ 'supabase/migrations/20260101000000_a.sql': sql }, () =>
+    Object.fromEntries(extractTree(null).callables.map((c) => [c.name, c])),
+  )
+/** A `language sql` function of `params` whose body is `select <body>`. */
+const SQL_FN = (name, params, body, returns = 'int') =>
+  `CREATE FUNCTION public.${name}(${params}) RETURNS ${returns} LANGUAGE sql AS $$ select ${body} $$;\n`
+
+test('shapes: a SQL parameter whose name starts with in, out or variadic is bound like any other', () => {
+  const c = sqlOf(
+    SQL_FN('a', 'invitation_id uuid', 'invitation_id', 'uuid') +
+      SQL_FN('b', 'token_id uuid', 'token_id', 'uuid') +
+      SQL_FN('c', 'input jsonb', "input -> 'k'", 'jsonb') +
+      SQL_FN('d', 'payload jsonb', "payload -> 'k'", 'jsonb') +
+      SQL_FN('e', 'INOUT outcome int, VARIADIC index int[]', 'outcome + index[1]') +
+      SQL_FN('f', 'INOUT x int, VARIADIC y int[]', 'x + y[1]'),
+  )
+  assert.equal(c['public.a'].alpha, c['public.b'].alpha, c['public.a'].stream.join(' '))
+  assert.equal(c['public.c'].alpha, c['public.d'].alpha, c['public.c'].stream.join(' '))
+  assert.equal(c['public.e'].alpha, c['public.f'].alpha, c['public.e'].stream.join(' '))
+  assert.deepEqual(c['public.e'].stream.slice(0, 9), ['(', 'inout', '$1', 'int', ',', 'variadic', '$2', 'int', '['])
+})
+
+test("shapes: an unnamed SQL parameter's type stays as written, whatever its spelling", () => {
+  const c = sqlOf(
+    SQL_FN('by_uuid', 'uuid', '$1::uuid', 'uuid') +
+      SQL_FN('by_text', 'text', '$1::text', 'text') +
+      SQL_FN('by_big', 'IN bigint', '$1') +
+      SQL_FN('by_int', 'IN int', '$1') +
+      SQL_FN('spelled', 'double precision, timestamp with time zone, character varying(9), uuid DEFAULT null', '1'),
+  )
+  assert.notEqual(c['public.by_uuid'].alpha, c['public.by_text'].alpha)
+  assert.notEqual(c['public.by_uuid'].lit, c['public.by_text'].lit)
+  assert.deepEqual(c['public.by_uuid'].stream.slice(0, 5), ['(', 'uuid', ')', 'returns', 'uuid'])
+  assert.notEqual(c['public.by_big'].alpha, c['public.by_int'].alpha)
+  const spelled = c['public.spelled'].stream
+  assert.deepEqual(spelled.slice(0, spelled.indexOf('returns')), [
+    '(', 'double', 'precision', ',', 'timestamp', 'with', 'time', 'zone', ',',
+    'character', 'varying', '(', 'N', ')', ',', 'uuid', 'default', 'null', ')',
+  ])
+})
+
+test('shapes: a positional $n is the parameter it names, never a literal', () => {
+  const c = sqlOf(
+    SQL_FN('sub_a', 'a int, b int', '$1 - $2') +
+      SQL_FN('sub_b', 'a int, b int', '$2 - $1') +
+      SQL_FN('sub_c', 'a int, b int', 'a - b') +
+      SQL_FN('pos_a', 'int, int', '$1 - $2') +
+      SQL_FN('pos_b', 'int, int', '$2 - $1') +
+      SQL_FN('mixed', 'OUT r int, a int', '$1') +
+      SQL_FN('mixed_named', 'OUT r int, a int', 'a'),
+  )
+  assert.notEqual(c['public.sub_a'].alpha, c['public.sub_b'].alpha)
+  assert.equal(c['public.sub_a'].alpha, c['public.sub_c'].alpha)
+  assert.deepEqual(c['public.sub_a'].literals, [])
+  assert.deepEqual(c['public.sub_a'].stream.slice(-5), ['select', '$1', '-', '$2', '$$'])
+  assert.notEqual(c['public.pos_a'].alpha, c['public.pos_b'].alpha)
+  // A `language sql` body numbers its input parameters only: $1 there is `a`, not `r`.
+  assert.equal(c['public.mixed'].alpha, c['public.mixed_named'].alpha)
+})
+
+test('shapes: a nested SQL block comment ends at its outermost `*/`', () => {
+  const c = sqlOf(
+    SQL_FN('nbc', 'p int', '/* outer /* inner */ still a comment */ p') + SQL_FN('plain', 'p int', 'p'),
+  )
+  assert.equal(c['public.nbc'].alpha, c['public.plain'].alpha, c['public.nbc'].stream.join(' '))
+  assert.equal(c['public.nbc'].tokens, c['public.plain'].tokens)
+})
+
+test('shapes: a SQL signature is the parameter list as written, balanced, and prints', () => {
+  const c = sqlOf(
+    SQL_FN('named', 'p_org_id uuid', 'p_org_id', 'uuid') +
+      SQL_FN('money', 'p_amount numeric(10,2), p_label text', 'p_label', 'text') +
+      SQL_FN('noargs', '', '1'),
+  )
+  assert.equal(signature.print(c['public.named'].sig), '`(p_org_id uuid)`')
+  assert.equal(signature.print(c['public.money'].sig), '`(p_amount numeric(N, N), p_label text)`')
+  assert.equal(signature.print(c['public.noargs'].sig), '`()`')
+})
+
+test('shapes: SQL overloads fold apart, and a DROP FUNCTION drops what it names', () => {
+  const c = inTree(
+    {
+      'supabase/migrations/20260101000000_a.sql':
+        SQL_FN('g', '_a int', '_a') +
+        SQL_FN('g', '_a int, _b int', '_a + _b') +
+        SQL_FN('h', '', '1') +
+        SQL_FN('k', '', '2') +
+        SQL_FN('m', 'x text', '4') +
+        SQL_FN('n', 'x varchar(9)', '5') +
+        SQL_FN('p', 'x notes.id%TYPE', '6') +
+        SQL_FN('q', 'x int', '7'),
+      'supabase/migrations/20260102000000_b.sql': `CREATE OR REPLACE FUNCTION public.g(_a int) RETURNS int LANGUAGE sql AS $$ select _a * 2 $$;
+DROP FUNCTION public.g(IN integer, int4), public.h(), public.k();
+DROP FUNCTION IF EXISTS public.m;
+DROP FUNCTION public.n(character varying);
+DROP FUNCTION public.p(uuid);
+DROP FUNCTION IF EXISTS public.q(text);
+`,
+    },
+    () => extractTree(null).callables,
+  )
+  // p's type reads differently in its DROP; PostgreSQL refuses a DROP that matches nothing, so
+  // the name's one overload is the one dropped. q's IF EXISTS named a signature q never had.
+  assert.deepEqual(c.map((x) => [x.subject, x.arity, x.path.slice(-5)]), [
+    ['sql:public.g', 1, 'b.sql'],
+    ['sql:public.q', 1, 'a.sql'],
+  ])
+  assert.ok(c[0].stream.includes('*'))
+})
+
+test('shapes: the trail wrappers and the shared pair they call are all live, each its own subject', () => {
+  const c = inTree(
+    {
+      'supabase/migrations/20260202000000_audit.sql': SQL_FN('ensure', '_months int DEFAULT 3', '_months'),
+      'supabase/migrations/20261007000000_shared.sql':
+        SQL_FN('ensure', '_parent regclass, _months int', '_months') +
+        SQL_FN('ensure', '_months int DEFAULT 3', "public.ensure('x'::regclass, _months)").replace('CREATE', 'CREATE OR REPLACE'),
+    },
+    () => extractTree(null).callables,
+  )
+  assert.deepEqual(c.map((x) => [x.subject, x.arity, x.path.slice(-10)]), [
+    ['sql:public.ensure', 1, 'shared.sql'],
+    ['sql:public.ensure_2', 2, 'shared.sql'],
+  ])
+  for (const x of c) assert.ok(subjectId.ok(x.subject), x.subject)
+})
+
 test('shapes: the extractor digest is 12 hex and moves with the parser version', () => {
   const a = extractorDigest({ version: '6.0.3' })
   assert.match(a, /^[0-9a-f]{12}$/)
