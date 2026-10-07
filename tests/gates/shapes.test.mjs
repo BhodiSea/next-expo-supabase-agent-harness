@@ -537,6 +537,34 @@ test('shapes: the trail wrappers and the shared pair they call are all live, eac
   for (const x of c) assert.ok(subjectId.ok(x.subject), x.subject)
 })
 
+test("shapes: an overload's ordinal skips a real `<fn>_2`, so no two callables share a subject", () => {
+  const c = inTree(
+    {
+      'supabase/migrations/20260101000000_f.sql':
+        SQL_FN('f', 'a int', 'a') + SQL_FN('f', 'a int, b int', 'a + b') + SQL_FN('f_2', 'a int', 'a * 2'),
+    },
+    () => extractTree(null).callables,
+  )
+  assert.deepEqual(c.map((x) => [x.name, x.arity, x.subject]), [
+    ['public.f', 1, 'sql:public.f'],
+    ['public.f', 2, 'sql:public.f_3'],
+    ['public.f_2', 1, 'sql:public.f_2'],
+  ])
+})
+
+test('shapes: an ordinal on a long name cuts the name, so the subject still prints; an over-long SQL name is skipped', () => {
+  const long = 'a'.repeat(62)
+  const c = inTree(
+    {
+      'supabase/migrations/20260101000000_long.sql':
+        SQL_FN(long, 'x int', 'x') + SQL_FN(long, 'x int, y int', 'x + y') + SQL_FN('c'.repeat(64), 'x int', 'x'),
+    },
+    () => extractTree(null).callables,
+  )
+  assert.deepEqual(c.map((x) => x.subject), [`sql:public.${long}`, `sql:public.${'a'.repeat(61)}_2`])
+  for (const x of c) assert.ok(subjectId.ok(x.subject), x.subject)
+})
+
 test('shapes: the extractor digest is 12 hex and moves with the parser version', () => {
   const a = extractorDigest({ version: '6.0.3' })
   assert.match(a, /^[0-9a-f]{12}$/)

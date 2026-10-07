@@ -12,7 +12,8 @@
 // closed printers refuse (lib/closed-text.mjs: a `#private`, string-literal, numeric or
 // computed method name, a name holding `$` or a non-ASCII letter, one over 64 characters)
 // is not extracted at all, since no record could name it: no class, near-miss or complexity
-// record reaches it, and a callable inside it is scoped as if it were not there. SQL
+// record reaches it, and a callable inside it is scoped as if it were not there; a SQL
+// function with a name segment over 63 characters is skipped the same way. SQL
 // callables are the CREATE FUNCTION statements sql-parse.mjs reads, folded last-wins over
 // the migration history by the identity PostgreSQL gives a function, its qualified name and
 // input argument types: a later CREATE OR REPLACE of a signature replaces it, a new argument
@@ -66,7 +67,7 @@
 // SOURCE: docs/harness/gates-catalog.md (duplication gate) [corpus: harness/doctrine]
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { dottedCallee } from './closed-text.mjs'
+import { dottedCallee, sqlName } from './closed-text.mjs'
 import { duplicationScanRoots, isGeneratedPath, isScannedName } from './duplication-scope.mjs'
 import { walkFiles } from './fs-walk.mjs'
 import { endOfBlockComment, parseFunctions, qualify, statementSpans } from './sql-parse.mjs'
@@ -76,7 +77,7 @@ import { endOfBlockComment, parseFunctions, qualify, statementSpans } from './sq
  * is a change to every class near FLOOR, so it changes `x` with the code.
  */
 export const TOKEN_CONVENTION =
-  'tc1: from the parameter list open paren through the body end; parens, types, return type, arrow, braces, trailing commas and written semicolons count; a bare arrow parameter counts its implied parens; type parameters do not count; a template literal is one S per literal part; SQL keywords and unquoted names lower-cased; each body dollar quote is one $$ token'
+  'tc1: from the parameter list open paren through the body end; parens, types, return type, arrow, braces, trailing commas and written semicolons count; a bare arrow parameter counts its implied parens; type parameters do not count; a template literal is one S per literal part; SQL keywords and unquoted names lower-cased; each body dollar quote is one $$ token; a positional $n is one token'
 
 // ---- scope ------------------------------------------------------------------------------
 
@@ -972,7 +973,9 @@ function foldSqlFile(path, live) {
       continue
     }
     const fn = parseFunctions([span.text])[0]
-    if (fn === undefined) continue
+    // A name the closed printer refuses (a segment over 63 characters, which PostgreSQL
+    // itself truncates) is no callable here, as for TS: no record could name it.
+    if (fn === undefined || !sqlName.ok(fn.qualified)) continue
     const statement = sqlTokens(raw.slice(span.start, span.end))
     const line = raw.slice(0, span.start + (statement[0]?.index ?? 0)).split('\n').length
     const { key, callable } = sqlCallable(fn, path, line, statement)
@@ -1089,25 +1092,43 @@ function assignSubjects(callables) {
       counts.set(pkgForm(c), (counts.get(pkgForm(c)) ?? 0) + 1)
     }
   }
-  const seen = new Map()
-  for (const c of callables) {
-    if (c.lang === 'sql') c.subject = `sql:${c.name}`
-    else if (
-      c.kind === 'function' &&
-      c.exported &&
-      c.scope === '' &&
-      counts.get(pkgForm(c)) === 1
-    ) {
-      c.subject = pkgForm(c)
-    } else c.subject = `${c.path}#${qualified(c)}`
-    // Two callables of one name in one file (an overload, a same-named helper in two
-    // functions' bodies, or one nested deeper than its parent's own name tells): the later
-    // ones carry their ordinal, never their line, because a subject enters the advisory key
-    // and a line must not.
-    const n = (seen.get(c.subject) ?? 0) + 1
-    seen.set(c.subject, n)
-    if (n > 1) c.subject = `${c.subject}_${String(n)}`
+  const base = (c) => {
+    if (c.lang === 'sql') return `sql:${c.name}`
+    const unique = c.kind === 'function' && c.exported && c.scope === ''
+    return unique && counts.get(pkgForm(c)) === 1 ? pkgForm(c) : `${c.path}#${qualified(c)}`
   }
+  // Two callables of one name in one file (an overload, a same-named helper in two
+  // functions' bodies, or one nested deeper than its parent's own name tells): the later
+  // ones carry an ordinal, never their line, because a subject enters the advisory key and a
+  // line must not. The ordinal skips every subject already taken, a real `<name>_2` included,
+  // so no two callables share a subject.
+  const bases = callables.map(base)
+  const taken = new Set(bases)
+  const next = new Map()
+  callables.forEach((c, i) => {
+    const s = bases[i]
+    let k = next.get(s)
+    if (k === undefined) {
+      c.subject = s
+      next.set(s, 2)
+      return
+    }
+    while (taken.has(withOrdinal(s, k))) k += 1
+    c.subject = withOrdinal(s, k)
+    taken.add(c.subject)
+    next.set(s, k + 1)
+  })
+}
+
+/**
+ * `subject` with ordinal `k` on its last segment, which is cut to keep the segment within 63
+ * characters (the closed SQL name's bound, one under a symbol's), so the subject still prints.
+ * @param {string} subject @param {number} k
+ */
+function withOrdinal(subject, k) {
+  const suffix = `_${String(k)}`
+  const cut = Math.max(subject.lastIndexOf('.'), subject.lastIndexOf('#')) + 1
+  return `${subject.slice(0, cut)}${subject.slice(cut, cut + 63 - suffix.length)}${suffix}`
 }
 
 /**
