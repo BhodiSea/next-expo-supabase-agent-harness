@@ -300,12 +300,13 @@ this comment. -->
   audit's are, and `auth_trail.deny_mutation()` is dropped without `CASCADE`. Everything stays
   `SECURITY INVOKER` with an empty `search_path`, and `tools/tenancy.json` does not change. The
   cost is the trails' independence: one `CREATE OR REPLACE` of `audit.deny_mutation()` now
-  reaches both, which both ADRs record. `supabase/tests/auth_trail.test.sql` gains thirteen
-  assertions (plan 25 to 38). Six of them were red without the migration: one trigger
+  reaches both, which both ADRs record. `supabase/tests/auth_trail.test.sql` gains fourteen
+  assertions (plan 25 to 39). Six of them were red without the migration: one trigger
   function for both trails, no copy in `auth_trail`, the shared pair closed to client roles
-  and to any other parent, and wrappers with no DDL of their own. The other seven pass before
+  and to any other parent, and wrappers with no DDL of their own. The other eight pass before
   and after: a month partition refuses `TRUNCATE`, so does a month each trail's maintenance
-  creates during the run, and each refusal names its trail. `supabase/schemas/40_audit.sql`
+  creates during the run, every partition of both trails has a `TRUNCATE` trigger of its own,
+  and each refusal names its trail. `supabase/schemas/40_audit.sql`
   declares the new body. No gate, step or ramp changes. The migration reaches fresh scaffolds
   only (`seedOnInitOnly`); the runbook's 2.0.3 section gives an existing install the same SQL
   for a migration of its own, with its second half left out where the trail was never adopted.

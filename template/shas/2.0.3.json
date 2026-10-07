@@ -749,6 +749,9 @@
       },
       {
         "sha256": "5b3a28452687c8940bbedd60aa128e52470ed3d252c1c210afd60c178066e044"
+      },
+      {
+        "sha256": "e60194b8dbea386a2a7aa6aae7dbeeaf5787f9039b7e3a566a5aecd84e8425e9"
       }
     ],
     "docs/adr/20260920-authenticated-write-revoke.md": [
