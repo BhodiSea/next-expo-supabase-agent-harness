@@ -266,6 +266,26 @@ treeTest('homes: no IMPORT that closes a cycle: no-circular sends it to the othe
   })
 })
 
+treeTest('homes: a cycle through a side-effect import or `export type *` is a cycle too', () => {
+  // x.ts reaches y.ts only through setup.ts, which it loads for its effect or its types:
+  // y importing x would close x -> setup -> y -> x, as dependency-cruiser sees it.
+  const members = ['packages/c/src/x.ts', 'packages/c/src/y.ts']
+  for (const link of ["import './setup'", "export type * from './setup'", "export type * as S from './setup'"]) {
+    const tree = {
+      '.dependency-cruiser.cjs': DEPCRUISE,
+      'packages/c/package.json': pkg('@app/c'),
+      'packages/c/src/x.ts': `${link}\n${BODY('first')}`,
+      'packages/c/src/setup.ts': "import { second } from './y'\nexport type Setup = { ok: true }\nsecond({ actorId: 'a', orgId: 'o' }, 'i', 't')\n",
+      'packages/c/src/y.ts': BODY('second'),
+      'packages/c/src/u0.ts': "import { first } from './x'\nexport const u = first\n",
+      'packages/c/src/u1.ts': "import { first } from './x'\nexport const u = first\n",
+    }
+    inTree(tree, () => {
+      assert.deepEqual(homeOf(members), { kind: 'import', target: 'packages/c/src/y.ts' }, link)
+    })
+  }
+})
+
 treeTest('homes: dependency types are judged for a new value import; a condition not judged forbids', () => {
   const tree = {
     'packages/api/package.json': pkg('@app/api'),

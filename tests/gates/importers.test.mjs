@@ -250,3 +250,35 @@ test('importers: the module graph: what a module reaches through imports, type-o
     assert.equal(idx.reaches('packages/c/src/x.ts', 'packages/c/src/x.ts'), true)
   })
 })
+
+test('importers: a side-effect import and `export type *` are graph edges; the import binds no export', () => {
+  const tree = {
+    'packages/c/package.json': pkg('@app/c'),
+    'packages/c/src/setup.ts': 'export function boot() { return 1 }\n',
+    'packages/c/src/types.ts': 'export interface Shape { readonly id: string }\n',
+    'packages/c/src/a.ts': "import './setup'\nexport const a = 1\n",
+    'packages/c/src/b.ts': "'use client'; import \"./setup\";\nexport const b = 2\n",
+    // A CSS `@import` inside a string is no statement, so it is no edge.
+    'packages/c/src/sheet.ts': "export const sheet = ' @import \"./setup\";'\n",
+    'packages/c/src/all.ts': "export type * from './types'\n",
+    'packages/c/src/ns.ts': "export type * as T from './types'\n",
+    'packages/c/src/u.ts':
+      "import type { Shape } from './all'\nimport type { T } from './ns'\nexport const u = (s: Shape, t: T.Shape) => s.id + t.id\n",
+  }
+  inTree(tree, () => {
+    const idx = buildImporters()
+    assert.equal(idx.reaches('packages/c/src/a.ts', 'packages/c/src/setup.ts'), true)
+    assert.equal(idx.reaches('packages/c/src/b.ts', 'packages/c/src/setup.ts'), true)
+    assert.equal(idx.reaches('packages/c/src/sheet.ts', 'packages/c/src/setup.ts'), false)
+    assert.equal(idx.reaches('packages/c/src/all.ts', 'packages/c/src/types.ts'), true)
+    assert.equal(idx.reaches('packages/c/src/ns.ts', 'packages/c/src/types.ts'), true)
+    // Importing a module for its effect names no binding: no file imports `boot`.
+    assert.deepEqual(idx.importersOf('packages/c/src/setup.ts', 'boot'), [])
+    // A type star is a barrel, followed to the module that defines the name.
+    assert.equal(idx.isBarrel('packages/c/src/all.ts'), true)
+    assert.equal(idx.isBarrel('packages/c/src/ns.ts'), true)
+    assert.deepEqual(idx.importersOf('packages/c/src/types.ts', 'Shape'), [
+      { file: 'packages/c/src/u.ts', workspace: '@app/c', locals: ['Shape', 'T'] },
+    ])
+  })
+})

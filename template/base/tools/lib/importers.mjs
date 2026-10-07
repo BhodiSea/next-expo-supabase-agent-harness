@@ -8,11 +8,12 @@
 //   - `import type` and `import { type X }`: a type is a `single-consumer` subject too;
 //   - a namespace import (`import * as ns`) imports EVERY export of the module;
 //   - a dynamic `import('<literal>')` or `require('<literal>')`, likewise every export;
-//   - through barrels: `export { a as b } from`, `export * from`, `export * as ns from`, and
-//     an imported binding exported again (`import { a } from …` then `export { a }` or
-//     `export default a`) are followed to the module that DEFINES the name, and the importer
-//     is counted there. A barrel re-exporting a name is not itself an importer of it, unless
-//     it also uses the name outside its import and export statements.
+//   - through barrels: `export { a as b } from`, `export * from` and `export * as ns from`,
+//     each also spelled `export type`, and an imported binding exported again (`import { a }
+//     from …` then `export { a }` or `export default a`) are followed to the module that
+//     DEFINES the name, and the importer is counted there. A barrel re-exporting a name is
+//     not itself an importer of it, unless it also uses the name outside its import and
+//     export statements.
 // EXPORT NAMES. The index is the one record of the names a module exports its own binding
 // under (exportedAs): `export function f` is `f`, `export { f as g }` is `g`, and
 // `export { f as default }`, `export default f` and `export default function f` are
@@ -24,8 +25,11 @@
 // `default`, and takes the first that is a source file here (a `.d.ts` target falls
 // through); an `exports` object whose keys are all conditions is the `.` entry, as in Node.
 // Anything else is a third-party module and is not counted.
-// THE MODULE GRAPH (reaches): every resolved import, type-only and dynamic included, and
-// every re-export, as dependency-cruiser sees them with tsPreCompilationDeps on.
+// THE MODULE GRAPH (reaches): every resolved import, type-only, dynamic and side-effect
+// (`import './x'`) included, and every re-export, `export type *` too, as dependency-cruiser
+// sees them with tsPreCompilationDeps on. A side-effect import binds no name, so it is an
+// edge of the graph and imports no export; it is read where a statement starts (a line's
+// start, or after `;`), so an `@import "…"` inside a string is not one.
 // Excluded as importers: `*.test.ts(x)`, `__tests__/` and `e2e/`.
 // LIMITS, stated: a computed specifier (`import(name)`), a `require` of a computed name, an
 // export spelled through `export =`, a destructured `export const { a } = …`, and any
@@ -49,7 +53,8 @@ const isTestPath = (path) =>
 
 /**
  * `local` holds the export names the module defines itself; `bindings` maps each of its own
- * exported bindings to the names it is exported under.
+ * exported bindings to the names it is exported under. An import with no names that is not
+ * `all` (a side-effect import, or one only forwarded) is a graph edge and nothing more.
  * @typedef {{
  *   path: string, local: Set<string>, bindings: Map<string, Set<string>>,
  *   reexports: Map<string, { spec: string, name: string }>,
@@ -85,6 +90,8 @@ function listNames(list) {
 }
 
 const IMPORT_FROM = /\bimport\s+(?:type\s+)?([^'"`;]*?)\s*from\s*(['"])([^'"]+)\2/g
+// `import '<spec>'` where a statement starts, so an `@import "…"` inside a string is not one.
+const IMPORT_EFFECT = /(?:^|;)[ \t]*import\s*(['"])([^'"]+)\1/gm
 const DEFAULT_DECL =
   /\bexport\s+default\s+(?:async\s+)?(?:function\b\s*\*?|(?:abstract\s+)?class\b)\s*([\w$]+)?/
 const DEFAULT_NAME = /\bexport\s+default\s+([A-Za-z_$][\w$]*)[ \t]*(?:;|$)/m
@@ -188,8 +195,9 @@ function readExportLists(text, mod, exportAs) {
       else mod.reexports.set(local, { spec: m[3], name: imported })
     }
   }
+  // `export * from` and `export * as ns from`, each also spelled `export type`.
   for (const m of text.matchAll(
-    /\bexport\s*\*\s*(?:as\s+([A-Za-z_$][\w$]*)\s+)?from\s*(['"])([^'"]+)\2/g,
+    /\bexport(?:\s+type)?\s*\*\s*(?:as\s+([A-Za-z_$][\w$]*)\s+)?from\s*(['"])([^'"]+)\2/g,
   )) {
     if (m[1] === undefined) mod.stars.push(m[3])
     else mod.namespaces.set(m[1], m[3])
@@ -198,6 +206,10 @@ function readExportLists(text, mod, exportAs) {
 
 function readImports(text, mod) {
   for (const m of text.matchAll(IMPORT_FROM)) mod.imports.push(importClause(m[1], m[3]))
+  // A side-effect import binds nothing: an edge of the graph, an importer of no export.
+  for (const m of text.matchAll(IMPORT_EFFECT)) {
+    mod.imports.push({ spec: m[2], names: [], all: false })
+  }
   for (const re2 of [
     /\bimport\s*\(\s*(['"])([^'"]+)\1\s*\)/g,
     /\brequire\s*\(\s*(['"])([^'"]+)\1\s*\)/g,
@@ -225,7 +237,7 @@ function importClause(clause, spec) {
 /** A pure barrel: nothing but export-from statements once they are removed. */
 function isBarrelText(text) {
   const stripped = text
-    .replace(/\bexport\s*\*\s*(?:as\s+[\w$]+\s+)?from\s*['"][^'"]+['"]\s*;?/g, '')
+    .replace(/\bexport(?:\s+type)?\s*\*\s*(?:as\s+[\w$]+\s+)?from\s*['"][^'"]+['"]\s*;?/g, '')
     .replace(/\bexport\s+(?:type\s+)?\{[^}]*\}\s*from\s*['"][^'"]+['"]\s*;?/g, '')
   return stripped.trim() === '' && text.trim() !== ''
 }
@@ -369,7 +381,8 @@ class ImporterIndex {
 
   /**
    * Does the module graph lead from `from` to `to`? Its edges are every resolved import
-   * (type-only and dynamic included) and re-export of a module.
+   * (type-only, dynamic and side-effect included) and re-export (`export type *` too) of a
+   * module.
    */
   reaches(from, to) {
     const seen = new Set([from])
