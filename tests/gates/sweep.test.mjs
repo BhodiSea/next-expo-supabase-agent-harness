@@ -13,12 +13,13 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { after, before, test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { renderDiffersAt } from '../../template/base/tools/lib/closed-text.mjs'
 import { differsAt } from '../../template/base/tools/lib/differs.mjs'
+import { walkFiles } from '../../template/base/tools/lib/fs-walk.mjs'
 import { advisoryKey, advisoryRecordOk } from '../../template/base/tools/lib/gate.mjs'
 import { extractTree } from '../../template/base/tools/lib/shapes.mjs'
 import {
@@ -221,10 +222,32 @@ test('sweep: --explain on a key no record has, or a malformed key, exits 1 with 
   }
 })
 
-treeTest('sweep: shorthand expansion leaves the class count of both scaffolds unchanged at every floor', () => {
-  for (const name of /** @type {const} */ (['default', 'demo'])) {
+const PUSH_SLICE = fileURLToPath(
+  new URL('../../template/modules/push-notifications/docs/modules/push-notifications/slice/', import.meta.url),
+)
+
+/** The demo scaffold with the push module's TS slice materialised (each `.ts.txt` as `.ts`). */
+function demoWithPush() {
+  const dir = join(ROOT, 'demo-push')
+  if (!existsSync(dir)) {
+    cpSync(SCAFFOLDS.demo, dir, { recursive: true })
+    for (const rel of walkFiles(PUSH_SLICE).filter((f) => f.endsWith('.ts.txt'))) {
+      const to = join(dir, rel.slice(0, -'.txt'.length))
+      mkdirSync(dirname(to), { recursive: true })
+      cpSync(join(PUSH_SLICE, rel), to)
+    }
+  }
+  return dir
+}
+
+treeTest('sweep: shorthand expansion leaves the class count unchanged at every floor, demo with the push slice too', () => {
+  for (const [name, dir] of [
+    ['default', SCAFFOLDS.default],
+    ['demo', SCAFFOLDS.demo],
+    ['demo with the push slice', demoWithPush()],
+  ]) {
     const cwd = process.cwd()
-    process.chdir(SCAFFOLDS[name])
+    process.chdir(dir)
     try {
       const counts = (expand) => {
         const pool = extractTree(ts, { expand }).callables.filter((c) => c.lang === 'ts')
