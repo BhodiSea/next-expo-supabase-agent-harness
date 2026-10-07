@@ -227,6 +227,16 @@ this comment. -->
   README are owned and reach an install that enabled the module with `update`, which removes
   the two moved files when unmodified. A slice you already applied is seeded and stays yours;
   the runbook's 2.0.3 section gives the hand steps.
+- **The factory's write guard denies every spelling of a protected path, and judges
+  NotebookEdit** (#224). `.claude/hooks/pretool-write-guard.mjs` stripped the project dir from
+  `file_path` and matched the rest as spelled, so `docs/../scripts/hygiene.mjs` and
+  `./scripts/hygiene.mjs` passed every `^`-anchored pattern, and `scripts/../docs/guide.md`
+  was denied though it lands in `docs/`. It read only `file_path`, so a NotebookEdit, which
+  sends `notebook_path`, was judged on an empty path and passed. The guard now reads
+  `file_path`, `notebook_path` or `path`, resolves it against the project dir and judges the
+  project-relative result; a path that resolves outside the project passes, as before. The new
+  `tests/hooks/factory-write-guard.test.mjs`, the guard's first test, was red on six of its
+  nine cases before the change. Factory only: nothing changes for an install.
 
 ## [2.0.2] — 2026-10-03
 

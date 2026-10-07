@@ -31,6 +31,7 @@
 // effect: a blocked maintainer turn means a consumer would have been blocked too, so a bug
 // in the shipped guard shows up here first, on the machine of the person who can fix it.
 // SOURCE: docs/harness/README.md (tamper evidence; the factory eats its own dog food)
+import { isAbsolute, relative, resolve } from 'node:path'
 import { denyTool, pass, readHookInput } from '../../template/base/.claude/hooks/lib/hookio.mjs'
 
 export const HARNESS_HOOK_VERSION = '0.2.1'
@@ -59,15 +60,25 @@ const PROTECTED = [
   /^\.claude\//,
 ]
 
+// NotebookEdit names its subject `notebook_path`, not `file_path` (2.0.3, #224): reading only
+// `file_path` left every notebook edit judged on an empty path, which passes. `path` is the
+// key the shipped guard also reads.
 const input = await readHookInput()
-const raw = String(input?.tool_input?.file_path ?? '')
+const ti = input?.tool_input ?? {}
+const raw = String(ti.file_path ?? ti.notebook_path ?? ti.path ?? '')
 if (raw === '') pass()
 
-// Repo-relative, POSIX. An absolute path from the tool is normalized against the project
-// dir so `/Users/…/scripts/hygiene.mjs` and `scripts/hygiene.mjs` are the same subject.
-const root = (process.env.CLAUDE_PROJECT_DIR ?? process.cwd()).split('\\').join('/')
-const posix = raw.split('\\').join('/')
-const rel = posix.startsWith(root) ? posix.slice(root.length).replace(/^\/+/, '') : posix
+// Repo-relative, POSIX, and RESOLVED (2.0.3, #224). Until then the project dir was stripped
+// off and the rest matched as spelled, so `docs/../scripts/hygiene.mjs` and
+// `./scripts/hygiene.mjs` slipped past every `^`-anchored pattern, and
+// `scripts/../docs/x.md` was denied though it lands outside scripts/. Resolving against the
+// project dir makes every spelling of a file one subject. Backslashes become `/` first, as
+// before, so a Windows spelling is judged on Linux too. A path that resolves outside the
+// project dir passes, as it always did: this guard judges the repository's own files.
+const toPosix = (p) => p.split('\\').join('/')
+const root = resolve(toPosix(process.env.CLAUDE_PROJECT_DIR ?? process.cwd()))
+const rel = toPosix(relative(root, resolve(root, toPosix(raw))))
+if (rel === '' || rel === '..' || rel.startsWith('../') || isAbsolute(rel)) pass()
 
 if (process.env.HARNESS_ALLOW_SELF_EDIT !== '1' && PROTECTED.some((re) => re.test(rel))) {
   denyTool(
