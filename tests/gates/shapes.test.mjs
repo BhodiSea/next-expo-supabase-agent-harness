@@ -565,6 +565,89 @@ test('shapes: an ordinal on a long name cuts the name, so the subject still prin
   for (const x of c) assert.ok(subjectId.ok(x.subject), x.subject)
 })
 
+/** `sql` with its CREATE FUNCTION statements made CREATE OR REPLACE. @param {string} sql */
+const orReplace = (sql) => sql.replaceAll('CREATE FUNCTION', 'CREATE OR REPLACE FUNCTION')
+
+test('shapes: a comma inside an ARRAY[...] default splits no SQL parameter', () => {
+  // Read as a split, `'admin' ]` became a third parameter: has_role kept a key its DROP never
+  // named, kept a stale twin beside its REPLACE, and pick_a's `$2` took that phantom's slot.
+  const roles = "p_org uuid, p_roles text[] DEFAULT ARRAY['owner', 'admin']"
+  const pick = "a text[] DEFAULT ARRAY['x', 'y'], b int DEFAULT 0"
+  const c = inTree(
+    {
+      'supabase/migrations/20260101000000_a.sql':
+        SQL_FN('has_role', roles, 'p_org is not null', 'boolean') +
+        SQL_FN('can', roles, 'p_org is not null', 'boolean') +
+        SQL_FN('pick_a', pick, '$2') +
+        SQL_FN('pick_b', pick, 'b'),
+      'supabase/migrations/20260102000000_b.sql': `DROP FUNCTION IF EXISTS public.has_role(uuid, text[]);
+${orReplace(SQL_FN('can', "p_org uuid, p_roles text[] DEFAULT ARRAY['owner']", 'true', 'boolean'))}`,
+    },
+    () => extractTree(null).callables,
+  )
+  assert.deepEqual(c.map((x) => [x.subject, x.arity, x.path.slice(-5)]), [
+    ['sql:public.can', 2, 'b.sql'],
+    ['sql:public.pick_a', 2, 'a.sql'],
+    ['sql:public.pick_b', 2, 'a.sql'],
+  ])
+  assert.equal(c[1].alpha, c[2].alpha, c[1].stream.join(' '))
+})
+
+test('shapes: a CREATE OR REPLACE that spells a type differently replaces the overload it names', () => {
+  // PostgreSQL resolves `%TYPE` at CREATE, and `vector` through the search_path, so each REPLACE
+  // here replaces the one function its parameter names identify; a REPLACE never renames an
+  // input parameter, so `renamed` with a new name is an overload, as is `pair`'s third, which
+  // could replace either of two. A schemas copy in the old spelling fills in nothing.
+  const c = inTree(
+    {
+      'supabase/migrations/20260101000000_a.sql':
+        SQL_FN('archive', 'p_note public.notes.id%TYPE', 'p_note', 'uuid') +
+        SQL_FN('match', 'q vector(1536), n int DEFAULT 10', 'n') +
+        SQL_FN('renamed', 'p_id public.notes.id%TYPE', 'p_id', 'uuid') +
+        SQL_FN('pair', 'p_id uuid', 'p_id', 'uuid') +
+        SQL_FN('pair', 'p_id text', '1', 'uuid'),
+      'supabase/migrations/20260102000000_b.sql': orReplace(
+        SQL_FN('archive', 'p_note uuid', 'p_note', 'uuid') +
+          SQL_FN('match', 'q extensions.vector(1536), n int DEFAULT 10', 'n + 1') +
+          SQL_FN('renamed', 'p_other uuid', 'p_other', 'uuid') +
+          SQL_FN('pair', 'p_id public.notes.id%TYPE', '2', 'uuid'),
+      ),
+      'supabase/schemas/10_docs.sql': SQL_FN('match', 'q vector(1536), n int DEFAULT 10', 'n + 1'),
+    },
+    () => extractTree(null).callables,
+  )
+  assert.deepEqual(c.map((x) => [x.subject, x.path.slice(-5)]), [
+    ['sql:public.archive', 'b.sql'],
+    ['sql:public.match', 'b.sql'],
+    ['sql:public.renamed', 'a.sql'],
+    ['sql:public.pair', 'a.sql'],
+    ['sql:public.pair_2', 'a.sql'],
+    ['sql:public.renamed_2', 'b.sql'],
+    ['sql:public.pair_3', 'b.sql'],
+  ])
+})
+
+test('shapes: an unnamed `text ARRAY` parameter is the type text[], and binds no name', () => {
+  const c = inTree(
+    {
+      'supabase/migrations/20260101000000_a.sql':
+        SQL_FN('arr_kw', 'text ARRAY', '$1[1]::text', 'text') +
+        SQL_FN('first_of', 'text ARRAY', '$1[1]', 'text') +
+        SQL_FN('first_of', 'uuid ARRAY', '$1[1]', 'uuid') +
+        SQL_FN('named', 'a text ARRAY', 'a[1]', 'text'),
+      'supabase/migrations/20260102000000_b.sql': `DROP FUNCTION IF EXISTS public.arr_kw(text[]);
+${orReplace(SQL_FN('first_of', 'text[]', '$1[2]', 'text'))}`,
+    },
+    () => extractTree(null).callables,
+  )
+  assert.deepEqual(c.map((x) => [x.subject, x.path.slice(-5)]), [
+    ['sql:public.first_of', 'b.sql'],
+    ['sql:public.first_of_2', 'a.sql'],
+    ['sql:public.named', 'a.sql'],
+  ])
+  assert.deepEqual(c[1].stream.slice(0, 6), ['(', 'uuid', 'array', ')', 'returns', 'uuid'])
+})
+
 test('shapes: the extractor digest is 12 hex and moves with the parser version', () => {
   const a = extractorDigest({ version: '6.0.3' })
   assert.match(a, /^[0-9a-f]{12}$/)

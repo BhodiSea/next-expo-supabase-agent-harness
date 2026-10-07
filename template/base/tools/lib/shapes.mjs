@@ -18,8 +18,14 @@
 // the migration history by the identity PostgreSQL gives a function, its qualified name and
 // input argument types: a later CREATE OR REPLACE of a signature replaces it, a new argument
 // list is an overload that lives beside the old one, and a DROP FUNCTION removes the
-// signature it names (every overload of a name it gives no argument list). supabase/schemas
-// fills in a signature no migration defines.
+// signature it names (every overload of a name it gives no argument list). A CREATE OR
+// REPLACE whose signature matches no live one, as when a type is spelled differently (a
+// `%TYPE`, an `extensions.` qualifier), replaces the name's one live overload when that has
+// the same number of input parameters and the same input parameter names (an unnamed one
+// matching only an unnamed one), since PostgreSQL forbids renaming an input parameter on
+// REPLACE. LIMIT: a REPLACE that keeps every name and changes a type is read as that
+// replacement too, where PostgreSQL adds an overload. supabase/schemas fills in a function no
+// migration defines; a copy the same rule matches to a migration's function is not one.
 //
 // THE NORMALISER (one for both languages). Hashing starts at the parameter list: the name,
 // `export` and every other modifier are outside it. Bound names (parameters, locals, inner
@@ -657,6 +663,8 @@ function finish({ norm, ...rest }) {
  * @typedef {{ value: string, literal: boolean, raw: string, index: number, inBody: boolean }}
  *   SqlToken
  * @typedef {{ mode: string, name: string | null, type: SqlToken[] }} SqlParam
+ * @typedef {{ callable: Callable, inputs: string }} SqlLive  a live function in the fold, with
+ *   its input parameters' names (`["p_org",null]`, null for an unnamed one)
  */
 
 // One token per lexeme: comments, quoted strings (E'', '', dollar-quoted), numbers, quoted
@@ -734,7 +742,8 @@ const sqlDeclName = (t) => sqlWord(t) || (t !== undefined && t.raw.startsWith('"
 /**
  * One parameter declaration, `[mode] [name] type [DEFAULT expr | = expr]`, from its tokens.
  * `name` is null for an unnamed parameter (a type alone, after any mode); `type` is the
- * type's tokens, the name and the default left out.
+ * type's tokens, the name and the default left out. `text ARRAY`, the standard spelling of
+ * `text[]`, is a type alone too: ARRAY is reserved, so it never follows a parameter's name.
  * @param {SqlToken[]} decl @returns {SqlParam}
  */
 function sqlParam(decl) {
@@ -746,6 +755,7 @@ function sqlParam(decl) {
     head.length > 1 &&
     sqlDeclName(head[0]) &&
     sqlDeclName(head[1]) &&
+    !(sqlWord(head[1]) && head[1].value === 'array') &&
     !SQL_SPLIT_TYPE.test(`${head[0].value} ${head[1].value}`)
   return {
     mode: moded ? decl[0].value : 'in',
@@ -756,7 +766,8 @@ function sqlParam(decl) {
 
 /**
  * The parenthesised list whose `(` is tokens[open], split at its top-level commas into
- * parameter declarations, and the index just past its `)`.
+ * parameter declarations, and the index just past its `)`. A comma inside parentheses or
+ * brackets (`numeric(10,2)`, `DEFAULT ARRAY['a', 'b']`) is not top-level.
  * @param {SqlToken[]} tokens @param {number} open
  * @returns {{ params: SqlParam[], end: number }}
  */
@@ -768,8 +779,8 @@ function sqlArgList(tokens, open) {
   for (; i < tokens.length; i += 1) {
     const t = tokens[i]
     if (t.raw === ')' && depth === 0) break
-    if (t.raw === '(') depth += 1
-    else if (t.raw === ')') depth -= 1
+    if (t.raw === '(' || t.raw === '[') depth += 1
+    else if (t.raw === ')' || t.raw === ']') depth -= 1
     if (t.raw === ',' && depth === 0) decls.push([])
     else decls[decls.length - 1].push(t)
   }
@@ -929,23 +940,27 @@ function slotOf(key, numbering) {
 }
 
 const DROP_FUNCTION = /^DROP FUNCTION /i
+const CREATE_OR_REPLACE = /^CREATE OR REPLACE /i
 
 /**
  * The SQL functions in scope, folded by PostgreSQL's identity for a function, its qualified
  * name and input argument types: the last definition of a signature across
  * supabase/migrations wins and a later `DROP FUNCTION` removes it; supabase/schemas fills in
- * a signature no migration defines. Two overloads of one name are two callables, in the order
+ * a function no migration defines (a copy that spells a type differently is the migration's
+ * function when respelled finds it). Two overloads of one name are two callables, in the order
  * their signatures were first defined, so assignSubjects gives the later its ordinal
  * (`sql:<schema>.<fn>_2`).
  * @returns {Callable[]}
  */
 function extractSqlTree() {
   const live = foldSqlDir('supabase/migrations')
-  for (const [key, fn] of foldSqlDir('supabase/schemas')) if (!live.has(key)) live.set(key, fn)
-  return [...live.values()]
+  for (const [key, entry] of foldSqlDir('supabase/schemas')) {
+    if (!live.has(key) && respelled(live, entry) === undefined) live.set(key, entry)
+  }
+  return [...live.values()].map((e) => e.callable)
 }
 
-/** @param {string} dir @returns {Map<string, Callable>} */
+/** @param {string} dir @returns {Map<string, SqlLive>} */
 function foldSqlDir(dir) {
   const live = new Map()
   if (!existsSync(dir)) return live
@@ -959,11 +974,11 @@ function foldSqlDir(dir) {
 
 /**
  * Apply one SQL file's CREATE FUNCTION and DROP FUNCTION statements to `live`, keyed by
- * signature: a CREATE OR REPLACE of a signature replaces it where it stands, and a new
- * argument list adds an overload beside the old one. sql-parse.mjs reads each statement; its
- * tokens come from the statement's raw extent, where a comment in the body still ends at its
- * line.
- * @param {string} path @param {Map<string, Callable>} live
+ * signature: a CREATE OR REPLACE of a signature replaces it where it stands, as does one that
+ * spells the types of a live function differently (respelled), and a new argument list adds an
+ * overload beside the old one. sql-parse.mjs reads each statement; its tokens come from the
+ * statement's raw extent, where a comment in the body still ends at its line.
+ * @param {string} path @param {Map<string, SqlLive>} live
  */
 function foldSqlFile(path, live) {
   const raw = readFileSync(path, 'utf8')
@@ -978,15 +993,44 @@ function foldSqlFile(path, live) {
     if (fn === undefined || !sqlName.ok(fn.qualified)) continue
     const statement = sqlTokens(raw.slice(span.start, span.end))
     const line = raw.slice(0, span.start + (statement[0]?.index ?? 0)).split('\n').length
-    const { key, callable } = sqlCallable(fn, path, line, statement)
-    live.set(key, callable)
+    const { key, entry } = sqlCallable(fn, path, line, statement)
+    const replaces = !live.has(key) && CREATE_OR_REPLACE.test(span.text)
+    const was = replaces ? respelled(live, entry) : undefined
+    if (was === undefined) live.set(key, entry)
+    else rekey(live, was, key, entry)
   }
+}
+
+/**
+ * The key of the live function a definition is when its own key matches no live one, as when a
+ * type is spelled differently (a `%TYPE`, an `extensions.` qualifier, a spelling the alias
+ * table lacks): the name's one live overload, if it has as many input parameters with the same
+ * names (an unnamed one matching only an unnamed one), since PostgreSQL never lets a CREATE OR
+ * REPLACE rename one. LIMIT: a REPLACE that keeps every name and changes a type is read as
+ * that function, though PostgreSQL adds an overload beside it.
+ * @param {Map<string, SqlLive>} live @param {SqlLive} entry
+ * @returns {string | undefined}
+ */
+function respelled(live, { callable, inputs }) {
+  const named = [...live.keys()].filter((k) => live.get(k)?.callable.name === callable.name)
+  return named.length === 1 && live.get(named[0])?.inputs === inputs ? named[0] : undefined
+}
+
+/**
+ * Put `entry` under `to` where `from` stood, so the callables keep their first-defined order.
+ * @param {Map<string, SqlLive>} live @param {string} from @param {string} to
+ * @param {SqlLive} entry
+ */
+function rekey(live, from, to, entry) {
+  const entries = [...live]
+  live.clear()
+  for (const [k, v] of entries) live.set(k === from ? to : k, k === from ? entry : v)
 }
 
 /**
  * Apply `DROP FUNCTION [IF EXISTS] name [(args)] [, ...]` to `live`: each target with an
  * argument list drops that signature, and one with none every overload of its name.
- * @param {SqlToken[]} tokens @param {Map<string, Callable>} live
+ * @param {SqlToken[]} tokens @param {Map<string, SqlLive>} live
  */
 function dropSqlFunctions(tokens, live) {
   const at = (k) => tokens[k]?.value ?? ''
@@ -1010,11 +1054,11 @@ function dropSqlFunctions(tokens, live) {
 /**
  * Drop one DROP FUNCTION target from `live`: the signature its argument list names, or every
  * overload of its name when it gives no list.
- * @param {Map<string, Callable>} live @param {string} qualified
+ * @param {Map<string, SqlLive>} live @param {string} qualified
  * @param {SqlParam[] | null} params @param {boolean} ifExists
  */
 function dropOverloads(live, qualified, params, ifExists) {
-  const named = [...live.keys()].filter((k) => live.get(k)?.name === qualified)
+  const named = [...live.keys()].filter((k) => live.get(k)?.callable.name === qualified)
   const hit = params === null ? named : named.filter((k) => k === sqlKey(qualified, params))
   // PostgreSQL refuses a DROP that matches no function, so one that applied matched: when the
   // types read differently here than in their CREATE (a spelling the alias table lacks), the
@@ -1030,7 +1074,7 @@ const SQL_WORKSPACE = Object.freeze({ dir: 'supabase', name: 'supabase' })
  * through the `)` that closes it: names as declared and lower-cased, literals as S and N.
  * @param {any} fn parseFunctions' record @param {string} path @param {number} line
  * @param {SqlToken[]} statement
- * @returns {{ key: string, callable: Callable }}
+ * @returns {{ key: string, entry: SqlLive }}
  */
 function sqlCallable(fn, path, line, statement) {
   const open = statement.findIndex((t) => t.raw === '(')
@@ -1048,7 +1092,8 @@ function sqlCallable(fn, path, line, statement) {
     sig: statement.slice(open, end).map((t) => t.value),
     norm: normaliseSql(fn, statement.slice(open), params),
   })
-  return { key: sqlKey(fn.qualified, params), callable }
+  const inputs = JSON.stringify(params.filter((p) => p.mode !== 'out').map((p) => p.name))
+  return { key: sqlKey(fn.qualified, params), entry: { callable, inputs } }
 }
 
 // ---- the tree ---------------------------------------------------------------------------
