@@ -57,6 +57,48 @@ treeTest('homes: IMPORT across workspaces goes to the copy every other member al
   })
 })
 
+treeTest('homes: IMPORT across workspaces reads an aliased export, and a barrel that imports then re-exports', () => {
+  const members = ['packages/a/src/m.ts', 'packages/b/src/n.ts']
+  const aliased = {
+    ...CROSS,
+    'packages/a/src/index.ts': "export { makeEvent } from './m'\n",
+    'packages/a/src/m.ts': `${BODY('eventOf').replace('export ', '')}export { eventOf as makeEvent }\n`,
+    'packages/a/src/use.ts': "import { makeEvent } from './m'\nexport const u = makeEvent\n",
+  }
+  inTree(aliased, () => assert.deepEqual(homeOf(members), { kind: 'import', target: 'packages/a/src/m.ts' }))
+  const forwarded = { ...CROSS, 'packages/a/src/index.ts': "import { eventOf } from './m'\nexport { eventOf }\n" }
+  inTree(forwarded, () => assert.deepEqual(homeOf(members), { kind: 'import', target: 'packages/a/src/m.ts' }))
+})
+
+treeTest('homes: the most importers counts every name a member is exported by: alias, default, or both', () => {
+  // x.ts's copy has 2 importers under whatever name it is exported by; y.ts's has 1.
+  const local = BODY('first').replace('export ', '')
+  const spellings = [
+    { x: `${local}export { first as primary }\n`, imports: ["import { primary } from './x'", "import { primary } from './x'"] },
+    { x: `${local}export { first as default }\n`, imports: ["import first from './x'", "import first from './x'"] },
+    { x: `${local}export default first\n`, imports: ["import first from './x'", "import first from './x'"] },
+    { x: `${BODY('first')}export default first\n`, imports: ["import first from './x'", "import { first } from './x'"] },
+  ]
+  for (const { x, imports } of spellings) {
+    const tree = {
+      'packages/c/package.json': pkg('@app/c'),
+      'packages/c/src/x.ts': x,
+      'packages/c/src/y.ts': BODY('second'),
+      'packages/c/src/v0.ts': "import { second } from './y'\nexport const v = second\n",
+      ...Object.fromEntries(
+        imports.map((line, i) => [`packages/c/src/u${String(i)}.ts`, `${line}\nexport const u = 1\n`]),
+      ),
+    }
+    inTree(tree, () => {
+      assert.deepEqual(
+        homeOf(['packages/c/src/x.ts', 'packages/c/src/y.ts']),
+        { kind: 'import', target: 'packages/c/src/x.ts' },
+        x,
+      )
+    })
+  }
+})
+
 treeTest('homes: no IMPORT when the literals differ, so two workspaces with a legal lift get LIFT', () => {
   inTree({ ...CROSS, 'packages/b/src/n.ts': BODY('eventFor', 'tasks.created') }, () => {
     assert.deepEqual(homeOf(['packages/a/src/m.ts', 'packages/b/src/n.ts']), { kind: 'lift', target: null })
@@ -132,12 +174,96 @@ const VERTICALS = {
 }
 
 treeTest('homes: LIFT for two verticals: the vertical wall stops IMPORT even with the dependency declared', () => {
+  const members = ['packages/verticals/notes/src/data/event.ts', 'packages/verticals/tasks/src/data/event.ts']
   inTree(VERTICALS, () => {
-    assert.deepEqual(
-      homeOf(['packages/verticals/notes/src/data/event.ts', 'packages/verticals/tasks/src/data/event.ts']),
-      { kind: 'lift', target: null },
-    )
+    assert.deepEqual(homeOf(members), { kind: 'lift', target: null })
   })
+  // workspace-tiers' vertical-vertical wall decides alone, with no .dependency-cruiser.cjs.
+  const { '.dependency-cruiser.cjs': _rules, ...bare } = VERTICALS
+  inTree(bare, () => {
+    assert.deepEqual(homeOf(members), { kind: 'lift', target: null })
+  })
+})
+
+treeTest('homes: the mobile wall stops IMPORT of a declared dependency the census does not sanction', () => {
+  const tree = {
+    'packages/x/package.json': pkg('@app/x'),
+    'packages/x/src/index.ts': "export { f } from './m'\n",
+    'packages/x/src/m.ts': BODY('f'),
+    'apps/mobile/package.json': pkg('mobile', ['@app/x']),
+    'apps/mobile/src/g.ts': BODY('g'),
+  }
+  const members = ['packages/x/src/m.ts', 'apps/mobile/src/g.ts']
+  inTree(tree, () => assert.deepEqual(homeOf(members), { kind: 'none', target: null }))
+  inTree({ ...tree, 'tools/exports-walls.json': '{"sanctioned":[{"package":"@app/x"}]}' }, () =>
+    assert.deepEqual(homeOf(members), { kind: 'import', target: 'packages/x/src/m.ts' }),
+  )
+})
+
+/** The scaffold's rule file with one more forbidden rule at the head of the list. */
+const withRule = (rule) => DEPCRUISE.replace('forbidden: [', `forbidden: [\n    ${JSON.stringify(rule)},`)
+
+treeTest('homes: only a rule at severity error forbids; warn, info, ignore and no severity do not', () => {
+  const members = ['packages/verticals/notes/src/data/event.ts', 'packages/verticals/tasks/src/data/event.ts']
+  const rule = (severity) => ({
+    name: 'advise-shared',
+    ...(severity === undefined ? {} : { severity }),
+    from: { path: '^packages/verticals/' },
+    to: { path: '^packages/shared/' },
+  })
+  for (const severity of ['warn', 'info', 'ignore', undefined]) {
+    inTree({ ...VERTICALS, '.dependency-cruiser.cjs': withRule(rule(severity)) }, () => {
+      assert.deepEqual(homeOf(members), { kind: 'lift', target: null }, String(severity))
+    })
+  }
+  inTree({ ...VERTICALS, '.dependency-cruiser.cjs': withRule(rule('error')) }, () => {
+    assert.deepEqual(homeOf(members), { kind: 'none', target: null })
+  })
+})
+
+treeTest('homes: no IMPORT that closes a cycle: no-circular sends it to the other member', () => {
+  const tree = {
+    '.dependency-cruiser.cjs': DEPCRUISE,
+    'packages/c/package.json': pkg('@app/c'),
+    // x.ts has the most importers, but it already imports y.ts: y importing x is a cycle.
+    'packages/c/src/x.ts': `import type { Helper } from './y'\n${BODY('first')}export const h: Helper | null = null\n`,
+    'packages/c/src/y.ts': `export interface Helper { readonly id: string }\n${BODY('second')}`,
+    'packages/c/src/u0.ts': "import { first } from './x'\nexport const u = first\n",
+    'packages/c/src/u1.ts': "import { first } from './x'\nexport const u = first\n",
+  }
+  const members = ['packages/c/src/x.ts', 'packages/c/src/y.ts']
+  inTree(tree, () => {
+    assert.deepEqual(homeOf(members), { kind: 'import', target: 'packages/c/src/y.ts' })
+  })
+  const { '.dependency-cruiser.cjs': _rules, ...bare } = tree
+  inTree(bare, () => {
+    assert.deepEqual(homeOf(members), { kind: 'import', target: 'packages/c/src/x.ts' })
+  })
+})
+
+treeTest('homes: dependency types are judged for a new value import; a condition not judged forbids', () => {
+  const tree = {
+    'packages/api/package.json': pkg('@app/api'),
+    'packages/api/src/index.ts': "export { eventOf } from './m'\n",
+    'packages/api/src/m.ts': BODY('eventOf'),
+    'apps/web/package.json': pkg('web', ['@app/api']),
+    'apps/web/lib/event.ts': BODY('eventFor'),
+  }
+  const members = ['packages/api/src/m.ts', 'apps/web/lib/event.ts']
+  const rule = (to) => ({ name: 'web-api', severity: 'error', from: { path: '^apps/web/' }, to: { path: '^packages/api/', ...to } })
+  const cases = [
+    [{}, 'lift'],
+    [{ dependencyTypesNot: ['type-only'] }, 'lift'],
+    [{ dependencyTypes: ['type-only'] }, 'import'],
+    [{ dependencyTypes: ['local', 'import'] }, 'lift'],
+    [{ dependencyTypesNot: ['import'] }, 'import'],
+    [{ moreThanOneDependencyType: true }, 'lift'],
+  ]
+  for (const [to, kind] of cases) {
+    inTree({ ...tree, '.dependency-cruiser.cjs': `module.exports = ${JSON.stringify({ forbidden: [rule(to)] })}\n` }, () => {
+      assert.equal(homeOf(members).kind, kind, JSON.stringify(to))
+    })
+  }
 })
 
 treeTest('homes: NONE when a member is a domain file: domain purity admits no packages/shared import', () => {

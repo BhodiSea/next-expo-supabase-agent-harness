@@ -8,20 +8,32 @@
 //   - `import type` and `import { type X }`: a type is a `single-consumer` subject too;
 //   - a namespace import (`import * as ns`) imports EVERY export of the module;
 //   - a dynamic `import('<literal>')` or `require('<literal>')`, likewise every export;
-//   - through barrels: `export { a as b } from`, `export * from` and `export * as ns from` are
-//     followed to the module that DEFINES the name, and the importer is counted there. A
-//     barrel re-exporting a name is not itself an importer of it.
+//   - through barrels: `export { a as b } from`, `export * from`, `export * as ns from`, and
+//     an imported binding exported again (`import { a } from …` then `export { a }` or
+//     `export default a`) are followed to the module that DEFINES the name, and the importer
+//     is counted there. A barrel re-exporting a name is not itself an importer of it, unless
+//     it also uses the name outside its import and export statements.
+// EXPORT NAMES. The index is the one record of the names a module exports its own binding
+// under (exportedAs): `export function f` is `f`, `export { f as g }` is `g`, and
+// `export { f as default }`, `export default f` and `export default function f` are
+// `default`; a binding can carry several. importersOfLocal merges the importers of all of
+// them by file, so homes.mjs and complexity.mjs count one binding however it is exported.
 // Resolution: a relative specifier from the importing file (`.js` written for a `.ts`
 // source, a directory's index); an `@app/*` specifier through the target workspace's
-// package.json `exports` map (a conditional entry resolves `types`, then `import`, then
-// `default`). Anything else is a third-party module and is not counted.
+// package.json `exports` map. A conditional entry tries `types`, then `import`, then
+// `default`, and takes the first that is a source file here (a `.d.ts` target falls
+// through); an `exports` object whose keys are all conditions is the `.` entry, as in Node.
+// Anything else is a third-party module and is not counted.
+// THE MODULE GRAPH (reaches): every resolved import, type-only and dynamic included, and
+// every re-export, as dependency-cruiser sees them with tsPreCompilationDeps on.
 // Excluded as importers: `*.test.ts(x)`, `__tests__/` and `e2e/`.
 // LIMITS, stated: a computed specifier (`import(name)`), a `require` of a computed name, an
-// export spelled through `export =`, and a destructured `export const { a } = …` are not seen,
-// so the count can only be LOW for them — a fact that undercounts a single-consumer subject's
-// importers says "1 importer" where the truth is more, never the reverse for a seen import.
-// Consumers: homes.mjs (IMPORT's target), complexity.mjs (single-consumer, call sites), and
-// later the packet order (#187) and the rule of two (#191).
+// export spelled through `export =`, a destructured `export const { a } = …`, and any
+// declarator after the first of one `export const a = …, b = …` are not seen, so the count
+// can only be LOW for them — a fact that undercounts a single-consumer subject's importers
+// says "1 importer" where the truth is more, never the reverse for a seen import.
+// Consumers: homes.mjs (IMPORT's target, its legality's cycle test), complexity.mjs
+// (single-consumer, call sites), and later the packet order (#187) and the rule of two (#191).
 // SOURCE: docs/harness/gates-catalog.md (duplication gate) [corpus: harness/doctrine]
 import { readFileSync } from 'node:fs'
 import { walkFiles } from './fs-walk.mjs'
@@ -36,10 +48,12 @@ const isTestPath = (path) =>
   /\.test\.tsx?$/.test(path) || /(^|\/)__tests__\//.test(path) || /(^|\/)e2e\//.test(path)
 
 /**
- * @typedef {{ name: string, from: string, imported: string }} Reexport
+ * `local` holds the export names the module defines itself; `bindings` maps each of its own
+ * exported bindings to the names it is exported under.
  * @typedef {{
- *   path: string, local: Set<string>, reexports: Map<string, { spec: string, name: string }>,
- *   stars: string[], namespaces: Map<string, string>, barrel: boolean, defaultName: string | null,
+ *   path: string, local: Set<string>, bindings: Map<string, Set<string>>,
+ *   reexports: Map<string, { spec: string, name: string }>,
+ *   stars: string[], namespaces: Map<string, string>, barrel: boolean,
  *   imports: { spec: string, names: { imported: string, local: string }[], all: boolean }[],
  * }} ModuleText
  */
@@ -70,37 +84,93 @@ function listNames(list) {
   return out
 }
 
+const IMPORT_FROM = /\bimport\s+(?:type\s+)?([^'"`;]*?)\s*from\s*(['"])([^'"]+)\2/g
+const DEFAULT_DECL =
+  /\bexport\s+default\s+(?:async\s+)?(?:function\b\s*\*?|(?:abstract\s+)?class\b)\s*([\w$]+)?/
+const DEFAULT_NAME = /\bexport\s+default\s+([A-Za-z_$][\w$]*)[ \t]*(?:;|$)/m
+
 /** @param {string} path @param {string} text comment-blanked @returns {ModuleText} */
 function readModule(path, text) {
   /** @type {ModuleText} */
   const mod = {
     path,
     local: new Set(),
+    bindings: new Map(),
     reexports: new Map(),
     stars: [],
     namespaces: new Map(),
     barrel: false,
     imports: [],
-    defaultName: null,
   }
-  for (const m of text.matchAll(LOCAL_DECL)) mod.local.add(m[2])
-  const def =
-    /\bexport\s+default\s+(?:async\s+)?(?:(?:function\s*\*?|class)\s+)?([A-Za-z_$][\w$]*)/.exec(
-      text,
-    )
-  if (/\bexport\s+default\b/.test(text)) mod.local.add('default')
-  if (def !== null && !['function', 'class', 'async'].includes(def[1])) mod.defaultName = def[1]
-  readExportLists(text, mod)
   readImports(text, mod)
+  const imported = new Map(
+    mod.imports.flatMap((imp) =>
+      imp.names.map((n) => [n.local, { spec: imp.spec, name: n.imported }]),
+    ),
+  )
+  const forwarded = new Set()
+  /** The module exports its binding `local` as `as`: its own, or an import it forwards. */
+  const exportAs = (local, as) => {
+    const from = imported.get(local)
+    if (from === undefined) {
+      mod.local.add(as)
+      mod.bindings.set(local, (mod.bindings.get(local) ?? new Set()).add(as))
+      return
+    }
+    forwarded.add(local)
+    if (from.name === '*') mod.namespaces.set(as, from.spec)
+    else mod.reexports.set(as, from)
+  }
+  for (const m of text.matchAll(LOCAL_DECL)) exportAs(m[2], m[2])
+  const def = defaultBinding(text)
+  if (def !== null) exportAs(def, 'default')
+  else if (/\bexport\s+default\b/.test(text)) mod.local.add('default')
+  readExportLists(text, mod, exportAs)
+  dropForwarded(mod, onlyForwarded(text, forwarded))
   mod.barrel = isBarrelText(text)
   return mod
 }
 
-function readExportLists(text, mod) {
+/**
+ * The binding `export default` exports: a declaration's name (`default` when it has none),
+ * or a bare identifier. Null for any other expression, or no default export.
+ */
+function defaultBinding(text) {
+  const decl = DEFAULT_DECL.exec(text)
+  if (decl !== null) {
+    const name = decl[1]
+    return name === undefined || name === 'extends' || name === 'implements' ? 'default' : name
+  }
+  return DEFAULT_NAME.exec(text)?.[1] ?? null
+}
+
+/** The forwarded import bindings a module never uses outside its import and export statements. */
+function onlyForwarded(text, forwarded) {
+  if (forwarded.size === 0) return forwarded
+  const rest = text
+    .replace(IMPORT_FROM, ' ')
+    .replace(/\bexport\s+(?:type\s+)?\{[^}]*\}/g, ' ')
+    .replace(DEFAULT_NAME, ' ')
+  const used = (name) =>
+    new RegExp(`(?<![\\w$.])${name.replace(/\$/g, '\\$')}(?![\\w$])`).test(rest)
+  return new Set([...forwarded].filter((name) => !used(name)))
+}
+
+/** A module that only forwards an imported binding is not its importer: drop the binding. */
+function dropForwarded(mod, dropped) {
+  if (dropped.size === 0) return
+  for (const imp of mod.imports) {
+    if (imp.names.some((n) => n.imported === '*' && dropped.has(n.local))) imp.all = false
+    imp.names = imp.names.filter((n) => !dropped.has(n.local))
+  }
+}
+
+function readExportLists(text, mod, exportAs) {
   const re = /\bexport\s+(?:type\s+)?\{([^}]*)\}\s*(?:from\s*(['"])([^'"]+)\2)?/g
   for (const m of text.matchAll(re)) {
+    // In an export list, `imported` is the module's binding and `local` the exported name.
     for (const { imported, local } of listNames(m[1])) {
-      if (m[3] === undefined) mod.local.add(local)
+      if (m[3] === undefined) exportAs(imported, local)
       else mod.reexports.set(local, { spec: m[3], name: imported })
     }
   }
@@ -113,8 +183,7 @@ function readExportLists(text, mod) {
 }
 
 function readImports(text, mod) {
-  const re = /\bimport\s+(?:type\s+)?([^'"`;]*?)\s*from\s*(['"])([^'"]+)\2/g
-  for (const m of text.matchAll(re)) mod.imports.push(importClause(m[1], m[3]))
+  for (const m of text.matchAll(IMPORT_FROM)) mod.imports.push(importClause(m[1], m[3]))
   for (const re2 of [
     /\bimport\s*\(\s*(['"])([^'"]+)\1\s*\)/g,
     /\brequire\s*\(\s*(['"])([^'"]+)\1\s*\)/g,
@@ -150,7 +219,8 @@ function isBarrelText(text) {
 // ---- workspaces and resolution ----------------------------------------------------------
 
 /**
- * @typedef {{ dir: string, name: string, exports: Map<string, string>,
+ * `exports` maps each subpath to its candidate targets, in the order tried.
+ * @typedef {{ dir: string, name: string, exports: Map<string, string[]>,
  *   deps: Set<string> }} Workspace
  */
 
@@ -180,25 +250,22 @@ function readWorkspace(dir) {
   if (typeof pkg?.name !== 'string') return null
   const exports = new Map()
   const map = pkg.exports
-  if (typeof map === 'string') exports.set('.', map)
-  else if (map !== null && typeof map === 'object') {
-    for (const [key, value] of Object.entries(map)) {
-      const target = exportTarget(value)
-      if (target !== null) exports.set(key, target)
-    }
+  // An object of subpaths has `.`-keys; one whose keys are all conditions is the `.` entry.
+  const isObject = map !== null && typeof map === 'object' && !Array.isArray(map)
+  const subpaths = isObject && Object.keys(map).some((key) => key.startsWith('.'))
+  for (const [key, value] of subpaths ? Object.entries(map) : [['.', map]]) {
+    const targets = exportTargets(value)
+    if (targets.length > 0) exports.set(key, targets)
   }
   return { dir, name: pkg.name, exports, deps: new Set(Object.keys(pkg.dependencies ?? {})) }
 }
 
-/** A conditional export entry's file: `types`, then `import`, then `default`. */
-function exportTarget(value) {
-  if (typeof value === 'string') return value
-  if (value === null || typeof value !== 'object') return null
-  for (const key of ['types', 'import', 'default']) {
-    const t = exportTarget(value[key])
-    if (t !== null) return t
-  }
-  return null
+/** A conditional export entry's files, in the order tried: `types`, `import`, `default`. */
+function exportTargets(value) {
+  if (typeof value === 'string') return [value]
+  if (Array.isArray(value)) return value.flatMap(exportTargets)
+  if (value === null || typeof value !== 'object') return []
+  return ['types', 'import', 'default'].flatMap((key) => exportTargets(value[key]))
 }
 
 /** POSIX join-and-normalise; null when it climbs above the root. */
@@ -243,6 +310,9 @@ export function buildImporters() {
 }
 
 class ImporterIndex {
+  /** @type {Map<string, string[]>} each module's resolved dependencies, built on demand */
+  #graph = new Map()
+
   /**
    * @param {Map<string, ModuleText>} modules @param {Set<string>} files
    * @param {Workspace[]} workspaces
@@ -271,10 +341,53 @@ class ImporterIndex {
     }
     const ws = this.workspaces.find((w) => spec === w.name || spec.startsWith(`${w.name}/`))
     if (ws === undefined) return null
-    const sub = spec === ws.name ? '.' : `.${spec.slice(ws.name.length)}`
-    const target = ws.exports.get(sub)
-    if (target === undefined) return null
-    return fileFor(normalise(`${ws.dir}/${target}`), this.files)
+    return this.#entryFile(ws, spec === ws.name ? '.' : `.${spec.slice(ws.name.length)}`)
+  }
+
+  /** The source file an `exports` subpath resolves to: its first target that is one. */
+  #entryFile(ws, sub) {
+    for (const target of ws.exports.get(sub) ?? []) {
+      const file = fileFor(normalise(`${ws.dir}/${target}`), this.files)
+      if (file !== null) return file
+    }
+    return null
+  }
+
+  /**
+   * Does the module graph lead from `from` to `to`? Its edges are every resolved import
+   * (type-only and dynamic included) and re-export of a module.
+   */
+  reaches(from, to) {
+    const seen = new Set([from])
+    const queue = [from]
+    for (let i = 0; i < queue.length; i += 1) {
+      if (queue[i] === to) return true
+      for (const next of this.#dependencies(queue[i])) {
+        if (seen.has(next)) continue
+        seen.add(next)
+        queue.push(next)
+      }
+    }
+    return false
+  }
+
+  /** The files a module depends on, resolved. */
+  #dependencies(path) {
+    if (!this.#graph.has(path)) {
+      const mod = this.modules.get(path)
+      const specs =
+        mod === undefined
+          ? []
+          : [
+              ...mod.imports.map((imp) => imp.spec),
+              ...[...mod.reexports.values()].map((re) => re.spec),
+              ...mod.stars,
+              ...mod.namespaces.values(),
+            ]
+      const files = specs.map((spec) => this.resolve(path, spec)).filter((f) => f !== null)
+      this.#graph.set(path, [...new Set(files)])
+    }
+    return this.#graph.get(path) ?? []
   }
 
   /**
@@ -362,12 +475,36 @@ class ImporterIndex {
    * @returns {{ file: string, workspace: string | null, locals: string[] }[]}
    */
   importersOf(path, name) {
-    const byFile = this.importers.get(`${path}#${name}`)
-    if (byFile === undefined) return []
+    return this.#listed(this.importers.get(`${path}#${name}`) ?? new Map())
+  }
+
+  /** The names a module exports its own binding `local` under, sorted; [] when none. */
+  exportedAs(path, local) {
+    return [...(this.modules.get(path)?.bindings.get(local) ?? [])].sort()
+  }
+
+  /**
+   * The non-test files importing a module's own binding `local` under any name it is
+   * exported by (its own, an alias, `default`), merged by file, as importersOf lists them.
+   * @returns {{ file: string, workspace: string | null, locals: string[] }[]}
+   */
+  importersOfLocal(path, local) {
+    /** @type {Map<string, Set<string>>} */
+    const byFile = new Map()
+    for (const name of this.exportedAs(path, local)) {
+      for (const [file, locals] of this.importers.get(`${path}#${name}`) ?? []) {
+        byFile.set(file, new Set([...(byFile.get(file) ?? []), ...locals]))
+      }
+    }
+    return this.#listed(byFile)
+  }
+
+  /** @param {Map<string, Set<string>>} byFile */
+  #listed(byFile) {
     return [...byFile.keys()].sort().map((file) => ({
       file,
       workspace: this.workspaceOf(file)?.name ?? null,
-      locals: [...byFile.get(file)].sort(),
+      locals: [...(byFile.get(file) ?? [])].sort(),
     }))
   }
 
@@ -380,8 +517,8 @@ class ImporterIndex {
     const ws = this.workspaceOf(path)
     if (ws === null) return []
     const out = []
-    for (const [sub, target] of [...ws.exports].sort()) {
-      const file = fileFor(normalise(`${ws.dir}/${target}`), this.files)
+    for (const sub of [...ws.exports.keys()].sort()) {
+      const file = this.#entryFile(ws, sub)
       if (file === null) continue
       const spec = sub === '.' ? ws.name : `${ws.name}${sub.slice(1)}`
       for (const n of this.exportNames(file)) {
@@ -393,8 +530,11 @@ class ImporterIndex {
     return out
   }
 
-  /** The local name a module's `export default` binds, or null. */
+  /** The local binding a module's `export default` exports, or null. */
   defaultName(path) {
-    return this.modules.get(path)?.defaultName ?? null
+    for (const [local, names] of this.modules.get(path)?.bindings ?? []) {
+      if (names.has('default')) return local
+    }
+    return null
   }
 }

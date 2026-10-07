@@ -1,20 +1,27 @@
 // tools/lib/homes.mjs — home(class): where one copy of a class of equal bodies can live
 // (2.1.0, #186). One total function of the members' files and the rule files the gates
 // already enforce, so a home it prints is one the tree's own laws admit:
-//   - the `forbidden` rules of .dependency-cruiser.cjs (the `architecture` step), loaded
-//     in-process and evaluated on the resolved paths, `$1` back-references included;
+//   - the `forbidden` rules of .dependency-cruiser.cjs (the `architecture` step) that the
+//     step fails on (severity `error`; a missing severity is `warn`), loaded in-process and
+//     judged for the one new edge a move adds, a static value import: `path`/`pathNot` on
+//     the resolved paths (`$1` back-references included), `circular` by whether the
+//     imported module already reaches the importing file in importers.mjs's module graph,
+//     and `dependencyTypes`/`dependencyTypesNot` by the types such an import has or never
+//     has. A rule with any condition not judged here forbids once its paths match (closed);
 //   - the vertical-anatomy laws (lib/vertical-anatomy.mjs anatomyRefuses: domain purity,
 //     events purity, no client reach);
 //   - the workspace walls (lib/workspace-tiers.mjs mayDepend, over the census).
 //
 // The four homes, tried in order:
 //   1. IMPORT — some member's module is already value-importable from every other member's
-//      file: the member is exported, every other member's workspace either IS its workspace
+//      file: the member is exported (under any name importers.mjs records for its binding:
+//      its own, an alias, `default`), every other member's workspace either IS its workspace
 //      or already declares a runtime dependency on its package and reaches it through an
 //      `exports` subpath, and no law forbids the import. Only when the members' literals are
 //      equal too: importing one copy where another said something different is the silent
 //      behaviour change the literal-parameter count exists to prevent. The target is the
-//      member with the most importers; ties break by path, then line.
+//      member with the most importers (under all its export names); ties break by path,
+//      then line.
 //   2. MODULE — all members are in one workspace: a new module there takes the body, with
 //      the differing literals as parameters. For SQL, a function in schema `private` added
 //      by a forward migration.
@@ -43,8 +50,10 @@ const LIFT_PROBE = 'packages/shared/concept/src/index.ts'
 const LIFT_PACKAGE = { name: '@app/concept', tier: 'shared' }
 
 /**
- * The `forbidden` rules of the project's .dependency-cruiser.cjs, or [] when it is absent
- * or does not load (the `architecture` step is then not judging them either).
+ * The `forbidden` rules of the project's .dependency-cruiser.cjs that fail the
+ * `architecture` step: severity `error` only (dependency-cruiser reads a missing severity as
+ * `warn` and drops `ignore`; neither fails it). [] when the file is absent or does not load
+ * (the step is then not judging them either).
  * @returns {any[]}
  */
 export function loadForbidden() {
@@ -52,7 +61,8 @@ export function loadForbidden() {
   try {
     const abs = resolve(DEPCRUISE)
     const config = createRequire(pathToFileURL(abs))(abs)
-    return Array.isArray(config?.forbidden) ? config.forbidden : []
+    const rules = Array.isArray(config?.forbidden) ? config.forbidden : []
+    return rules.filter((rule) => rule?.severity === 'error')
   } catch {
     return []
   }
@@ -63,24 +73,65 @@ const pattern = (p) => (Array.isArray(p) ? p.join('|') : p)
 const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 /**
- * Does one forbidden rule forbid an import from `from` to `to` (resolved, repo-relative
- * POSIX paths)? Rules that judge anything but paths (cycles, dependency types) are not
- * this function's subject and never forbid here.
+ * A new edge: an import from `from` to `to` (resolved, repo-relative POSIX paths), `local`
+ * when its specifier is relative, and `cycle()` whether it would close a cycle.
+ * @typedef {{ from: string, to: string, local: boolean, cycle: () => boolean }} Edge
  */
-function ruleForbids(rule, from, to) {
+
+const JUDGED_FROM = new Set(['path', 'pathNot'])
+const JUDGED_TO = new Set(['path', 'pathNot', 'circular', 'dependencyTypes', 'dependencyTypesNot'])
+// dependency-cruiser's types a static value import (`import { f } from '…'`) never has.
+const NEVER_A_VALUE_IMPORT = new Set([
+  'type-only',
+  'type-import',
+  'pre-compilation-only',
+  'dynamic-import',
+  'require',
+  'export',
+  'core',
+])
+
+/** Do a rule's path conditions match the edge, `$1` back-references included? */
+function pathsMatch(f, t, edge) {
+  const fm = f.path === undefined ? [edge.from] : new RegExp(pattern(f.path)).exec(edge.from)
+  if (fm === null) return false
+  if (f.pathNot !== undefined && new RegExp(pattern(f.pathNot)).test(edge.from)) return false
+  const sub = (re) => pattern(re).replace(/\$(\d)/g, (_m, n) => escape(fm[Number(n)] ?? ''))
+  if (t.path !== undefined && !new RegExp(sub(t.path)).test(edge.to)) return false
+  return t.pathNot === undefined || !new RegExp(sub(t.pathNot)).test(edge.to)
+}
+
+/**
+ * Do a rule's dependency-type conditions hold for the edge? The edge surely has `import`
+ * (and `local` when relative) and surely lacks NEVER_A_VALUE_IMPORT; any other type is not
+ * known, and a condition that turns on one holds (closed).
+ * @param {any} t @param {Edge} edge
+ */
+function typesHold(t, edge) {
+  /** @param {string} type @returns {boolean | undefined} undefined: not known */
+  const has = (type) => {
+    if (type === 'import' || (type === 'local' && edge.local)) return true
+    return NEVER_A_VALUE_IMPORT.has(type) ? false : undefined
+  }
+  const types = Array.isArray(t.dependencyTypes) ? t.dependencyTypes : null
+  if (types !== null && types.every((type) => has(type) === false)) return false
+  const not = Array.isArray(t.dependencyTypesNot) ? t.dependencyTypesNot : []
+  return !not.some((type) => has(type) === true)
+}
+
+/**
+ * Does one forbidden rule forbid a new edge? A rule with a condition this function does not
+ * judge forbids once its paths match: a home must never be one the architecture step reds.
+ * @param {any} rule @param {Edge} edge
+ */
+function ruleForbids(rule, edge) {
   const f = rule?.from ?? {}
   const t = rule?.to ?? {}
-  const judged = new Set(['path', 'pathNot'])
-  if (Object.keys(t).some((k) => !judged.has(k)) || Object.keys(f).some((k) => !judged.has(k))) {
-    return false
-  }
-  const fm = f.path === undefined ? [from] : new RegExp(pattern(f.path)).exec(from)
-  if (fm === null) return false
-  if (f.pathNot !== undefined && new RegExp(pattern(f.pathNot)).test(from)) return false
-  const sub = (re) => pattern(re).replace(/\$(\d)/g, (_m, n) => escape(fm[Number(n)] ?? ''))
-  if (t.path !== undefined && !new RegExp(sub(t.path)).test(to)) return false
-  if (t.pathNot !== undefined && new RegExp(sub(t.pathNot)).test(to)) return false
-  return true
+  if (!pathsMatch(f, t, edge)) return false
+  if (Object.keys(f).some((k) => !JUDGED_FROM.has(k))) return true
+  if (Object.keys(t).some((k) => !JUDGED_TO.has(k))) return true
+  if (!typesHold(t, edge)) return false
+  return t.circular === undefined || t.circular === edge.cycle()
 }
 
 /** The path relative to a vertical's src/, or null outside one. */
@@ -90,12 +141,17 @@ function verticalRel(path) {
 }
 
 /**
- * Whether a file may newly value-import `spec` resolving to `to`: no forbidden rule on the
- * resolved paths and no anatomy law on the importing file.
- * @param {string} from @param {string} spec @param {string} to @param {any[]} forbidden
+ * Whether a file may newly value-import `spec` resolving to `to`: no forbidden rule on that
+ * edge and no anatomy law on the importing file. The edge closes a cycle when the module
+ * `spec` resolves to (a package entry, for an `@app/*` one) already reaches the file.
+ * @param {string} from @param {string} spec @param {string} to @param {HomeContext} ctx
  */
-function lawsAdmit(from, spec, to, forbidden) {
-  if (forbidden.some((rule) => ruleForbids(rule, from, to))) return false
+function lawsAdmit(from, spec, to, ctx) {
+  const { importers, forbidden } = ctx
+  const entry = importers.resolve(from, spec) ?? to
+  const cycle = () => importers.reaches(entry, from)
+  const edge = { from, to, local: spec.startsWith('.'), cycle }
+  if (forbidden.some((rule) => ruleForbids(rule, edge))) return false
   const rel = verticalRel(from)
   return rel === null || anatomyRefuses(rel, spec) === null
 }
@@ -111,36 +167,36 @@ function relativeSpec(from, to) {
 }
 
 /**
- * The export name a callable is imported by: its own name, or `default` when the module's
- * default export is it. Null for a callable nothing outside its module can import.
+ * The names a callable is exported by, as importers.mjs reads its module: its own, an
+ * alias, `default`, or several. [] for a callable nothing outside its module can import.
  * @param {Callable} m @param {Importers} importers
  */
-export function exportName(m, importers) {
-  if (m.kind !== 'function' || !m.exported) return null
-  return importers.defaultName(m.path) === m.name ? 'default' : m.name
+function exportNames(m, importers) {
+  return m.kind === 'function' && m.scope === '' ? importers.exportedAs(m.path, m.name) : []
 }
 
-/** Can `other`'s file import `target` as it stands today? */
-function canImport(other, target, name, ctx) {
+/** Can `other`'s file import `target` (exported as `names`) as it stands today? */
+function canImport(other, target, names, ctx) {
   if (other.path === target.path) return true
-  const { importers, census, forbidden } = ctx
+  const { importers, census } = ctx
   if (other.workspace.dir === target.workspace.dir) {
-    return lawsAdmit(other.path, relativeSpec(other.path, target.path), target.path, forbidden)
+    return lawsAdmit(other.path, relativeSpec(other.path, target.path), target.path, ctx)
   }
   const fromWs = importers.workspaceOf(other.path)
   if (fromWs === null || !fromWs.deps.has(target.workspace.name)) return false
   const from = { name: fromWs.name, kind: workspaceKind(fromWs.dir) }
   const to = { name: target.workspace.name, tier: workspaceKind(target.workspace.dir) }
   if (mayDepend(from, to, census) !== null) return false
-  return importers
-    .exposedVia(target.path, name)
-    .some((via) => lawsAdmit(other.path, via.spec, target.path, forbidden))
+  return names
+    .flatMap((name) => importers.exposedVia(target.path, name))
+    .some((via) => lawsAdmit(other.path, via.spec, target.path, ctx))
 }
 
-/** The importer count of a member's export (0 when it is not exported). */
+/** The importer count of a member, under every name it is exported by (0 when none). */
 function importerCount(m, importers) {
-  const name = exportName(m, importers)
-  return name === null ? 0 : importers.importersOf(m.path, name).length
+  return exportNames(m, importers).length === 0
+    ? 0
+    : importers.importersOfLocal(m.path, m.name).length
 }
 
 /** IMPORT's target: the importable member with the most importers, or null. */
@@ -149,9 +205,9 @@ function importTarget(members, ctx) {
     .map((m) => ({ m, n: importerCount(m, ctx.importers) }))
     .sort((a, b) => b.n - a.n || cmp(a.m.path, b.m.path) || a.m.line - b.m.line)
   for (const { m } of ranked) {
-    const name = exportName(m, ctx.importers)
-    if (name === null) continue
-    if (members.every((o) => o === m || canImport(o, m, name, ctx))) return m
+    const names = exportNames(m, ctx.importers)
+    if (names.length === 0) continue
+    if (members.every((o) => o === m || canImport(o, m, names, ctx))) return m
   }
   return null
 }
@@ -163,7 +219,7 @@ function liftAdmits(m, ctx) {
   const ws = ctx.importers.workspaceOf(m.path)
   const kind = workspaceKind(ws?.dir ?? m.workspace.dir)
   if (mayDepend({ name: m.workspace.name, kind }, LIFT_PACKAGE, ctx.census) !== null) return false
-  return lawsAdmit(m.path, LIFT_PACKAGE.name, LIFT_PROBE, ctx.forbidden)
+  return lawsAdmit(m.path, LIFT_PACKAGE.name, LIFT_PROBE, ctx)
 }
 
 /**

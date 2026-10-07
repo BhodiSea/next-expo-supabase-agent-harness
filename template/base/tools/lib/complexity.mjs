@@ -36,9 +36,14 @@
 //      plain names to literals (or arrays and objects of them), so nothing there can throw,
 //      return or change the value on that input. Facts: {returns, generalLine, generalKind}.
 //
-// CALL SITES are counted syntactically, by callee name: calls of the function's own name in
-// its file, plus calls of the local name (or `ns.name`) each importing file binds, in the
-// files importers.mjs resolves. A call through any other alias is not seen.
+// CALL SITES are counted syntactically, by callee name, in the files importers.mjs resolves.
+// A function's: calls of its own name in its file, plus calls of the local name (or
+// `ns.name`) each file importing it binds, under every name importers.mjs records for it
+// (its own, an alias, `default`). A method's, by member name: `<receiver>.<method>(…)` on any
+// receiver (`this`, its class, an instance) in its file and in each file importing its class.
+// A JSX element is a call of its tag, so `<Comp />` and `<Comp>…</Comp>` are call sites of the
+// component `Comp` (a lowercase tag is an intrinsic element). A call through any other alias
+// is not seen; a same-named member of another class is counted with the method's.
 // NOT COMPUTED here: D.2's `new` fact (the sweep is whole-tree and base-free; #187 computes
 // `new` against the merge base, for ordering only). RECORDED GAP: no recipe measures
 // provenance-induced slop (helpers split only to pass a complexity cap, wrappers added only
@@ -47,7 +52,6 @@
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { dottedCallee, symbol } from './closed-text.mjs'
-import { exportName } from './homes.mjs'
 import { blankComments } from './source-text.mjs'
 import { importsAPort } from './vertical-anatomy.mjs'
 
@@ -99,49 +103,72 @@ class Tree {
     return this.sources.get(path)
   }
 
-  /** Every call expression of a file, by callee text (`f` or `ns.f`). */
+  /** Every call site of a file, by callee text (see indexCalls). */
   callsIn(path) {
     if (!this.calls.has(path)) this.calls.set(path, indexCalls(this.ts, this.sf(path)))
     return this.calls.get(path)
   }
 
   /**
-   * Every syntactic call of a callable: its own name in its file, and each importing file's
-   * local names for it.
+   * Every syntactic call site of a callable (the header's CALL SITES): a function's under its
+   * own name in its file and each importing file's local names for it; a method's under
+   * `.<method>` in its file and in each file importing its class. A nested callable is
+   * counted in its own file only.
    * @param {Callable} c @returns {{ path: string, call: any }[]}
    */
   callSites(c) {
-    const out = (this.callsIn(c.path).get(c.name) ?? []).map((call) => ({ path: c.path, call }))
-    const name = exportName(c, this.importers)
-    if (name === null) return out
-    for (const imp of this.importers.importersOf(c.path, name)) {
-      if (imp.file === c.path) continue
-      for (const local of imp.locals) {
-        for (const call of this.callsIn(imp.file).get(local) ?? [])
-          out.push({ path: imp.file, call })
-      }
+    const dot = c.kind === 'method' ? c.name.indexOf('.') : -1
+    const key = dot < 0 ? c.name : c.name.slice(dot)
+    const out = this.#sitesIn(c.path, [key])
+    if (c.scope !== '') return out
+    const binding = dot < 0 ? c.name : c.name.slice(0, dot)
+    for (const imp of this.importers.importersOfLocal(c.path, binding)) {
+      if (imp.file !== c.path) out.push(...this.#sitesIn(imp.file, dot < 0 ? imp.locals : [key]))
     }
     return out
   }
+
+  /** The call sites of a file under any of `keys`. */
+  #sitesIn(path, keys) {
+    const calls = this.callsIn(path)
+    return keys.flatMap((key) => (calls.get(key) ?? []).map((call) => ({ path, call })))
+  }
 }
 
-/** The callee text of every call in a file: `f(…)` → `f`, `ns.f(…)` → `ns.f`. */
+/**
+ * The call sites of a file by callee text: `f(…)` → `f`; `ns.f(…)` → `ns.f`; any
+ * `<receiver>.m(…)` → `.m` too. A JSX element by its tag: `<Comp …>` → `Comp`,
+ * `<ns.Comp …>` → `ns.Comp`.
+ */
 function indexCalls(ts, sf) {
   const map = new Map()
   const visit = (node) => {
-    if (ts.isCallExpression(node)) {
-      const e = node.expression
-      let key = null
-      if (ts.isIdentifier(e)) key = e.text
-      else if (ts.isPropertyAccessExpression(e) && ts.isIdentifier(e.expression)) {
-        key = `${e.expression.text}.${e.name.text}`
-      }
-      if (key !== null) map.set(key, [...(map.get(key) ?? []), node])
+    for (const key of siteKeys(ts, node)) {
+      const list = map.get(key)
+      if (list === undefined) map.set(key, [node])
+      else list.push(node)
     }
     ts.forEachChild(node, visit)
   }
   visit(sf)
   return map
+}
+
+/** The keys a node is indexed under as a call site: none for anything but a call or a tag. */
+function siteKeys(ts, node) {
+  if (ts.isCallExpression(node)) {
+    const e = node.expression
+    if (ts.isIdentifier(e)) return [e.text]
+    if (!ts.isPropertyAccessExpression(e)) return []
+    const member = `.${e.name.text}`
+    return ts.isIdentifier(e.expression) ? [`${e.expression.text}${member}`, member] : [member]
+  }
+  if (!ts.isJsxSelfClosingElement(node) && !ts.isJsxOpeningElement(node)) return []
+  const tag = node.tagName
+  // A lowercase tag is an intrinsic element (`<div>`), never a component's call.
+  if (ts.isIdentifier(tag)) return /^[a-z]/.test(tag.text) ? [] : [tag.text]
+  const dotted = ts.isPropertyAccessExpression(tag) && ts.isIdentifier(tag.expression)
+  return dotted ? [`${tag.expression.text}.${tag.name.text}`] : []
 }
 
 const lineAt = (sf, node) => sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1
@@ -332,7 +359,7 @@ function intentHiding(tree, c) {
   if (fn.type !== undefined && ts.isTypePredicateNode(fn.type)) return null
   const tokens = tokenCount(ts, expr, c.file.sf)
   const words = nameWords(c.name.split('.').at(-1))
-  const calls = c.kind === 'function' ? tree.callSites(c).length : 0
+  const calls = tree.callSites(c).length
   if ((tokens <= 12 && calls <= 2) || words === tokens) return { tokens, calls, words }
   return null
 }
@@ -352,18 +379,20 @@ const SINGLE_CONSUMER_EXCLUDED = [
 const textFp = (text) =>
   createHash('sha256').update(text.replace(/\s+/g, ' ')).digest('hex').slice(0, 12)
 
-/** The exported interface/type/function/class declarations of a file: name → {kind, line, fp}. */
-function exportedDeclarations(ts, file) {
+/**
+ * The exported interface/type/function/class declarations of a file, exported under any name
+ * importers.mjs records for the binding: name → {kind, line, fp}.
+ * @param {Tree} tree @param {TsFile} file
+ */
+function exportedDeclarations(tree, file) {
+  const { ts } = tree
   const out = new Map()
-  const exported = (node, name) =>
-    (ts.getModifiers?.(node) ?? node.modifiers ?? []).some(
-      (m) => m.kind === ts.SyntaxKind.ExportKeyword,
-    ) || file.localExports.has(name)
+  const exported = (name) => tree.importers.exportedAs(file.path, name).length > 0
   for (const st of file.sf.statements) {
     const kind = declarationKind(ts, st)
     if (kind === null) continue
     for (const name of declaredNames(ts, st, kind)) {
-      if (exported(st, name))
+      if (exported(name))
         out.set(name, { kind, line: lineAt(file.sf, st), fp: textFp(st.getText(file.sf)) })
     }
   }
@@ -403,9 +432,10 @@ function singleConsumers(tree, file) {
   const out = new Map()
   if (SINGLE_CONSUMER_EXCLUDED.some((re) => re.test(file.path))) return out
   if (tree.importers.isBarrel(file.path)) return out
-  for (const [name, decl] of exportedDeclarations(tree.ts, file)) {
-    const as = tree.importers.defaultName(file.path) === name ? 'default' : name
-    const imps = tree.importers.importersOf(file.path, as).filter((i) => i.file !== file.path)
+  for (const [name, decl] of exportedDeclarations(tree, file)) {
+    const imps = tree.importers
+      .importersOfLocal(file.path, name)
+      .filter((i) => i.file !== file.path)
     if (imps.length === 1) out.set(name, { ...decl, importer: imps[0].file })
   }
   return out
@@ -455,12 +485,13 @@ function boolSelector(tree, c) {
   const { ts } = tree
   const fn = c.node
   if (returnsJsx(ts, fn)) return null
-  const sites = c.kind === 'function' ? tree.callSites(c) : []
+  const sites = tree.callSites(c)
   for (const [index, p] of fn.parameters.entries()) {
     if (!ts.isIdentifier(p.name) || !isBooleanParam(ts, p)) continue
     const split = topLevelSplit(ts, fn, p.name.text)
     const literalSites = sites.filter(({ call }) => {
-      const a = call.arguments[index]
+      // A JSX element passes no positional arguments.
+      const a = call.arguments?.[index]
       return (
         a !== undefined &&
         (a.kind === ts.SyntaxKind.TrueKeyword || a.kind === ts.SyntaxKind.FalseKeyword)
@@ -676,7 +707,7 @@ const RECIPES = [
 
 /** A callable's single-consumer facts, when it is an export with one importing file. */
 function consumerFacts(c, consumers) {
-  const decl = c.kind === 'function' && c.exported ? consumers.get(c.name) : undefined
+  const decl = c.kind === 'function' && c.scope === '' ? consumers.get(c.name) : undefined
   if (decl === undefined || decl.kind !== 'function') return null
   return { importers: 1, kind: decl.kind, importer: decl.importer }
 }

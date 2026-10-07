@@ -174,6 +174,87 @@ export const isBlank = (s: string) => s.trim().length === 0
   assert.equal(familiesOf(hits, `${K}/hide.ts`, 'isBlank')[0], 'intent-hiding', 'the control hits')
 })
 
+treeTest('complexity: call sites follow every name a function is exported by: an alias, default, or both', () => {
+  const hits = hitsOf({
+    [`${K}/fmt.ts`]: 'const fmtImpl = (n: number) => n.toFixed(2)\nexport { fmtImpl as fmt }\n',
+    [`${K}/u1.ts`]: "import { fmt } from './fmt'\nexport const a = fmt(1) + fmt(2)\n",
+    [`${K}/u2.ts`]: "import { fmt } from './fmt'\nexport const b = fmt(3) + fmt(4)\n",
+    [`${K}/pick.ts`]: 'const pick = (s: string) => s.trim()\nexport default pick\n',
+    [`${K}/v1.ts`]: "import pick from './pick'\nexport const a = pick('a') + pick('b')\n",
+    [`${K}/v2.ts`]: "import pick from './pick'\nexport const b = pick('c') + pick('d')\n",
+    [`${K}/once.ts`]: 'const onceImpl = (s: string) => s.trim()\nexport default onceImpl\n',
+    [`${K}/w1.ts`]: "import once from './once'\nexport const a = once('a')\n",
+  })
+  for (const [path, name] of [[`${K}/fmt.ts`, 'fmtImpl'], [`${K}/pick.ts`, 'pick']]) {
+    assert.ok(!familiesOf(hits, path, name).includes('intent-hiding'), name)
+  }
+  assert.deepEqual(recordOf(hits, `${K}/once.ts`, 'onceImpl'), {
+    family: 'intent-hiding',
+    facts: { tokens: 5, calls: 1, words: 2 },
+  })
+})
+
+treeTest('complexity: method call sites count by member name, in the file and in the files importing the class', () => {
+  const hits = hitsOf({
+    [`${K}/bag.ts`]: `export class Bag {
+  readonly items: string[] = []
+  isEmpty(): boolean { return this.items.length === 0 }
+  first() {
+    if (this.isEmpty()) return undefined
+    return this.items[0]
+  }
+  static blank(text: string): boolean { return text.length === 0 }
+  static count(xs: string[]) {
+    const n = xs.filter((x) => !Bag.blank(x)).length
+    return n + (Bag.blank('') ? 1 : 0) + (Bag.blank('a') ? 1 : 0)
+  }
+  hidden(): boolean { return this.items.length > 1 }
+}
+`,
+    [`${K}/a.ts`]: "import { Bag } from './bag'\nconst b = new Bag()\nexport const n = [b.isEmpty(), b.isEmpty(), b.isEmpty(), b.isEmpty()]\n",
+    [`${K}/label.ts`]: `export class Fmt {
+  label(text: string, loud: boolean) {
+    const t = text.trim()
+    return loud ? t.toUpperCase() : t
+  }
+  both(): string[] { return [this.label('a', true), this.label('b', false)] }
+}
+`,
+  })
+  for (const name of ['Bag.isEmpty', 'Bag.blank']) {
+    assert.ok(!familiesOf(hits, `${K}/bag.ts`, name).includes('intent-hiding'), name)
+  }
+  assert.deepEqual(recordOf(hits, `${K}/bag.ts`, 'Bag.hidden'), {
+    family: 'intent-hiding',
+    facts: { tokens: 7, calls: 0, words: 1 },
+  })
+  assert.deepEqual(recordOf(hits, `${K}/label.ts`, 'Fmt.label'), {
+    family: 'bool-selector',
+    facts: { param: 'loud', index: 1, split: false, literalSites: 2 },
+  })
+})
+
+treeTest('complexity: a JSX element is a call site of its component', () => {
+  const hits = hitsOf({
+    [`${K}/divider.tsx`]: 'export function Divider() { return <hr className="divider" /> }\nexport function Rule() { return <hr className="rule" /> }\n',
+    [`${K}/A.tsx`]: "import { Divider, Rule } from './divider'\nexport const A = () => <div><Divider /><Divider /><Rule /></div>\n",
+    [`${K}/B.tsx`]: "import { Divider } from './divider'\nexport const B = () => <section><Divider></Divider><Divider /></section>\n",
+    [`${K}/gate.tsx`]: 'export function Gate(props: { children?: unknown }, open: boolean) {\n  if (open) return props.children\n  return null\n}\n',
+    [`${K}/C.tsx`]: "import { Gate } from './gate'\nexport const C = () => <Gate><b /></Gate>\n",
+    [`${K}/D.tsx`]: "import { Gate } from './gate'\nexport const D = () => <Gate />\n",
+  })
+  assert.ok(!familiesOf(hits, `${K}/divider.tsx`, 'Divider').includes('intent-hiding'))
+  assert.deepEqual(recordOf(hits, `${K}/divider.tsx`, 'Rule'), {
+    family: 'intent-hiding',
+    facts: { tokens: 7, calls: 1, words: 1 },
+  })
+  // A component used as an element passes no positional arguments: no literal sites.
+  assert.deepEqual(recordOf(hits, `${K}/gate.tsx`, 'Gate'), {
+    family: 'bool-selector',
+    facts: { param: 'open', index: 1, split: true, literalSites: 0 },
+  })
+})
+
 treeTest('complexity: single-consumer hits an export with exactly one non-test importing file', () => {
   const hits = hitsOf({
     [`${K}/shape.ts`]: `export interface Draft { readonly title: string }
@@ -194,6 +275,23 @@ export function draftOf(title: string) {
     facts: { importers: 1, kind: 'function', importer: `${K}/use.ts` },
   })
   assert.equal(hits.find((h) => h.name === 'Draft')?.subject, '@app/k#Draft')
+})
+
+treeTest('complexity: single-consumer counts a function exported by name and as default under both', () => {
+  const body = (name) => `export function ${name}(id: string, kind: string) {\n  const label = kind + id\n  return label.toUpperCase()\n}\nexport default ${name}\n`
+  const hits = hitsOf({
+    [`${K}/widget.ts`]: body('widgetName'),
+    [`${K}/w1.ts`]: "import widgetName from './widget'\nexport const a = widgetName('1', 'x')\n",
+    [`${K}/w2.ts`]: "import { widgetName } from './widget'\nexport const b = widgetName('2', 'y')\n",
+    [`${K}/w3.ts`]: "import { widgetName } from './widget'\nexport const c = widgetName('3', 'z')\n",
+    [`${K}/solo.ts`]: body('soloName'),
+    [`${K}/s1.ts`]: "import { soloName } from './solo'\nexport const a = soloName('1', 'x')\n",
+  })
+  assert.ok(!familiesOf(hits, `${K}/widget.ts`, 'widgetName').includes('single-consumer'))
+  assert.deepEqual(recordOf(hits, `${K}/solo.ts`, 'soloName'), {
+    family: 'single-consumer',
+    facts: { importers: 1, kind: 'function', importer: `${K}/s1.ts` },
+  })
 })
 
 treeTest('complexity: single-consumer is justified for a port, packages/shared, and two importers', () => {
