@@ -7,17 +7,25 @@
 // packages/*/*/src, apps/web/app and apps/web/lib), with L0's exclusions (tests, `generated/`, `*.gen.ts`,
 // `database.types.ts`, `.d.ts`), plus supabase/migrations and supabase/schemas. TS callables
 // are function declarations, function expressions and arrow functions bound to a `const`,
-// and class methods, at any depth; each needs a body. SQL callables are the CREATE FUNCTION
-// statements sql-parse.mjs reads, folded last-wins over the migration history (a function a
-// later migration replaces is judged as replaced; one it drops is gone), with
-// supabase/schemas filling in a function no migration defines.
+// and class methods, at any depth; each needs a body. LIMIT: a TS callable whose name the
+// closed printers refuse (lib/closed-text.mjs: a `#private`, string-literal, numeric or
+// computed method name, a name holding `$` or a non-ASCII letter, one over 64 characters)
+// is not extracted at all, since no record could name it: no class, near-miss or complexity
+// record reaches it, and a callable inside it is scoped as if it were not there. SQL
+// callables are the CREATE FUNCTION statements sql-parse.mjs reads, folded last-wins over
+// the migration history (a function a later migration replaces is judged as replaced; one
+// it drops is gone), with supabase/schemas filling in a function no migration defines.
 //
 // THE NORMALISER (one for both languages). Hashing starts at the parameter list: the name,
 // `export` and every other modifier are outside it. Bound names (parameters, locals, inner
 // function and class names, catch variables; in SQL parameters, DECLAREd variables and FOR
 // loop variables) become `$1…$n` in order of first occurrence, and the callable's own name
-// becomes `$f`. Properties after `.` and `?.`, object keys, free identifiers and type tokens
-// stay as written. String, template, regex and JSX-text literals become `S`, numbers `N`.
+// becomes `$f` where its body can name it: a TS function's (a declaration's, or the `const`
+// it is bound to) and a SQL function's. A method's name is not in scope in its body, so a
+// method has no `$f`. Properties after `.` and `?.`, object keys, free identifiers and type
+// tokens stay as written, but a TS name spelled `S` or `N` enters the stream escaped (`\S`,
+// `\N`, one token still), so no name reads as a literal. String, template, regex and JSX-text
+// literals become `S`, numbers `N`.
 // Comments and whitespace are dropped. Shorthand properties and shorthand binding elements
 // expand to `key: $n`, so `{ noteId }` hashes as `{ noteId: $2 }` (without it, a second
 // vertical's `taskCreated(origin, taskId, occurredAt)` hashes equal to `noteCreated` and its
@@ -42,7 +50,9 @@
 // under 0.5 or its literal density is over 0.5. The repetition ratio (RNR) is the share of
 // tokens of the normalised stream NOT inside a tandem repeat: a token is repeated when it
 // sits in a run that repeats the run just before it (periods 1 to 16), from the second copy
-// on. Literal density is the share of `S` and `N` tokens.
+// on. Literal density is the share of `S` and `N` tokens. The JSX share (near-miss's "mostly
+// JSX") is the share of the stream's tokens that sit inside a JSX element or fragment, so the
+// whitespace between children, which never enters the stream, counts for nothing.
 //
 // THE PARSER is the project's own `typescript`, loaded by the caller through loadParser()
 // (lib/i18n-tree.mjs) and passed in; syntax only (createSourceFile, no program). The SQL legs
@@ -50,6 +60,7 @@
 // SOURCE: docs/harness/gates-catalog.md (duplication gate) [corpus: harness/doctrine]
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { dottedCallee } from './closed-text.mjs'
 import { duplicationScanRoots, isGeneratedPath, isScannedName } from './duplication-scope.mjs'
 import { walkFiles } from './fs-walk.mjs'
 import { parseFunctions, qualify, statementSpans } from './sql-parse.mjs'
@@ -242,7 +253,8 @@ const hasModifier = (ts, node, kind) =>
  * Every callable node of a source file with its own name, at any depth: function
  * declarations, function expressions and arrows bound to a `const`, class methods. `scope`
  * is the dotted chain of the callables it sits in, outermost first ('' at the top level).
- * @returns {{ node: TsNode, name: string, own: string, kind: 'function' | 'method',
+ * `own` is the name in scope in the body (null for a method).
+ * @returns {{ node: TsNode, name: string, own: string | null, kind: 'function' | 'method',
  *   exported: boolean, scope: string }[]}
  */
 function callableNodes(ts, sf, localExports) {
@@ -257,7 +269,16 @@ function callableNodes(ts, sf, localExports) {
   return out
 }
 
+/**
+ * The callable a node declares, or null. One whose name the closed printer of a record's
+ * member name (lib/closed-text.mjs dottedCallee) refuses is none: no record could name it.
+ */
 function callableOf(ts, node, localExports) {
+  const found = declaredCallable(ts, node, localExports)
+  return found !== null && dottedCallee.ok(found.name) ? found : null
+}
+
+function declaredCallable(ts, node, localExports) {
   if (ts.isFunctionDeclaration(node) && node.body !== undefined && node.name !== undefined) {
     const exported =
       hasModifier(ts, node, ts.SyntaxKind.ExportKeyword) || localExports.has(node.name.text)
@@ -276,7 +297,9 @@ function callableOf(ts, node, localExports) {
     const className = cls.name?.text ?? 'default'
     const method = ts.isIdentifier(node.name) ? node.name.text : node.name.getText()
     const exported = hasModifier(ts, cls, ts.SyntaxKind.ExportKeyword)
-    return { node, name: `${className}.${method}`, own: method, kind: 'method', exported }
+    // A method's name is not a binding in its body (it recurses through `this.`), so a bare
+    // identifier spelled like it names something else and stays as written.
+    return { node, name: `${className}.${method}`, own: null, kind: 'method', exported }
   }
   return null
 }
@@ -417,7 +440,7 @@ function shorthandPosition(ts, id) {
 
 /**
  * The normalised stream of one callable, plus its verbatim twin and its literals.
- * @param {any} ts @param {TsNode} fn @param {TsNode} sf @param {string} own
+ * @param {any} ts @param {TsNode} fn @param {TsNode} sf @param {string | null} own
  * @param {{ expand: boolean }} opts
  */
 function normaliseTs(ts, fn, sf, own, { expand }) {
@@ -429,17 +452,21 @@ function normaliseTs(ts, fn, sf, own, { expand }) {
     if (!numbering.has(text)) numbering.set(text, `$${numbering.size + 1}`)
     return numbering.get(text)
   }
-  const acc = { stream: [], verbatim: [], literals: [], jsx: 0, slot, expand }
+  const acc = { stream: [], verbatim: [], literals: [], slot, expand }
   // `ends[i]` is the source end of the leaf stream[i] came from, so a consumer can slice
   // the stream by statement (lib/differs.mjs aligns top-level statements that way).
   const ends = []
+  let jsx = 0
   for (const leaf of leafTokens(ts, fn, sf)) {
     const from = acc.stream.length
     pushLeaf(ts, leaf, sf, acc)
-    const end = leaf.synthetic === undefined ? leaf.end : fn.parameters.pos
+    const real = leaf.synthetic === undefined
+    // What the leaf put in the stream, so dropped whitespace JSX text counts for nothing.
+    if (real && insideJsx(ts, leaf)) jsx += acc.stream.length - from
+    const end = real ? leaf.end : fn.parameters.pos
     for (let i = from; i < acc.stream.length; i += 1) ends.push(end)
   }
-  return { stream: acc.stream, verbatim: acc.verbatim, literals: acc.literals, jsx: acc.jsx, ends }
+  return { stream: acc.stream, verbatim: acc.verbatim, literals: acc.literals, jsx, ends }
 }
 
 /** One leaf token into the normalised stream and its verbatim twin. */
@@ -449,7 +476,6 @@ function pushLeaf(ts, leaf, sf, acc) {
     acc.verbatim.push(leaf.synthetic)
     return
   }
-  if (insideJsx(ts, leaf)) acc.jsx += 1
   if (leaf.kind === ts.SyntaxKind.JsxTextAllWhiteSpaces) return
   if (leaf.kind === ts.SyntaxKind.Identifier) {
     pushIdentifier(ts, leaf, acc)
@@ -468,18 +494,21 @@ function pushLeaf(ts, leaf, sf, acc) {
   acc.literals.push(text)
 }
 
+/** A name spelled like a literal placeholder, escaped: one token still, never `S` or `N`. */
+const asName = (text) => (text === 'S' || text === 'N' ? `\\${text}` : text)
+
 function pushIdentifier(ts, id, { slot, stream, verbatim, expand }) {
   const text = id.text
   if (keptPosition(ts, id)) {
-    stream.push(text)
-    verbatim.push(text)
+    stream.push(asName(text))
+    verbatim.push(asName(text))
     return
   }
   if (expand && shorthandPosition(ts, id)) {
-    stream.push(text, ':')
-    verbatim.push(text, ':')
+    stream.push(asName(text), ':')
+    verbatim.push(asName(text), ':')
   }
-  const value = slot(text)
+  const value = asName(slot(text))
   stream.push(value)
   verbatim.push(value)
 }
@@ -533,6 +562,8 @@ function signatureTokens(ts, fn, sf) {
   for (const leaf of leafTokens(ts, fn, sf)) {
     if (leaf.synthetic !== undefined) {
       sig.push(leaf.synthetic)
+      // A bare arrow parameter takes no return type: its implied `)` ends the signature.
+      if (leaf.synthetic === ')') break
       continue
     }
     if (leaf.pos >= end) break

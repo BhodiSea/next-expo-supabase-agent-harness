@@ -4,7 +4,7 @@
 // MinHash signature and the extractor digest.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { subjectId } from '../../template/base/tools/lib/closed-text.mjs'
+import { signature, subjectId } from '../../template/base/tools/lib/closed-text.mjs'
 import {
   extractorDigest,
   extractTree,
@@ -21,8 +21,8 @@ import { GOLDEN, inTree, pkg, treeTest, ts } from './helpers/single-home.mjs'
 const WS = { dir: 'packages/x', name: '@app/x' }
 
 /** The callables of one source, by name. */
-function shapesOf(src, opts) {
-  const file = extractTs(ts, 'packages/x/src/a.ts', src, WS, opts)
+function shapesOf(src, opts, path = 'packages/x/src/a.ts') {
+  const file = extractTs(ts, path, src, WS, opts)
   return Object.fromEntries(file.callables.map((c) => [c.name, c]))
 }
 
@@ -82,6 +82,78 @@ const e = (o: { noteId: string }) => { const { noteId: noteId } = o; return note
   assert.equal(c.d.alpha, c.e.alpha)
 })
 
+treeTest("shapes: a method's name is not in scope in its body, so a bare call spelled like it stays as written", () => {
+  const c = shapesOf(`
+class NotesAdapter {
+  async listNotes(orgId: string) { return listNotes(this.client, orgId) }
+  async createNote(orgId: string) { return createNote(this.client, orgId) }
+}
+class A { save(x: number) { return save(x, 1) } }
+class B { persist(x: number) { return save(x, 1) } }
+`)
+  // Two methods delegating to two different free functions are two shapes ...
+  assert.notEqual(c['NotesAdapter.listNotes'].alpha, c['NotesAdapter.createNote'].alpha)
+  // ... and two delegating to the same one are one, whatever the methods are called.
+  assert.equal(c['A.save'].alpha, c['B.persist'].alpha)
+  assert.ok(!c['A.save'].stream.includes('$f'), c['A.save'].stream.join(' '))
+})
+
+treeTest('shapes: an identifier spelled S or N never reads as a literal placeholder', () => {
+  const c = shapesOf(`
+const a = (key: string) => lookup(key, S, N)
+const b = (key: string) => lookup(key, 'S', 7)
+function select<S, N>(state: S, pick: (s: S) => N): N { return pick(state) }
+`)
+  assert.notEqual(c.a.alpha, c.b.alpha)
+  assert.equal(c.a.tokens, c.b.tokens)
+  assert.deepEqual([c.a.literals.length, c.b.literals.length], [0, 2])
+  assert.equal(literalDensity(c.a.stream), 0)
+  assert.equal(literalDensity(c.select.stream), 0)
+  assert.equal(literalDensity(c.b.stream), 2 / 14)
+})
+
+treeTest('shapes: jsxShare counts the JSX tokens of the stream, so a line break between children changes nothing', () => {
+  const c = shapesOf(
+    `
+const one = () => (<a><b /></a>)
+const many = () => (<a>
+  <b />
+</a>)
+const styled = (color: string) => <A style={{ color }} />
+`,
+    undefined,
+    'packages/x/src/a.tsx',
+  )
+  assert.equal(c.one.alpha, c.many.alpha)
+  // ( ) => ( < a > < b / > < / a > ): 11 of its 16 tokens are JSX, however it is laid out.
+  assert.equal(c.one.jsxShare, 11 / 16)
+  assert.equal(c.many.jsxShare, 11 / 16)
+  // ( $1 : string ) => < A style = { { color : $1 } } / >: 13 of 19, the expanded shorthand
+  // counting every token it pushes.
+  assert.equal(c.styled.jsxShare, 13 / 19)
+})
+
+treeTest('shapes: a callable no closed printer can name is not extracted; one inside it scopes past it', () => {
+  const c = shapesOf(`
+export class Counter {
+  #n = 0
+  #next(): number { return this.#n + 1 }
+  'kebab-name'(): number { return 1 }
+  0(): number { return 0 }
+  [Symbol.iterator]() { return [][Symbol.iterator]() }
+  bump(): number { this.#n = this.#next(); return this.#n }
+}
+export class $Store { read(): number { return 1 } }
+export const $t = (k: string) => {
+  const inner = () => k.trim()
+  return inner()
+}
+function café(): number { return 1 }
+`)
+  assert.deepEqual(Object.keys(c).sort(), ['Counter.bump', 'inner'])
+  assert.equal(c.inner.scope, '')
+})
+
 const EVENTS = `
 export function noteCreated(origin: EventOrigin, noteId: string, occurredAt: string): NoteEvent {
   return {
@@ -126,6 +198,18 @@ function g(x: T): T { return x }
 `)
   assert.equal(c.a.tokens, c.b.tokens)
   assert.equal(c.f.tokens, c.g.tokens)
+})
+
+treeTest('shapes: a bare arrow parameter signs as its parenthesised twin, and the arrow is not in the signature', () => {
+  const c = shapesOf(`
+const double = x => x * 2
+const triple = (x) => x * 3
+const typed = (x: number): number => x * 4
+`)
+  assert.deepEqual(c.double.sig, ['(', 'x', ')'])
+  assert.deepEqual(c.double.sig, c.triple.sig)
+  assert.equal(signature.print(c.double.sig), '`(x)`')
+  assert.equal(signature.print(c.typed.sig), '`(x: number): number`')
 })
 
 // ── data-shaped bodies ──────────────────────────────────────────────────────────

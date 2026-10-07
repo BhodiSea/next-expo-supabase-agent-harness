@@ -32,7 +32,7 @@ import {
   SWEEP_FAMILIES,
   sweepMain,
 } from '../../template/base/tools/lib/sweep.mjs'
-import { GOLDEN, inTree, pkg, treeTest, ts } from './helpers/single-home.mjs'
+import { BODY, GOLDEN, inTree, pkg, treeTest, ts } from './helpers/single-home.mjs'
 
 const CLI = fileURLToPath(new URL('../../installer/cli.mjs', import.meta.url))
 const TYPESCRIPT = fileURLToPath(new URL('../../node_modules/typescript', import.meta.url))
@@ -654,6 +654,34 @@ treeTest('sweep: a record the closed schema refuses is dropped, and its leg is i
       assert.equal(doc.legs.find((l) => l.leg === 'exact-ts')?.complete, false)
       assert.equal(doc.complete, false)
       assert.ok(!JSON.stringify(doc.records).includes('odd dir'))
+    },
+  )
+})
+
+treeTest('sweep: a #private method, a quoted method name and a $ name are never extracted, so the sweep completes', (t) => {
+  // Each would be a record (intent-hiding, or an exact class of the two $ copies) that no
+  // closed printer can name; the extractor leaves them out rather than drop a leg.
+  const out = []
+  t.mock.method(process.stdout, 'write', (s) => out.push(String(s)) > 0)
+  return inTree(
+    {
+      'packages/k/package.json': pkg('@app/k'),
+      'packages/k/src/counter.ts': `export class Counter {
+  #n = 0
+  #next(): number { return this.#n + 1 }
+  bump(): number { this.#n = this.#next(); return this.#n }
+}
+`,
+      'packages/k/src/q.ts': "export class Q { 'kebab-name'() { return 1 } }\n",
+      'packages/k/src/t.ts': 'export const $t = (k: string) => k.trim()\n',
+      'packages/k/src/pick.ts': `${BODY('$pick')}${BODY('$pick2')}`,
+    },
+    async () => {
+      assert.equal(await sweepMain(['--sweep', '--json'], async () => ts), 0)
+      const doc = JSON.parse(out.join(''))
+      assert.deepEqual(doc.legs.filter((l) => !l.complete), [])
+      assert.equal(doc.complete, true)
+      assert.doesNotMatch(JSON.stringify(doc.records), /#next|kebab|\$t|\$pick/)
     },
   )
 })
