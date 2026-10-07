@@ -133,6 +133,54 @@ const styled = (color: string) => <A style={{ color }} />
   assert.equal(c.styled.jsxShare, 13 / 19)
 })
 
+treeTest('shapes: the JSX share leaves out a function nested in the JSX, such as an inline handler', () => {
+  const c = shapesOf(
+    `
+const inline = (open: boolean) => <button onClick={() => { setOpen(!open); log(open) }}>x</button>
+const named = (open: boolean) => <button onClick={toggle}>x</button>
+`,
+    undefined,
+    'packages/x/src/a.tsx',
+  )
+  // ( $1 : boolean ) => < button onClick = { ( ) => { … } } > S < / button >: the element is
+  // 27 of the 33 tokens, but the handler's own 15 are code, so 12 count. Passed by name, the
+  // handler is one token of the element's 13, out of 19.
+  assert.equal(c.inline.jsxShare, 12 / 33)
+  assert.equal(c.named.jsxShare, 13 / 19)
+})
+
+treeTest('shapes: JSX text is the literal JSX renders: a space between children is one, line-break whitespace none', () => {
+  const c = shapesOf(
+    `
+const spaced = (a: string, b: string) => <p>{a} {b}</p>
+const joined = (a: string, b: string) => <p>{a}{b}</p>
+const lead = (n: number) => <p>{n} items</p>
+const run = (n: number) => <p>{n}items</p>
+const inline = () => <p>No notes yet. Create your first note.</p>
+const wrapped = () => <p>
+    No notes yet. Create your first note.
+  </p>
+const broken = () => <p>No notes yet.
+    Create your first note.</p>
+`,
+    undefined,
+    'packages/x/src/a.tsx',
+  )
+  // A space between two children renders, so it is a literal and the bodies are two shapes.
+  assert.notEqual(c.spaced.alpha, c.joined.alpha)
+  assert.deepEqual([c.spaced.literals, c.joined.literals], [[' '], []])
+  // A space before a child's text renders too.
+  assert.notEqual(c.lead.lit, c.run.lit)
+  assert.deepEqual([c.lead.literals, c.run.literals], [[' items'], ['items']])
+  // The whitespace around a line break is formatting: wrapped onto its own line, or broken
+  // across two, the text is the one JSX renders, so the literals are equal.
+  for (const other of [c.wrapped, c.broken]) {
+    assert.equal(other.alpha, c.inline.alpha)
+    assert.equal(other.lit, c.inline.lit)
+    assert.deepEqual(other.literals, ['No notes yet. Create your first note.'])
+  }
+})
+
 treeTest('shapes: a callable no closed printer can name is not extracted; one inside it scopes past it', () => {
   const c = shapesOf(`
 export class Counter {
@@ -152,6 +200,44 @@ function café(): number { return 1 }
 `)
   assert.deepEqual(Object.keys(c).sort(), ['Counter.bump', 'inner'])
   assert.equal(c.inner.scope, '')
+})
+
+treeTest('shapes: only a callable declared in the file itself is top-level, and only such a one is exported', () => {
+  const c = shapesOf(`
+export function shown(): number { return 1 }
+const listed = () => 2
+export { listed, nested }
+export class Store {
+  constructor() { const nested = () => 3; void nested }
+  get size(): number { const inGetter = () => 4; return inGetter() }
+  read(): number { return 5 }
+}
+export const api = { prep() { const inObject = () => 6; return inObject() } }
+register(() => { const inCallback = () => 7; return inCallback() })
+class Local { read(): number { return 8 } }
+export function outer(): number {
+  class Inner { read(): number { return 9 } }
+  return new Inner().read()
+}
+`)
+  const facts = Object.fromEntries(
+    Object.entries(c).map(([name, x]) => [name, [x.topLevel, x.exported, x.scope]]),
+  )
+  // A constructor, an accessor, an object literal's method and a callback are not extracted,
+  // so what sits in them has scope '' like a top-level callable, but is not one: nothing can
+  // import it, whatever an export list names.
+  assert.deepEqual(facts, {
+    shown: [true, true, ''],
+    listed: [true, true, ''],
+    nested: [false, false, ''],
+    inGetter: [false, false, ''],
+    'Store.read': [true, true, ''],
+    inObject: [false, false, ''],
+    inCallback: [false, false, ''],
+    'Local.read': [true, false, ''],
+    outer: [true, true, ''],
+    'Inner.read': [false, false, 'outer'],
+  })
 })
 
 const EVENTS = `

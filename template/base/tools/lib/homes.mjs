@@ -168,11 +168,13 @@ function relativeSpec(from, to) {
 
 /**
  * The names a callable is exported by, as importers.mjs reads its module: its own, an
- * alias, `default`, or several. [] for a callable nothing outside its module can import.
+ * alias, `default`, or several. [] for a callable nothing outside its module can import: a
+ * method, or a function not declared at its file's top level (shapes.mjs `topLevel`), which
+ * only shares its name with a binding the module may export.
  * @param {Callable} m @param {Importers} importers
  */
 function exportNames(m, importers) {
-  return m.kind === 'function' && m.scope === '' ? importers.exportedAs(m.path, m.name) : []
+  return m.kind === 'function' && m.topLevel ? importers.exportedAs(m.path, m.name) : []
 }
 
 /** Can `other`'s file import `target` (exported as `names`) as it stands today? */

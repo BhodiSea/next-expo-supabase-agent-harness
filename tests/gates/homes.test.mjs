@@ -164,6 +164,31 @@ treeTest('homes: MODULE inside one workspace when no member is exported, or the 
   })
 })
 
+treeTest('homes: a copy nested in a function body is no export, though its module exports its name', () => {
+  // x.ts exports a different `first`, which u0.ts imports; the copy in the constructor shares
+  // only its name. Importing `first` would bring in the other body, so y.ts's copy is the target.
+  const nested = `  constructor() {\n${BODY('first').replace('export ', '').replace(/^/gm, '    ')}  }\n`
+  const exports = ['export function first(s: string): string', 'function first(s: string): string']
+  for (const head of exports) {
+    const tail = head.startsWith('export') ? '' : 'export { first }\n'
+    const tree = {
+      'packages/c/package.json': pkg('@app/c'),
+      'packages/c/src/x.ts': `${head} {\n  return s.trim()\n}\nexport class Store {\n${nested}}\n${tail}`,
+      'packages/c/src/y.ts': BODY('second'),
+      'packages/c/src/u0.ts': "import { first } from './x'\nexport const u = first\n",
+    }
+    inTree(tree, () => {
+      const { callables } = extractTree(ts)
+      const copy = callables.find((c) => c.path === 'packages/c/src/y.ts')
+      const members = callables.filter((c) => c.alpha === copy?.alpha)
+      assert.deepEqual(members.map((m) => [m.path, m.line]), [['packages/c/src/x.ts', 6], ['packages/c/src/y.ts', 1]], head)
+      const ctx = { importers: buildImporters(), census: readCensus(), forbidden: loadForbidden() }
+      const where = home({ lang: 'ts', members, litEqual: true }, ctx)
+      assert.deepEqual({ kind: where.kind, target: where.target?.path ?? null }, { kind: 'import', target: 'packages/c/src/y.ts' }, head)
+    })
+  }
+})
+
 const VERTICALS = {
   '.dependency-cruiser.cjs': DEPCRUISE,
   'packages/verticals/notes/package.json': pkg('@app/notes'),

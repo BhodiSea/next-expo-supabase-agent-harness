@@ -305,6 +305,32 @@ treeTest('complexity: single-consumer counts a function exported by name and as 
   })
 })
 
+treeTest('complexity: a helper nested in a function body is no export: no importer, and call sites in its own file only', () => {
+  // use.ts imports and calls the exported trimIt three times; the constructor's trimIt shares
+  // only its name, and is called once.
+  const hits = hitsOf({
+    [`${K}/trim.ts`]: `export function trimIt(s: string, deep: boolean): string {
+  if (deep) return s.trim().toLowerCase()
+  return s
+}
+export class Store {
+  constructor(seed: string) {
+    const trimIt = (s: string) => s.trim()
+    void trimIt(seed)
+  }
+}
+`,
+    [`${K}/use.ts`]: "import { trimIt } from './trim'\nexport const go = (raw: string) => trimIt(raw, true) + trimIt(raw, false) + trimIt(raw, true)\n",
+  })
+  const records = hits
+    .filter((h) => h.path === `${K}/trim.ts`)
+    .map((h) => [h.line, h.subject, h.family, h.facts])
+  assert.deepEqual(records, [
+    [1, '@app/k#trimIt', 'single-consumer', { importers: 1, kind: 'function', importer: `${K}/use.ts`, also: ['bool-selector'] }],
+    [7, `${K}/trim.ts#trimIt`, 'intent-hiding', { tokens: 5, calls: 1, words: 2, also: [] }],
+  ])
+})
+
 treeTest('complexity: single-consumer is justified for a port, packages/shared, and two importers', () => {
   const draft = 'export interface Draft { readonly title: string }\n'
   const hits = hitsOf({

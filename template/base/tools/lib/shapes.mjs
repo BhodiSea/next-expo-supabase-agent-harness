@@ -42,8 +42,13 @@
 // Comments and whitespace are dropped. Shorthand properties and shorthand binding elements
 // expand to `key: $n`, so `{ noteId }` hashes as `{ noteId: $2 }` (without it, a second
 // vertical's `taskCreated(origin, taskId, occurredAt)` hashes equal to `noteCreated` and its
-// LIFT would emit the wrong payload key). `alpha` is the hash of that stream; `lit` hashes
-// the same stream with every literal kept verbatim, and is never printed.
+// LIFT would emit the wrong payload key). JSX text is read as JSX renders it: whitespace
+// alone across a line break is layout between children, which JSX drops, so it never enters
+// the stream; other text is one `S` whose literal has the spaces and tabs touching each line
+// break dropped and its lines joined by one space. So the space in `{first} {last}` is a
+// literal, and text wrapped onto a line of its own is the literal it was before. `alpha` is
+// the hash of that stream; `lit` hashes the same stream with every literal kept as written
+// (JSX text as it renders), and is never printed.
 //
 // THE TOKEN CONVENTION (TOKEN_CONVENTION below, frozen together with FLOOR and part of the
 // extractor digest). A callable's token count is the length of its normalised stream: every
@@ -64,8 +69,8 @@
 // tokens of the normalised stream NOT inside a tandem repeat: a token is repeated when it
 // sits in a run that repeats the run just before it (periods 1 to 16), from the second copy
 // on. Literal density is the share of `S` and `N` tokens. The JSX share (near-miss's "mostly
-// JSX") is the share of the stream's tokens that sit inside a JSX element or fragment, so the
-// whitespace between children, which never enters the stream, counts for nothing.
+// JSX") is the share of the stream's tokens that sit inside a JSX element or fragment, not
+// counting a function nested in it: an inline handler's body is code, not markup.
 //
 // THE PARSER is the project's own `typescript`, loaded by the caller through loadParser()
 // (lib/i18n-tree.mjs) and passed in; syntax only (createSourceFile, no program). The SQL legs
@@ -238,7 +243,7 @@ export const isDataShaped = (s) => repetitionRatio(s) < 0.5 || literalDensity(s)
  * @typedef {{
  *   lang: 'ts' | 'sql', path: string, line: number, name: string, scope?: string, subject: string,
  *   workspace: { dir: string, name: string }, kind: 'function' | 'method' | 'sql',
- *   exported: boolean, tokens: number, stmts: number, arity: number,
+ *   exported: boolean, topLevel?: boolean, tokens: number, stmts: number, arity: number,
  *   alpha: string, lit: string, stream: string[], ends: number[], literals: string[], sig: string[],
  *   mh: number[], dataShaped: boolean, rnr: number, jsxShare: number,
  *   node?: TsNode, file?: TsFile,
@@ -265,10 +270,14 @@ const hasModifier = (ts, node, kind) =>
 /**
  * Every callable node of a source file with its own name, at any depth: function
  * declarations, function expressions and arrows bound to a `const`, class methods. `scope`
- * is the dotted chain of the callables it sits in, outermost first ('' at the top level).
- * `own` is the name in scope in the body (null for a method).
+ * is the dotted chain of the extracted callables it sits in, outermost first. '' means it sits
+ * in none: at the top level, but also in a constructor, an accessor, an object literal's
+ * method, a callback or a callable no printer can name, none of which is extracted.
+ * `topLevel` says the declaration sits directly in the file (for a method, its class's does),
+ * the only place an import can reach, and `exported` is never true without it. `own` is the
+ * name in scope in the body (null for a method).
  * @returns {{ node: TsNode, name: string, own: string | null, kind: 'function' | 'method',
- *   exported: boolean, scope: string }[]}
+ *   exported: boolean, topLevel: boolean, scope: string }[]}
  */
 function callableNodes(ts, sf, localExports) {
   const out = []
@@ -292,27 +301,30 @@ function callableOf(ts, node, localExports) {
 }
 
 function declaredCallable(ts, node, localExports) {
+  const Export = ts.SyntaxKind.ExportKeyword
   if (ts.isFunctionDeclaration(node) && node.body !== undefined && node.name !== undefined) {
-    const exported =
-      hasModifier(ts, node, ts.SyntaxKind.ExportKeyword) || localExports.has(node.name.text)
-    return { node, name: node.name.text, own: node.name.text, kind: 'function', exported }
+    const name = node.name.text
+    const topLevel = ts.isSourceFile(node.parent)
+    const exported = topLevel && (hasModifier(ts, node, Export) || localExports.has(name))
+    return { node, name, own: name, kind: 'function', exported, topLevel }
   }
   if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && constFunction(ts, node)) {
-    const statement = node.parent?.parent
-    const exported =
-      (statement !== undefined && hasModifier(ts, statement, ts.SyntaxKind.ExportKeyword)) ||
-      localExports.has(node.name.text)
+    const name = node.name.text
+    const statement = node.parent.parent
+    const topLevel = ts.isVariableStatement(statement) && ts.isSourceFile(statement.parent)
+    const exported = topLevel && (hasModifier(ts, statement, Export) || localExports.has(name))
     const fn = node.initializer
-    return { node: fn, name: node.name.text, own: node.name.text, kind: 'function', exported }
+    return { node: fn, name, own: name, kind: 'function', exported, topLevel }
   }
   if (ts.isMethodDeclaration(node) && node.body !== undefined && ts.isClassLike(node.parent)) {
     const cls = node.parent
     const className = cls.name?.text ?? 'default'
     const method = ts.isIdentifier(node.name) ? node.name.text : node.name.getText()
-    const exported = hasModifier(ts, cls, ts.SyntaxKind.ExportKeyword)
+    const topLevel = ts.isClassDeclaration(cls) && ts.isSourceFile(cls.parent)
+    const exported = topLevel && hasModifier(ts, cls, Export)
     // A method's name is not a binding in its body (it recurses through `this.`), so a bare
     // identifier spelled like it names something else and stays as written.
-    return { node, name: `${className}.${method}`, own: null, kind: 'method', exported }
+    return { node, name: `${className}.${method}`, own: null, kind: 'method', exported, topLevel }
   }
   return null
 }
@@ -489,22 +501,38 @@ function pushLeaf(ts, leaf, sf, acc) {
     acc.verbatim.push(leaf.synthetic)
     return
   }
-  if (leaf.kind === ts.SyntaxKind.JsxTextAllWhiteSpaces) return
   if (leaf.kind === ts.SyntaxKind.Identifier) {
     pushIdentifier(ts, leaf, acc)
     return
   }
-  const text = leaf.getText(sf)
+  const jsx = leaf.kind === ts.SyntaxKind.JsxText
+  // Whitespace alone across a line break is layout between children, which JSX drops.
+  if (jsx && leaf.containsOnlyTriviaWhiteSpaces) return
+  const text = jsx ? jsxRendered(leaf.text) : leaf.getText(sf)
   const literal = literalClass(ts, leaf.kind)
   if (literal === null) {
     acc.stream.push(text)
     acc.verbatim.push(text)
     return
   }
-  if (leaf.kind === ts.SyntaxKind.JsxText && text.trim() === '') return
   acc.stream.push(literal)
   acc.verbatim.push(text)
   acc.literals.push(text)
+}
+
+/**
+ * JSX text as JSX renders it: the spaces and tabs touching a line break dropped, and the
+ * lines left that hold anything joined by one space. Whitespace with no line break stays.
+ * @param {string} raw
+ */
+function jsxRendered(raw) {
+  const lines = raw.split(/\r\n|\n|\r/)
+  const last = lines.length - 1
+  return lines
+    .map((line, i) => (i === 0 ? line : line.replace(/^[ \t]+/, '')))
+    .map((line, i) => (i === last ? line : line.replace(/[ \t]+$/, '')))
+    .filter((line) => line !== '')
+    .join(' ')
 }
 
 /** A name spelled like a literal placeholder, escaped: one token still, never `S` or `N`. */
@@ -526,6 +554,7 @@ function pushIdentifier(ts, id, { slot, stream, verbatim, expand }) {
   verbatim.push(value)
 }
 
+/** Does a leaf sit inside a JSX element or fragment, and in no function nested in it? */
 function insideJsx(ts, node) {
   for (let p = node.parent; p !== undefined; p = p.parent) {
     if (ts.isJsxElement(p) || ts.isJsxSelfClosingElement(p) || ts.isJsxFragment(p)) return true
@@ -620,6 +649,7 @@ export function extractTs(ts, path, src, workspace, { expand = true } = {}) {
         workspace,
         kind: found.kind,
         exported: found.exported,
+        topLevel: found.topLevel,
         stmts: statementCount(ts, fn),
         arity: fn.parameters.length,
         sig: signatureTokens(ts, fn, sf),
@@ -1124,7 +1154,10 @@ export function extractTree(ts, { expand = true } = {}) {
   return { files, callables }
 }
 
-/** A TS callable's name in its file: a method or a top-level one as is, a nested one under its parent's. */
+/**
+ * A TS callable's name in its file: a method, or one in no extracted callable (scope ''), as
+ * is; a nested one under its parent's.
+ */
 const qualified = (c) =>
   c.kind === 'method' || c.scope === '' ? c.name : `${c.scope.split('.').at(-1)}.${c.name}`
 
@@ -1133,13 +1166,13 @@ function assignSubjects(callables) {
   const pkgForm = (c) => `${c.workspace.name}#${c.name}`
   const counts = new Map()
   for (const c of callables) {
-    if (c.lang === 'ts' && c.exported && c.kind === 'function' && c.scope === '') {
+    if (c.lang === 'ts' && c.exported && c.kind === 'function' && c.topLevel) {
       counts.set(pkgForm(c), (counts.get(pkgForm(c)) ?? 0) + 1)
     }
   }
   const base = (c) => {
     if (c.lang === 'sql') return `sql:${c.name}`
-    const unique = c.kind === 'function' && c.exported && c.scope === ''
+    const unique = c.kind === 'function' && c.exported && c.topLevel
     return unique && counts.get(pkgForm(c)) === 1 ? pkgForm(c) : `${c.path}#${qualified(c)}`
   }
   // Two callables of one name in one file (an overload, a same-named helper in two

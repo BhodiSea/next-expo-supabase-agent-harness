@@ -41,6 +41,7 @@
 // `ns.name`) each file importing it binds, under every name importers.mjs records for it
 // (its own, an alias, `default`). A method's, by member name: `<receiver>.<method>(…)` on any
 // receiver (`this`, its class, an instance) in its file and in each file importing its class.
+// One not declared at its file's top level (for a method, its class) counts in its file only.
 // A JSX element is a call of its tag, so `<Comp />` and `<Comp>…</Comp>` are call sites of the
 // component `Comp` (a lowercase tag is an intrinsic element). A call through any other alias
 // is not seen; a same-named member of another class is counted with the method's.
@@ -112,15 +113,16 @@ class Tree {
   /**
    * Every syntactic call site of a callable (the header's CALL SITES): a function's under its
    * own name in its file and each importing file's local names for it; a method's under
-   * `.<method>` in its file and in each file importing its class. A nested callable is
-   * counted in its own file only.
+   * `.<method>` in its file and in each file importing its class. A callable not declared at
+   * its file's top level (shapes.mjs `topLevel`; for a method, its class) is counted in its own
+   * file only: nothing imports it, whatever its module exports under its name.
    * @param {Callable} c @returns {{ path: string, call: any }[]}
    */
   callSites(c) {
     const dot = c.kind === 'method' ? c.name.indexOf('.') : -1
     const key = dot < 0 ? c.name : c.name.slice(dot)
     const out = this.#sitesIn(c.path, [key])
-    if (c.scope !== '') return out
+    if (!c.topLevel) return out
     const binding = dot < 0 ? c.name : c.name.slice(0, dot)
     for (const imp of this.importers.importersOfLocal(c.path, binding)) {
       if (imp.file !== c.path) out.push(...this.#sitesIn(imp.file, dot < 0 ? imp.locals : [key]))
@@ -242,13 +244,6 @@ function passThrough(tree, c, file) {
 
 // ---- 2. helper-split ----------------------------------------------------------------------
 
-/** Is a callable declared at the top level of its file? */
-function topLevel(ts, c, sf) {
-  if (ts.isFunctionDeclaration(c.node)) return c.node.parent === sf
-  // arrow → VariableDeclaration → VariableDeclarationList → VariableStatement → SourceFile
-  return c.node.parent?.parent?.parent?.parent === sf
-}
-
 /**
  * The file's private top-level helpers that are called exactly once and never referenced
  * otherwise (a helper passed by reference is a callback, not a split), each with its call.
@@ -256,7 +251,7 @@ function topLevel(ts, c, sf) {
 function singleCallHelpers(ts, file) {
   const helpers = new Map()
   for (const c of file.callables) {
-    if (c.kind === 'function' && !c.exported && topLevel(ts, c, file.sf)) {
+    if (c.kind === 'function' && !c.exported && c.topLevel) {
       helpers.set(c.name, { c, refs: 0, calls: [] })
     }
   }
@@ -705,9 +700,12 @@ const RECIPES = [
   ['edge-guard', (tree, c, file) => edgeGuard(tree, c, file)],
 ]
 
-/** A callable's single-consumer facts, when it is an export with one importing file. */
+/**
+ * A callable's single-consumer facts, when it is an export with one importing file: a function
+ * declared at its file's top level, never one nested elsewhere that only shares an export's name.
+ */
 function consumerFacts(c, consumers) {
-  const decl = c.kind === 'function' && c.scope === '' ? consumers.get(c.name) : undefined
+  const decl = c.kind === 'function' && c.topLevel ? consumers.get(c.name) : undefined
   if (decl === undefined || decl.kind !== 'function') return null
   return { importers: 1, kind: decl.kind, importer: decl.importer }
 }
