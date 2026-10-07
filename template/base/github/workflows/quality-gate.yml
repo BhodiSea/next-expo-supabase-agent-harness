@@ -839,6 +839,7 @@ jobs:
               - 'tools/check-edge-functions.mjs'
               - 'tools/lib/gate.mjs'
               - 'tools/lib/fs-walk.mjs'
+              - 'tools/lib/closed-text.mjs'
               - '.harness/manifest.json'
               - '.github/workflows/quality-gate.yml'
 

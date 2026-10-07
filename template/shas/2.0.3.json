@@ -598,6 +598,15 @@
     ],
     ".github/workflows/quality-gate.yml": [
       {
+        "sha256": "535a4a0b436a175c94456206be6b2241f412844751f5dc5d2eeec2b1e38bbbe8",
+        "sites": [
+          [
+            2223,
+            "DEFAULT_BRANCH"
+          ]
+        ]
+      },
+      {
         "sha256": "bd8b8de11b7f3c8e52de913947a66848f06dbf76c213fdd34ac3d0cfc06b5cf3",
         "sites": [
           [
@@ -772,6 +781,15 @@
         ]
       },
       {
+        "sha256": "6de604044041f1c682756b80da771dcab2f4815ca44c62d3c70fa08f96b03674",
+        "sites": [
+          [
+            20380,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "78fc48f30576bf2d89020c8eac4c68084f691d84a416202cba245f76f432b6a7",
         "sites": [
           [
@@ -805,6 +823,19 @@
       }
     ],
     "docs/harness/gates-catalog.md": [
+      {
+        "sha256": "a454f3913dd7d8d796144f90358e3bef29d16b0bbb50680f2ec0833a7798bd02",
+        "sites": [
+          [
+            27862,
+            "SECURITY_OWNERS"
+          ],
+          [
+            152094,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
       {
         "sha256": "ab80386a6331ac40b5da42d3cb47a3c91dd2556301e031072f48088343a1c01c",
         "sites": [
@@ -1470,6 +1501,9 @@
     ],
     "tools/check-duplication.mjs": [
       {
+        "sha256": "4cabb36ef444dfc0a5620c83af9de4d82e106b2c04fcdb8fba57b8047b74df03"
+      },
+      {
         "sha256": "e78b71944eaac831c69eee756f4a92f3b4a9883c733d4b78e9a0af98eec7a66d"
       }
     ],
@@ -1561,6 +1595,9 @@
     "tools/check-mobile-parity.mjs": [
       {
         "sha256": "2162f4d23ec095f50513f497487b9b120c32afcd680b4dcfe0a88b0967270277"
+      },
+      {
+        "sha256": "343e607a2b587205b11ae6abe9156b1fb17e28844254f5343355f30098cbe8e1"
       }
     ],
     "tools/check-mobile-perf.mjs": [
@@ -1938,6 +1975,11 @@
         "sha256": "42bd293c96c1bb70fb4384bfd638d104e5dc3f30e8c4e1dcb1b8ed4dec4d4d88"
       }
     ],
+    "tools/lib/closed-text.mjs": [
+      {
+        "sha256": "2ec6b6bb737a9af258ae96f9e43f6addcc8f4ba02c9448214bc3afbb1669d3b7"
+      }
+    ],
     "tools/lib/cng-purity.mjs": [
       {
         "sha256": "a7ed47cf637cd64b0e3c73b37ba4551484b24398c844ad2970dffa540433e296"
@@ -2000,6 +2042,9 @@
     ],
     "tools/lib/gate.mjs": [
       {
+        "sha256": "992c053d82293a371e58a7a97ff1f999bbf13722a86501e561adccf01b55c8a3"
+      },
+      {
         "sha256": "fa34b467b0f755abf2f277179d9631899fd07eed75f987e51db163da5bceb4bd"
       }
     ],
@@ -2009,6 +2054,9 @@
       }
     ],
     "tools/lib/harness-brief.mjs": [
+      {
+        "sha256": "3e2d9be1b29e675cfbaba6ce3b26474ee8b4038c6bf007abb4c45c9ec89ea95b"
+      },
       {
         "sha256": "aacdf82dbf91838476e9fa166df18713f8f125d8c7ccb32d8b76e041e1a61a7f"
       },
@@ -2138,6 +2186,9 @@
       }
     ],
     "tools/lib/stamp-inputs.mjs": [
+      {
+        "sha256": "a85d4d8bd4a6d70e9a13fae9380f7fa4c2d79690962754ea91d3d0092acd02db"
+      },
       {
         "sha256": "f783e10bcf311dcded7270d40b5e84a1ab353f6a7438b849a89cc40f01f1c4dd"
       }

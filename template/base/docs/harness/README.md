@@ -735,7 +735,13 @@ its set, so no path can close the span. No file content is ever read into it. Th
 brief is capped at 1,200 characters and cut at a line with a fixed marker. A source that
 cannot be read prints `<field>: unavailable`. All of it lives in
 `tools/lib/harness-brief.mjs`, which the write guard covers; the hook and the CLI are thin
-wrappers.
+wrappers. The name set, the path printer and `(unprintable)` come from
+`tools/lib/closed-text.mjs` (2.1.0), the one home of every closed printer: paths, symbols,
+SQL names, signatures rebuilt from tokens, case labels, dotted callees, actions, i18n keys,
+testIDs and the `key12` id. Each prints a passing value in a code span and anything else as
+`(unprintable)`; the advisory recorder (`docs/harness/gates-catalog.md`, "Shared behavior")
+prints through the same module, and nothing the harness prints from the tree into an
+agent's context uses a printer of its own.
 
 - **The last turn** is read over the whole turn ledger, every session's records: a new
   session's id matches none of the earlier ones, so a session that ended red at the cap
