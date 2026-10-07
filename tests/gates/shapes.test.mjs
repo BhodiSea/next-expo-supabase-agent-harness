@@ -308,6 +308,22 @@ test('shapes: a comment inside a SQL body ends at its line, so it changes no tok
   )
 })
 
+test("shapes: a backslash in a SQL string is an ordinary character, so `'a\\'` ends there", () => {
+  // As sql-parse.mjs scans it: `''` is a string's only escape. Read as an escape, the
+  // backslash would run the first string on through `|| '`, and an unterminated string of
+  // many backslash pairs would backtrack exponentially.
+  inTree(
+    {
+      'supabase/migrations/20260101000000_slash.sql':
+        "CREATE FUNCTION private.slash() RETURNS text LANGUAGE sql AS $$ SELECT 'a\\' || 'b' $$;\n",
+    },
+    () => {
+      const [fn] = extractTree(null).callables
+      assert.deepEqual(fn.stream.slice(-5), ['select', 'S', '||', 'S', '$$'])
+    },
+  )
+})
+
 test('shapes: the extractor digest is 12 hex and moves with the parser version', () => {
   const a = extractorDigest({ version: '6.0.3' })
   assert.match(a, /^[0-9a-f]{12}$/)

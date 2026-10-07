@@ -616,9 +616,11 @@ function finish({ norm, ...rest }) {
 // ---- SQL --------------------------------------------------------------------------------
 
 // One token per lexeme: comments, quoted strings (E'', '', dollar-quoted), numbers, quoted
-// and unquoted names, the multi-character operators, then any other single character.
+// and unquoted names, the multi-character operators, then any other single character. A
+// quoted string's only escape is `''`, as sql-parse.mjs scans it, so a backslash is an
+// ordinary character and no string can backtrack exponentially.
 const SQL_TOKEN =
-  /(--[^\n]*)|(\/\*[\s\S]*?\*\/)|(\s+)|([eE]?'(?:''|\\.|[^'])*')|(\$([A-Za-z_]\w*)?\$)|(\d+(?:\.\d+)?)|("(?:""|[^"])*")|([A-Za-z_][\w$]*)|(::|:=|<>|!=|>=|<=|\|\||->>|->|=>|[^\s])/g
+  /(--[^\n]*)|(\/\*[\s\S]*?\*\/)|(\s+)|([eE]?'(?:''|[^'])*')|(\$([A-Za-z_]\w*)?\$)|(\d+(?:\.\d+)?)|("(?:""|[^"])*")|([A-Za-z_][\w$]*)|(::|:=|<>|!=|>=|<=|\|\||->>|->|=>|[^\s])/g
 
 /**
  * Tokenise a SQL text: comments and whitespace dropped, names lower-cased, a nested
