@@ -737,8 +737,10 @@ function fileHits(tree, file) {
     const [family, top] = found[0]
     out.push(hit(family, c, { ...top, also: found.slice(1).map(([f]) => f) }))
   }
+  // A type named outside the symbol printer (a `$`, over 64 characters) gets no record: its
+  // subject could not print, as for an unprintable callable in shapes.mjs.
   for (const [name, decl] of ctx.consumers) {
-    if (decl.kind !== 'function') out.push(typeHit(file, name, decl))
+    if (decl.kind !== 'function' && symbol.ok(name)) out.push(typeHit(file, name, decl))
   }
   return out
 }

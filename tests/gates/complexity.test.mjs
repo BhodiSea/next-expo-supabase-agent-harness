@@ -277,6 +277,17 @@ export function draftOf(title: string) {
   assert.equal(hits.find((h) => h.name === 'Draft')?.subject, '@app/k#Draft')
 })
 
+treeTest('complexity: single-consumer skips a type whose name no record can print', () => {
+  const hits = hitsOf({
+    [`${K}/shape.ts`]: 'export interface Draft$ { readonly title: string }\nexport interface Plain { readonly title: string }\n',
+    [`${K}/use.ts`]: "import type { Draft$, Plain } from './shape'\nexport const d: Draft$ | Plain | null = null\n",
+  })
+  assert.deepEqual(
+    hits.filter((h) => h.family === 'single-consumer').map((h) => h.subject),
+    ['@app/k#Plain'],
+  )
+})
+
 treeTest('complexity: single-consumer counts a function exported by name and as default under both', () => {
   const body = (name) => `export function ${name}(id: string, kind: string) {\n  const label = kind + id\n  return label.toUpperCase()\n}\nexport default ${name}\n`
   const hits = hitsOf({
