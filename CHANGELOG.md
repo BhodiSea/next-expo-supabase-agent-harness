@@ -227,6 +227,25 @@ this comment. -->
   README are owned and reach an install that enabled the module with `update`, which removes
   the two moved files when unmodified. A slice you already applied is seeded and stays yours;
   the runbook's 2.0.3 section gives the hand steps.
+- **The factory's write guard denies every spelling of a protected path, and judges
+  NotebookEdit** (#224). `.claude/hooks/pretool-write-guard.mjs` stripped the project dir from
+  `file_path` and matched the rest as spelled, so `docs/../scripts/hygiene.mjs` and
+  `./scripts/hygiene.mjs` passed every `^`-anchored pattern, and `scripts/../docs/guide.md`
+  was denied though it lands in `docs/`. It read only `file_path`, so a NotebookEdit, which
+  sends `notebook_path`, was judged on an empty path and passed. The guard now reads
+  `file_path`, `notebook_path` or `path`, resolves it against the project dir and judges the
+  project-relative result; a path that resolves outside the project passes, as before. The new
+  `tests/hooks/factory-write-guard.test.mjs`, the guard's first test, was red on six of its
+  nine cases before the change. Factory only: nothing changes for an install.
+- **CONTRIBUTING says which commands cover a first change, and how long they take** (#167).
+  "Local development" opened with every check CI blocks on, and never said which of them a
+  given kind of change needs, how long each takes, or that the test suites need no install. A
+  new "Your first change" subsection at its top gives the commands for a doc fix, an installer
+  change, a hook change and a gate change, with times measured twice on a fresh clone with no
+  install. It also says when to regenerate the released-sha table, which check is the slowest,
+  and that a red check on a first pull request is normal. The full list follows under its own
+  heading, unchanged, and `check-claims` still finds every `lint.yml` blocker in it. Factory
+  only: nothing changes for an install.
 - **The two append-only trails share one `deny_mutation()` and one pair of partition
   functions** (#146, parts A, B, D and E). The auth-event trail had copied the audit trail's
   `deny_mutation()`, `ensure_partitions(int)` and `drop_partitions_older_than(interval)` line
