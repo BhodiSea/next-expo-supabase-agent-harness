@@ -46,8 +46,9 @@ const MIN_TOKENS = 70
 const MIN_LINES = 6
 
 // The scan roots and their exclusions live in lib/duplication-scope.mjs (2.1.0, #186), the
-// one list this scan and the Single Home extractor both read: apps/*/src, the layered
-// packages/*/*/src, apps/web/{app,lib}; tests, `.d.ts` and generated modules excluded.
+// one list this scan and the Single Home extractor both read: apps/*/src, the flat
+// packages/*/src, the layered packages/*/*/src, apps/web/{app,lib}; tests, `.d.ts` and
+// generated modules excluded.
 const SCAN_ROOTS = duplicationScanRoots()
 if (SCAN_ROOTS.length === 0) {
   skipOrFail(

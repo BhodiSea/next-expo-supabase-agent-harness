@@ -3,9 +3,10 @@
 // `node tools/check-duplication.mjs --sweep --json`. No verdict reads it yet: the gate's Stop
 // run is L0 alone, and the exact rule goes live only with #201.
 //
-// SCOPE. The duplication scan roots (lib/duplication-scope.mjs: apps/*/src, the layered
-// packages/*/*/src, apps/web/app and apps/web/lib), with L0's exclusions (tests, `generated/`, `*.gen.ts`,
-// `database.types.ts`, `.d.ts`), plus supabase/migrations and supabase/schemas. TS callables
+// SCOPE. The duplication scan roots (lib/duplication-scope.mjs: apps/*/src, the flat
+// packages/*/src, the layered packages/*/*/src, apps/web/app and apps/web/lib), with L0's
+// exclusions (tests, `generated/`, `*.gen.ts`, `database.types.ts`, `.d.ts`), plus
+// supabase/migrations and supabase/schemas. TS callables
 // are function declarations, function expressions and arrow functions bound to a `const`,
 // and class methods, at any depth; each needs a body. LIMIT: a TS callable whose name the
 // closed printers refuse (lib/closed-text.mjs: a `#private`, string-literal, numeric or
