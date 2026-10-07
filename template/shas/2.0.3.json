@@ -859,6 +859,19 @@
         ]
       },
       {
+        "sha256": "e56b277128351c20611cae8045e17dad09a54218a9760aba2d548475db6e6a47",
+        "sites": [
+          [
+            27862,
+            "SECURITY_OWNERS"
+          ],
+          [
+            152094,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
         "sha256": "fd22d51c7c2a12b9ed5dfce2fe38354e115da9995dffdedd196c22cb06748f6a",
         "sites": [
           [
@@ -1522,6 +1535,9 @@
         "sha256": "4cabb36ef444dfc0a5620c83af9de4d82e106b2c04fcdb8fba57b8047b74df03"
       },
       {
+        "sha256": "c3a1ba2e6c4354bfe35bede3913b857960908ef15d1b5f163d4978b56c27af20"
+      },
+      {
         "sha256": "e78b71944eaac831c69eee756f4a92f3b4a9883c733d4b78e9a0af98eec7a66d"
       }
     ],
@@ -1784,6 +1800,9 @@
       },
       {
         "sha256": "9e27d8c00525c601316230bb43f283516fe3e2c6d0588a3c269ed63d1a11bafe"
+      },
+      {
+        "sha256": "afbf6678e331cdc7a234590cf2d93199e5077cf772d662bcc8097fb6ca8f08ed"
       }
     ],
     "tools/ci/device-e2e-matrix.sh": [
@@ -2003,6 +2022,11 @@
         "sha256": "a7ed47cf637cd64b0e3c73b37ba4551484b24398c844ad2970dffa540433e296"
       }
     ],
+    "tools/lib/complexity.mjs": [
+      {
+        "sha256": "e90332568cbd41e5027fc8f665005a0b83cf728b91ceeaf609cf8adc8489318e"
+      }
+    ],
     "tools/lib/conformance-map.mjs": [
       {
         "sha256": "52e042309d4f98397e927d5dddff4ee556afb682502fcea4693b102c59c2b377"
@@ -2026,6 +2050,16 @@
     "tools/lib/derender.mjs": [
       {
         "sha256": "766b9ac405f48b86407198ada3a4d2993bc3680e62055ae2a19385fb64cdb982"
+      }
+    ],
+    "tools/lib/differs.mjs": [
+      {
+        "sha256": "f679e5d8acff97238b74d1851710b657b4ac304082e768dc3b1be556d5c9e5e8"
+      }
+    ],
+    "tools/lib/duplication-scope.mjs": [
+      {
+        "sha256": "6cc5f27b850655a13c587d0a585f54dd484d9add57e0daf86263b3612cc5733a"
       }
     ],
     "tools/lib/enforcement-surface.mjs": [
@@ -2060,6 +2094,9 @@
     ],
     "tools/lib/gate.mjs": [
       {
+        "sha256": "1e8b5b128194d1d14780760f4181b8c7e4be23a75bd2fb390562b51ea95deb77"
+      },
+      {
         "sha256": "992c053d82293a371e58a7a97ff1f999bbf13722a86501e561adccf01b55c8a3"
       },
       {
@@ -2082,9 +2119,19 @@
         "sha256": "d8e5b3aadec6fe8d70457c3d69a5a0086bf64dbcd709a2a4bb9c20a707690701"
       }
     ],
+    "tools/lib/homes.mjs": [
+      {
+        "sha256": "ce721f16d339630dc3443984b71b78cfb4a5857029b049b1cd45b1f6b523ec67"
+      }
+    ],
     "tools/lib/i18n-tree.mjs": [
       {
         "sha256": "30d632dac732786219aac6a5543776291aaddb312c27274fac512ea2893987ef"
+      }
+    ],
+    "tools/lib/importers.mjs": [
+      {
+        "sha256": "cee8c55c26e161c5103cfa433c50835c2976e62d0469627a54c41fb0c9ca1509"
       }
     ],
     "tools/lib/inventory.mjs": [
@@ -2183,6 +2230,11 @@
         "sha256": "4f0dd4cb53f096b6b8039fb729bf6861373195368feae30e57cc1c74d73bbafd"
       }
     ],
+    "tools/lib/shapes.mjs": [
+      {
+        "sha256": "1d940af71f258bdd233892aeaeddd003c9edf812219a1cbb4fbd3e2a02f3fb58"
+      }
+    ],
     "tools/lib/source-text.mjs": [
       {
         "sha256": "d80d6341a3e68289daa1c0a7add7f6067fa7760dbc050e010525abb643e1a3b9"
@@ -2201,6 +2253,9 @@
     "tools/lib/sql-parse.mjs": [
       {
         "sha256": "0758bd2d7a334fda11c3e5ce38bb99e2bbd3a6e7b0a618e5205a130b3f7098cf"
+      },
+      {
+        "sha256": "b56a62064af87fda7489edb7981cca53839d1368d580cc0dc524a6241c5fec1f"
       }
     ],
     "tools/lib/stamp-inputs.mjs": [
@@ -2236,6 +2291,11 @@
         "sha256": "f10879e889bd7eac649e6caf2815832797789ae0edacb222fbafbfebf077a6e3"
       }
     ],
+    "tools/lib/sweep.mjs": [
+      {
+        "sha256": "b1406f44422a7c71a5fecdf49505b0c7a20bab1e3cd1db93829d651dd7008fba"
+      }
+    ],
     "tools/lib/table-grants.mjs": [
       {
         "sha256": "9945f50f928a9d1839ffbe4e0e89dfe9f97b0602f9188cd3f12689a84d937933"
@@ -2248,6 +2308,9 @@
     ],
     "tools/lib/vertical-anatomy.mjs": [
       {
+        "sha256": "208e679a5f9787796ee6874f2dbb1a2f1f8ec5b2e9f2b037a6aeaafc86307061"
+      },
+      {
         "sha256": "61e6df52cb59f7d9cea06f3c5c4dc127e83eab85261d17d7b820dac12df494df"
       }
     ],
@@ -2259,6 +2322,11 @@
     "tools/lib/workflow-hardening.mjs": [
       {
         "sha256": "9ab47994e9f7eb4b83c1e528eca715a6e2bfd4224f46a25b2bb488eab6ca9589"
+      }
+    ],
+    "tools/lib/workspace-tiers.mjs": [
+      {
+        "sha256": "30c0011db55a8410d80373896387a4d9574ae9b8f6b040813a972374c5361901"
       }
     ],
     "tools/mcp/README.md": [
