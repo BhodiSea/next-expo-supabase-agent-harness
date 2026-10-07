@@ -190,6 +190,28 @@ test('importers: a module that imports a name and re-exports it is followed, and
   })
 })
 
+test('importers: a forwarded name with a `$` counts as used only where it stands as a whole identifier', () => {
+  const tree = {
+    'packages/a/package.json': pkg('@app/a'),
+    'packages/a/src/m.ts': 'export const $store = { get: () => 1 }\nexport const a$b = () => 2\n',
+    // Only forwards: each name appears again only as a property or inside a longer name.
+    'packages/a/src/index.ts':
+      "import { $store, a$b } from './m'\nexport { $store, a$b }\nexport const k = obj.$store + x$store + a$bc\n",
+    // Forwards AND uses each, so it is an importer of both.
+    'packages/a/src/uses.ts': "import { $store, a$b } from './m'\nexport { $store as s, a$b as ab }\nexport const v = $store.get() + a$b()\n",
+  }
+  inTree(tree, () => {
+    const idx = buildImporters()
+    for (const name of ['$store', 'a$b']) {
+      assert.deepEqual(
+        idx.importersOf('packages/a/src/m.ts', name).map((i) => i.file),
+        ['packages/a/src/uses.ts'],
+        name,
+      )
+    }
+  })
+})
+
 test('importers: an exports map of top-level conditions is the `.` entry, and a .d.ts target falls through', () => {
   const tree = {
     'packages/a/package.json': pkg('@app/a', [], { types: './src/index.ts', default: './src/index.ts' }),

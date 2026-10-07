@@ -850,11 +850,12 @@ treeTest('sweep: --sweep --json through a shell pipe delivers the whole document
   // spawnSync reads through a socketpair, whose buffer is large; a pipe holds 64 KiB, so a
   // longer document arrives whole only when the gate waits for its write to drain.
   assert.ok(raw.length > 65536, `the demo document is ${String(raw.length)} bytes, too short to fill a pipe`)
-  const piped = spawnSync(
-    'sh',
-    ['-c', '"$0" "$1" --sweep --json | (sleep 1; cat)', process.execPath, join(SCAFFOLDS.demo, 'tools/check-duplication.mjs')],
-    { cwd: SCAFFOLDS.demo, encoding: 'utf8', env: cleanEnv() },
-  )
+  // The shell text is a constant; the two paths reach it only as environment values.
+  const piped = spawnSync('sh', ['-c', '"$SWEEP_NODE" "$SWEEP_GATE" --sweep --json | (sleep 1; cat)'], {
+    cwd: SCAFFOLDS.demo,
+    encoding: 'utf8',
+    env: cleanEnv({ SWEEP_NODE: process.execPath, SWEEP_GATE: join(SCAFFOLDS.demo, 'tools/check-duplication.mjs') }),
+  })
   assert.equal(piped.status, 0, piped.stderr)
   assert.ok(piped.stdout === raw, `${String(piped.stdout.length)} of ${String(raw.length)} bytes arrived`)
   assert.equal(JSON.parse(piped.stdout).complete, true)

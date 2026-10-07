@@ -151,9 +151,23 @@ function onlyForwarded(text, forwarded) {
     .replace(IMPORT_FROM, ' ')
     .replace(/\bexport\s+(?:type\s+)?\{[^}]*\}/g, ' ')
     .replace(DEFAULT_NAME, ' ')
-  const used = (name) =>
-    new RegExp(`(?<![\\w$.])${name.replace(/\$/g, '\\$')}(?![\\w$])`).test(rest)
-  return new Set([...forwarded].filter((name) => !used(name)))
+  return new Set([...forwarded].filter((name) => !standsAlone(rest, name)))
+}
+
+const IDENT_CHAR = /[\w$]/
+
+/**
+ * Whether `name` occurs in `text` as a whole identifier and not as a property (after `.`).
+ * A plain scan, so no name is ever read as a pattern.
+ */
+function standsAlone(text, name) {
+  if (name === '') return false
+  for (let at = text.indexOf(name); at !== -1; at = text.indexOf(name, at + 1)) {
+    const before = text[at - 1] ?? ''
+    const after = text[at + name.length] ?? ''
+    if (before !== '.' && !IDENT_CHAR.test(before) && !IDENT_CHAR.test(after)) return true
+  }
+  return false
 }
 
 /** A module that only forwards an imported binding is not its importer: drop the binding. */
