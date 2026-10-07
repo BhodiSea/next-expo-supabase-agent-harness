@@ -26,11 +26,15 @@
 //      is `if (p)` / `if (!p)`, or the body is `p ? … : …`), or that is passed a literal
 //      `true` or `false` at 2 or more call sites. Excluded: functions that return JSX.
 //   6. edge-guard — an early `return` of `[]`, `null`, `undefined`, `0`, `''` or `false`
-//      under an emptiness test (`.length`/`.size` against 0, or `!x.length`) or a null test,
-//      before a general path that yields the same value on that input: a returned
-//      `map`/`filter`/`flatMap`, a `reduce` seeded with the same literal, or a `for…of` whose
-//      accumulator starts at it and is returned (after a null test, only an optional-chained
-//      general path qualifies). Facts: {returns, generalLine, generalKind}.
+//      under an emptiness test (`.length`/`.size` against 0, or `!x.length`; never
+//      `!x?.length`, which a null `x` passes too) or a null test, before a general path that
+//      yields the same value on that input: a returned `map`/`filter`/`flatMap`, a `reduce`
+//      seeded with the same literal, or a `for…of` whose accumulator starts at it and is
+//      returned by the very next statement (after a null test, only an optional-chained
+//      general path qualifies). Between the guard and that path, and between the
+//      accumulator's declaration and the guard, stand only inert statements: declarations of
+//      plain names to literals (or arrays and objects of them), so nothing there can throw,
+//      return or change the value on that input. Facts: {returns, generalLine, generalKind}.
 //
 // CALL SITES are counted syntactically, by callee name: calls of the function's own name in
 // its file, plus calls of the local name (or `ns.name`) each importing file binds, in the
@@ -491,8 +495,7 @@ function guardTest(ts, cond) {
   const u = unwrap(ts, cond)
   if (u === undefined) return null
   if (ts.isPrefixUnaryExpression(u) && u.operator === ts.SyntaxKind.ExclamationToken) {
-    const inner = unwrap(ts, u.operand)
-    const sized = sizeOf(ts, inner)
+    const sized = negatedSize(ts, u.operand)
     return sized !== null ? { subject: sized, test: 'empty' } : null
   }
   if (!ts.isBinaryExpression(u)) return null
@@ -514,6 +517,15 @@ function sizeOf(ts, e) {
   if (e === undefined || !ts.isPropertyAccessExpression(e) || !ts.isIdentifier(e.expression))
     return null
   return ['length', 'size'].includes(e.name.text) ? e.expression.text : null
+}
+
+/**
+ * The `x` of `!x.length` / `!x.size`. Not of `!x?.length`: a null `x` passes that test too,
+ * and no general path yields the guarded value on null.
+ */
+function negatedSize(ts, operand) {
+  const inner = unwrap(ts, operand)
+  return inner !== undefined && ts.isOptionalChain(inner) ? null : sizeOf(ts, inner)
 }
 
 /** An early `if (test) return X` as {subject, test, returns}, or null. */
@@ -554,37 +566,78 @@ function generalPath(ts, st, guard) {
   return guardValue(ts, seed) === guard.returns ? method : null
 }
 
-/** A `for (… of subject)` whose accumulator starts at the guarded value and is returned. */
-function forOfPath(ts, statements, i, guard) {
-  const st = statements[i]
-  if (
-    !ts.isForOfStatement(st) ||
-    !ts.isIdentifier(st.expression) ||
-    st.expression.text !== guard.subject
-  ) {
-    return false
-  }
-  if (guard.test !== 'empty') return false
-  const last = statements.at(-1)
-  if (
-    !ts.isReturnStatement(last) ||
-    last.expression === undefined ||
-    !ts.isIdentifier(last.expression)
+/**
+ * A value whose evaluation cannot throw: a literal, or an array or object of them (no
+ * spread, no computed key).
+ */
+function inertValue(ts, e) {
+  const u = unwrap(ts, e)
+  if (u === undefined || ts.isLiteralExpression(u) || guardValue(ts, u) !== null) return true
+  if (u.kind === ts.SyntaxKind.TrueKeyword) return true
+  if (ts.isArrayLiteralExpression(u)) return u.elements.every((x) => inertValue(ts, x))
+  if (!ts.isObjectLiteralExpression(u)) return false
+  return u.properties.every(
+    (p) =>
+      ts.isPropertyAssignment(p) &&
+      !ts.isComputedPropertyName(p.name) &&
+      inertValue(ts, p.initializer),
   )
+}
+
+/**
+ * Is a statement one that cannot throw, return or rebind the subject on any input? Only a
+ * `let`/`const`/`var` of plain names (never the subject's) to inert values is.
+ */
+function inert(ts, st, subject) {
+  if (!ts.isVariableStatement(st) || (st.declarationList.flags & ts.NodeFlags.Using) !== 0)
     return false
-  const acc = last.expression.text
-  return statements
-    .slice(0, i)
-    .some(
-      (s) =>
-        ts.isVariableStatement(s) &&
-        s.declarationList.declarations.some(
-          (d) =>
-            ts.isIdentifier(d.name) &&
-            d.name.text === acc &&
-            guardValue(ts, d.initializer) === guard.returns,
-        ),
-    )
+  return st.declarationList.declarations.every(
+    (d) => ts.isIdentifier(d.name) && d.name.text !== subject && inertValue(ts, d.initializer),
+  )
+}
+
+/** The last declaration of `name` in the first `end` body statements, with its index; or null. */
+function lastDeclaration(ts, statements, end, name) {
+  for (let at = end - 1; at >= 0; at -= 1) {
+    const st = statements[at]
+    const list = ts.isVariableStatement(st) ? st.declarationList.declarations : []
+    const d = list.findLast((x) => ts.isIdentifier(x.name) && x.name.text === name)
+    if (d !== undefined) return { at, d }
+  }
+  return null
+}
+
+/**
+ * A `for (… of subject)` directly before the closing `return acc`, where `acc` was last
+ * declared with the guarded value and only inert statements sit between that declaration
+ * and the guard. generalAfter holds the statements from the guard to the loop to that rule.
+ */
+function forOfPath(ts, statements, at, guard) {
+  const st = statements[at]
+  const last = statements[at + 1]
+  if (guard.test !== 'empty' || at !== statements.length - 2 || !ts.isForOfStatement(st))
+    return false
+  if (!ts.isIdentifier(st.expression) || st.expression.text !== guard.subject) return false
+  const acc = ts.isReturnStatement(last) && last.expression !== undefined ? last.expression : null
+  if (acc === null || !ts.isIdentifier(acc)) return false
+  const decl = lastDeclaration(ts, statements, at, acc.text)
+  if (decl === null || guardValue(ts, decl.d.initializer) !== guard.returns) return false
+  return statements.slice(decl.at + 1, guard.at).every((s) => inert(ts, s, guard.subject))
+}
+
+/**
+ * The first general path after the guard at `guard.at`, reached past inert statements only
+ * (anything else might throw or return on the guarded input): {at, kind}, or null.
+ */
+function generalAfter(ts, statements, guard) {
+  for (let j = guard.at + 1; j < statements.length; j += 1) {
+    const kind = forOfPath(ts, statements, j, guard)
+      ? 'for-of'
+      : generalPath(ts, statements[j], guard)
+    if (kind !== null) return { at: j, kind }
+    if (!inert(ts, statements[j], guard.subject)) return null
+  }
+  return null
 }
 
 /** @param {Tree} tree @param {Callable} c @param {TsFile} file */
@@ -594,16 +647,12 @@ function edgeGuard(tree, c, file) {
   for (const [i, st] of statements.entries()) {
     const guard = earlyReturn(ts, st)
     if (guard === null) continue
-    for (let j = i + 1; j < statements.length; j += 1) {
-      const kind = forOfPath(ts, statements, j, guard)
-        ? 'for-of'
-        : generalPath(ts, statements[j], guard)
-      if (kind !== null) {
-        return {
-          returns: guard.returns,
-          generalLine: lineAt(file.sf, statements[j]),
-          generalKind: kind,
-        }
+    const general = generalAfter(ts, statements, { ...guard, at: i })
+    if (general !== null) {
+      return {
+        returns: guard.returns,
+        generalLine: lineAt(file.sf, statements[general.at]),
+        generalKind: general.kind,
       }
     }
   }

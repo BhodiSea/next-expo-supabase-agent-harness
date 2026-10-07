@@ -99,7 +99,9 @@ treeTest('complexity: helper-split hits two single-call private helpers, or one 
   })
 })
 
-treeTest('complexity: helper-split is justified when a helper is a callback or is called twice', () => {
+// Each justified canary below has exactly one other single-call helper, so the one exclusion
+// it names is all that keeps its function under the two-helper bar.
+treeTest('complexity: helper-split is justified when a helper is also passed as a callback', () => {
   const hits = hitsOf({
     [`${K}/split.ts`]: `function headOf(text: string) {
   const lines = text.split('\\n')
@@ -109,19 +111,38 @@ function tailOf(text: string) {
   const lines = text.split('\\n')
   return lines.slice(1)
 }
-function twice(text: string) {
-  const lines = text.split('\\n')
-  return lines.length
-}
 export function parseAll(texts: string[]) {
+  const first = headOf(texts[0] ?? '')
   const heads = texts.map(headOf)
   const tail = tailOf(texts[0] ?? '')
-  return { heads, tail, n: twice('a') + twice('b') }
+  return { first, heads, tail }
 }
 `,
     [`${K}/control.ts`]: SPLIT,
   })
+  // headOf is called once, like a split helper, but is also passed by reference.
   assert.ok(!familiesOf(hits, `${K}/split.ts`, 'parseAll').includes('helper-split'))
+  assert.equal(familiesOf(hits, `${K}/control.ts`, 'parse')[0], 'helper-split', 'the control hits')
+})
+
+treeTest('complexity: helper-split is justified when a helper is called twice', () => {
+  const hits = hitsOf({
+    [`${K}/split.ts`]: `function tailOf(text: string) {
+  const lines = text.split('\\n')
+  return lines.slice(1)
+}
+function twice(text: string) {
+  const lines = text.split('\\n')
+  return lines.length
+}
+export function countAll(texts: string[]) {
+  const tail = tailOf(texts[0] ?? '')
+  return { tail, n: twice('a') + twice('b') }
+}
+`,
+    [`${K}/control.ts`]: SPLIT,
+  })
+  assert.ok(!familiesOf(hits, `${K}/split.ts`, 'countAll').includes('helper-split'))
   assert.equal(familiesOf(hits, `${K}/control.ts`, 'parse')[0], 'helper-split', 'the control hits')
 })
 
@@ -293,6 +314,81 @@ export function seeded(xs: number[]) {
     assert.ok(!familiesOf(hits, `${K}/guard.ts`, name).includes('edge-guard'), name)
   }
   assert.equal(familiesOf(hits, `${K}/control.ts`, 'names')[0], 'edge-guard', 'the control hits')
+})
+
+treeTest('complexity: edge-guard is justified for `!x?.length`, which a null x also takes', () => {
+  const hits = hitsOf({
+    [`${K}/guard.ts`]: `export function names(list?: { name: string }[] | null) {
+  if (!list?.length) return []
+  return list.map((x) => x.name)
+}
+export function sized(list?: { name: string }[] | null) {
+  if (list?.length === 0) return []
+  return list.map((x) => x.name)
+}
+`,
+  })
+  // Without its guard, names(undefined) throws where the guard returns [].
+  assert.ok(!familiesOf(hits, `${K}/guard.ts`, 'names').includes('edge-guard'))
+  // `x?.length === 0` is false for a null x, so only an empty list takes that guard.
+  assert.equal(familiesOf(hits, `${K}/guard.ts`, 'sized')[0], 'edge-guard', 'the control hits')
+})
+
+treeTest('complexity: edge-guard is justified when a statement past the guard can change the outcome', () => {
+  const hits = hitsOf({
+    [`${K}/guard.ts`]: `export function firsts(rows: { id: string }[]) {
+  if (rows.length === 0) return []
+  const head = rows[0]!.id.toUpperCase()
+  return rows.map((r) => r.id + head)
+}
+export function pick(xs: string[], mode: string) {
+  if (xs.length === 0) return []
+  if (mode === 'none') return null
+  return xs.filter(Boolean)
+}
+export function sum(xs: number[]) {
+  if (xs.length === 0) return 0
+  let total = 0
+  for (const x of xs) total += x
+  total = 100
+  return total
+}
+export function preset(xs: number[]) {
+  let total = 0
+  total = 100
+  if (xs.length === 0) return 0
+  for (const x of xs) total += x
+  return total
+}
+`,
+    // A declaration of a literal, before or after the guard, changes nothing on that input.
+    [`${K}/control.ts`]: `export function counted(xs: number[]) {
+  let total = 0
+  if (xs.length === 0) return 0
+  const scale = 2
+  for (const x of xs) total += x * scale
+  return total
+}
+export function listed(list: { name: string }[]) {
+  if (list.length === 0) return []
+  const sep = ', '
+  return list.map((x) => x.name + sep)
+}
+`,
+  })
+  // On an empty input without the guard: firsts throws, pick can return null, sum and preset
+  // return 100.
+  for (const name of ['firsts', 'pick', 'sum', 'preset']) {
+    assert.ok(!familiesOf(hits, `${K}/guard.ts`, name).includes('edge-guard'), name)
+  }
+  assert.deepEqual(recordOf(hits, `${K}/control.ts`, 'counted'), {
+    family: 'edge-guard',
+    facts: { returns: 'zero', generalLine: 5, generalKind: 'for-of' },
+  })
+  assert.deepEqual(recordOf(hits, `${K}/control.ts`, 'listed'), {
+    family: 'edge-guard',
+    facts: { returns: 'empty-array', generalLine: 11, generalKind: 'map' },
+  })
 })
 
 treeTest('complexity: a function matching three recipes is one record, the rest as `also`', () => {
