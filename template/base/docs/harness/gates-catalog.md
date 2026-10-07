@@ -2503,8 +2503,12 @@ NOTE or an issue names, through the closed printers: its members, its home and t
 a fixed vocabulary, and its facts. A key no record has, or one that is not 12 hex digits,
 exits 1. The TypeScript legs read through the project's own `typescript`; when it cannot
 load they are written incomplete, the run exits 1 and records the missing prerequisite, and
-the SQL legs still run. The thresholds are provisional until the exact rule's gate-proposal
-freezes them.
+the SQL legs still run. A name no closed printer can carry (one with a `$`, a `#private` or
+quoted member, an over-long name) gets no record, and SQL overloads are told apart by
+their argument types. `home()` reads only the `architecture` rules at `error` severity
+(cycles and dependency types included), and a rule condition it does not know refuses the
+home rather than allow one the step would red. The thresholds are provisional until the
+exact rule's gate-proposal freezes them.
 **Anti-vacuity:** paste a 30-token function a package exports into a package that depends
 on it → `--sweep --json` lists an `exact` record with home `import`, and `--explain` on its
 key names the exported copy as the target; run it where `typescript` is not installed → the
