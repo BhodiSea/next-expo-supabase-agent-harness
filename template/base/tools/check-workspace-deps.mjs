@@ -23,27 +23,15 @@ import { existsSync, readFileSync } from 'node:fs'
 import { walkFiles } from './lib/fs-walk.mjs'
 import { fail, failures, ok, rampNote, skipOrFail } from './lib/gate.mjs'
 import { applyAnatomyAllow, scanVerticalAnatomy } from './lib/vertical-anatomy.mjs'
+import { mayDepend, sanctionedOf, tierOf } from './lib/workspace-tiers.mjs'
 
 const GATE = 'boundaries'
 const CENSUS = 'tools/exports-walls.json'
 const PACKAGES_DIR = 'packages'
 
-// The pure packages the census OMITS on purpose (no server half to gate), yet which
-// apps/mobile legitimately imports as a VALUE. Not a second copy of the census — the
-// complement of it. Each carries the reason it is universally safe.
-const MOBILE_UNIVERSAL = new Map([
-  [
-    '@app/errors',
-    'the error kernel — imports nothing, the single ActionOutcome envelope both surfaces speak',
-  ],
-  ['@app/events', 'the event-registry kernel — imports nothing, both surfaces'],
-  ['@app/contracts', 'pure zod wire DTOs — the shared contract, no runtime beyond zod'],
-  [
-    '@app/design-system-native',
-    'the MOBILE design system (NativeWind over the tokens) — RN-only, so web is walled from it, not mobile',
-  ],
-])
-const WEB_ONLY = new Set(['@app/design-system']) // DOM/Radix — mobile is walled from it
+// The tiers, the mobile wall's universally-importable kernel and the law ids live in
+// lib/workspace-tiers.mjs (2.1.0), which the duplication gate's sweep reads too: one copy of
+// the walls, so a home the sweep prints is one this gate admits.
 
 if (!existsSync(CENSUS)) skipOrFail(GATE, `${CENSUS} not found (no census surface yet)`)
 if (!existsSync(PACKAGES_DIR)) skipOrFail(GATE, `${PACKAGES_DIR}/ not found (no workspace yet)`)
@@ -57,17 +45,7 @@ try {
 if (!Array.isArray(census.sanctioned)) {
   fail(GATE, `${CENSUS} must carry a "sanctioned" ARRAY of {package, reason} entries`)
 }
-const sanctioned = new Set(
-  census.sanctioned.map((e) => e?.package).filter((p) => typeof p === 'string'),
-)
-
-// tier from the manifest's directory: packages/verticals/* / shared/* / platform/* / …
-function tierOf(rel) {
-  if (/^verticals\//.test(rel)) return 'vertical'
-  if (/^shared\//.test(rel)) return 'shared'
-  if (/^platform\//.test(rel)) return 'platform'
-  return 'other'
-}
+const sanctioned = sanctionedOf(census)
 const appDeps = (pkg, key) => Object.keys(pkg[key] ?? {}).filter((k) => k.startsWith('@app/'))
 
 // Inventory every workspace package: name -> { tier, deps, devDeps }.
@@ -86,7 +64,7 @@ for (const rel of walkFiles(PACKAGES_DIR, { filter: (p) => /(^|\/)package\.json$
     devDeps: appDeps(pkg, 'devDependencies'),
   })
 }
-const verticalNames = new Set([...pkgs].filter(([, m]) => m.tier === 'vertical').map(([n]) => n))
+const target = (dep) => ({ name: dep, tier: pkgs.get(dep)?.tier ?? 'other' })
 
 function readApp(dir) {
   const p = `apps/${dir}/package.json`
@@ -105,15 +83,16 @@ const errs = []
 const mobile = readApp('mobile')
 if (mobile !== null) {
   for (const dep of mobile.deps) {
-    if (dep === '@app/api') {
+    const law = mayDepend({ name: 'apps/mobile', kind: 'mobile' }, target(dep), sanctioned)
+    if (law === 'mobile-api-runtime') {
       errs.push(
         '@app/api is a RUNTIME dependency of apps/mobile — it must be a devDependency imported `import type` only; Metro does not tree-shake, so a value import pulls the server graph into the native binary',
       )
-    } else if (WEB_ONLY.has(dep)) {
+    } else if (law === 'mobile-web-only') {
       errs.push(
         `${dep} is web-only (DOM) but is a dependency of apps/mobile — remove it; the mobile design system is @app/design-system-native`,
       )
-    } else if (!sanctioned.has(dep) && !MOBILE_UNIVERSAL.has(dep)) {
+    } else if (law === 'mobile-unsanctioned') {
       errs.push(
         `${dep} is a dependency of apps/mobile but is neither sanctioned in ${CENSUS} nor universally-importable — a package absent from the census is one the mobile bundle may not carry; route the call through the API, or (if it has a Metro-safe ./client) hand a human the reviewed {package, reason} entry: the census is harness-owned and hash-pinned, so an agent does not edit it, and the human adds the entry under the security owners' review (CODEOWNERS) and re-records the file's sha256 in .harness/manifest.json in the same reviewed commit (docs/runbooks/harness-upgrade.md, "Forking an owned file")`,
       )
@@ -125,7 +104,7 @@ if (mobile !== null) {
 const web = readApp('web')
 if (web !== null) {
   for (const dep of web.deps) {
-    if (MOBILE_UNIVERSAL.has(dep) && dep === '@app/design-system-native') {
+    if (mayDepend({ name: 'apps/web', kind: 'web' }, target(dep), sanctioned) === 'web-native-ds') {
       errs.push(
         `@app/design-system-native is RN-only but is a dependency of apps/web — a DOM tree renders nothing from it; web uses @app/design-system`,
       )
@@ -135,22 +114,16 @@ if (web !== null) {
 
 // 2 & 3. verticals ⊥ verticals; shared ↛ verticals.
 for (const [name, { tier, deps }] of pkgs) {
-  if (tier === 'vertical') {
-    for (const dep of deps) {
-      if (dep !== name && verticalNames.has(dep)) {
-        errs.push(
-          `${name} (a vertical) depends on ${dep} (another vertical) — verticals never import each other; lift shared code into packages/shared or call through the API`,
-        )
-      }
-    }
-  }
-  if (tier === 'shared') {
-    for (const dep of deps) {
-      if (verticalNames.has(dep)) {
-        errs.push(
-          `${name} (shared) depends on ${dep} (a vertical) — shared code is importable BY verticals, never the reverse`,
-        )
-      }
+  for (const dep of deps) {
+    const law = mayDepend({ name, kind: tier }, target(dep), sanctioned)
+    if (law === 'vertical-vertical') {
+      errs.push(
+        `${name} (a vertical) depends on ${dep} (another vertical) — verticals never import each other; lift shared code into packages/shared or call through the API`,
+      )
+    } else if (law === 'shared-vertical') {
+      errs.push(
+        `${name} (shared) depends on ${dep} (a vertical) — shared code is importable BY verticals, never the reverse`,
+      )
     }
   }
 }
