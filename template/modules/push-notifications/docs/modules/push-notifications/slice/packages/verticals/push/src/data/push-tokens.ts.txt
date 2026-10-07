@@ -1,17 +1,18 @@
 // cspell:words trunc upsert
 import {
   type NewPushDeviceToken,
+  PUSH_TOKENS_PAGE_LIMIT_MAX,
   type PushDeviceToken,
   PushDeviceTokenDto,
   type PushDeviceTokensListQueryInput,
-  type PushDeviceTokensPageDto,
   PushDeviceTokensPage,
-  PUSH_TOKENS_PAGE_LIMIT_MAX,
+  type PushDeviceTokensPageDto,
 } from '@app/contracts'
 import { type ActionOutcome, type AppError, appError, outcomeErr, outcomeOk } from '@app/errors'
 import { z } from 'zod'
 import { decodePushCursor, encodePushCursor, type PushCursor } from '../domain/cursor.js'
-import { pushTokenRowId } from '../domain/push-token-id.js'
+import { pushTokenRowId } from '../server/push-token-id.js'
+import type { PushTokensDatabase, PushTokensFailure } from './port.js'
 
 // ---------------------------------------------------------------------------
 // The push-token DAL (push-notifications module). Installed to
@@ -32,47 +33,6 @@ import { pushTokenRowId } from '../domain/push-token-id.js'
 // is the RLS policies' job, enforced against `auth.uid()`; filtering in the
 // application too would MASK a policy regression the day a policy is dropped.
 // ---------------------------------------------------------------------------
-
-// The structural port the DAL is written against — a deliberate hand-authored
-// subset of the supabase-js query builder (the same technique as
-// packages/verticals/notes/src/data/port.ts), widened here with `upsert` because
-// registerToken() is an idempotent INSERT ... ON CONFLICT DO UPDATE. `data` is
-// `unknown` on purpose: the row shape is whatever migration is deployed, so it is
-// re-parsed at the exit rather than trusted at the entrance, and the port is
-// fake-able in a few lines for a unit test with no container.
-export interface PushTokensFailure {
-  readonly code?: string | undefined
-  readonly details?: string | null | undefined
-  readonly hint?: string | null | undefined
-  readonly message: string
-}
-
-export interface PushTokensOutcome {
-  readonly data: unknown
-  readonly error: PushTokensFailure | null
-}
-
-export interface PushTokensQuery extends PromiseLike<PushTokensOutcome> {
-  eq(column: string, value: string): PushTokensQuery
-  limit(count: number): PushTokensQuery
-  or(filters: string): PushTokensQuery
-  order(column: string, options: { readonly ascending: boolean }): PushTokensQuery
-  select(columns: string): PushTokensQuery
-}
-
-export interface PushTokensTable {
-  delete(): PushTokensQuery
-  select(columns: string): PushTokensQuery
-  upsert(
-    values: Readonly<Record<string, unknown>>,
-    options: { readonly onConflict: string },
-  ): PushTokensQuery
-}
-
-/** The one method the DAL needs from a Supabase client. */
-export interface PushTokensDatabase {
-  from(table: string): PushTokensTable
-}
 
 /** What a write needs beyond its input: the VERIFIED actor, never a wire field. */
 export interface PushTokenWriteContext {
@@ -177,7 +137,9 @@ function mapFailure(failure: PushTokensFailure, operation: PushOperation): AppEr
       // names and sometimes the offending value; only OUR sentence crosses the wire.
       const sqlstateClass = failure.code?.slice(0, 2) ?? ''
       return RETRYABLE_CLASSES.has(sqlstateClass)
-        ? appError.unavailable({ message: `the push-token store was unreachable during the ${operation}` })
+        ? appError.unavailable({
+            message: `the push-token store was unreachable during the ${operation}`,
+          })
         : appError.unknown({
             code: 'push_store_rejected',
             message: `the push-token store rejected the ${operation}`,

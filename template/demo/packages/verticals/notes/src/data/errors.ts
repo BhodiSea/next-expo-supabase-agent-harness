@@ -38,6 +38,12 @@ const UNIQUE_VIOLATION = '23505'
 const FOREIGN_KEY_VIOLATION = '23503'
 /** A CHECK constraint rejected the row: the table's bound disagreed with the contract's. */
 const CHECK_VIOLATION = '23514'
+/**
+ * The per-org quota trigger on public.notes refused the insert. Matched on its own
+ * because its class, 53, is in RETRYABLE_CLASSES: without this case a create past
+ * the quota reports `unavailable`, and waiting never frees a quota.
+ */
+const QUOTA_EXCEEDED = '53400'
 /** PostgREST could not satisfy a single-row expectation. */
 const PGRST_NO_ROWS = 'PGRST116'
 /** PostgREST rejected the JWT (expired, wrong key, malformed). */
@@ -46,6 +52,7 @@ const PGRST_BAD_JWT = 'PGRST301'
 /**
  * SQLSTATE classes where retrying the identical request is a sane response:
  * 08 connection exception, 53 insufficient resources, 57 operator intervention.
+ * 53400, a quota, has its own case (QUOTA_EXCEEDED) and never reaches this set.
  * Everything else that is unrecognised is a bug report, not a retry hint —
  * telling a client to retry a permanent failure just multiplies the load that
  * caused it.
@@ -95,6 +102,12 @@ export function mapPostgrestFailure(failure: PostgrestFailure, operation: NoteOp
         resource: 'note',
         message: `the ${operation} conflicts with the current state of the note`,
       })
+    case QUOTA_EXCEEDED:
+      // Only deleting notes or raising the ceiling clears this, so it must not
+      // reach the class-53 retry below. The sentence is @app/supabase's own for
+      // this code; the driver message, which quotes the org id and the counts,
+      // never crosses.
+      return appError.quotaExceeded({ message: 'a per-org quota refused the write' })
     default:
       return unclassified(failure, operation)
   }

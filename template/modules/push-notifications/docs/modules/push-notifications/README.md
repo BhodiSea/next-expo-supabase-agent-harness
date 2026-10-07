@@ -27,9 +27,10 @@ who calls Expo's push API and when. See "After the slice: sending" below.
 | `…/slice/supabase/schemas/30_push_tokens.sql` | the declarative desired-state twin the diff engine reconciles against |
 | `…/slice/supabase/tests/rls_push_tokens.test.sql` | pgTAP isolation: tenant B cannot see tenant A's tokens; smuggled INSERT → SQLSTATE 42501; account-sweep DELETE |
 | `…/slice/packages/contracts/src/push-tokens.contracts.txt` | wire DTOs (appended to the contracts index): bounded token/platform contracts, list query, keyset page |
-| `…/slice/packages/verticals/push/src/domain/push-token-id.ts.txt` | deterministic version-5 UUID row id — the idempotence key for `registerToken()` |
-| `…/slice/packages/verticals/push/src/domain/push-token-id.test.ts.txt` | pins the id derivation (exact-value pin — re-keying cannot land silently) |
+| `…/slice/packages/verticals/push/src/server/push-token-id.ts.txt` | deterministic version-5 UUID row id — the idempotence key for `registerToken()` (server-only: `node:crypto`) |
+| `…/slice/packages/verticals/push/src/server/push-token-id.test.ts.txt` | pins the id derivation (exact-value pin — re-keying cannot land silently) |
 | `…/slice/packages/verticals/push/src/domain/cursor.ts.txt` | the (created_at, id) keyset codec for the list page |
+| `…/slice/packages/verticals/push/src/data/port.ts.txt` | the structural database port the DAL is written against: the supabase-js subset it calls, `upsert` included |
 | `…/slice/packages/verticals/push/src/data/push-tokens.ts.txt` | the DAL: idempotent upsert register, keyset list, remove — DTOs wrapped in `ActionOutcome`, never a raw row, never a thrown domain failure |
 | `…/slice/packages/verticals/push/src/index.ts.txt` | the `@app/push` barrel |
 | `…/slice/packages/api/src/routers/push.ts.txt` | the tRPC `push` router: `registerToken` / `listTokens` / `removeToken`, each delegating to the vertical |
@@ -241,7 +242,7 @@ red — try any of these to see the enforcement:
 
 - **No unique index on (owner, token).** Idempotence is enforced through the
   deterministic primary key instead — a version-5 UUID of (owner, token) computed
-  by `domain/push-token-id.ts`, so the upsert's ON CONFLICT (id) arbiter is the
+  by `server/push-token-id.ts`, so the upsert's ON CONFLICT (id) arbiter is the
   primary key. A two-column unique constraint would also work in production;
   the deterministic key keeps `registerToken` a single race-free statement with
   no read-before-write, and the honest consequence is: the same device token
@@ -254,13 +255,20 @@ red — try any of these to see the enforcement:
   shared keyset codec into `packages/shared` (importable by every vertical, per
   the same rule) and point both verticals at it — a reasonable follow-up
   deliberately kept OUT of this slice, whose job is the token store, not a
-  cross-vertical refactor. Until then the copy is a reviewed clone (APPLY step 8).
+  cross-vertical refactor. Until then the copy is a reviewed clone (APPLY step
+  7). A default install has no notes vertical, so there the copy is no clone.
 - **The push vertical compiles with `types: ["node"]`, unlike notes.**
-  `domain/push-token-id.ts` uses `node:crypto`. That is safe because `@app/push`
+  `server/push-token-id.ts` uses `node:crypto`. That is safe because `@app/push`
   ships NO `./client` barrel — its writes go through the tRPC client, so nothing
   in it is ever bundled into the native app (where Node built-ins do not exist).
   The absence of a `./client` export is what makes the Node dependency honest; add
-  one and the id helper must move behind the server barrier first.
+  one and the id helper must stay behind the server barrier. It sits in
+  `src/server/`, outside both named layers: the anatomy laws let a `src/domain/`
+  file import only its siblings, `@app/contracts` and `zod`, and the
+  `app-error-only` lint rule forbids a `throw` under `src/data/`, where the
+  helper's fail-closed check on a non-UUID owner would land. The same laws ask
+  every vertical for both barrels, so the single barrel is a reviewed escape:
+  APPLY step 8 adds one `dual-barrel` row to `tools/vertical-anatomy-allow.json`.
 - **`registerToken` returns the row, including the token you sent.** The token is
   scoped to the owner by RLS, so a user can only ever read back their own tokens;
   still, treat exports/logs of this table like credential material (see the

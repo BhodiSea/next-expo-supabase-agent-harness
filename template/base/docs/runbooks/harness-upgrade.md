@@ -4001,6 +4001,85 @@ If you take one of the example's files whole instead, pull what it imports with 
 its `app/api/trpc/[trpc]/route.ts` imports `request-ports.ts`, and its `src/index.ts` and
 `src/data/notes.test.ts` import `write-context.ts`.
 
+### A note create past its quota reports `quotaExceeded` (#147)
+
+**Only if your project carries the worked example** (`init --with-demo`). If it does not,
+there is nothing to do here.
+
+Through 2.0.2 the example's notes mapper had no case for SQLSTATE `53400`, which the notes
+table's per-org quota trigger raises, so the code fell into class 53's retryable fallback. A
+create past the quota came back as `unavailable`, and the web told the user to try again
+shortly, though only deleting notes or raising the ceiling frees a quota. From 2.0.3 the
+mapper returns `quotaExceeded`, and the web shows the quota copy. Every other class-53 code is
+still `unavailable`.
+
+**`update` does not change your mapper.** `packages/verticals/notes/src/data/errors.ts` is
+seeded, so add the case by hand. Declare the code beside the others:
+
+```ts
+const QUOTA_EXCEEDED = '53400'
+```
+
+and give it its own case in `mapPostgrestFailure`'s switch, before `default`:
+
+```ts
+    case QUOTA_EXCEEDED:
+      return appError.quotaExceeded({ message: 'a per-org quota refused the write' })
+```
+
+`src/data/notes.test.ts` pins it in the template with a `createNote` case that fails with
+`53400` and expects that error. A vertical of your own that copied this mapper for a table
+with a quota trigger has the same gap and takes the same case. No verdict moves, and nothing
+is withheld.
+
+### Three copied bodies are one (#149)
+
+Through 2.0.2 three bodies were copied, each under the duplication gate's 70-token floor, so
+none was reported. `serverPublicCredentials` in `packages/platform/supabase/src/server-env.ts`
+repeated `publicCredentials` from `public-env.ts`; the mobile theme and locale stores each
+kept a listener set with its own `emit` and `subscribe`; and the example's `noteCreated` and
+`noteDeleted` differed only in the event name. From 2.0.3 the server function returns
+`publicCredentials()`, both stores call `createChangeSignal()` from the new
+`apps/mobile/src/lib/change-signal.ts`, and one private `lifecycleEvent(name)` builds the two
+note events. No export, emitted event or gate changes.
+
+**Nothing is left to you.** Every source file this touches is seeded, so your copies stay as
+they are, and `update` withholds `change-signal.ts` and `change-signal.test.ts`: your stores
+keep their own listener sets and would not import the module. To adopt it, pull both with
+`update --refresh-seeded <path>`, replace each store's listener set, `emit` and `subscribe` with
+`const { emit, subscribe } = createChangeSignal()`, and add
+`'<rootDir>/src/lib/change-signal\\.test\\.ts$'` to `testPathIgnorePatterns` in
+`apps/mobile/jest.config.js`, because the suite runs under vitest.
+
+### The push-notifications slice passes the anatomy laws once applied (#156)
+
+Through 2.0.2 the push-notifications module's slice, applied as its `APPLY.md` said, redded
+`boundaries` with five vertical-anatomy findings on `@app/push`: `port-presence` on
+`src/data/push-tokens.ts` (its port was declared inline), `port-presence` and `domain-purity`
+on `src/domain/push-token-id.ts` (`Buffer.from(` reads as a PostgREST call, and a domain file
+may not import `node:crypto`), and two `dual-barrel` findings (the vertical has no `./client`
+barrel, on purpose). With the module enabled, `update` plants the corrected slice, `APPLY.md`
+and the module README, all owned, and removes the two old
+`slice/packages/verticals/push/src/domain/push-token-id*.ts.txt` files if you have not
+modified them. If you have not applied the slice, nothing is left to you.
+
+**If you already applied it**, `packages/verticals/push/` is seeded, so `update` never touches
+it. Make the same changes by hand, in one diff:
+
+1. Move the five port interfaces (`PushTokensFailure`, `PushTokensOutcome`, `PushTokensQuery`,
+   `PushTokensTable`, `PushTokensDatabase`) from `src/data/push-tokens.ts` into a new
+   `src/data/port.ts` (the module's `slice/…/src/data/port.ts.txt` is that file), import the
+   two the DAL names with `import type { PushTokensDatabase, PushTokensFailure } from
+   './port.js'`, and export `PushTokensDatabase` from `src/index.ts` through `./data/port.js`.
+2. Move `src/domain/push-token-id.ts` and its test to `src/server/`, point the DAL's import at
+   `../server/push-token-id.js`, and replace `Buffer.from(hex, 'hex')` with
+   `Buffer.alloc(16, hex, 'hex')` and `Buffer.from(digest.subarray(0, 16))` with
+   `digest.subarray(0, 16)`. The pinned id test passes unchanged, so no stored row re-keys.
+3. Have a human add `APPLY.md` step 8's `dual-barrel` row to
+   `tools/vertical-anatomy-allow.json` (write-guarded). If you had added rows of your own for
+   the other three findings, delete them in the same diff: the file reds a row that matches no
+   finding.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

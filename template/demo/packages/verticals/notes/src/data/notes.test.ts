@@ -477,6 +477,20 @@ describe('createNote', () => {
     expect(emitted).toEqual([])
   })
 
+  it('maps a create past the per-org quota (53400) to quotaExceeded, never a retryable kind', async () => {
+    // The notes table's quota trigger raises 53400. Its class, 53, is otherwise
+    // retryable, but waiting never frees a quota: only deleting notes or raising
+    // the ceiling does, so `unavailable` here would invite a retry that cannot work.
+    const { db } = fakeDatabase(denied('53400'))
+    const outcome = await createNote(db, writeContext(), { title: 'note 1' })
+    expect(outcome.ok).toBe(false)
+    if (outcome.ok) return
+    expect(outcome.error).toEqual(
+      appError.quotaExceeded({ message: 'a per-org quota refused the write' }),
+    )
+    expect(emitted).toEqual([])
+  })
+
   it('reports a write that cannot be read back as an internal fault', async () => {
     // No error and no returned row means the RETURNING projection was filtered
     // by a SELECT policy: the row was written, the caller may not see it.

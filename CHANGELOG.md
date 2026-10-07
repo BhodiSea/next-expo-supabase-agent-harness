@@ -148,6 +148,85 @@ this comment. -->
   new files are seeded and withheld from existing installs (`seedOnInitOnly`), which keep both
   copies. The runbook's 2.0.3 section says how to adopt the builder, and what to pull with an
   example file taken whole.
+- **A note create past its quota reports `quotaExceeded`, not a retryable `unavailable`**
+  (#147, part A). The notes table's per-org quota trigger raises SQLSTATE `53400`, and the
+  example's mapper (`packages/verticals/notes/src/data/errors.ts`) had no case for it, so the
+  code fell into class 53's retryable fallback. A create past the quota came back as
+  `unavailable`, the one kind the kernel calls safe to retry, and the web showed "The service
+  is temporarily unavailable. Try again shortly." instead of the quota copy, though waiting
+  never frees a quota. The mapper now matches `53400` before that fallback and returns
+  `quotaExceeded` with `@app/supabase`'s own sentence for the code, so the web shows "This
+  organization has reached its limit." Every other class-53 code is still `unavailable`. No
+  gate, step or ramp changes. A new `notes.test.ts` case, red before the change, sends `53400`
+  through `createNote`. The mapper is seeded, so `update` does not change it in an existing
+  install with the example; the runbook's 2.0.3 section gives the case to add by hand. The
+  wrap of the platform mapper that removes the copied SQLSTATE table is part B, after #159.
+- **The worked example's parity ledger names the web notes route for `notes.create` and
+  `notes.list`** (#148). `template/demo/PARITY.md` marked both web cells `—` and said no notes
+  screen was wired yet, while the notes route renders the composer, which submits through
+  `createNoteAction`, and the list, which it loads through `loadNotesPage`. The `parity` gate
+  stayed green because it checks only that a path cell exists and that a `—` cell gives a
+  reason. The two web cells now name `note-composer.tsx` and `page.tsx` under
+  `apps/web/app/(protected)/o/[orgSlug]/notes/`, and their Notes cells say web reaches each
+  action through the Server Action or RSC twin, which runs the same `@app/notes` function, not
+  over HTTP. No gate, step or ramp changes, and `template/demo-index.json` does not change.
+  `tests/gates/check-mobile-parity.test.mjs` pins both cells and each screen's call, and was
+  red before the edit. `PARITY.md` is seeded, so existing installs keep their copy. An install
+  made with `--with-demo` by 2.0.0 to 2.0.2, or any 1.x install, can make the same two edits by
+  hand, copying the rows from this release's `template/demo/PARITY.md`. A 2.0.x install that
+  ejects without them keeps both rows as a conflict, and `parity` then reds them as stale, so
+  delete the two rows by hand after `eject`.
+- **The factory's per-edit citation check reads every template layer** (#223).
+  `.claude/hooks/posttool-factory-check.mjs` runs the shipped `posttool-source-check` on this
+  repository's own edits. It stripped the layer prefix from the edited path but always ran the
+  hook from `template/base/`, so an edit to `template/stack/<p>`, `template/modules/<module>/<p>`
+  or `template/presets/<preset>/<p>` was judged on `template/base/<p>`. That file is usually
+  not there, and the hook exits 0 when its read fails, so an uncited decision site in those
+  layers passed unread; where it is there, the verdict was on the wrong bytes.
+  `template/demo/` was not a layer at all. The adapter now runs the hook from the root of the
+  layer the edit is under, with `template/demo/` added, and the hook still loads its tables
+  from `template/base/`. `tests/hooks/posttool-factory-check.test.mjs` writes each fixture only
+  under its own layer and was red before the change. Factory only: nothing changes for an
+  install.
+- **Three copied bodies are one** (#149). Each pair sat under the duplication gate's 70-token
+  floor, so none was reported. `serverPublicCredentials` in
+  `packages/platform/supabase/src/server-env.ts` repeated `publicCredentials` from
+  `public-env.ts`, and now returns it: the import runs server to public only, and nothing
+  reachable from `./client` imports `server-env.ts`. The mobile theme and locale stores each
+  kept a listener set with its own `emit` and `subscribe`; both now take them from the new
+  `apps/mobile/src/lib/change-signal.ts`, which imports nothing and has its own vitest suite
+  (listed in both `apps/mobile/jest.config.js` copies, so no runner runs it twice). The
+  example's `noteCreated` and `noteDeleted` differed only in the event name; one private
+  `lifecycleEvent(name)` in `events.ts` now builds both. No export, emitted event, gate or
+  threshold changes, and the tests that pinned the old behaviour pass unedited. This reaches
+  new scaffolds only: every source file it touches is seeded, and `change-signal.ts` and its
+  test are withheld from existing installs (`seedOnInitOnly`). The runbook's 2.0.3 section
+  says how to adopt the module.
+- **The push-notifications slice passes the vertical-anatomy laws once applied, and a test
+  applies it** (#156). The module ships its `@app/push` vertical as `.ts.txt` reference files
+  that nothing compiles or gate-checks, and no test ever applied them, so the slice drifted
+  from the laws its applied copy is judged by. Applied to a 2.0.x scaffold as `APPLY.md` said,
+  it redded `boundaries` with five findings: `port-presence` on `src/data/push-tokens.ts`,
+  whose port was declared inline; `port-presence` and `domain-purity` on
+  `src/domain/push-token-id.ts`, whose `Buffer.from(` reads as a PostgREST call and whose
+  `node:crypto` import a domain file may not make; and two `dual-barrel` findings, because the
+  vertical has no `./client` barrel on purpose. The port now lives in `src/data/port.ts`, which
+  the DAL imports with `import type`. The id helper and its test move to `src/server/`, not
+  `src/data/`, because the `app-error-only` lint rule forbids a `throw` there and the helper
+  fails closed on a non-UUID owner; its `Buffer.from(` calls become
+  `Buffer.alloc(16, hex, 'hex')` and `digest.subarray(0, 16)`, and the pinned id test passes
+  unchanged. A new `APPLY.md` step 8 adds one reviewed `dual-barrel` row to
+  `tools/vertical-anatomy-allow.json`. `APPLY.md` also catches up with the 2.0.x trees: steps 3
+  to 5 say what to do with and without the worked example, step 4 adds the `zod` dependency the
+  router needs to compile, step 5 shows today's `ISOLATION_TARGETS` shape and bumps whatever
+  `plan(N)` the suite has, and step 7 says a default scaffold has no notes clone to accept. The
+  new `tests/installer/module-slices.test.mjs` scaffolds with `--tier core`, with and without
+  `--with-demo`, enables each module that ships a slice, follows its installed `APPLY.md`, and
+  requires `boundaries` and `duplication` to pass; it was red on the five findings before the
+  change. No gate, step, ramp, count or floor changes. The slice, `APPLY.md` and the module
+  README are owned and reach an install that enabled the module with `update`, which removes
+  the two moved files when unmodified. A slice you already applied is seeded and stays yours;
+  the runbook's 2.0.3 section gives the hand steps.
 
 ## [2.0.2] — 2026-10-03
 

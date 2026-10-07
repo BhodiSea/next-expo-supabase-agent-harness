@@ -2,7 +2,7 @@
 
 The checklist for landing the device push-token slice, in vertical-slice order
 (migration → contracts → vertical → router → the RLS extension → the mobile seam
-→ provenance → gate). Everything below is ONE review-sized diff; nothing before
+→ the reviewed escapes → provenance → gate). Everything below is ONE review-sized diff; nothing before
 "Verify" needs to be green in isolation. Paths are relative to the repo root;
 `SLICE=docs/modules/push-notifications/slice` throughout:
 
@@ -16,10 +16,14 @@ The slice's TypeScript files are stored with a `.txt` suffix
 copy below strips the suffix; the copied file is byte-identical to what you
 reviewed. The `.sql` files carry no suffix and are copied as-is.
 
-Two steps (7 and the two `tools/*.json` edits in step 6) touch
+Three steps (7, 8 and the two `tools/*.json` edits in step 6) touch
 write-guard-protected review files — a human applies those edits (or sets
 `HARNESS_ALLOW_SELF_EDIT=1` for the turn). Everything else is ordinary
 agent-editable surface.
+
+A default install has no feature vertical; the worked example (`init
+--with-demo`) adds the `notes` vertical, its router and its RLS rows. Where a
+step differs between the two, it says what to do in each.
 
 ## 1. Migration + schema + pgTAP test
 
@@ -60,19 +64,22 @@ cat "$SLICE/packages/contracts/src/push-tokens.contracts.txt" >> packages/contra
 Create the package and copy its source (the `.txt` suffix is stripped on copy):
 
 ```sh
-mkdir -p packages/verticals/push/src/{data,domain}
+mkdir -p packages/verticals/push/src/{data,domain,server}
 cp "$SLICE/packages/verticals/push/src/index.ts.txt"                 packages/verticals/push/src/index.ts
+cp "$SLICE/packages/verticals/push/src/data/port.ts.txt"             packages/verticals/push/src/data/port.ts
 cp "$SLICE/packages/verticals/push/src/data/push-tokens.ts.txt"      packages/verticals/push/src/data/push-tokens.ts
-cp "$SLICE/packages/verticals/push/src/domain/push-token-id.ts.txt"  packages/verticals/push/src/domain/push-token-id.ts
-cp "$SLICE/packages/verticals/push/src/domain/push-token-id.test.ts.txt" \
-   packages/verticals/push/src/domain/push-token-id.test.ts
+cp "$SLICE/packages/verticals/push/src/server/push-token-id.ts.txt"  packages/verticals/push/src/server/push-token-id.ts
+cp "$SLICE/packages/verticals/push/src/server/push-token-id.test.ts.txt" \
+   packages/verticals/push/src/server/push-token-id.test.ts
 cp "$SLICE/packages/verticals/push/src/domain/cursor.ts.txt"         packages/verticals/push/src/domain/cursor.ts
 ```
 
-Add `packages/verticals/push/package.json`. It mirrors `@app/notes` with two
-differences: NO `./client` subpath (push has no direct-read barrel — its writes
-go through the tRPC client), and it DOES list `@types/node`, because
-`domain/push-token-id.ts` uses `node:crypto`:
+Add `packages/verticals/push/package.json`. It follows the worked example's
+`@app/notes` manifest (in a `--with-demo` install; without the demo the block
+below is the whole file all the same) with two differences: NO `./client`
+subpath (push has no direct-read barrel — its writes go through the tRPC
+client; step 8 records the reviewed escape the anatomy laws then need), and it
+DOES list `@types/node`, because `server/push-token-id.ts` uses `node:crypto`:
 
 ```json
 {
@@ -96,11 +103,12 @@ go through the tRPC client), and it DOES list `@types/node`, because
 }
 ```
 
-Add `packages/verticals/push/tsconfig.json`. Same as `@app/notes` EXCEPT
-`"types": ["node"]` (notes pins `[]` because its `./client` barrel is bundled
-into the native app; `@app/push` is never bundled there, so the Node dependency is
-safe — see the README's honest limits), and it references only `contracts` and
-`platform/errors` (push emits no events):
+Add `packages/verticals/push/tsconfig.json`. It is the worked example's
+`@app/notes` tsconfig (again, the block below is the whole file with or without
+the demo) EXCEPT `"types": ["node"]` (notes pins `[]` because its `./client`
+barrel is bundled into the native app; `@app/push` is never bundled there, so the
+Node dependency is safe — see the README's honest limits), and it references
+only `contracts` and `platform/errors` (push emits no events):
 
 ```json
 {
@@ -114,10 +122,7 @@ safe — see the README's honest limits), and it references only `contracts` and
     "types": ["node"]
   },
   "include": ["src"],
-  "references": [
-    { "path": "../../contracts" },
-    { "path": "../../platform/errors" }
-  ]
+  "references": [{ "path": "../../contracts" }, { "path": "../../platform/errors" }]
 }
 ```
 
@@ -141,16 +146,21 @@ a. `packages/api/src/index.ts` — import and mount the router (the routers are 
 
    ```ts
    export const appRouter = router({
-     notes: notesRouter,
      push: pushRouter,
      system: systemRouter,
    })
    ```
 
-b. `packages/api/package.json` — add the dependency:
+   A default install's router mounts only `system`. With the worked example it
+   also mounts `notes: notesRouter`, which stays where it is, above `push`.
+
+b. `packages/api/package.json` — add the dependencies. `zod` is for the
+   router's own `PushTokenRef` schema; `@app/api` declares no `zod` of its own,
+   with or without the demo, so without it the router does not compile:
 
    ```json
    "@app/push": "workspace:*",
+   "zod": "catalog:",
    ```
 
 c. `packages/api/tsconfig.json` — add the project reference so `tsc -b` builds it:
@@ -170,16 +180,20 @@ structural pgTAP suite's `rls_targets`, and the client suite's
 `ISOLATION_TARGETS` — so `push_device_tokens` must be added to the two registry
 lists or the gate reds (`not wired into ISOLATION_TARGETS`).
 
-Append to `ISOLATION_TARGETS` in `tests/rls/db-context.ts` (keep the
-`table:`-then-`ownerColumn:` key order the gate parses; the seed row is a plain
-scalar a tenant may legitimately write):
+Append to `ISOLATION_TARGETS` in `tests/rls/db-context.ts`, after the last
+entry, with or without the demo (keep the `table:`-then-`ownerColumn:` key order
+the gate parses). A device token belongs to a user, not an org, so the entry is
+user-scoped like `profiles`, and `authenticated` writes it directly under the
+insert policy's WITH CHECK:
 
 ```ts
   {
     table: 'push_device_tokens',
     ownerColumn: 'owner_id',
-    seedRow: (ownerId) => ({
-      owner_id: ownerId,
+    provision: 'direct',
+    scopeValue: (ctx) => ctx.userId,
+    row: (ctx) => ({
+      owner_id: ctx.userId,
       token: 'ExponentPushToken[rls-probe]',
       platform: 'ios',
     }),
@@ -187,22 +201,24 @@ scalar a tenant may legitimately write):
 ```
 
 Extend the structural pgTAP suite `supabase/tests/rls_structure.test.sql` — three
-edits in one hunk: add the target row, add its existence assertion, and bump the
-plan by one (the set-based checks already iterate `rls_targets`, so only the
-explicit `has_table` adds a test):
+edits in one hunk: add the push row to `rls_targets`, add its existence
+assertion after the last `has_table`, and bump the plan by one (the set-based
+checks already iterate `rls_targets`, so only the explicit `has_table` adds a
+test). The count and the rows already listed differ with and without the demo
+(only the demo has a `notes` row), so bump whatever `plan(N)` your suite has to
+`plan(N + 1)`, leave every existing row as it is, and add only the push row:
 
 ```sql
--- plan(13) -> plan(14)
+-- plan(N) -> plan(N + 1)
 INSERT INTO rls_targets (table_name, owner_column) VALUES
-  ('profiles', 'id'),
-  ('notes', 'owner_id'),
+  -- … every row already listed, unchanged, the last one now ending in a comma …
   ('push_device_tokens', 'owner_id');
 
 SELECT has_table('public', 'push_device_tokens', 'public.push_device_tokens exists');
 ```
 
 The exact-privilege assertions are GENERATED, not edited: after copying the migration,
-run `node tools/gen-grant-assertions.mjs` (step 9's `pnpm gen` runs it too) and commit
+run `node tools/gen-grant-assertions.mjs` (step 10's `pnpm gen` runs it too) and commit
 the rewritten `supabase/tests/rls_grants.generated.test.sql`, which then asserts what anon,
 authenticated and service_role hold on `push_device_tokens`. `schema-rls` reds while that
 file is stale, and the slice's migration revokes the platform default from all three roles
@@ -234,9 +250,9 @@ jest-expo test alongside your screen tests.
 ## 7. Reviewed clone acceptance (human / write-guarded)
 
 `packages/verticals/push/src/domain/cursor.ts` is the same (created_at, id) keyset
-codec `@app/notes` defines, duplicated because dependency-cruiser forbids a
-vertical importing another (README honest limits). After applying, the
-duplication step names the clone:
+codec the worked example's `@app/notes` defines, duplicated because
+dependency-cruiser forbids a vertical importing another (README honest limits).
+With the demo installed, the duplication step names the clone after applying:
 
 ```sh
 node tools/check-duplication.mjs
@@ -252,11 +268,43 @@ human edit), with a reason that states the constraint and the deferred fix:
 }
 ```
 
-(If your notes side has drifted from the scaffold, `check-duplication.mjs` may
-report no clone at all — in which case skip the entry: an allowance nothing
-matches is dead review weight.)
+A default install has no notes vertical, so there is no clone and nothing to
+accept: skip this step. Skip it too if your notes side has drifted from the
+scaffold and `check-duplication.mjs` reports no clone. An allowance nothing
+matches is dead review weight.
 
-## 8. Provenance
+## 8. Reviewed single-barrel escape (human / write-guarded)
+
+The vertical-anatomy laws (the `boundaries` gate) ask every vertical for two
+barrels: `.` for the server and a Metro-safe `./client`. `@app/push` ships only
+`.`, on purpose (README honest limits): the app reaches its writes through the
+tRPC client, so no screen reads this vertical directly, and
+`server/push-token-id.ts` imports `node:crypto`, which a native bundle cannot
+carry. So after applying, with or without the demo, `boundaries` names two
+`dual-barrel` findings for `@app/push` (the exports map lacks `./client`, and
+`src/client.ts` is missing):
+
+```sh
+node tools/check-workspace-deps.mjs
+```
+
+Add one row to `tools/vertical-anatomy-allow.json` (write-guarded — human edit).
+It leaves out `path`, so the one row covers both findings; set `reviewedOn` to
+the day you review it:
+
+```json
+{
+  "package": "@app/push",
+  "law": "dual-barrel",
+  "reason": "push-notifications module: @app/push ships only the `.` server barrel on purpose. Registering and removing a device token are writes the app reaches through the tRPC client, so no screen reads this vertical directly, and server/push-token-id.ts imports node:crypto, which a native bundle cannot carry. A ./client barrel would put a write vertical one import away from Metro with no mobile caller.",
+  "reviewedOn": "<the review date, YYYY-MM-DD>"
+}
+```
+
+The file is closed both ways: a row that matches no finding reds as stale, so
+delete this row in the same diff that gives `@app/push` a `./client` barrel.
+
+## 9. Provenance
 
 The slice files carry their `SOURCE:` citations inline. Emit the ADR
 (`/adr push-notifications`) so the decision record exists — the interesting
@@ -265,7 +313,7 @@ unique index), the composite owner index, the deferred packages/shared codec
 promotion, and the plugin/permission pairs — then run `/verify-citations` and
 require `CITATIONS: CLEAN` before finishing.
 
-## 9. Verify (gate)
+## 10. Verify (gate)
 
 Regenerate the derived artifacts, rebuild the database, and run the suites:
 
@@ -277,12 +325,13 @@ pnpm validate         # the gate chain: schema-rls, migrations, contracts, expo-
 pnpm test             # unit incl. the pinned id-derivation test
 pnpm test:rls         # needs pnpm db:up — the client isolation matrix, now covering push_device_tokens
 pnpm test:mobile      # unchanged — the slice ships no mobile code
-node tools/check-duplication.mjs   # the step-7 acceptance holds
+node tools/check-workspace-deps.mjs  # the step-8 escape holds
+node tools/check-duplication.mjs     # the step-7 acceptance holds (or, without the demo, no clone)
 ```
 
 Expected: `pnpm db:test` reports `rls_push_tokens` green (positive control,
 cross-tenant SELECT/UPDATE/DELETE empty, smuggled INSERT → SQLSTATE 42501,
 absent-identity fails closed, anon denied at the table) and the structural suite
-now covers `push_device_tokens`; `pnpm test:rls` reports it alongside `notes` in
-the client isolation matrix; and `schema-rls` confirms the declared schema, the
+now covers `push_device_tokens`; `pnpm test:rls` reports it alongside the
+tables already in the client isolation matrix; and `schema-rls` confirms the declared schema, the
 structural suite, and the client matrix all name the same table set.

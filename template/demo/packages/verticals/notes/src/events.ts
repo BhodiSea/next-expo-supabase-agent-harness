@@ -106,12 +106,19 @@ interface EventOrigin {
   readonly orgId: string
 }
 
-export function noteCreated(origin: EventOrigin, noteId: string, occurredAt: string): NoteEvent {
-  return {
-    name: 'notes.created',
+type NoteEventConstructor = (origin: EventOrigin, noteId: string, occurredAt: string) => NoteEvent
+
+// The two lifecycle events carry the same payload and differ only in their name, so they are
+// built by one constructor with the name as its parameter rather than by two copied bodies.
+// A payload that gains a field (as `notes.updated` has) gets a constructor of its own.
+function lifecycleEvent(name: 'notes.created' | 'notes.deleted'): NoteEventConstructor {
+  return (origin, noteId, occurredAt) => ({
+    name,
     payload: { actorId: origin.actorId, noteId, occurredAt, orgId: origin.orgId },
-  }
+  })
 }
+
+export const noteCreated = lifecycleEvent('notes.created')
 
 export function noteUpdated(
   origin: EventOrigin,
@@ -131,9 +138,4 @@ export function noteUpdated(
   }
 }
 
-export function noteDeleted(origin: EventOrigin, noteId: string, occurredAt: string): NoteEvent {
-  return {
-    name: 'notes.deleted',
-    payload: { actorId: origin.actorId, noteId, occurredAt, orgId: origin.orgId },
-  }
-}
+export const noteDeleted = lifecycleEvent('notes.deleted')
