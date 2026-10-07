@@ -77,6 +77,21 @@ trail is somebody quietly adding a read path).
   then creates any months the database is missing; on a database already past its
   last month, whose current month can no longer be created, it creates the three
   after it, and that month's rows stay in the default partition.
+- **Amended in 2.0.3: the trail runs on the audit trail's machinery, not a copy of
+  it.** This record created `auth_trail.deny_mutation()`, `ensure_partitions(int)` and
+  `drop_partitions_older_than(interval)` as clones of audit's, and the clones drifted:
+  the schedule above was missing, the partition functions were revoked from `PUBLIC`
+  only, and nothing proved a new month got its `TRUNCATE` guard.
+  `20261007000000_trail_shared_functions.sql` re-points every trigger on the trail,
+  the parent's two and each partition's `TRUNCATE` twin, to `audit.deny_mutation()`,
+  which names the schema it fired in, so a refusal here still says `auth_trail`. It
+  then drops `auth_trail.deny_mutation()` without `CASCADE`. The two partition
+  functions become one-line wrappers over `audit.ensure_partitions(regclass, int)` and
+  `audit.drop_partitions_older_than(regclass, interval)`, so the scheduled jobs above
+  keep their command text, and they are revoked from `anon` and `authenticated` as
+  audit's are. The four layers are unchanged. What changed is that they share one
+  function with the audit trail: one edit to it now reaches both trails, for better
+  and for worse ([20260202-audit-trail.md](./20260202-audit-trail.md), Honest losses).
 
 ## Ceilings, stated
 
@@ -94,7 +109,11 @@ trail is somebody quietly adding a read path).
 - `supabase/tests/auth_trail.test.sql`: the whole privilege path as
   `supabase_auth_admin`, the closed vocabulary, immutability against the superuser,
   client denial at the schema wall, the broken-trail continue, and (where pg_cron is
-  installed, since 2.0.3) an active job for each partition maintenance function.
+  installed, since 2.0.3) an active job for each partition maintenance function. Since
+  2.0.3 it also proves the shared machinery: every trigger on both trails executes the
+  one `audit.deny_mutation()`, the trail has no copy of its own, the shared pair refuses
+  any other parent, a month partition and a month created during the run each refuse
+  `TRUNCATE`, and each refusal names its trail.
 - `tests/rls/auth-trail.test.ts`: a REAL failed `signInWithPassword` over HTTP, then
   the row counted through the operator read path — the wiring half only a live
   GoTrue can prove.

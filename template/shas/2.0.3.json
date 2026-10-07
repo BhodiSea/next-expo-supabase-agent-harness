@@ -704,6 +704,9 @@
     ],
     "docs/adr/20260202-audit-trail.md": [
       {
+        "sha256": "5bc2aafd99e8191cf518ff7847ec7633f70e0d641a621e6081fa36b1ace5fdf3"
+      },
+      {
         "sha256": "bfc20284aa944b16c37d94cb7ccfa26c321ce8de18b14f7be76558598e529113"
       }
     ],
@@ -738,6 +741,9 @@
       }
     ],
     "docs/adr/20260816-auth-event-trail.md": [
+      {
+        "sha256": "100283af5dd0e66c0b7b9a1f8d8abe484fb19b03fb9122ce02863327a400335f"
+      },
       {
         "sha256": "4df72292864e805a76bd1ebf5710db99f3fbd0f65f2fd07499e60466c8fdf518"
       },
@@ -1149,6 +1155,15 @@
       },
       {
         "sha256": "abe6c62ad80666b4e50f405a4a3af4ccc86d8b8d68b219fe36179cbf5f0d187c",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "d38c593fc21b32b4d8b699fd60910f1d0303aadea7b026a1fa7bef8d75f01bec",
         "sites": [
           [
             14122,

@@ -263,6 +263,52 @@ this comment. -->
   README are owned and reach an install that enabled the module with `update`, which removes
   the two moved files when unmodified. A slice you already applied is seeded and stays yours;
   the runbook's 2.0.3 section gives the hand steps.
+- **The factory's write guard denies every spelling of a protected path, and judges
+  NotebookEdit** (#224). `.claude/hooks/pretool-write-guard.mjs` stripped the project dir from
+  `file_path` and matched the rest as spelled, so `docs/../scripts/hygiene.mjs` and
+  `./scripts/hygiene.mjs` passed every `^`-anchored pattern, and `scripts/../docs/guide.md`
+  was denied though it lands in `docs/`. It read only `file_path`, so a NotebookEdit, which
+  sends `notebook_path`, was judged on an empty path and passed. The guard now reads
+  `file_path`, `notebook_path` or `path`, resolves it against the project dir and judges the
+  project-relative result; a path that resolves outside the project passes, as before. The new
+  `tests/hooks/factory-write-guard.test.mjs`, the guard's first test, was red on six of its
+  nine cases before the change. Factory only: nothing changes for an install.
+- **CONTRIBUTING says which commands cover a first change, and how long they take** (#167).
+  "Local development" opened with every check CI blocks on, and never said which of them a
+  given kind of change needs, how long each takes, or that the test suites need no install. A
+  new "Your first change" subsection at its top gives the commands for a doc fix, an installer
+  change, a hook change and a gate change, with times measured twice on a fresh clone with no
+  install. It also says when to regenerate the released-sha table, which check is the slowest,
+  and that a red check on a first pull request is normal. The full list follows under its own
+  heading, unchanged, and `check-claims` still finds every `lint.yml` blocker in it. Factory
+  only: nothing changes for an install.
+- **The two append-only trails share one `deny_mutation()` and one pair of partition
+  functions** (#146, parts A, B, D and E). The auth-event trail had copied the audit trail's
+  `deny_mutation()`, `ensure_partitions(int)` and `drop_partitions_older_than(interval)` line
+  for line, one schema over. No gate reads `supabase/**/*.sql` for clones, and the copies had
+  drifted: the trail's maintenance was never scheduled (part C, above), its partition
+  functions were revoked from `PUBLIC` only, and nothing proved that a new month got its
+  `TRUNCATE` guard. The new seeded migration
+  `supabase/migrations/20261007000000_trail_shared_functions.sql` makes `audit.deny_mutation()`
+  name the schema it fired in, so a refusal on `auth_trail.events` still says `auth_trail` and
+  the text for `audit.events` is unchanged. It adds `audit.ensure_partitions(regclass, int)` and
+  `audit.drop_partitions_older_than(regclass, interval)`, which take the parent, derive the
+  schema and the partition names from it, and refuse any parent but `audit.events` and
+  `auth_trail.events`. The four old signatures become one-line wrappers, so the pg_cron jobs
+  that call them by name keep working and none is re-pointed. Every trigger on the trail is
+  re-pointed in place, the trail's wrappers are revoked from `anon` and `authenticated` as
+  audit's are, and `auth_trail.deny_mutation()` is dropped without `CASCADE`. Everything stays
+  `SECURITY INVOKER` with an empty `search_path`, and `tools/tenancy.json` does not change. The
+  cost is the trails' independence: one `CREATE OR REPLACE` of `audit.deny_mutation()` now
+  reaches both, which both ADRs record. `supabase/tests/auth_trail.test.sql` gains thirteen
+  assertions (plan 25 to 38). Six of them were red without the migration: one trigger
+  function for both trails, no copy in `auth_trail`, the shared pair closed to client roles
+  and to any other parent, and wrappers with no DDL of their own. The other seven pass before
+  and after: a month partition refuses `TRUNCATE`, so does a month each trail's maintenance
+  creates during the run, and each refusal names its trail. `supabase/schemas/40_audit.sql`
+  declares the new body. No gate, step or ramp changes. The migration reaches fresh scaffolds
+  only (`seedOnInitOnly`); the runbook's 2.0.3 section gives an existing install the same SQL
+  for a migration of its own, with its second half left out where the trail was never adopted.
 
 ## [2.0.2] — 2026-10-03
 
