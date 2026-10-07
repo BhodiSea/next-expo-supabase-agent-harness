@@ -113,7 +113,8 @@ trail is somebody quietly adding a read path).
   2.0.3 it also proves the shared machinery: every trigger on both trails executes the
   one `audit.deny_mutation()`, the trail has no copy of its own, the shared pair refuses
   any other parent, a month partition and a month created during the run each refuse
-  `TRUNCATE`, and each refusal names its trail.
+  `TRUNCATE`, every partition of both trails has a `TRUNCATE` trigger of its own, and each
+  refusal names its trail.
 - `tests/rls/auth-trail.test.ts`: a REAL failed `signInWithPassword` over HTTP, then
   the row counted through the operator read path — the wiring half only a live
   GoTrue can prove.

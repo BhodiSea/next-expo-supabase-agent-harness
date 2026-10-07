@@ -29,7 +29,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(38);
+SELECT plan(39);
 
 -- ── (1) shape: the wall, read from the catalog ──────────────────────────────
 SELECT has_schema('auth_trail', 'schema auth_trail exists');
@@ -371,6 +371,26 @@ SELECT throws_matching(
   $$ UPDATE auth_trail.events SET event_kind = 'password_success' $$,
   '^auth_trail\.events is append-only \(UPDATE on events_[0-9]{4}_[0-9]{2} refused\)$',
   'an UPDATE on auth_trail.events is refused with a message that names auth_trail'
+);
+
+-- Layer 4 on EVERY partition of both trails, the months created above included.
+-- The one-function check further up cannot see a partition with no TRUNCATE
+-- trigger at all, because that partition's cloned row trigger still answers for
+-- it. tgtype bits: 1 = ROW, 2 = BEFORE, 32 = TRUNCATE.
+SELECT is_empty(
+  $$ SELECT i.inhparent::regclass::text || ' partition ' || c.relname
+       FROM pg_inherits i
+       JOIN pg_class c ON c.oid = i.inhrelid
+      WHERE i.inhparent IN ('audit.events'::regclass, 'auth_trail.events'::regclass)
+        AND NOT EXISTS (
+              SELECT 1 FROM pg_trigger t
+               WHERE t.tgrelid = i.inhrelid
+                 AND (t.tgtype & 1) = 0
+                 AND (t.tgtype & 2) = 2
+                 AND (t.tgtype & 32) = 32
+                 AND t.tgenabled <> 'D'
+            ) $$,
+  'every partition of audit.events and auth_trail.events, the default and each month, has an enabled BEFORE TRUNCATE trigger of its own'
 );
 
 SELECT * FROM finish();
