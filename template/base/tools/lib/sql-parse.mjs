@@ -145,8 +145,23 @@ function endOfDollarQuoted(raw, i, tag) {
  * never `public."notes"`).
  */
 export function splitStatements(raw) {
+  return statementSpans(raw).map((s) => s.text)
+}
+
+/**
+ * splitStatements with each statement's extent in the source: `text` is the statement
+ * splitStatements returns, and `raw.slice(start, end)` the text it was read from, comments
+ * and line breaks intact (2.1.0, #186). The normalized text cannot be re-tokenised inside a
+ * dollar-quoted body: whitespace normalization joins the body's lines, so a `-- comment`
+ * there runs on to the end of the statement. lib/shapes.mjs tokenises function bodies from
+ * the raw extent for that reason.
+ * @param {string} raw
+ * @returns {{ text: string, start: number, end: number }[]}
+ */
+export function statementSpans(raw) {
   const out = []
   let cur = ''
+  let start = 0
   let i = 0
 
   while (i < raw.length) {
@@ -175,17 +190,18 @@ export function splitStatements(raw) {
       cur += raw.slice(i, j)
       i = j
     } else if (ch === ';') {
-      out.push(cur)
+      out.push({ text: cur, start, end: i })
       cur = ''
       i++
+      start = i
     } else {
       cur += ch
       i++
     }
   }
-  out.push(cur)
+  out.push({ text: cur, start, end: raw.length })
 
-  return out.map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean)
+  return out.map((s) => ({ ...s, text: s.text.replace(/\s+/g, ' ').trim() })).filter((s) => s.text !== '')
 }
 
 /**

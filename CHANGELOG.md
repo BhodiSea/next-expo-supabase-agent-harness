@@ -46,6 +46,31 @@ moves these entries there. Until then the owned files they change are recorded i
   moved. The new and changed files under `tools/`, `docs/harness/README.md`,
   `docs/harness/gates-catalog.md` and `.github/workflows/quality-gate.yml` (whose
   `edge-functions` filter names the new module) are owned and reach an install with `update`.
+- **The Single Home extractor, and the duplication sweep that reads it** (#186).
+  `node tools/check-duplication.mjs --sweep --json` prints one deterministic document of
+  advisory records, and `--explain '<key12>'` prints the record a key names. Neither decides
+  a verdict: the Stop run is L0 alone, unchanged, and prints no advisory NOTE before the exact
+  rule goes live (#201). New modules under `tools/lib/`: `shapes.mjs` reads every callable in
+  L0's scope through the project's own `typescript`, and every SQL function the migration
+  history leaves live, into one normalised record each (bound names numbered, shorthand
+  properties expanded, a token convention that fixes the count); `importers.mjs` indexes who
+  imports each export; `homes.mjs` says where one copy of a class may live (IMPORT, MODULE,
+  LIFT or NONE), judged by the `architecture` rules, the vertical-anatomy laws and the
+  workspace walls; `workspace-tiers.mjs` holds those walls, moved out of
+  `tools/check-workspace-deps.mjs` with the `boundaries` messages and verdicts unchanged;
+  `complexity.mjs` holds six complexity recipes; `differs.mjs` says where a near-miss pair
+  differs; `sweep.mjs` registers the families (`SWEEP_FAMILIES`) and builds the document; and
+  `duplication-scope.mjs` is L0's scan list, moved out of the gate unchanged so both readers
+  share it. `tools/lib/sql-parse.mjs` gains `statementSpans`, each statement with its raw
+  extent, because a `-- comment` inside a function body ran to the end of the
+  whitespace-normalised statement; `splitStatements` returns the same statements as before.
+  `tools/lib/vertical-anatomy.mjs` exports the predicate its domain, events and client-reach
+  scans apply, and `tools/lib/gate.mjs` exports `advisoryRecordOk`; neither scan's findings
+  move. Without `typescript` the TS legs are written incomplete, the sweep exits 1 and records
+  the missing prerequisite, and the SQL legs still run. No gate, step or ramp is added or
+  moved. In the factory, six test files prove the modules and the `machinery-shapes` step in
+  `lint.yml` runs them with the parser installed. The new and changed files under `tools/` and
+  `docs/harness/gates-catalog.md` are owned and reach an install with `update`.
 
 ## [2.0.3] — 2026-10-06
 

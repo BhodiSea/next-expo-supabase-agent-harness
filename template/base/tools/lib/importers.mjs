@@ -32,7 +32,7 @@ const SOURCE = /\.(ts|tsx|mts|cts)$/
 const DECL = /\.d\.ts$/
 
 /** @param {string} path */
-export const isTestPath = (path) =>
+const isTestPath = (path) =>
   /\.test\.tsx?$/.test(path) || /(^|\/)__tests__\//.test(path) || /(^|\/)e2e\//.test(path)
 
 /**
@@ -243,7 +243,6 @@ class ImporterIndex {
     this.modules = modules
     this.files = files
     this.workspaces = [...workspaces].sort((a, b) => b.dir.length - a.dir.length)
-    this.byName = new Map(workspaces.map((w) => [w.name, w]))
     /** @type {Map<string, Map<string, Set<string>>>} `${path}#${name}` -> file -> local names */
     this.importers = new Map()
     for (const mod of modules.values()) {
@@ -254,11 +253,6 @@ class ImporterIndex {
   /** The workspace a file is in (the deepest workspace directory above it), or null. */
   workspaceOf(path) {
     return this.workspaces.find((w) => path.startsWith(`${w.dir}/`)) ?? null
-  }
-
-  /** The workspace by package name, or null. @param {string} name */
-  workspaceNamed(name) {
-    return this.byName.get(name) ?? null
   }
 
   /** The file a specifier resolves to from `from`, or null (third party, or unresolved). */
@@ -323,11 +317,6 @@ class ImporterIndex {
   /** Is the module a pure barrel (nothing but re-exports)? */
   isBarrel(path) {
     return this.modules.get(path)?.barrel === true
-  }
-
-  /** The names a module defines itself (not re-exports). */
-  localExports(path) {
-    return [...(this.modules.get(path)?.local ?? [])].sort()
   }
 
   #count(mod) {

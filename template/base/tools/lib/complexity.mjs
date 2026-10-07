@@ -42,6 +42,7 @@
 // SOURCE: docs/harness/gates-catalog.md (duplication gate) [corpus: harness/doctrine]
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
+import { dottedCallee, symbol } from './closed-text.mjs'
 import { exportName } from './homes.mjs'
 import { blankComments } from './source-text.mjs'
 import { importsAPort } from './vertical-anatomy.mjs'
@@ -152,7 +153,7 @@ function soleExpression(ts, fn) {
 }
 
 /** An expression without its parentheses and `as`/`satisfies` wrappers; undefined for none. */
-function unwrap(ts, e) {
+export function unwrap(ts, e) {
   let n = e ?? undefined
   while (n !== undefined && (ts.isParenthesizedExpression(n) || ts.isAsExpression(n) || ts.isSatisfiesExpression(n))) {
     n = n.expression
@@ -161,7 +162,7 @@ function unwrap(ts, e) {
 }
 
 /** The text of a callee, dotted, when every segment is an identifier; else null. */
-function calleeText(ts, e) {
+export function calleeText(ts, e) {
   if (ts.isIdentifier(e)) return e.text
   if (ts.isPropertyAccessExpression(e) && ts.isIdentifier(e.name)) {
     const head = calleeText(ts, e.expression)
@@ -197,7 +198,8 @@ function passThrough(tree, c, file) {
   if (!e.arguments.every((a, i) => ts.isIdentifier(a) && a.text === params[i])) return null
   const callee = calleeText(ts, e.expression)
   if (callee === null || transportSeam(c, file)) return null
-  return { callee, awaited, arity: params.length }
+  // A callee the closed printer cannot print stays out of the facts; the hit does not.
+  return { ...(dottedCallee.ok(callee) ? { callee } : {}), awaited, arity: params.length }
 }
 
 // ---- 2. helper-split ----------------------------------------------------------------------
@@ -436,7 +438,10 @@ function boolSelector(tree, c) {
       const a = call.arguments[index]
       return a !== undefined && (a.kind === ts.SyntaxKind.TrueKeyword || a.kind === ts.SyntaxKind.FalseKeyword)
     }).length
-    if (split || literalSites >= 2) return { param: p.name.text, index, split, literalSites }
+    if (split || literalSites >= 2) {
+      const param = symbol.ok(p.name.text) ? { param: p.name.text } : {}
+      return { ...param, index, split, literalSites }
+    }
   }
   return null
 }

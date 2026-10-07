@@ -2482,6 +2482,34 @@ after it moves lines.
 **Anti-vacuity:** paste a ≥70-token block across two files → FAIL naming both
 sites + fingerprint.
 
+**The sweep and `--explain` (2.1.0, #186): read modes that decide no verdict.** The Stop run
+is the L0 scan above and nothing else, and it prints no advisory NOTE until the exact rule
+goes live (#201). Two read modes sit beside it. `node tools/check-duplication.mjs --sweep
+--json` prints one JSON document over one index of the tree: every callable in L0's scope
+(the scope list is `tools/lib/duplication-scope.mjs`, one copy for both readers) and every
+SQL function the migration history leaves live (supabase/schemas fills in the rest), read by
+`tools/lib/shapes.mjs`; the importer index (`tools/lib/importers.mjs`); and `home()`
+(`tools/lib/homes.mjs`), which judges where one copy of a class may live by the rules the
+`architecture` step, the vertical-anatomy laws and the workspace walls already enforce. Its
+families: `exact` (equal bodies of at least 30 tokens with a legal home, tier `owed`),
+`exact-nohome` (no legal home, advisory), `exact-small` (20 to 29 tokens with equal
+literals, advisory), `near-miss` (a pair, with where the two differ), and six complexity
+recipes (`tools/lib/complexity.mjs`). Every record is a closed advisory record (the
+recorder's schema), every `status` is `advisory`, and the tier the exact rule would give
+rides as `facts.tier`. The document carries one terminator per leg, holds no timestamp,
+absolute path or environment value, and is sorted by key, so two machines print the same
+bytes; it exits 0 only when every leg completed. `--explain '<key12>'` prints the record a
+NOTE or an issue names, through the closed printers: its members, its home and the move in
+a fixed vocabulary, and its facts. A key no record has, or one that is not 12 hex digits,
+exits 1. The TypeScript legs read through the project's own `typescript`; when it cannot
+load they are written incomplete, the run exits 1 and records the missing prerequisite, and
+the SQL legs still run. The thresholds are provisional until the exact rule's gate-proposal
+freezes them.
+**Anti-vacuity:** paste a 30-token function a package exports into a package that depends
+on it → `--sweep --json` lists an `exact` record with home `import`, and `--explain` on its
+key names the exported copy as the target; run it where `typescript` is not installed → the
+TS legs read `complete: false` and the run exits 1.
+
 ### i18n — `node tools/check-i18n.mjs`
 
 The locale seam is real and nothing bypasses it: (1) no hardcoded user-facing

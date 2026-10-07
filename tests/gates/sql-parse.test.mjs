@@ -296,3 +296,32 @@ test('preFoldHistory drops exactly the DROP TABLE and ALTER POLICY statements, i
   // Over the pre-fold history the fold reads exactly what the 1.0.x parser read.
   assert.equal(sql.parseLivePolicies(pre).live.get('notes').get('notes_select_own').using, 'owner_id = (SELECT auth.uid())')
 })
+
+// ── statementSpans (2.1.0, #186) ──────────────────────────────────────────────────
+// splitStatements joins a dollar-quoted body's lines, so a `-- comment` inside the body runs
+// on to the end of the normalized statement. statementSpans keeps each statement's raw
+// extent, which still ends the comment at its line; splitStatements is its text.
+
+test('statementSpans: each span is the raw extent of the statement splitStatements returns', () => {
+  const raw = `-- leading comment
+CREATE FUNCTION audit.f() RETURNS int LANGUAGE plpgsql AS $f$
+BEGIN
+  -- the parent's own RLS, not the partition's
+  RETURN 1;
+END
+$f$;
+
+;
+DROP FUNCTION audit.g;`
+  const spans = sql.statementSpans(raw)
+  assert.deepEqual(
+    spans.map((s) => s.text),
+    stmts(raw),
+  )
+  assert.equal(spans.length, 2)
+  const body = raw.slice(spans[0].start, spans[0].end)
+  assert.match(body, /-- the parent's own RLS, not the partition's\n {2}RETURN 1;/)
+  assert.equal(raw.slice(spans[1].start, spans[1].end).trim(), 'DROP FUNCTION audit.g')
+  // The normalized text has lost the line break that ends the comment.
+  assert.match(spans[0].text, /-- the parent's own RLS, not the partition's RETURN 1;/)
+})

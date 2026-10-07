@@ -312,8 +312,13 @@ const shapeOk = (r) =>
   Object.keys(r).every((k) => RECORD_KEYS.includes(k)) &&
   RECORD_REQUIRED.every((k) => Object.hasOwn(r, k))
 
-/** @param {unknown} r @returns {r is Record<string, any>} */
-function advisoryRecordOk(r) {
+/**
+ * Does a record fit the closed schema? The check noteAdvisory applies, pure: the sweep
+ * (#186) validates every record of its document with it, and writes none of them.
+ * @public read by lib/sweep.mjs (#186)
+ * @param {unknown} r @returns {r is Record<string, any>}
+ */
+export function advisoryRecordOk(r) {
   if (!isPlainObject(r) || !shapeOk(r) || !isProducer(r.producer)) return false
   return (
     r.v === 1 &&

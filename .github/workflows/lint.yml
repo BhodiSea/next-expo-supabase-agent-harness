@@ -269,6 +269,28 @@ jobs:
           --test-coverage-include='template/base/tools/lib/i18n-tree.mjs'
           --test-coverage-lines=94 --test-coverage-branches=90 --test-coverage-functions=94
           tests/gates/i18n-tree.test.mjs tests/gates/check-i18n.test.mjs
+      # The Single Home extractor and the duplication sweep (2.1.0, #186): the extractor, the
+      # importer index, home(), the workspace walls, the complexity recipes and the sweep read
+      # TypeScript through the root's own `typescript`, which installer-unit never installs:
+      # there their parser cases SKIP loudly by name. This job has the root toolchain, and
+      # HARNESS_TEST_REQUIRE_TYPESCRIPT=1 turns a parser that cannot load into a failure. The
+      # floor is these modules' own (measured 98.9/89.1/100; floors sit ~6 under).
+      - name: machinery-shapes (the Single Home extractor and sweep's proofs, with the parser installed)
+        env:
+          HARNESS_TEST_REQUIRE_TYPESCRIPT: '1'
+        run: >-
+          node --test --experimental-test-coverage
+          --test-coverage-include='template/base/tools/lib/shapes.mjs'
+          --test-coverage-include='template/base/tools/lib/homes.mjs'
+          --test-coverage-include='template/base/tools/lib/importers.mjs'
+          --test-coverage-include='template/base/tools/lib/workspace-tiers.mjs'
+          --test-coverage-include='template/base/tools/lib/complexity.mjs'
+          --test-coverage-include='template/base/tools/lib/differs.mjs'
+          --test-coverage-include='template/base/tools/lib/sweep.mjs'
+          --test-coverage-include='template/base/tools/lib/duplication-scope.mjs'
+          --test-coverage-lines=92 --test-coverage-branches=83 --test-coverage-functions=94
+          tests/gates/shapes.test.mjs tests/gates/homes.test.mjs tests/gates/importers.test.mjs
+          tests/gates/workspace-tiers.test.mjs tests/gates/complexity.test.mjs tests/gates/sweep.test.mjs
       # The Edge Function split's static proofs (1.1.0, #78) read handler.ts, index.ts and the
       # evaluated vitest.config.ts through the root's own `typescript`, which installer-unit
       # never installs: there those cases SKIP loudly by name. This job has the root toolchain,

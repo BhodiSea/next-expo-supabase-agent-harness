@@ -3,8 +3,8 @@
 // `node tools/check-duplication.mjs --sweep --json`. No verdict reads it yet: the gate's Stop
 // run is L0 alone, and the exact rule goes live only with #201.
 //
-// SCOPE. The duplication scan roots (apps/*/src, the layered packages/*/*/src, apps/web/app
-// and apps/web/lib), with L0's exclusions (tests, `generated/`, `*.gen.ts`,
+// SCOPE. The duplication scan roots (lib/duplication-scope.mjs: apps/*/src, the layered
+// packages/*/*/src, apps/web/app and apps/web/lib), with L0's exclusions (tests, `generated/`, `*.gen.ts`,
 // `database.types.ts`, `.d.ts`), plus supabase/migrations and supabase/schemas. TS callables
 // are function declarations, function expressions and arrow functions bound to a `const`,
 // and class methods, at any depth; each needs a body. SQL callables are the CREATE FUNCTION
@@ -50,9 +50,9 @@
 // SOURCE: docs/harness/gates-catalog.md (duplication gate) [corpus: harness/doctrine]
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { duplicationScanRoots, isGeneratedPath, isScannedName } from './duplication-scope.mjs'
 import { walkFiles } from './fs-walk.mjs'
-import { parseFunctions, qualify, splitStatements } from './sql-parse.mjs'
+import { parseFunctions, qualify, statementSpans } from './sql-parse.mjs'
 
 /**
  * The token convention, verbatim in the extractor digest: a change to what counts as a token
@@ -62,41 +62,6 @@ export const TOKEN_CONVENTION =
   'tc1: from the parameter list open paren through the body end; parens, types, return type, arrow, braces, trailing commas and written semicolons count; a bare arrow parameter counts its implied parens; type parameters do not count; a template literal is one S per literal part; SQL keywords and unquoted names lower-cased; each body dollar quote is one $$ token'
 
 // ---- scope ------------------------------------------------------------------------------
-// The duplication gate's scan roots, moved here (2.1.0) so the gate's L0 scan and the
-// extractor read ONE list. See check-duplication.mjs for why apps/web is named and the
-// layered groups are descended.
-
-/** `<scope>/<d>/src`, or for a layered group `<scope>/<d>/<inner>/src`, in a fixed order. */
-function srcRootsUnder(scope) {
-  if (!existsSync(scope)) return []
-  return readdirSync(scope)
-    .sort()
-    .flatMap((d) => {
-      const src = join(scope, d, 'src')
-      if (existsSync(src)) return [src]
-      const groupDir = join(scope, d)
-      return readdirSync(groupDir)
-        .sort()
-        .map((inner) => join(groupDir, inner, 'src'))
-        .filter((nested) => existsSync(nested))
-    })
-}
-
-/** @returns {string[]} the TS scan roots, relative, in a fixed order */
-export function duplicationScanRoots() {
-  const web = [join('apps', 'web', 'app'), join('apps', 'web', 'lib')].filter((d) => existsSync(d))
-  return [...srcRootsUnder('apps'), ...srcRootsUnder('packages'), ...web]
-}
-
-/** The walk filter both scans apply to a path relative to its root. @param {string} rel */
-export const isScannedName = (rel) =>
-  /\.(ts|tsx)$/.test(rel) && !/\.(test|spec)\.tsx?$/.test(rel) && !/\.d\.ts$/.test(rel)
-
-/** A machine-written module, by path. @param {string} path */
-export const isGeneratedPath = (path) =>
-  /\.gen\.tsx?$/.test(path) ||
-  /(^|\/)generated\//.test(path) ||
-  /(^|\/)database\.types\.ts$/.test(path)
 
 /** Every TS file in scope, repository-relative POSIX, sorted. @returns {string[]} */
 function scopeFiles() {
@@ -120,7 +85,7 @@ function scopeFiles() {
  * @param {Map<string, {dir: string, name: string}>} cache
  * @returns {{ dir: string, name: string }}
  */
-export function workspaceOf(path, cache) {
+function workspaceOf(path, cache) {
   const parts = path.split('/')
   for (let n = parts.length - 1; n > 0; n -= 1) {
     const dir = parts.slice(0, n).join('/')
@@ -247,12 +212,12 @@ export const isDataShaped = (s) => repetitionRatio(s) < 0.5 || literalDensity(s)
 
 /**
  * @typedef {{
- *   lang: 'ts' | 'sql', path: string, line: number, name: string, subject: string,
+ *   lang: 'ts' | 'sql', path: string, line: number, name: string, scope?: string, subject: string,
  *   workspace: { dir: string, name: string }, kind: 'function' | 'method' | 'sql',
  *   exported: boolean, tokens: number, stmts: number, arity: number,
- *   alpha: string, lit: string, stream: string[], literals: string[], sig: string[],
+ *   alpha: string, lit: string, stream: string[], ends: number[], literals: string[], sig: string[],
  *   mh: number[], dataShaped: boolean, rnr: number, jsxShare: number,
- *   node?: TsNode, file?: TsFile, body?: string,
+ *   node?: TsNode, file?: TsFile,
  * }} Callable
  * @typedef {{ path: string, workspace: { dir: string, name: string }, sf: TsNode,
  *   src: string, callables: Callable[], localExports: Set<string> }} TsFile
@@ -275,17 +240,20 @@ const hasModifier = (ts, node, kind) =>
 
 /**
  * Every callable node of a source file with its own name, at any depth: function
- * declarations, function expressions and arrows bound to a `const`, class methods.
- * @returns {{ node: TsNode, name: string, own: string, kind: 'function' | 'method', exported: boolean }[]}
+ * declarations, function expressions and arrows bound to a `const`, class methods. `scope`
+ * is the dotted chain of the callables it sits in, outermost first ('' at the top level).
+ * @returns {{ node: TsNode, name: string, own: string, kind: 'function' | 'method',
+ *   exported: boolean, scope: string }[]}
  */
 function callableNodes(ts, sf, localExports) {
   const out = []
-  const visit = (node) => {
+  const visit = (node, scope) => {
     const found = callableOf(ts, node, localExports)
-    if (found !== null) out.push(found)
-    ts.forEachChild(node, visit)
+    if (found !== null) out.push({ ...found, scope })
+    const inner = found === null ? scope : scope === '' ? found.name : `${scope}.${found.name}`
+    ts.forEachChild(node, (child) => visit(child, inner))
   }
-  ts.forEachChild(sf, visit)
+  ts.forEachChild(sf, (child) => visit(child, ''))
   return out
 }
 
@@ -460,8 +428,16 @@ function normaliseTs(ts, fn, sf, own, { expand }) {
     return numbering.get(text)
   }
   const acc = { stream: [], verbatim: [], literals: [], jsx: 0, slot, expand }
-  for (const leaf of leafTokens(ts, fn, sf)) pushLeaf(ts, leaf, sf, acc)
-  return { stream: acc.stream, verbatim: acc.verbatim, literals: acc.literals, jsx: acc.jsx }
+  // `ends[i]` is the source end of the leaf stream[i] came from, so a consumer can slice
+  // the stream by statement (lib/differs.mjs aligns top-level statements that way).
+  const ends = []
+  for (const leaf of leafTokens(ts, fn, sf)) {
+    const from = acc.stream.length
+    pushLeaf(ts, leaf, sf, acc)
+    const end = leaf.synthetic === undefined ? leaf.end : fn.parameters.pos
+    for (let i = from; i < acc.stream.length; i += 1) ends.push(end)
+  }
+  return { stream: acc.stream, verbatim: acc.verbatim, literals: acc.literals, jsx: acc.jsx, ends }
 }
 
 /** One leaf token into the normalised stream and its verbatim twin. */
@@ -594,6 +570,7 @@ export function extractTs(ts, path, src, workspace, { expand = true } = {}) {
         path,
         line: lineOfNode(sf, found.kind === 'method' ? fn : (fn.parent?.name ?? fn)),
         name: found.name,
+        scope: found.scope,
         workspace,
         kind: found.kind,
         exported: found.exported,
@@ -624,6 +601,7 @@ function finish({ norm, ...rest }) {
     alpha: hash12(stream),
     lit: hash12(norm.verbatim),
     stream,
+    ends: norm.ends ?? [],
     literals: norm.literals,
     mh: minhash(set),
     shingles: set,
@@ -642,8 +620,10 @@ const SQL_TOKEN =
 
 /**
  * Tokenise a SQL text: comments and whitespace dropped, names lower-cased, a nested
- * dollar-quoted string one literal, and a top-level `$tag$` one `$$` delimiter.
- * @param {string} text @returns {{ value: string, literal: boolean, raw: string }[]}
+ * dollar-quoted string one literal, and a top-level `$tag$` one `$$` delimiter. Each token
+ * carries its offset and whether it sits inside the function body (between the delimiters).
+ * @param {string} text
+ * @returns {{ value: string, literal: boolean, raw: string, index: number, inBody: boolean }[]}
  */
 function sqlTokens(text) {
   const out = []
@@ -652,20 +632,27 @@ function sqlTokens(text) {
   let m = re.exec(text)
   while (m !== null) {
     const [whole, lineC, blockC, ws, str, dollar, , num, quoted, word] = m
-    if (lineC === undefined && blockC === undefined && ws === undefined) {
-      if (dollar !== undefined) {
-        const r = dollarToken(text, re, whole, open)
-        open = r.open
-        out.push(r.token)
-      } else if (str !== undefined) out.push({ value: 'S', literal: true, raw: whole })
-      else if (num !== undefined) out.push({ value: 'N', literal: true, raw: whole })
-      else if (quoted !== undefined) out.push({ value: quoted.slice(1, -1), literal: false, raw: whole })
-      else if (word !== undefined) out.push({ value: word.toLowerCase(), literal: false, raw: whole })
-      else out.push({ value: whole, literal: false, raw: whole })
+    const index = m.index
+    if (dollar !== undefined) {
+      const r = dollarToken(text, re, whole, open)
+      // The body's own delimiters are outside it; a nested dollar-quoted literal is inside.
+      out.push({ ...r.token, index, inBody: open !== null && r.open !== null })
+      open = r.open
+    } else if (lineC === undefined && blockC === undefined && ws === undefined) {
+      out.push({ ...plainToken(whole, str, num, quoted, word), index, inBody: open !== null })
     }
     m = re.exec(text)
   }
   return out
+}
+
+/** A token that is not a dollar quote: a string or number literal, a name, or punctuation. */
+function plainToken(whole, str, num, quoted, word) {
+  if (str !== undefined) return { value: 'S', literal: true, raw: whole }
+  if (num !== undefined) return { value: 'N', literal: true, raw: whole }
+  if (quoted !== undefined) return { value: quoted.slice(1, -1), literal: false, raw: whole }
+  if (word !== undefined) return { value: word.toLowerCase(), literal: false, raw: whole }
+  return { value: whole, literal: false, raw: whole }
 }
 
 /** A `$tag$`: the body's own delimiter is a `$$` token; any other opens a nested literal. */
@@ -679,30 +666,46 @@ function dollarToken(text, re, tag, open) {
   return { open, token: { value: 'S', literal: true, raw } }
 }
 
-/** DECLAREd variables and FOR loop variables of a PL/pgSQL body. */
-function sqlLocals(body) {
+const SQL_NAME = /^[A-Za-z_]\w*$/
+
+/** DECLAREd variables and FOR loop variables of a PL/pgSQL body, from its tokens. */
+function sqlLocals(tokens) {
+  const body = tokens.filter((t) => t.inBody && !t.literal)
   const names = []
-  const declare = /\bDECLARE\b([\s\S]*?)\bBEGIN\b/i.exec(body ?? '')
-  if (declare !== null) {
-    for (const decl of declare[1].split(';')) {
-      const m = /^\s*([A-Za-z_]\w*)\s+/.exec(decl)
-      if (m !== null) names.push(m[1].toLowerCase())
-    }
+  const declare = body.findIndex((t) => t.value === 'declare')
+  const begin = body.findIndex((t) => t.value === 'begin')
+  let head = true
+  for (const t of declare === -1 || begin < declare ? [] : body.slice(declare + 1, begin)) {
+    if (head && SQL_NAME.test(t.value)) names.push(t.value)
+    head = t.value === ';'
   }
-  for (const m of (body ?? '').matchAll(/\bFOR\s+([A-Za-z_]\w*)\s+IN\b/gi)) {
-    names.push(m[1].toLowerCase())
+  for (const [i, t] of body.entries()) {
+    const next = body[i + 1]?.value ?? ''
+    if (t.value === 'for' && body[i + 2]?.value === 'in' && SQL_NAME.test(next)) names.push(next)
   }
   return names
 }
 
+/** The statements of a function body: its non-empty `;`-separated runs. */
+function sqlBodyStatements(tokens) {
+  let n = 0
+  let run = false
+  for (const t of tokens.filter((x) => x.inBody)) {
+    const ends = t.value === ';' && !t.literal
+    if (ends && run) n += 1
+    run = !ends
+  }
+  return n + (run ? 1 : 0)
+}
+
 /**
- * The normalised stream of one SQL function: from the parameter list's `(` to the end of
- * the statement.
+ * The normalised stream of one SQL function, from its statement's tokens: from the
+ * parameter list's `(` to the end of the statement.
  */
-function normaliseSql(fn, { schema, name }) {
-  const open = fn.stmt.indexOf('(')
-  const tokens = sqlTokens(fn.stmt.slice(open))
-  const bound = new Set([...fn.params.map((p) => p.name), ...sqlLocals(fn.body)])
+function normaliseSql(fn, statement) {
+  const open = statement.findIndex((t) => t.value === '(' && !t.literal)
+  const tokens = open === -1 ? [] : statement.slice(open)
+  const bound = new Set([...fn.params.map((p) => p.name), ...sqlLocals(tokens)])
   const numbering = new Map()
   const stream = []
   const verbatim = []
@@ -715,7 +718,7 @@ function normaliseSql(fn, { schema, name }) {
       literals.push(t.raw)
       continue
     }
-    const value = sqlSlot(t.value, { tokens, i, schema, name, bound, numbering })
+    const value = sqlSlot(t.value, { tokens, i, schema: fn.schema, name: fn.name, bound, numbering })
     if (value === null) continue
     stream.push(value)
     verbatim.push(value)
@@ -736,27 +739,6 @@ function sqlSlot(value, { tokens, i, schema, name, bound, numbering }) {
   if (prev === '.' || !bound.has(value)) return value
   if (!numbering.has(value)) numbering.set(value, `$${numbering.size + 1}`)
   return numbering.get(value)
-}
-
-/** The 1-based line of a function's CREATE in its file, matched in order by name. */
-function sqlLines(raw, fns) {
-  const lines = []
-  let cursor = 0
-  for (const fn of fns) {
-    const re = /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+("?[\w]+"?(?:\s*\.\s*"?[\w]+"?)?)\s*\(/gi
-    re.lastIndex = cursor
-    let m = re.exec(raw)
-    while (m !== null && qualify(m[1].replace(/["\s]/g, '')).qualified !== fn.qualified) {
-      m = re.exec(raw)
-    }
-    if (m === null) {
-      lines.push(1)
-      continue
-    }
-    cursor = m.index + m[0].length
-    lines.push(raw.slice(0, m.index).split('\n').length)
-  }
-  return lines
 }
 
 const DROP_FUNCTION = /^DROP FUNCTION (?:IF EXISTS )?([a-z0-9_.]+)/i
@@ -783,35 +765,33 @@ function foldSqlDir(dir) {
   return live
 }
 
-/** Apply one SQL file's CREATE FUNCTION and DROP FUNCTION statements to `live`. */
+/**
+ * Apply one SQL file's CREATE FUNCTION and DROP FUNCTION statements to `live`. sql-parse.mjs
+ * reads each statement; its tokens come from the statement's raw extent, where a comment in
+ * the body still ends at its line.
+ */
 function foldSqlFile(path, live) {
   const raw = readFileSync(path, 'utf8')
-  const statements = splitStatements(raw)
-  const fns = parseFunctions(statements)
-  const lines = sqlLines(raw, fns)
-  let k = 0
-  for (const stmt of statements) {
-    const drop = DROP_FUNCTION.exec(stmt)
+  for (const span of statementSpans(raw)) {
+    const drop = DROP_FUNCTION.exec(span.text)
     if (drop !== null) {
       live.delete(qualify(drop[1]).qualified)
       continue
     }
-    if (!/^CREATE (?:OR REPLACE )?FUNCTION /i.test(stmt)) continue
-    const fn = fns[k]
-    const line = lines[k]
-    k += 1
+    const fn = parseFunctions([span.text])[0]
     if (fn === undefined) continue
-    live.set(fn.qualified, sqlCallable(fn, path, line))
+    const statement = sqlTokens(raw.slice(span.start, span.end))
+    const line = raw.slice(0, span.start + (statement[0]?.index ?? 0)).split('\n').length
+    live.set(fn.qualified, sqlCallable(fn, path, line, statement))
   }
 }
 
 const SQL_WORKSPACE = Object.freeze({ dir: 'supabase', name: 'supabase' })
 
 /** @returns {Callable} */
-function sqlCallable(fn, path, line) {
-  const norm = normaliseSql(fn, fn)
+function sqlCallable(fn, path, line, statement) {
+  const norm = normaliseSql(fn, statement)
   const sigEnd = norm.stream.indexOf(')')
-  const body = fn.body ?? ''
   return finish({
     lang: 'sql',
     path,
@@ -820,11 +800,10 @@ function sqlCallable(fn, path, line) {
     workspace: SQL_WORKSPACE,
     kind: 'sql',
     exported: true,
-    stmts: body.split(';').filter((s) => s.trim() !== '').length,
+    stmts: sqlBodyStatements(statement),
     arity: fn.params.filter((p) => p.raw.trim() !== '').length,
     sig: sigEnd === -1 ? [] : norm.stream.slice(0, sigEnd + 1),
     norm,
-    body,
   })
 }
 
@@ -834,8 +813,10 @@ function sqlCallable(fn, path, line) {
  * Extract the whole tree. `ts` null runs the SQL half only (the TS legs are then
  * incomplete, which is the caller's to report). Subject ids follow v2's table: an exported
  * callable is `<package>#<name>`, an unexported one `<path>#<name>`, a method
- * `<path>#<Class>.<method>`, a SQL function `sql:<schema>.<fn>`; an exported name two files
- * of one package share falls back to the path form, so every subject is unique.
+ * `<path>#<Class>.<method>`, a SQL function `sql:<schema>.<fn>`. A nested callable is
+ * qualified by the callable it sits in (`<path>#<outer>.<inner>`; two segments at most, the
+ * closed subject printer's bound), and an exported name two files of one package share falls
+ * back to the path form, so every subject is unique.
  * @param {any} ts the parser, or null
  * @param {{ expand?: boolean }} [opts]
  * @returns {{ files: TsFile[], callables: Callable[] }}
@@ -854,30 +835,34 @@ export function extractTree(ts, { expand = true } = {}) {
   return { files, callables }
 }
 
+/** A TS callable's name in its file: a method or a top-level one as is, a nested one under its parent's. */
+const qualified = (c) =>
+  c.kind === 'method' || c.scope === '' ? c.name : `${c.scope.split('.').at(-1)}.${c.name}`
+
 /** @param {Callable[]} callables */
 function assignSubjects(callables) {
   const pkgForm = (c) => `${c.workspace.name}#${c.name}`
   const counts = new Map()
   for (const c of callables) {
-    if (c.lang === 'ts' && c.exported && c.kind === 'function') {
+    if (c.lang === 'ts' && c.exported && c.kind === 'function' && c.scope === '') {
       counts.set(pkgForm(c), (counts.get(pkgForm(c)) ?? 0) + 1)
     }
   }
   const seen = new Map()
   for (const c of callables) {
     if (c.lang === 'sql') c.subject = `sql:${c.name}`
-    else if (c.kind === 'function' && c.exported && counts.get(pkgForm(c)) === 1) {
+    else if (c.kind === 'function' && c.exported && c.scope === '' && counts.get(pkgForm(c)) === 1) {
       c.subject = pkgForm(c)
-    } else c.subject = `${c.path}#${c.name}`
-    // Two unexported functions of one name in one file (nested helpers): the later ones
-    // carry their line, so a subject still names one callable.
+    } else c.subject = `${c.path}#${qualified(c)}`
+    // Two callables of one name in one file (an overload, a same-named helper in two
+    // functions' bodies, or one nested deeper than its parent's own name tells): the later
+    // ones carry their ordinal, never their line, because a subject enters the advisory key
+    // and a line must not.
     const n = (seen.get(c.subject) ?? 0) + 1
     seen.set(c.subject, n)
-    if (n > 1) c.subject = `${c.subject}@${String(c.line)}`
+    if (n > 1) c.subject = `${c.subject}_${String(n)}`
   }
 }
-
-// ---- the digest -------------------------------------------------------------------------
 
 /**
  * This module and every tools/lib module it reaches through relative static imports, as
