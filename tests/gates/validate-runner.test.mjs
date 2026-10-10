@@ -307,6 +307,9 @@ const GATE_LIB_FILE = fileURLToPath(
 const FS_WALK_FILE = fileURLToPath(
   new URL('../../template/base/tools/lib/fs-walk.mjs', import.meta.url),
 )
+const CLOSED_TEXT_FILE = fileURLToPath(
+  new URL('../../template/base/tools/lib/closed-text.mjs', import.meta.url),
+)
 const POSTURE_LINE =
   'validate --ci-parity: CI posture for this run (HARNESS_REQUIRE_TOOLCHAINS=1): a missing prerequisite fails, no stamp is honoured'
 const NO_RECORDS_LINE = 'validate --ci-parity: no gate reported a missing prerequisite'
@@ -357,6 +360,7 @@ function parityFixture(steps) {
   copyFileSync(VALIDATE, join(dir, 'tools/validate.mjs'))
   copyFileSync(GATE_LIB_FILE, join(dir, 'tools/lib/gate.mjs'))
   copyFileSync(FS_WALK_FILE, join(dir, 'tools/lib/fs-walk.mjs'))
+  copyFileSync(CLOSED_TEXT_FILE, join(dir, 'tools/lib/closed-text.mjs'))
   for (const [file, src] of Object.entries(PARITY_STUBS)) writeFileSync(join(dir, 'tools', file), src)
   writeFileSync(join(dir, 'input.txt'), 'v1\n')
   writeFileSync(join(dir, 'tools/harness.config.mjs'), parityConfig(steps))

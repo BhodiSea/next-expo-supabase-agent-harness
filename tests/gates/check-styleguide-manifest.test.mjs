@@ -145,7 +145,7 @@ test('a forked tools/lib/gate.mjs without noteMissingPrerequisite still loads th
   mkdirSync(join(dir, 'tools/lib'), { recursive: true })
   const gate = join(dir, 'tools/check-styleguide-manifest.mjs')
   writeFileSync(gate, readFileSync(GATE, 'utf8'))
-  for (const lib of ['fs-walk.mjs', 'source-text.mjs']) {
+  for (const lib of ['fs-walk.mjs', 'source-text.mjs', 'closed-text.mjs']) {
     writeFileSync(join(dir, 'tools/lib', lib), readFileSync(join(src, 'lib', lib), 'utf8'))
   }
   const forked = readFileSync(join(src, 'lib/gate.mjs'), 'utf8').replace(

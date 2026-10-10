@@ -21,6 +21,16 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 import process from 'node:process'
+import {
+  dottedCallee,
+  key12,
+  NAME_RE,
+  path,
+  sqlName,
+  subjectId,
+  symbol,
+  UNPRINTABLE,
+} from './closed-text.mjs'
 import { toPosix, walkFiles } from './fs-walk.mjs'
 
 export const inCI = () =>
@@ -167,13 +177,255 @@ export function fail(gate, msg) {
 // SOURCE: docs/harness/README.md (skip-local / fail-closed-CI asymmetry) [corpus: harness/doctrine]
 /** @param {string} gate @param {string} reason */
 export function noteMissingPrerequisite(gate, reason) {
-  const dir = process.env.HARNESS_PARITY_REPORT_DIR
+  appendReport('HARNESS_PARITY_REPORT_DIR', { gate, reason })
+}
+
+// One JSON line in <dir>/<pid>.jsonl, <dir> the value of `variable`; nothing when it is unset.
+/** @param {string} variable @param {Record<string, unknown>} entry */
+function appendReport(variable, entry) {
+  const dir = process.env[variable]
   if (!dir) return
   try {
     mkdirSync(dir, { recursive: true })
-    appendFileSync(join(dir, `${process.pid}.jsonl`), `${JSON.stringify({ gate, reason })}\n`)
+    appendFileSync(join(dir, `${process.pid}.jsonl`), `${JSON.stringify(entry)}\n`)
   } catch {
     // Deliberately silent: the record is a report, and the verdict is the gate's alone.
+  }
+}
+
+// ---- the advisory recorder (2.1.0, #185) -------------------------------------------
+// An advisory finding becomes one CLOSED RECORD, and a producer's finished leg one
+// terminator, appended to <dir>/<pid>.jsonl where <dir> is HARNESS_ADVISORY_REPORT_DIR (the
+// parity recorder's shape). With the variable unset nothing is written. The contract is
+// noteMissingPrerequisite's: the recorder swallows its own errors, decides no verdict, and
+// writes nothing into the project tree.
+//   - noteAdvisory(record) validates the record against the closed schema below, appends
+//     it, and prints its one `<producer>: NOTE — ` line, rendered from the record alone. A
+//     record that fails the schema is not written, and a fixed line naming only its producer
+//     prints instead. `{ print: false }` prints nothing at all.
+//   - noteComplete({ producer, leg }) appends the leg's terminator. A producer writes it
+//     immediately before its final failures() and ok() and never on an early exit, so a
+//     skip, a fail(), a stamp hit or a crash leaves the leg incomplete, and nothing that
+//     reads the records can take a leg that stopped early for a clean one.
+//   - advisoryKey(record) is the record's identity: line numbers and content never enter
+//     it, and its first 12 hex digits, the key12, are the one id the harness prints.
+// A RECORD IS CLOSED (plan-v2 §5, plus `facts`): every field is a number, a boolean, a
+// member of a closed set, or a value one of the printers in lib/closed-text.mjs accepts, so
+// it can be printed, filed or handed to a reviewer without carrying text an author chose.
+// SOURCE: docs/harness/gates-catalog.md ("Shared behavior") [corpus: harness/doctrine]
+const ADVISORY_DIR = 'HARNESS_ADVISORY_REPORT_DIR'
+/** @public the closed producer set; read by the factory's ratchet test @type {readonly string[]} */
+export const ADVISORY_PRODUCERS = Object.freeze([
+  'duplication',
+  'query-shapes',
+  'parity',
+  'contracts',
+  'i18n',
+  'embeddings',
+])
+// The closed family enum, per producer. This release ships duplication's families: the
+// single-home ones and the six complexity families (SINGLE-HOME §2.4). Each later item adds
+// its producer's own (#189 adds `wire-orphan`).
+/**
+ * @public read by the factory's ratchet test (tests/gates/advisory-ratchet.test.mjs)
+ * @type {Readonly<Record<string, readonly string[]>>}
+ */
+export const ADVISORY_RULES = Object.freeze({
+  duplication: Object.freeze([
+    'exact',
+    'exact-small',
+    'exact-nohome',
+    'near-miss',
+    'accepted-class-changed',
+    'accepted-class-diverged',
+    'stale-row',
+    'pass-through',
+    'helper-split',
+    'intent-hiding',
+    'single-consumer',
+    'bool-selector',
+    'edge-guard',
+  ]),
+  'query-shapes': Object.freeze([]),
+  parity: Object.freeze([]),
+  contracts: Object.freeze([]),
+  i18n: Object.freeze([]),
+  embeddings: Object.freeze([]),
+})
+const ADVISORY_STATUS_TEXT = {
+  advisory: 'advisory (no verdict)',
+  'ramp-withheld': 'withheld (ramp)',
+  blocking: 'blocking',
+}
+const RECORD_KEYS = ['v', 'producer', 'rule', 'status', 'subject', 'fp', 'until', 'counts', 'facts']
+const RECORD_REQUIRED = ['v', 'producer', 'rule', 'status', 'subject', 'fp']
+const FACTS_DEPTH = 3
+const FACT_STRINGS = [symbol, dottedCallee, sqlName, path, key12]
+
+/** @param {unknown} v */
+const isProducer = (v) => typeof v === 'string' && ADVISORY_PRODUCERS.includes(v)
+
+/** @param {unknown} v @returns {v is Record<string, any>} */
+const isPlainObject = (v) =>
+  v !== null &&
+  typeof v === 'object' &&
+  !Array.isArray(v) &&
+  [Object.prototype, null].includes(Object.getPrototypeOf(v))
+
+// One subject id, or a near-miss pair of two, sorted and joined by one space.
+/** @param {unknown} subject */
+function subjectOk(subject) {
+  if (typeof subject !== 'string') return false
+  const ids = subject.split(' ')
+  if (ids.length > 2 || !ids.every((id) => subjectId.ok(id))) return false
+  return ids.length === 1 || ids[0] < ids[1]
+}
+
+/** @param {unknown} counts */
+const countsOk = (counts) =>
+  isPlainObject(counts) &&
+  Object.entries(counts).every(
+    ([k, n]) => symbol.ok(k) && Number.isSafeInteger(n) && Number(n) >= 0,
+  )
+
+/** @param {unknown} v */
+const factLeafOk = (v) =>
+  typeof v === 'boolean' ||
+  (typeof v === 'number' && Number.isFinite(v)) ||
+  FACT_STRINGS.some((printer) => printer.ok(v))
+
+// `facts` itself is depth 1; an array or object may sit at depth 2 or 3, never 4.
+/** @param {unknown} v @param {number} depth @returns {boolean} */
+function factOk(v, depth) {
+  if (Array.isArray(v)) return depth <= FACTS_DEPTH && [...v].every((x) => factOk(x, depth + 1))
+  if (isPlainObject(v)) {
+    return (
+      depth <= FACTS_DEPTH &&
+      Object.entries(v).every(([k, x]) => symbol.ok(k) && factOk(x, depth + 1))
+    )
+  }
+  return factLeafOk(v)
+}
+
+/** @param {Record<string, unknown>} r */
+const shapeOk = (r) =>
+  Object.keys(r).every((k) => RECORD_KEYS.includes(k)) &&
+  RECORD_REQUIRED.every((k) => Object.hasOwn(r, k))
+
+/**
+ * Does a record fit the closed schema? The check noteAdvisory applies, pure: the sweep
+ * (#186) validates every record of its document with it, and writes none of them.
+ * @public read by lib/sweep.mjs (#186)
+ * @param {unknown} r @returns {r is Record<string, any>}
+ */
+export function advisoryRecordOk(r) {
+  if (!isPlainObject(r) || !shapeOk(r) || !isProducer(r.producer)) return false
+  return (
+    r.v === 1 &&
+    ADVISORY_RULES[r.producer].includes(r.rule) &&
+    Object.hasOwn(ADVISORY_STATUS_TEXT, r.status) &&
+    subjectOk(r.subject) &&
+    key12.ok(r.fp) &&
+    (r.until === undefined || (typeof r.until === 'string' && /^\d+\.\d+\.\d+$/.test(r.until))) &&
+    (r.counts === undefined || countsOk(r.counts)) &&
+    (r.facts === undefined || (isPlainObject(r.facts) && factOk(r.facts, 1)))
+  )
+}
+
+/**
+ * The record's identity: the first 16 hex digits of sha256(producer|rule|subject). No
+ * printer admits `|`, so no two triples share an input. The key12 is its first 12.
+ * @public read by the packet and the issue sync (#186, #205)
+ * @param {Record<string, unknown>} record its producer, rule and subject
+ * @returns {string}
+ */
+export function advisoryKey(record) {
+  const { producer, rule, subject } = record
+  return createHash('sha256')
+    .update(`${String(producer)}|${String(rule)}|${String(subject)}`)
+    .digest('hex')
+    .slice(0, 16)
+}
+
+// A line that is not `ramp-withheld` never holds the word: `graduate` counts every NOTE line
+// that does as a ramp still outstanding, so a value spelling it prints as `(unprintable)`.
+/** @param {boolean} withheld @returns {(text: string) => string} */
+const rampMask = (withheld) => (text) => (!withheld && /ramp/i.test(text) ? UNPRINTABLE : text)
+
+/** @param {unknown} v @param {(text: string) => string} mask @returns {string} */
+function factText(v, mask) {
+  if (Array.isArray(v)) return `(${v.map((x) => factText(x, mask)).join(', ')})`
+  if (isPlainObject(v)) {
+    return `(${Object.entries(v)
+      .map(([k, x]) => `${mask(k)} ${factText(x, mask)}`)
+      .join(', ')})`
+  }
+  return typeof v === 'string' ? mask(`\`${v}\``) : String(v)
+}
+
+// The one NOTE line, from the validated record alone and in a fixed vocabulary.
+/** @param {Record<string, any>} r */
+function advisoryLine(r) {
+  const mask = rampMask(r.status === 'ramp-withheld')
+  const subject = r.subject
+    .split(' ')
+    .map((/** @type {string} */ id) => mask(subjectId.print(id)))
+    .join(' and ')
+  const key = advisoryKey(r).slice(0, 12)
+  const parts = [
+    `${r.producer}: NOTE — ${ADVISORY_STATUS_TEXT[r.status]} ${r.rule} \`${key}\` on ${subject}`,
+  ]
+  for (const [k, n] of Object.entries(r.counts ?? {})) parts.push(`${mask(k)} ${String(n)}`)
+  if (r.until !== undefined) parts.push(`until ${r.until}`)
+  for (const [k, v] of Object.entries(r.facts ?? {})) parts.push(`${mask(k)} ${factText(v, mask)}`)
+  return parts.join(' · ')
+}
+
+/** @param {unknown} producer */
+const refusedLine = (producer) =>
+  `${isProducer(producer) ? producer : 'advisory'}: NOTE — a record was refused: it does not fit the closed advisory schema, so nothing was written`
+
+/**
+ * Record one advisory finding and print its NOTE line. Returns whether the record fit the
+ * schema; it never throws and never exits.
+ * @public the recorder producers call (#186); exported for tests/gates/gate-helpers.test.mjs
+ * @param {unknown} record @param {{ print?: boolean }} [opts] @returns {boolean}
+ */
+export function noteAdvisory(record, { print = true } = {}) {
+  let line = refusedLine(null)
+  let accepted = false
+  try {
+    if (advisoryRecordOk(record)) {
+      line = advisoryLine(record)
+      accepted = true
+      appendReport(
+        ADVISORY_DIR,
+        Object.fromEntries(
+          RECORD_KEYS.filter((k) => record[k] !== undefined).map((k) => [k, record[k]]),
+        ),
+      )
+    } else {
+      line = refusedLine(/** @type {any} */ (record)?.producer)
+    }
+  } catch {
+    // A record that throws while it is read (a getter, say) is refused like any other.
+  }
+  if (print) console.log(line)
+  return accepted
+}
+
+/**
+ * Record that a producer's leg ran to its verdict. Prints nothing; a producer outside the
+ * closed set, or a leg that is not a name, writes nothing.
+ * @param {{ producer: unknown, leg: unknown }} terminator
+ */
+export function noteComplete(terminator) {
+  try {
+    const { producer, leg } = terminator
+    if (!isProducer(producer) || typeof leg !== 'string' || !NAME_RE.test(leg)) return
+    appendReport(ADVISORY_DIR, { v: 1, producer, leg, complete: true })
+  } catch {
+    // Deliberately silent, like the record itself.
   }
 }
 
@@ -328,7 +580,30 @@ export function rampNote(gate, minVersion, detail, opts) {
   log(
     `${gate}: NOTE — ${detail} (ramp: live from baseVersion ${minVersion}; this install's baseVersion is ${base}; expires in ${until}). Sweep the findings, then graduate deliberately by bumping baseVersion in .harness/manifest.json — a human edit; see docs/runbooks/harness-upgrade.md`,
   )
+  noteWithheld(gate, opts?.subject, until)
   return true
+}
+
+// `subject` (2.1.0, #185), `{ rule, subject }`: a ramp that withholds a converted producer's
+// finding also records it, as `ramp-withheld` and printing nothing, so the NOTE line above
+// is the one it always was. It rides the fourth argument, because scripts/lib/ramp-sites.mjs
+// reads every call's third as the escape's id. A withheld record has no fingerprint of its
+// own, so its `fp` is its key12.
+/** @param {string} gate @param {unknown} subject @param {string} until */
+function noteWithheld(gate, subject, until) {
+  if (!isPlainObject(subject)) return
+  const record = {
+    v: 1,
+    producer: gate,
+    rule: subject.rule,
+    status: 'ramp-withheld',
+    subject: subject.subject,
+  }
+  try {
+    noteAdvisory({ ...record, fp: advisoryKey(record).slice(0, 12), until }, { print: false })
+  } catch {
+    // advisoryKey reads the parts as strings; one that cannot be read leaves no record.
+  }
 }
 
 // ---- subprocess capture contract ----------------------------------------------

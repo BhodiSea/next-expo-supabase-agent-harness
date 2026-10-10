@@ -1,0 +1,6 @@
+{
+  "//": "The converted-gates ratchet (2.1.0, #185; plan-v2 §5). `converted` names every producer that records its findings through tools/lib/gate.mjs's advisory recorder and writes its leg terminator (noteComplete), each mapped to the families that have joined issues; a family joins at B precision >= 0.8 over at least 20 labelled hits (SINGLE-HOME §3), so a converted producer starts with none. A producer absent here is 'not covered' on the dashboard (#205). Entries are only added: a removal is a factory release decision, recorded in the CHANGELOG. tests/gates/advisory-ratchet.test.mjs reds a listed producer whose script never calls noteComplete, and a listed family outside the recorder's enum (ADVISORY_RULES).",
+  "converted": {
+    "duplication": []
+  }
+}

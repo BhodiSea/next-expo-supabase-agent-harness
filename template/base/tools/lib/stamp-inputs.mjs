@@ -11,9 +11,9 @@
 //     CONCLUDE about unchanged inputs; the manifest is therefore an input to every
 //     stamp, and a warm green must never outlive it.
 //   - the gate's own script, plus the stamp machinery itself (lib/gate.mjs, the
-//     lib/fs-walk.mjs it walks directories with, and this register) — a rewritten
-//     check must re-prove the tree, never skip on the stamp its previous version
-//     recorded.
+//     lib/fs-walk.mjs it walks directories with, the lib/closed-text.mjs its advisory
+//     recorder prints through (2.1.0, #185), and this register) — a rewritten check
+//     must re-prove the tree, never skip on the stamp its previous version recorded.
 //
 // THE IMPORT CLOSURE (1.0.4). A list also names every tools/lib module its script
 // reaches through static imports, followed transitively. Through 1.0.3 none did:
@@ -26,6 +26,7 @@ const MACHINERY = [
   'tools/lib/gate.mjs',
   'tools/lib/stamp-inputs.mjs',
   'tools/lib/fs-walk.mjs',
+  'tools/lib/closed-text.mjs',
 ]
 /**
  * @public exported for the module gates (template/modules/<name>/tools), which declare their

@@ -11,6 +11,79 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [Unreleased]
+
+**2.1.0 work that lands before the 2.1.0 bump.** The bump is its own commit, made when the
+release is cut: it opens the 2.1.0 section and its `template/migrations.json` record, and
+moves these entries there. Until then the owned files they change are recorded in
+`template/shas/2.0.3.json`, the table of the version `package.json` names, so `update` and
+`gate-integrity` recognise them.
+
+### Added
+
+- **One home for every closed printer, an advisory recorder, and the converted-gates ratchet**
+  (#185). `tools/lib/closed-text.mjs` is new and imports nothing. It holds the path printer,
+  the name set and `(unprintable)`, moved from `tools/lib/harness-brief.mjs` (the brief's
+  bytes do not move), `ACTION_RE`, moved from `tools/check-mobile-parity.mjs` (parity's
+  output does not move), and the printers the Single Home plan needs: symbols, SQL names,
+  signatures rebuilt from tokens, enums and numbers, dotted callees of up to four segments,
+  i18n keys, testIDs, subject ids and `key12`. N3's case labels print an identifier through
+  the symbol printer and a literal of up to 12 characters as itself, anything longer as
+  `#n`, and `renderDiffersAt` prints aligned arms, two names for one value joined by ` / `.
+  `tools/lib/gate.mjs` gains the recorder: `noteAdvisory` checks a record against a closed
+  schema, appends it to `HARNESS_ADVISORY_REPORT_DIR` and prints one NOTE line rendered from
+  the record alone; `noteComplete` writes a producer leg's terminator; `advisoryKey` is the
+  record's identity; and `rampNote` takes an optional `subject` that records what it
+  withholds without changing its NOTE. With the variable unset nothing is written. The
+  recorder decides no verdict and swallows its own errors. `tools/check-duplication.mjs`
+  writes its L0 terminator right before its verdict, green or red, and none on the
+  no-source skip or a malformed allow file; its red text and verdict do not change.
+  `tools/lib/closed-text.mjs` joins the stamp machinery in `tools/lib/stamp-inputs.mjs`, so
+  every warm stamp re-proves once after `update`. In the factory, `scripts/advisory-ratchet.json`
+  lists the converted producers (`duplication`, with no family yet) and
+  `tests/gates/advisory-ratchet.test.mjs` reds a listed producer that never calls
+  `noteComplete`, or a family outside the recorder's enum. No gate, step or ramp is added or
+  moved. The new and changed files under `tools/`, `docs/harness/README.md`,
+  `docs/harness/gates-catalog.md` and `.github/workflows/quality-gate.yml` (whose
+  `edge-functions` filter names the new module) are owned and reach an install with `update`.
+- **The Single Home extractor, and the duplication sweep that reads it** (#186).
+  `node tools/check-duplication.mjs --sweep --json` prints one deterministic document of
+  advisory records, and `--explain '<key12>'` prints the record a key names. Neither decides
+  a verdict: the Stop run is L0 alone, unchanged, and prints no advisory NOTE before the exact
+  rule goes live (#201). New modules under `tools/lib/`: `shapes.mjs` reads every callable in
+  L0's scope through the project's own `typescript`, and every SQL function the migration
+  history leaves live, into one normalised record each (bound names numbered, shorthand
+  properties expanded, a token convention that fixes the count); `importers.mjs` indexes who
+  imports each export; `homes.mjs` says where one copy of a class may live (IMPORT, MODULE,
+  LIFT or NONE), judged by the `architecture` rules, the vertical-anatomy laws and the
+  workspace walls; `workspace-tiers.mjs` holds those walls, moved out of
+  `tools/check-workspace-deps.mjs` with the `boundaries` messages and verdicts unchanged;
+  `complexity.mjs` holds six complexity recipes; `differs.mjs` says where a near-miss pair
+  differs; `sweep.mjs` registers the families (`SWEEP_FAMILIES`) and builds the document; and
+  `duplication-scope.mjs` is L0's scan list, moved out of the gate unchanged so both readers
+  share it. `tools/lib/sql-parse.mjs` gains `statementSpans`, each statement with its raw
+  extent, because a `-- comment` inside a function body ran to the end of the
+  whitespace-normalised statement; `splitStatements` returns the same statements as before.
+  It also exports `endOfBlockComment`, so the extractor ends a nested comment where the parser
+  does. A name no closed printer can carry (one with a `$`, a `#private` or quoted member, an
+  over-long name) gets no record, so it never costs its leg completeness. SQL overloads
+  are told apart by their argument types, read as PostgreSQL reads them (an `ARRAY[...]`
+  default, an unnamed `text ARRAY`); a `CREATE OR REPLACE` that respells a type replaces the
+  overload with the same input names, and a `DROP FUNCTION` drops the signature it names.
+  Only a callable declared at a file's top level is an export, and JSX text compares as it
+  renders. The importer index counts every name an export goes by, re-export barrels
+  included, and its module graph reads side-effect imports and `export type *`; `home()`
+  reads only the `architecture` rules at `error` severity, cycles and dependency types
+  included, and a rule condition it does not know refuses the home; call sites count method
+  calls and JSX uses. The `--sweep --json` document arrives whole through a pipe.
+  `tools/lib/vertical-anatomy.mjs` exports the predicate its domain, events and client-reach
+  scans apply, and `tools/lib/gate.mjs` exports `advisoryRecordOk`; neither scan's findings
+  move. Without `typescript` the TS legs are written incomplete, the sweep exits 1 and records
+  the missing prerequisite, and the SQL legs still run. No gate, step or ramp is added or
+  moved. In the factory, six test files prove the modules and the `machinery-shapes` step in
+  `lint.yml` runs them with the parser installed. The new and changed files under `tools/` and
+  `docs/harness/gates-catalog.md` are owned and reach an install with `update`.
+
 ## [2.0.3] — 2026-10-06
 
 **A patch: the first of the v2.0.x defect fixes.** Each item that lands after this bump adds
@@ -227,6 +300,53 @@ this comment. -->
   README are owned and reach an install that enabled the module with `update`, which removes
   the two moved files when unmodified. A slice you already applied is seeded and stays yours;
   the runbook's 2.0.3 section gives the hand steps.
+- **The factory's write guard denies every spelling of a protected path, and judges
+  NotebookEdit** (#224). `.claude/hooks/pretool-write-guard.mjs` stripped the project dir from
+  `file_path` and matched the rest as spelled, so `docs/../scripts/hygiene.mjs` and
+  `./scripts/hygiene.mjs` passed every `^`-anchored pattern, and `scripts/../docs/guide.md`
+  was denied though it lands in `docs/`. It read only `file_path`, so a NotebookEdit, which
+  sends `notebook_path`, was judged on an empty path and passed. The guard now reads
+  `file_path`, `notebook_path` or `path`, resolves it against the project dir and judges the
+  project-relative result; a path that resolves outside the project passes, as before. The new
+  `tests/hooks/factory-write-guard.test.mjs`, the guard's first test, was red on six of its
+  nine cases before the change. Factory only: nothing changes for an install.
+- **CONTRIBUTING says which commands cover a first change, and how long they take** (#167).
+  "Local development" opened with every check CI blocks on, and never said which of them a
+  given kind of change needs, how long each takes, or that the test suites need no install. A
+  new "Your first change" subsection at its top gives the commands for a doc fix, an installer
+  change, a hook change and a gate change, with times measured twice on a fresh clone with no
+  install. It also says when to regenerate the released-sha table, which check is the slowest,
+  and that a red check on a first pull request is normal. The full list follows under its own
+  heading, unchanged, and `check-claims` still finds every `lint.yml` blocker in it. Factory
+  only: nothing changes for an install.
+- **The two append-only trails share one `deny_mutation()` and one pair of partition
+  functions** (#146, parts A, B, D and E). The auth-event trail had copied the audit trail's
+  `deny_mutation()`, `ensure_partitions(int)` and `drop_partitions_older_than(interval)` line
+  for line, one schema over. No gate reads `supabase/**/*.sql` for clones, and the copies had
+  drifted: the trail's maintenance was never scheduled (part C, above), its partition
+  functions were revoked from `PUBLIC` only, and nothing proved that a new month got its
+  `TRUNCATE` guard. The new seeded migration
+  `supabase/migrations/20261007000000_trail_shared_functions.sql` makes `audit.deny_mutation()`
+  name the schema it fired in, so a refusal on `auth_trail.events` still says `auth_trail` and
+  the text for `audit.events` is unchanged. It adds `audit.ensure_partitions(regclass, int)` and
+  `audit.drop_partitions_older_than(regclass, interval)`, which take the parent, derive the
+  schema and the partition names from it, and refuse any parent but `audit.events` and
+  `auth_trail.events`. The four old signatures become one-line wrappers, so the pg_cron jobs
+  that call them by name keep working and none is re-pointed. Every trigger on the trail is
+  re-pointed in place, the trail's wrappers are revoked from `anon` and `authenticated` as
+  audit's are, and `auth_trail.deny_mutation()` is dropped without `CASCADE`. Everything stays
+  `SECURITY INVOKER` with an empty `search_path`, and `tools/tenancy.json` does not change. The
+  cost is the trails' independence: one `CREATE OR REPLACE` of `audit.deny_mutation()` now
+  reaches both, which both ADRs record. `supabase/tests/auth_trail.test.sql` gains fourteen
+  assertions (plan 25 to 39). Six of them were red without the migration: one trigger
+  function for both trails, no copy in `auth_trail`, the shared pair closed to client roles
+  and to any other parent, and wrappers with no DDL of their own. The other eight pass before
+  and after: a month partition refuses `TRUNCATE`, so does a month each trail's maintenance
+  creates during the run, every partition of both trails has a `TRUNCATE` trigger of its own,
+  and each refusal names its trail. `supabase/schemas/40_audit.sql`
+  declares the new body. No gate, step or ramp changes. The migration reaches fresh scaffolds
+  only (`seedOnInitOnly`); the runbook's 2.0.3 section gives an existing install the same SQL
+  for a migration of its own, with its second half left out where the trail was never adopted.
 
 ## [2.0.2] — 2026-10-03
 

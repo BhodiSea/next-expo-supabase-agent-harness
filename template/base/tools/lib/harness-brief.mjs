@@ -29,13 +29,13 @@
 // SOURCE: docs/harness/README.md (the session-start brief)
 import { readFileSync } from 'node:fs'
 import process from 'node:process'
+import { path as closedPath, NAME_RE, UNPRINTABLE } from './closed-text.mjs'
 
 /** The ceiling on the whole brief, marker included. */
 const BRIEF_CAP = 1200
 const CUT_MARKER = `[brief cut at ${String(BRIEF_CAP)} characters]`
 /** Entries shown per list; the rest are counted. */
 const LIST_MAX = 5
-const UNPRINTABLE = '(unprintable)'
 
 const FIELD = {
   install: 'harness',
@@ -45,16 +45,12 @@ const FIELD = {
 }
 
 // ── the closed validators ───────────────────────────────────────────────────────
+// The name set, the path printer and `(unprintable)` live in lib/closed-text.mjs (2.1.0,
+// #185), the one home of every closed printer; the brief's own sets stay here.
 
 const VERSION_RE = /^\d+\.\d+\.\d+$/
 const TIERS = new Set(['core', 'standard', 'strict'])
 const MODES = new Set(['bootstrap', 'retrofit'])
-const NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/
-// A printed path: repository-relative POSIX, at most 160 characters, from a closed set that
-// admits the App Router's ( ) [ ] (2.0.x, #153: route groups and dynamic segments printed as
-// `(unprintable)` through 2.0.2). No segment is empty, `.` or `..`, or starts with `-`. It
-// prints inside a code span; a backtick is not in the set, so no path can close the span.
-const PATH_RE = /^[A-Za-z0-9._@+()[\]/-]{1,160}$/
 
 /** @param {(v: unknown) => boolean} ok @returns {(v: unknown) => string} */
 const printer = (ok) => (v) => (ok(v) ? String(v) : UNPRINTABLE)
@@ -69,13 +65,7 @@ const gateName = printer(
   (v) =>
     typeof v === 'string' && v.split('/').length <= 2 && v.split('/').every((s) => NAME_RE.test(s)),
 )
-/** @param {unknown} v */
-const pathOk = (v) =>
-  typeof v === 'string' &&
-  PATH_RE.test(v) &&
-  v.split('/').every((s) => s !== '' && s !== '.' && s !== '..' && !s.startsWith('-'))
-/** @param {unknown} v */
-const path = (v) => (pathOk(v) ? `\`${String(v)}\`` : UNPRINTABLE)
+const path = closedPath.print
 const count = printer((v) => Number.isInteger(v) && Number(v) >= 0)
 
 // ── the renderer ────────────────────────────────────────────────────────────────

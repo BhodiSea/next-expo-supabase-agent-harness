@@ -16,13 +16,28 @@
 // so an accepted clone stays accepted when it moves).
 // SOURCE: docs/harness/README.md (skip-local / fail-closed-CI asymmetry) [corpus: harness/doctrine]
 import { createHash } from 'node:crypto'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
+import { duplicationScanRoots, isGeneratedPath, isScannedName } from './lib/duplication-scope.mjs'
 import { walkFiles } from './lib/fs-walk.mjs'
+// A NAMESPACE import (2.1.0, #185) for `noteComplete` alone: it is new, and an install may run
+// this gate over a forked tools/lib/gate.mjs that `update` parked. A named import of an export
+// that file lacks fails at link time; through the namespace it is undefined, the guarded call
+// is a no-op, and only the record is lost.
+import * as gateLib from './lib/gate.mjs'
 import { fail, failures, ok, skipOrFail } from './lib/gate.mjs'
 
 const GATE = 'duplication'
 const ALLOW = 'tools/duplication-allow.json'
+
+// THE READ MODES (2.1.0, #186). `--sweep --json` prints the Single Home sweep's one document
+// (every family's records and every leg's terminator) and `--explain '<key12>'` prints one
+// record of it, both from lib/sweep.mjs. It is imported only here, so the Stop run, with no
+// flag, is L0 alone: it loads no parser and no extractor, and prints no new line.
+const argv = process.argv.slice(2)
+if (argv.includes('--sweep') || argv.includes('--explain')) {
+  const { sweepMain } = await import('./lib/sweep.mjs')
+  process.exit(await sweepMain(argv))
+}
 
 // A clone must be at least this many tokens AND span this many lines — high enough that
 // two structurally-similar-but-independent blocks don't trip, low enough that a real
@@ -30,38 +45,11 @@ const ALLOW = 'tools/duplication-allow.json'
 const MIN_TOKENS = 70
 const MIN_LINES = 6
 
-// Scan only hand-written product source. Generated bindings, tests (they legitimately
-// repeat setup), and type decls are excluded.
-// 0.4.0 CORRECTED THE WALK, in the same two places check-diff-coverage.mjs's SRC_RE was
-// wrong, because it was the same mistake: one level of `packages/*/src` describes the FLAT
-// packages and silently skips the LAYERED groups — packages/platform/* and
-// packages/verticals/*, which is the kernel, the Supabase seam, the rate limiter and every
-// feature domain. A clone detector that never reads the verticals is a clone detector
-// pointed away from the code most likely to be copy-pasted between them.
-//
-// apps/web is added by NAME rather than by shape: it has no `src/`, its code is `app/` and
-// `lib/`, and the enforcement-tiers row that recorded its absence is closed in this release.
-const SCAN_ROOTS = []
-for (const scope of ['apps', 'packages']) {
-  if (!existsSync(scope)) continue
-  for (const d of readdirSync(scope).sort()) {
-    const src = join(scope, d, 'src')
-    if (existsSync(src)) {
-      SCAN_ROOTS.push(src)
-      continue
-    }
-    // No `<scope>/<d>/src` — so either a layered GROUP whose members carry their own src
-    // (packages/platform/errors/src), or a surface with a different shape (apps/web).
-    const groupDir = join(scope, d)
-    for (const inner of readdirSync(groupDir).sort()) {
-      const nested = join(groupDir, inner, 'src')
-      if (existsSync(nested)) SCAN_ROOTS.push(nested)
-    }
-  }
-}
-for (const webDir of [join('apps', 'web', 'app'), join('apps', 'web', 'lib')]) {
-  if (existsSync(webDir)) SCAN_ROOTS.push(webDir)
-}
+// The scan roots and their exclusions live in lib/duplication-scope.mjs (2.1.0, #186), the
+// one list this scan and the Single Home extractor both read: apps/*/src, the flat
+// packages/*/src, the layered packages/*/*/src, apps/web/{app,lib}; tests, `.d.ts` and
+// generated modules excluded.
+const SCAN_ROOTS = duplicationScanRoots()
 if (SCAN_ROOTS.length === 0) {
   skipOrFail(
     GATE,
@@ -142,31 +130,9 @@ function tokenize(text) {
 // ---- fingerprint + extend clone detection -------------------------------------------
 const files = []
 for (const root of SCAN_ROOTS) {
-  for (const rel of walkFiles(root, {
-    filter: (p) => /\.(ts|tsx)$/.test(p) && !/\.(test|spec)\.tsx?$/.test(p) && !/\.d\.ts$/.test(p),
-  })) {
+  for (const rel of walkFiles(root, { filter: isScannedName })) {
     const path = `${root}/${rel}`
-    // Generated modules are machine-written; never a maintainability concern —
-    // by construction they RESTATE their source, so scanning them reports the
-    // generator's own output as a clone of its input. Two shapes are excluded:
-    // a `*.gen.ts` suffix, and anything under a `generated/` directory, which is
-    // where the design-tokens compiler writes (`src/generated/{native.ts,web.css}`).
-    // The suffix rule alone matched NOTHING in the shipped scaffold, so this gate
-    // reported native.ts duplicating typography.ts on a clean tree.
-    //
-    // A THIRD shape (0.4.0): `database.types.ts`, the Supabase type mirror written by
-    // `pnpm db:types` from the live schema. It carries neither marker — no `.gen.` suffix,
-    // no `generated/` directory — and until this release it was never scanned, because the
-    // walk above never descended into packages/platform/*. It is machine-written and its
-    // Row/Insert/Update triples restate one another BY CONSTRUCTION, so every table in the
-    // schema is a clone of the next. The `types-drift` gate is what proves this file honest.
-    if (
-      /\.gen\.tsx?$/.test(path) ||
-      /(^|\/)generated\//.test(path) ||
-      /(^|\/)database\.types\.ts$/.test(path)
-    ) {
-      continue
-    }
+    if (isGeneratedPath(path)) continue
     files.push({ path, tokens: tokenize(readFileSync(path, 'utf8')) })
   }
 }
@@ -294,6 +260,14 @@ const errs = clones.map(
 // always been unconditional in practice. Removing the branch changes no behaviour on any
 // real tree — it deletes a deadline that could not arrive.
 // SOURCE: scripts/check-ramp-ledger.mjs (never-armed ramps)
+//
+// THE LEG TERMINATOR (2.1.0, #185). `duplication` is the first converted producer: its L0 leg,
+// this whole-tree scan, records that it ran to a verdict, immediately before that verdict,
+// so a green tree and a red one both write it. The no-source skip and a malformed allow file
+// exit earlier and write none, and neither does a crash. The red text and the verdict do not
+// change; the families' records arrive with the extractor (#186).
+// SOURCE: docs/harness/gates-catalog.md ("Shared behavior")
+gateLib.noteComplete?.({ producer: 'duplication', leg: 'l0' })
 failures(GATE, errs)
 ok(
   GATE,

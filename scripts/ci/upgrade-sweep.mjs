@@ -437,7 +437,7 @@ const SWEEPS = {
       '1.0.0': ['tools/suppressions-allow.json'],
     },
   },
-  // 2.0.3 withholds EIGHT paths, and a swept leg adopts three of them, each only below the
+  // 2.0.3 withholds NINE paths, and a swept leg adopts three of them, each only below the
   // version whose derived pass copies a file that imports it.
   //   - supabase/migrations/20261006000000_auth_trail_partition_schedule.sql (#146, part C) is
   //     never adopted, for 1.0.2's reason restated: the DDL would sit unapplied beside the
@@ -469,6 +469,11 @@ const SWEEPS = {
   //     theme and locale stores import the module from 2.0.3, and no record's derived pass
   //     copies either store, so a leg keeps its own listener sets and nothing on it imports
   //     the module.
+  //   - supabase/migrations/20261007000000_trail_shared_functions.sql (#146, parts A, B, D, E)
+  //     is never adopted, for the partition schedule's reason above: the DDL would sit
+  //     unapplied beside the scaffold's applied history. A leg keeps its old seeded
+  //     auth_trail.test.sql, whose assertions pass on the copied functions, so nothing on the
+  //     leg asks for the shared ones and it is green without the migration.
   '2.0.3': {
     adoptBelow: {
       '0.7.0': ['packages/verticals/notes/src/data/write-context.ts'],

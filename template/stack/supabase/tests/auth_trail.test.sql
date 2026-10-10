@@ -18,12 +18,18 @@
 -- sign-in it observes. The hook's exception wrap is the one line standing
 -- between "a partition filled up" and "every user is locked out"; this suite
 -- breaks the trail on purpose and asserts the hook still answers continue.
+--
+-- Since 2.0.3 the trail runs on audit's machinery rather than a copy of it
+-- (20261007000000_trail_shared_functions.sql): one audit.deny_mutation() behind
+-- every immutability trigger on both trails, and one regclass-taking pair of
+-- partition functions behind the old signatures. Section (9) proves the merge,
+-- and that the shared functions still give each new month its TRUNCATE guard.
 
 BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(25);
+SELECT plan(39);
 
 -- ── (1) shape: the wall, read from the catalog ──────────────────────────────
 SELECT has_schema('auth_trail', 'schema auth_trail exists');
@@ -239,6 +245,153 @@ SELECT CASE WHEN to_regclass('cron.job') IS NULL
     'an active pg_cron job drops auth_trail.events'' partitions past retention'
   )
 END;
+
+-- ── (9) one machinery for both trails ───────────────────────────────────────
+-- The trail used to carry its own copies of audit's deny_mutation(),
+-- ensure_partitions(int) and drop_partitions_older_than(interval), and the copies
+-- drifted. Every lookup here goes through to_regprocedure() or the catalog, so on
+-- a database without the shared functions each assertion fails on its own line
+-- rather than aborting the suite.
+SELECT hasnt_function(
+  'auth_trail', 'deny_mutation',
+  'auth_trail has no deny_mutation() of its own — the trail''s copy is gone'
+);
+
+-- Layers 3 and 4 on both trails, the parents and every partition: one function OID.
+SELECT results_eq(
+  $$ SELECT DISTINCT t.tgfoid = 'audit.deny_mutation()'::regprocedure
+       FROM pg_trigger t
+      WHERE t.tgrelid IN (
+              SELECT 'audit.events'::regclass
+              UNION ALL SELECT 'auth_trail.events'::regclass
+              UNION ALL SELECT i.inhrelid FROM pg_inherits i
+               WHERE i.inhparent IN ('audit.events'::regclass, 'auth_trail.events'::regclass)
+            ) $$,
+  $$ VALUES (true) $$,
+  'every immutability trigger on audit.events, auth_trail.events and their partitions executes the one audit.deny_mutation()'
+);
+
+SELECT ok(
+  to_regprocedure('audit.ensure_partitions(regclass, integer)') IS NOT NULL
+  AND to_regprocedure('audit.drop_partitions_older_than(regclass, interval)') IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1
+      FROM unnest(ARRAY[
+             to_regprocedure('audit.ensure_partitions(regclass, integer)'),
+             to_regprocedure('audit.drop_partitions_older_than(regclass, interval)'),
+             'audit.ensure_partitions(integer)'::regprocedure,
+             'audit.drop_partitions_older_than(interval)'::regprocedure,
+             'auth_trail.ensure_partitions(integer)'::regprocedure,
+             'auth_trail.drop_partitions_older_than(interval)'::regprocedure
+           ]) AS f(fn)
+     CROSS JOIN unnest(ARRAY['anon', 'authenticated', 'service_role']) AS r(role)
+     WHERE has_function_privilege(r.role, f.fn, 'EXECUTE')
+  ),
+  'the shared regclass pair exists, and no client role may execute any of the six partition functions'
+);
+
+-- D3: a closed set of parents, so the shared pair is never a general DDL helper.
+SELECT throws_ok(
+  $$ SELECT audit.ensure_partitions('pg_catalog.pg_class'::regclass, 0) $$,
+  '22023',
+  NULL,
+  'audit.ensure_partitions refuses a parent that is not one of the two trails'
+);
+SELECT throws_ok(
+  $$ SELECT audit.drop_partitions_older_than('auth_trail.events_default'::regclass, interval '0 days') $$,
+  '22023',
+  NULL,
+  'audit.drop_partitions_older_than refuses a partition of a trail — only the two parents are accepted'
+);
+
+-- D4: the old signatures stay, because pg_cron runs a job by its command text and
+-- the scheduled jobs name them, but none of them carries DDL of its own any more.
+SELECT ok(
+  (SELECT bool_and(l.lanname = 'sql'
+                   AND p.prosrc ~ 'audit\.(ensure_partitions|drop_partitions_older_than)\('
+                   AND p.prosrc !~* '(create|drop|alter) table')
+     FROM pg_proc p
+     JOIN pg_language l ON l.oid = p.prolang
+    WHERE p.oid IN ('audit.ensure_partitions(integer)'::regprocedure,
+                    'audit.drop_partitions_older_than(interval)'::regprocedure,
+                    'auth_trail.ensure_partitions(integer)'::regprocedure,
+                    'auth_trail.drop_partitions_older_than(interval)'::regprocedure)),
+  'the four old signatures are one-line SQL wrappers over the shared pair, with no partition DDL of their own'
+);
+
+-- Layer 4 on a MONTH partition, the assertion the audit suite has: TRUNCATE
+-- triggers are not cloned, so this holds only if the partition was given its own.
+SELECT throws_ok(
+  format('TRUNCATE auth_trail.%I', (
+    SELECT c.relname FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid
+     WHERE i.inhparent = 'auth_trail.events'::regclass
+       AND c.relname ~ '^events_[0-9]{4}_[0-9]{2}$'
+     ORDER BY c.relname LIMIT 1
+  )),
+  '42501',
+  NULL,
+  'TRUNCATE on a month partition of auth_trail.events is refused — the guard is not inherited, so it is duplicated'
+);
+
+-- The same, on a month the maintenance path creates NOW, through each trail's
+-- scheduled signature: five months ahead is past what the migrations made.
+SELECT lives_ok(
+  $$ SELECT auth_trail.ensure_partitions(5), audit.ensure_partitions(5) $$,
+  'both trails'' scheduled maintenance calls run, creating months up to five ahead'
+);
+SELECT throws_ok(
+  format('TRUNCATE auth_trail.%I',
+         'events_' || to_char(date_trunc('month', now()) + interval '5 months', 'YYYY_MM')),
+  '42501',
+  NULL,
+  'a month auth_trail.ensure_partitions() just created carries its TRUNCATE guard'
+);
+SELECT throws_ok(
+  format('TRUNCATE audit.%I',
+         'events_' || to_char(date_trunc('month', now()) + interval '5 months', 'YYYY_MM')),
+  '42501',
+  NULL,
+  'a month audit.ensure_partitions() just created carries its TRUNCATE guard'
+);
+
+-- One body, and each refusal still names the trail it fired on.
+SELECT throws_ok(
+  $$ TRUNCATE auth_trail.events $$,
+  '42501',
+  'auth_trail.events is append-only (TRUNCATE on events refused)',
+  'a refusal on auth_trail.events names auth_trail'
+);
+SELECT throws_ok(
+  $$ TRUNCATE audit.events $$,
+  '42501',
+  'audit.events is append-only (TRUNCATE on events refused)',
+  'a refusal on audit.events still names audit'
+);
+SELECT throws_matching(
+  $$ UPDATE auth_trail.events SET event_kind = 'password_success' $$,
+  '^auth_trail\.events is append-only \(UPDATE on events_[0-9]{4}_[0-9]{2} refused\)$',
+  'an UPDATE on auth_trail.events is refused with a message that names auth_trail'
+);
+
+-- Layer 4 on EVERY partition of both trails, the months created above included.
+-- The one-function check further up cannot see a partition with no TRUNCATE
+-- trigger at all, because that partition's cloned row trigger still answers for
+-- it. tgtype bits: 1 = ROW, 2 = BEFORE, 32 = TRUNCATE.
+SELECT is_empty(
+  $$ SELECT i.inhparent::regclass::text || ' partition ' || c.relname
+       FROM pg_inherits i
+       JOIN pg_class c ON c.oid = i.inhrelid
+      WHERE i.inhparent IN ('audit.events'::regclass, 'auth_trail.events'::regclass)
+        AND NOT EXISTS (
+              SELECT 1 FROM pg_trigger t
+               WHERE t.tgrelid = i.inhrelid
+                 AND (t.tgtype & 1) = 0
+                 AND (t.tgtype & 2) = 2
+                 AND (t.tgtype & 32) = 32
+                 AND t.tgenabled <> 'D'
+            ) $$,
+  'every partition of audit.events and auth_trail.events, the default and each month, has an enabled BEFORE TRUNCATE trigger of its own'
+);
 
 SELECT * FROM finish();
 

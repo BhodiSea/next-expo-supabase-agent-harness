@@ -598,6 +598,15 @@
     ],
     ".github/workflows/quality-gate.yml": [
       {
+        "sha256": "535a4a0b436a175c94456206be6b2241f412844751f5dc5d2eeec2b1e38bbbe8",
+        "sites": [
+          [
+            2223,
+            "DEFAULT_BRANCH"
+          ]
+        ]
+      },
+      {
         "sha256": "bd8b8de11b7f3c8e52de913947a66848f06dbf76c213fdd34ac3d0cfc06b5cf3",
         "sites": [
           [
@@ -695,6 +704,9 @@
     ],
     "docs/adr/20260202-audit-trail.md": [
       {
+        "sha256": "5bc2aafd99e8191cf518ff7847ec7633f70e0d641a621e6081fa36b1ace5fdf3"
+      },
+      {
         "sha256": "bfc20284aa944b16c37d94cb7ccfa26c321ce8de18b14f7be76558598e529113"
       }
     ],
@@ -730,10 +742,16 @@
     ],
     "docs/adr/20260816-auth-event-trail.md": [
       {
+        "sha256": "100283af5dd0e66c0b7b9a1f8d8abe484fb19b03fb9122ce02863327a400335f"
+      },
+      {
         "sha256": "4df72292864e805a76bd1ebf5710db99f3fbd0f65f2fd07499e60466c8fdf518"
       },
       {
         "sha256": "5b3a28452687c8940bbedd60aa128e52470ed3d252c1c210afd60c178066e044"
+      },
+      {
+        "sha256": "e60194b8dbea386a2a7aa6aae7dbeeaf5787f9039b7e3a566a5aecd84e8425e9"
       }
     ],
     "docs/adr/20260920-authenticated-write-revoke.md": [
@@ -764,6 +782,15 @@
     "docs/harness/README.md": [
       {
         "sha256": "664d4853e03d60720d6211bb354ffc28696ae9d2430a4886660de174da211854",
+        "sites": [
+          [
+            20380,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "6de604044041f1c682756b80da771dcab2f4815ca44c62d3c70fa08f96b03674",
         "sites": [
           [
             20380,
@@ -805,6 +832,32 @@
       }
     ],
     "docs/harness/gates-catalog.md": [
+      {
+        "sha256": "2541d341c765fa0b08cd65ecbfba15831a1d2851fb465660f0a00ab02b73b774",
+        "sites": [
+          [
+            27862,
+            "SECURITY_OWNERS"
+          ],
+          [
+            152094,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
+        "sha256": "a454f3913dd7d8d796144f90358e3bef29d16b0bbb50680f2ec0833a7798bd02",
+        "sites": [
+          [
+            27862,
+            "SECURITY_OWNERS"
+          ],
+          [
+            152094,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
       {
         "sha256": "ab80386a6331ac40b5da42d3cb47a3c91dd2556301e031072f48088343a1c01c",
         "sites": [
@@ -1118,6 +1171,15 @@
       },
       {
         "sha256": "abe6c62ad80666b4e50f405a4a3af4ccc86d8b8d68b219fe36179cbf5f0d187c",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "d38c593fc21b32b4d8b699fd60910f1d0303aadea7b026a1fa7bef8d75f01bec",
         "sites": [
           [
             14122,
@@ -1470,6 +1532,12 @@
     ],
     "tools/check-duplication.mjs": [
       {
+        "sha256": "4cabb36ef444dfc0a5620c83af9de4d82e106b2c04fcdb8fba57b8047b74df03"
+      },
+      {
+        "sha256": "cc2ab6ec47fb69dd0b99ec95470607fa4b47916f020903604991975bdcb7d39c"
+      },
+      {
         "sha256": "e78b71944eaac831c69eee756f4a92f3b4a9883c733d4b78e9a0af98eec7a66d"
       }
     ],
@@ -1561,6 +1629,9 @@
     "tools/check-mobile-parity.mjs": [
       {
         "sha256": "2162f4d23ec095f50513f497487b9b120c32afcd680b4dcfe0a88b0967270277"
+      },
+      {
+        "sha256": "343e607a2b587205b11ae6abe9156b1fb17e28844254f5343355f30098cbe8e1"
       }
     ],
     "tools/check-mobile-perf.mjs": [
@@ -1729,6 +1800,9 @@
       },
       {
         "sha256": "9e27d8c00525c601316230bb43f283516fe3e2c6d0588a3c269ed63d1a11bafe"
+      },
+      {
+        "sha256": "afbf6678e331cdc7a234590cf2d93199e5077cf772d662bcc8097fb6ca8f08ed"
       }
     ],
     "tools/ci/device-e2e-matrix.sh": [
@@ -1938,9 +2012,19 @@
         "sha256": "42bd293c96c1bb70fb4384bfd638d104e5dc3f30e8c4e1dcb1b8ed4dec4d4d88"
       }
     ],
+    "tools/lib/closed-text.mjs": [
+      {
+        "sha256": "2ec6b6bb737a9af258ae96f9e43f6addcc8f4ba02c9448214bc3afbb1669d3b7"
+      }
+    ],
     "tools/lib/cng-purity.mjs": [
       {
         "sha256": "a7ed47cf637cd64b0e3c73b37ba4551484b24398c844ad2970dffa540433e296"
+      }
+    ],
+    "tools/lib/complexity.mjs": [
+      {
+        "sha256": "6330f6822264a4c70e293dfa01b097c19fda15e14263b20db660ae63003345d1"
       }
     ],
     "tools/lib/conformance-map.mjs": [
@@ -1966,6 +2050,16 @@
     "tools/lib/derender.mjs": [
       {
         "sha256": "766b9ac405f48b86407198ada3a4d2993bc3680e62055ae2a19385fb64cdb982"
+      }
+    ],
+    "tools/lib/differs.mjs": [
+      {
+        "sha256": "6ef9c7c10a5dc4fbc499490a87da368452050cacb0eaeee92b1d99528002a964"
+      }
+    ],
+    "tools/lib/duplication-scope.mjs": [
+      {
+        "sha256": "6cc5f27b850655a13c587d0a585f54dd484d9add57e0daf86263b3612cc5733a"
       }
     ],
     "tools/lib/enforcement-surface.mjs": [
@@ -2000,6 +2094,12 @@
     ],
     "tools/lib/gate.mjs": [
       {
+        "sha256": "1e8b5b128194d1d14780760f4181b8c7e4be23a75bd2fb390562b51ea95deb77"
+      },
+      {
+        "sha256": "992c053d82293a371e58a7a97ff1f999bbf13722a86501e561adccf01b55c8a3"
+      },
+      {
         "sha256": "fa34b467b0f755abf2f277179d9631899fd07eed75f987e51db163da5bceb4bd"
       }
     ],
@@ -2010,15 +2110,28 @@
     ],
     "tools/lib/harness-brief.mjs": [
       {
+        "sha256": "3e2d9be1b29e675cfbaba6ce3b26474ee8b4038c6bf007abb4c45c9ec89ea95b"
+      },
+      {
         "sha256": "aacdf82dbf91838476e9fa166df18713f8f125d8c7ccb32d8b76e041e1a61a7f"
       },
       {
         "sha256": "d8e5b3aadec6fe8d70457c3d69a5a0086bf64dbcd709a2a4bb9c20a707690701"
       }
     ],
+    "tools/lib/homes.mjs": [
+      {
+        "sha256": "b38d0ff31ea24a27ffb842b12afb5e4a91fdb4f4cfedb70ea004c557e40d285c"
+      }
+    ],
     "tools/lib/i18n-tree.mjs": [
       {
         "sha256": "30d632dac732786219aac6a5543776291aaddb312c27274fac512ea2893987ef"
+      }
+    ],
+    "tools/lib/importers.mjs": [
+      {
+        "sha256": "830e709d15117eaacd418492e383165c87acf19e8e15f689f49ad8e38c61f2eb"
       }
     ],
     "tools/lib/inventory.mjs": [
@@ -2117,6 +2230,11 @@
         "sha256": "4f0dd4cb53f096b6b8039fb729bf6861373195368feae30e57cc1c74d73bbafd"
       }
     ],
+    "tools/lib/shapes.mjs": [
+      {
+        "sha256": "4adaf1bb89870c569898183fa116e5a1e98ffdd54c8adfd210ff97af9ef8a23b"
+      }
+    ],
     "tools/lib/source-text.mjs": [
       {
         "sha256": "d80d6341a3e68289daa1c0a7add7f6067fa7760dbc050e010525abb643e1a3b9"
@@ -2134,10 +2252,16 @@
     ],
     "tools/lib/sql-parse.mjs": [
       {
+        "sha256": "006584373aaaf1f1f806e50e66c767ae48f0291db279ca35d5efa997a474dd88"
+      },
+      {
         "sha256": "0758bd2d7a334fda11c3e5ce38bb99e2bbd3a6e7b0a618e5205a130b3f7098cf"
       }
     ],
     "tools/lib/stamp-inputs.mjs": [
+      {
+        "sha256": "a85d4d8bd4a6d70e9a13fae9380f7fa4c2d79690962754ea91d3d0092acd02db"
+      },
       {
         "sha256": "f783e10bcf311dcded7270d40b5e84a1ab353f6a7438b849a89cc40f01f1c4dd"
       }
@@ -2167,6 +2291,11 @@
         "sha256": "f10879e889bd7eac649e6caf2815832797789ae0edacb222fbafbfebf077a6e3"
       }
     ],
+    "tools/lib/sweep.mjs": [
+      {
+        "sha256": "a8af5bc3cc88f3da6c4f39822165a9f40e54ada52b6338535df96b6fc098fb75"
+      }
+    ],
     "tools/lib/table-grants.mjs": [
       {
         "sha256": "9945f50f928a9d1839ffbe4e0e89dfe9f97b0602f9188cd3f12689a84d937933"
@@ -2179,6 +2308,9 @@
     ],
     "tools/lib/vertical-anatomy.mjs": [
       {
+        "sha256": "208e679a5f9787796ee6874f2dbb1a2f1f8ec5b2e9f2b037a6aeaafc86307061"
+      },
+      {
         "sha256": "61e6df52cb59f7d9cea06f3c5c4dc127e83eab85261d17d7b820dac12df494df"
       }
     ],
@@ -2190,6 +2322,11 @@
     "tools/lib/workflow-hardening.mjs": [
       {
         "sha256": "9ab47994e9f7eb4b83c1e528eca715a6e2bfd4224f46a25b2bb488eab6ca9589"
+      }
+    ],
+    "tools/lib/workspace-tiers.mjs": [
+      {
+        "sha256": "30c0011db55a8410d80373896387a4d9574ae9b8f6b040813a972374c5361901"
       }
     ],
     "tools/mcp/README.md": [

@@ -189,6 +189,47 @@ function scanBarrels(dir, name, findings) {
   }
 }
 
+// May a file at `rel` (relative to src/domain/) import `spec`? Domain modules import only
+// sibling domain files, '@app/contracts' and 'zod'. `!spec.startsWith('../')` was once the
+// whole containment test, and './../x' walks straight past it — one character, and the law
+// evaporates. So the path is normalised instead: any specifier that climbs OUT of
+// src/domain/ is not a sibling, however it is spelled. zod subpaths ('zod/v4') and contracts
+// subpaths are legitimate; exact-match was noise.
+function domainMayImport(rel, spec) {
+  if (spec.startsWith('.')) return resolveRelative(rel, spec) !== null
+  return (
+    spec === 'zod' ||
+    spec.startsWith('zod/') ||
+    spec === '@app/contracts' ||
+    spec.startsWith('@app/contracts/')
+  )
+}
+
+// events.ts speaks only the kernel and the wire contracts.
+const eventsMayImport = (spec) => spec === '@app/events' || spec === '@app/contracts'
+
+// The client-reach law's subject: a value import of either names a client.
+const CLIENT_SPECS = ['@app/supabase', '@supabase']
+
+/**
+ * The anatomy law a NEW value import would break, or null — the question the duplication
+ * sweep's homes.mjs (2.1.0) asks before it prints a move into a vertical's file. `rel` is
+ * the importing file relative to the vertical's src/, POSIX. The same three predicates the
+ * scans below apply, so a move this admits is one this module's laws admit.
+ * @param {string} rel @param {string} spec
+ * @returns {'domain-purity' | 'events-purity' | 'dal-client-value-import' | null}
+ */
+export function anatomyRefuses(rel, spec) {
+  if (rel.startsWith('domain/') && !domainMayImport(rel.slice('domain/'.length), spec)) {
+    return 'domain-purity'
+  }
+  if (rel === 'events.ts' && !eventsMayImport(spec)) return 'events-purity'
+  if (CLIENT_SPECS.some((p) => spec === p || spec.startsWith(`${p}/`))) {
+    return 'dal-client-value-import'
+  }
+  return null
+}
+
 function scanDomain(dir, name, findings) {
   const domainDir = join(dir, 'src/domain')
   if (!existsSync(domainDir)) return
@@ -196,21 +237,7 @@ function scanDomain(dir, name, findings) {
     if (!/\.tsx?$/.test(rel) || isTest(rel)) continue
     const blanked = readBlanked(join(domainDir, rel))
     for (const { spec, index } of importSpecifiers(blanked)) {
-      // `!spec.startsWith('../')` was the whole containment test, and './../x'
-      // walks straight past it — one character, and the law evaporates. Normalise
-      // the path instead: any specifier that climbs OUT of src/domain/ is not a
-      // sibling, however it is spelled. zod subpaths ('zod/v4') and contracts
-      // subpaths are legitimate; exact-match was noise.
-      const relative = spec.startsWith('.')
-      const escapes = relative && resolveRelative(rel, spec) === null
-      const ok =
-        (!relative &&
-          (spec === 'zod' ||
-            spec.startsWith('zod/') ||
-            spec === '@app/contracts' ||
-            spec.startsWith('@app/contracts/'))) ||
-        (relative && !escapes)
-      if (!ok) {
+      if (!domainMayImport(rel, spec)) {
         findings.push({
           package: name,
           law: 'domain-purity',
@@ -229,7 +256,7 @@ function scanDomain(dir, name, findings) {
  * `import type` is tsc's business; the law's subject is that the file is
  * WRITTEN AGAINST a real structural port.
  */
-function importsAPort(srcDir, rel, blanked) {
+export function importsAPort(srcDir, rel, blanked) {
   for (const { spec } of importSpecifiers(blanked)) {
     if (!spec.startsWith('.')) continue
     const resolved = resolveRelative(rel, spec)
@@ -241,7 +268,7 @@ function importsAPort(srcDir, rel, blanked) {
 }
 
 function clientReachFindings(name, rel, blanked, findings) {
-  for (const { spec, index } of valueImportsOf(blanked, ['@app/supabase', '@supabase'])) {
+  for (const { spec, index } of valueImportsOf(blanked, CLIENT_SPECS)) {
     findings.push({
       package: name,
       law: 'dal-client-value-import',
@@ -306,7 +333,7 @@ function scanEvents(dir, name, findings) {
   if (!existsSync(eventsFile)) return
   const blanked = readBlanked(eventsFile)
   for (const { spec, index } of importSpecifiers(blanked)) {
-    if (spec !== '@app/events' && spec !== '@app/contracts') {
+    if (!eventsMayImport(spec)) {
       findings.push({
         package: name,
         law: 'events-purity',

@@ -36,6 +36,28 @@ note. And when a failed Stop step's output is long, the Stop hook keeps its head
 and writes the whole output to `.harness/stop-output/<step>.log`, so a note from a gate in
 the middle of a long `validate --report-all` run may appear only in that file.
 
+Since 2.1.0 a gate can also report an advisory finding as a closed record rather than a
+free-text NOTE. `noteAdvisory(record)` (`tools/lib/gate.mjs`) checks the record against a
+closed schema: `v: 1`, a `producer` from a closed set (`duplication`, `query-shapes`,
+`parity`, `contracts`, `i18n`, `embeddings`), a `rule` from that producer's closed family
+list, a `status` of `advisory`, `ramp-withheld` or `blocking`, a `subject` of one or two
+subject ids, a 12-hex `fp`, an optional `until`, integer `counts`, and `facts` holding only
+numbers, booleans and values the printers in `tools/lib/closed-text.mjs` accept, nested at
+most three deep. A record that fits prints one `<producer>: NOTE — ` line rendered from the
+record alone, naming its family and its `key12` (the first 12 hex digits of
+sha256(producer|rule|subject), the one id the harness prints); an `advisory` line never
+contains the word `ramp`, and a `ramp-withheld` line contains `(ramp)`, so `graduate` counts
+it as outstanding. A record that does not fit is not written, and a fixed line naming only
+its producer prints instead. `noteComplete({ producer, leg })` records that a producer's leg
+ran to its verdict; a gate writes it immediately before its final verdict and never on an
+early exit, so a skip, a `fail()`, a stamp hit or a crash leaves the leg incomplete.
+`duplication` is the first producer to write one (leg `l0`). Both append one JSON line to
+`<dir>/<pid>.jsonl` when `HARNESS_ADVISORY_REPORT_DIR` names a directory and write nothing
+when it is unset. Like the `--ci-parity` record, they print nothing else, decide no verdict,
+swallow their own errors and never write into the project tree. `rampNote` takes an
+optional `subject: { rule, subject }` beside `until`: when the ramp withholds, it also
+writes a `ramp-withheld` record, and the NOTE line it prints does not change.
+
 ## Honest losses (stated plainly, so nobody discovers them in an incident)
 
 - **The audit trail covers mutations only.** `audit.events` records every INSERT,
@@ -2459,6 +2481,41 @@ that rhyme. Reviewed accepted clones live in `tools/duplication-allow.json`
 after it moves lines.
 **Anti-vacuity:** paste a ≥70-token block across two files → FAIL naming both
 sites + fingerprint.
+
+**The sweep and `--explain` (2.1.0, #186): read modes that decide no verdict.** The Stop run
+is the L0 scan above and nothing else, and it prints no advisory NOTE until the exact rule
+goes live (#201). Two read modes sit beside it. `node tools/check-duplication.mjs --sweep
+--json` prints one JSON document over one index of the tree: every callable in L0's scope
+(the scope list is `tools/lib/duplication-scope.mjs`, one copy for both readers) and every
+SQL function the migration history leaves live (supabase/schemas fills in the rest), read by
+`tools/lib/shapes.mjs`; the importer index (`tools/lib/importers.mjs`); and `home()`
+(`tools/lib/homes.mjs`), which judges where one copy of a class may live by the rules the
+`architecture` step, the vertical-anatomy laws and the workspace walls already enforce. Its
+families: `exact` (equal bodies of at least 30 tokens with a legal home, tier `owed`),
+`exact-nohome` (no legal home, advisory), `exact-small` (20 to 29 tokens with equal
+literals, advisory), `near-miss` (a pair, with where the two differ), and six complexity
+recipes (`tools/lib/complexity.mjs`). Every record is a closed advisory record (the
+recorder's schema), every `status` is `advisory`, and the tier the exact rule would give
+rides as `facts.tier`. The document carries one terminator per leg, holds no timestamp,
+absolute path or environment value, and is sorted by key, so two machines print the same
+bytes; it exits 0 only when every leg completed. `--explain '<key12>'` prints the record a
+NOTE or an issue names, through the closed printers: its members, its home and the move in
+a fixed vocabulary, and its facts. A key no record has, or one that is not 12 hex digits,
+exits 1. The TypeScript legs read through the project's own `typescript`; when it cannot
+load they are written incomplete, the run exits 1 and records the missing prerequisite, and
+the SQL legs still run. A name no closed printer can carry (one with a `$`, a `#private` or
+quoted member, an over-long name) gets no record, and SQL overloads are told apart by
+their argument types. A `CREATE OR REPLACE` that keeps every input name is read as
+replacing that overload, even where PostgreSQL adds one because only a type changed. Only
+a callable declared at a file's top level is an export, and the module graph reads
+side-effect imports and `export type *` as dependency-cruiser does. `home()` reads only the
+`architecture` rules at `error` severity (cycles and dependency types included), and a rule
+condition it does not know refuses the home rather than allow one the step would red. The thresholds are provisional until the
+exact rule's gate-proposal freezes them.
+**Anti-vacuity:** paste a 30-token function a package exports into a package that depends
+on it → `--sweep --json` lists an `exact` record with home `import`, and `--explain` on its
+key names the exported copy as the target; run it where `typescript` is not installed → the
+TS legs read `complete: false` and the run exits 1.
 
 ### i18n — `node tools/check-i18n.mjs`
 

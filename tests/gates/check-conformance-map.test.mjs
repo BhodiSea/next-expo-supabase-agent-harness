@@ -787,7 +787,7 @@ const CMAP_EDITS = {
   'docs/security/threat-model.md': (dir) => appendFileSync(join(dir, 'docs/security/threat-model.md'), 'edited\n'),
   'the generator': edit('tools/gen-conformance-docs.mjs'),
 }
-for (const lib of ['conformance-map.mjs', 'standards-claim.mjs', 'live-controls.mjs', 'fs-walk.mjs', 'gate.mjs', 'stamp-inputs.mjs']) {
+for (const lib of ['conformance-map.mjs', 'standards-claim.mjs', 'live-controls.mjs', 'fs-walk.mjs', 'gate.mjs', 'stamp-inputs.mjs', 'closed-text.mjs']) {
   CMAP_EDITS[`tools/lib/${lib}`] = edit(`tools/lib/${lib}`)
 }
 
