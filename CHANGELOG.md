@@ -11,13 +11,14 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
-## [Unreleased]
+## [2.0.3] — 2026-10-17
 
-**2.1.0 work that lands before the 2.1.0 bump.** The bump is its own commit, made when the
-release is cut: it opens the 2.1.0 section and its `template/migrations.json` record, and
-moves these entries there. Until then the owned files they change are recorded in
-`template/shas/2.0.3.json`, the table of the version `package.json` names, so `update` and
-`gate-integrity` recognise them.
+**A patch: the v2.0.x defect fixes, a security floor move, and two additions.** The `next`
+floor moves to 16.4.1 (15.5.28 on the 15 line) for three advisories upstream published on
+2026-10-14, two of them Critical. The two additions (#185, #186) landed on `main` as work for
+2.1.0 and ship here instead. No gate is added, the chain length does not change, and no ramp
+opens or moves. The `template/migrations.json` record restates 2.0.0's twenty-vintage
+`rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `2.0.2`.
 
 ### Added
 
@@ -102,7 +103,7 @@ moves these entries there. Until then the owned files they change are recorded i
   `tools/framework-floor.json` carries the three rows and a review window of 2026-10-17 to
   2026-11-16, and is owned, so `update` refreshes it. `pnpm-workspace.yaml` is seeded, so an
   existing install raises its own pin when `version-sync` reds. The upgrade runbook section
-  and the `template/migrations.json` record for this come with the release that ships it.
+  and the `template/migrations.json` record carry the remedy.
 - **The factory lockfile resolves `smol-toml` 1.9.1, and the factory SCA lane is green
   again.** GHSA-r4xh-jqrq-34v2 (Moderate) is quadratic-time `parse()` in `smol-toml` 1.8.0
   and below, first patched in 1.9.0. The package is a transitive of `knip`, a machinery dev
@@ -110,13 +111,6 @@ moves these entries there. Until then the owned files they change are recorded i
   `factory-sca` job in `hygiene.yml`, which code scanning showed as a
   failing osv-scanner configuration. 1.9.1 is inside `knip`'s caret range, and
   `scripts/sbom-additions.json` records it for 2.0.3.
-
-## [2.0.3] — 2026-10-06
-
-**A patch: the first of the v2.0.x defect fixes.** Each item that lands after this bump adds
-its entry below. No gate is added, the chain length does not change, and no ramp opens or
-moves. The `template/migrations.json` record restates 2.0.0's twenty-vintage `rampExpiry`
-population, and `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `2.0.2`.
 
 ### Fixed
 
