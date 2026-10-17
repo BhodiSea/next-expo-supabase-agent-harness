@@ -86,6 +86,23 @@ moves these entries there. Until then the owned files they change are recorded i
 
 ### Security
 
+- **The `next` floor moves to 16.4.1 on the 16 line and 15.5.28 on the 15 line, and the
+  catalog pins 16.4.1.** Upstream published three advisories on 2026-10-14, none of them in
+  OSV on the day of review (2026-10-17), and the scheduled `floor-advisories` job in
+  `hygiene.yml` has been red on them since:
+  GHSA-2464-fhr4-w9xw (CVE-2026-96889, Critical) is remote code execution in Image
+  Optimization when SVG files are used, on glibc-based Linux. GHSA-673q-mjm6-r5xr (Critical)
+  is remote code execution in a `use cache` function that returns typed arrays.
+  GHSA-p3m5-59mp-jv5r (High) is a CPU denial of service in App Router apps with a Server
+  Action. The denial of service reaches the scaffold as shipped, because the web half is
+  built on Server Actions. The scaffold has no `use cache` function, and the `/_next/image`
+  endpoint exists in every install. Upstream fixed all three in 16.4.1 and 15.5.28 and
+  patched no 16.3 release, so the pin crosses a minor, as it did in 1.0.2. The fixed
+  releases require `sharp` 0.35.5 or later, upstream's workaround for the first advisory.
+  `tools/framework-floor.json` carries the three rows and a review window of 2026-10-17 to
+  2026-11-16, and is owned, so `update` refreshes it. `pnpm-workspace.yaml` is seeded, so an
+  existing install raises its own pin when `version-sync` reds. The upgrade runbook section
+  and the `template/migrations.json` record for this come with the release that ships it.
 - **The factory lockfile resolves `smol-toml` 1.9.1, and the factory SCA lane is green
   again.** GHSA-r4xh-jqrq-34v2 (Moderate) is quadratic-time `parse()` in `smol-toml` 1.8.0
   and below, first patched in 1.9.0. The package is a transitive of `knip`, a machinery dev

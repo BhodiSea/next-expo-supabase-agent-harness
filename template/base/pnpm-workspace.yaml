@@ -134,7 +134,16 @@ catalog:
   # confirmed fixed on the day of review (2026-10-03); 16.3.8 and 15.5.27 are the newest on
   # each line, published the same day as the advisories.
   # SOURCE: https://github.com/vercel/next.js/security/advisories/GHSA-cjq9-62q9-8jv4
-  next: 16.3.8
+  #
+  # 2026-10-17 review: the floor moves to 16.4.1 (and the 15.x floor to 15.5.28) for three
+  # advisories published upstream 2026-10-14: GHSA-2464-fhr4-w9xw (Critical, CVE-2026-96889,
+  # RCE in Image Optimization when SVG files are used, on glibc Linux), GHSA-673q-mjm6-r5xr
+  # (Critical, RCE in a `use cache` function returning typed arrays) and GHSA-p3m5-59mp-jv5r
+  # (High, Server Actions DoS). The DoS reaches the scaffold as shipped. Upstream patched no
+  # 16.3 release, so this pin crosses a MINOR again, as it did in 1.0.2; 16.4.1 is the
+  # release that fixes all three, and it requires sharp >= 0.35.5, upstream's workaround.
+  # SOURCE: https://github.com/vercel/next.js/security/advisories/GHSA-2464-fhr4-w9xw
+  next: 16.4.1
   next-safe-action: ^8.5.3
   tailwindcss: ^4.3.0 # v4 CSS-first, WEB ONLY — mobile pins v3 in apps/mobile (see below)
   '@tailwindcss/postcss': ^4.3.0
