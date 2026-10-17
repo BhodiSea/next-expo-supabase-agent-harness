@@ -33,8 +33,10 @@ when they fall due.
   move to 16.3.6 (issue #81). The first run after the 2.0.0 release was red
   again, on five advisories upstream published on 2026-09-30, and 2.0.1 moves
   the floor and the pin to 16.3.8 (15.5.27 on the 15 line) and records all
-  five. This bullet leaves the list once a scheduled run of the released tree
-  is green end to end.
+  five. Red again from 2026-10-14 on three advisories (two Critical RCEs and a
+  Server Actions DoS); 2.0.3 moves the floor and the pin to 16.4.1 (15.5.28 on
+  the 15 line). This bullet leaves the list once a
+  scheduled run of the released tree is green end to end.
 - **Find why the scheduled device lane's perf-harness phase goes red.** The
   mutation journey of issue #10 has passed since 1.0.0 fixed it, but
   `maestro-smoke` still failed on seven of the fourteen scheduled runs from

@@ -3757,8 +3757,44 @@ population 2.0.0 reds is restated in this release's record, and the 1.1.0 and 2.
 above are still the sweep for an install below 1.1.0.
 
 **What `update` plants.** Owned files, re-planted when your copy still matches a released
-sha: this runbook and the hooks under `.claude/hooks/` (their version stamps). Each fix below
-says what else it delivers and what it leaves to you.
+sha: this runbook, the hooks under `.claude/hooks/` (their version stamps) and
+`tools/framework-floor.json`. Each fix below says what else it delivers and what it leaves to
+you.
+
+### Expect `version-sync` to red on the `next` floor, whatever your `baseVersion`
+
+This one is not a ramp, and no `baseVersion` is exempt from it. The `next` floor moves from
+16.3.8 to **16.4.1** on the 16 line, and from 15.5.27 to **15.5.28** on the 15 line, for three
+advisories upstream published on 2026-10-14:
+
+- [GHSA-2464-fhr4-w9xw](https://github.com/vercel/next.js/security/advisories/GHSA-2464-fhr4-w9xw)
+  (Critical, CVE-2026-96889, both lines): remote code execution in Image Optimization when
+  SVG files are used, on glibc-based Linux. The `/_next/image` endpoint exists in every
+  install.
+- [GHSA-673q-mjm6-r5xr](https://github.com/vercel/next.js/security/advisories/GHSA-673q-mjm6-r5xr)
+  (Critical, 16 line): remote code execution in a `use cache` function that returns typed
+  arrays. The scaffold has none; upstream says to upgrade regardless.
+- [GHSA-p3m5-59mp-jv5r](https://github.com/vercel/next.js/security/advisories/GHSA-p3m5-59mp-jv5r)
+  (High, both lines): crafted requests to an App Router app with a Server Action use enough
+  CPU to block the process. The scaffold's web half is built on Server Actions, so this one
+  reaches every install.
+
+`tools/framework-floor.json` is harness-owned, so `update` refreshes it. `pnpm-workspace.yaml`
+is seeded, so `update` does not touch your pins, and the first `pnpm validate` after the
+upgrade reds `version-sync` on a `next` pin below 16.4.1 (or 15.5.28 on the 15 line), naming
+the pin, the floor and the advisories. Raise the pin yourself:
+
+```
+# in the pnpm-workspace.yaml catalog: next: 16.4.1
+pnpm install && git add pnpm-lock.yaml pnpm-workspace.yaml
+pnpm validate
+```
+
+From 16.3.8 this crosses a minor, because upstream patched no 16.3 release; read the 16.4
+release notes for anything your app relies on. The fixed releases require `sharp` 0.35.5 or
+later, which `pnpm install` resolves. No flag lowers the floor. Do not use
+`update --refresh-seeded pnpm-workspace.yaml` to take the pin: it replaces your whole catalog
+with the template's.
 
 ### The session brief prints App Router paths (#153)
 
