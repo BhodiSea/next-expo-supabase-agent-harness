@@ -30,6 +30,12 @@
       "reason": "Transitive of knip. Replaces 1.7.0, which carried GHSA-7w5x-hrqm-74c2 / CVE-2026-85730 (a parser that never returns on a malformed document; first patched in 1.7.1). 1.8.0 is what knip's caret range resolves to today, a minor inside that range; no advisory is recorded against it on the review date.",
       "release": "1.0.2",
       "reviewedOn": "2026-09-20"
+    },
+    {
+      "purl": "pkg:npm/smol-toml@1.9.1",
+      "reason": "Transitive of knip. Replaces 1.8.0, which carried GHSA-r4xh-jqrq-34v2 (parse() runs in quadratic time because parseKey rescans to the end of the document on every key line; first patched in 1.9.0). 1.9.1 is what knip's caret range resolves to today, a minor inside that range; no advisory is recorded against it on the review date.",
+      "release": "2.0.3",
+      "reviewedOn": "2026-10-17"
     }
   ]
 }

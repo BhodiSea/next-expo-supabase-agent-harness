@@ -84,6 +84,16 @@ moves these entries there. Until then the owned files they change are recorded i
   `lint.yml` runs them with the parser installed. The new and changed files under `tools/` and
   `docs/harness/gates-catalog.md` are owned and reach an install with `update`.
 
+### Security
+
+- **The factory lockfile resolves `smol-toml` 1.9.1, and the factory SCA lane is green
+  again.** GHSA-r4xh-jqrq-34v2 (Moderate) is quadratic-time `parse()` in `smol-toml` 1.8.0
+  and below, first patched in 1.9.0. The package is a transitive of `knip`, a machinery dev
+  dependency, so it does not reach an install. The advisory reddened the scheduled
+  `factory-sca` job in `hygiene.yml`, which code scanning showed as a
+  failing osv-scanner configuration. 1.9.1 is inside `knip`'s caret range, and
+  `scripts/sbom-additions.json` records it for 2.0.3.
+
 ## [2.0.3] — 2026-10-06
 
 **A patch: the first of the v2.0.x defect fixes.** Each item that lands after this bump adds
