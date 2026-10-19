@@ -107,46 +107,48 @@ if (!RLS_SUITE_READY) {
       ).toBeGreaterThanOrEqual(1)
     })
 
-    it.each(
-      ISOLATION_TARGETS.filter((t) => t.provision === 'rpc'),
-    )('refuses a DIRECT write to the seat table $table', async (t) => {
-      // The seat tables are read-only to `authenticated`: every write goes through an
-      // allowlisted definer RPC. A policy keyed on the caller would be a self-service
-      // seat grant — any user could award themselves any rank in any org whose id they
-      // can name — so the write is refused for the caller's OWN scope too, not merely
-      // across the boundary. That is what distinguishes this from the smuggle case.
-      const ins = await a.from(t.table).insert(t.row(ctxA))
-      expect(
-        ins.error,
-        `A must not be able to INSERT its own ${t.table} row directly`,
-      ).not.toBeNull()
+    it.each(ISOLATION_TARGETS.filter((t) => t.provision === 'rpc'))(
+      'refuses a DIRECT write to the seat table $table',
+      async (t) => {
+        // The seat tables are read-only to `authenticated`: every write goes through an
+        // allowlisted definer RPC. A policy keyed on the caller would be a self-service
+        // seat grant — any user could award themselves any rank in any org whose id they
+        // can name — so the write is refused for the caller's OWN scope too, not merely
+        // across the boundary. That is what distinguishes this from the smuggle case.
+        const ins = await a.from(t.table).insert(t.row(ctxA))
+        expect(
+          ins.error,
+          `A must not be able to INSERT its own ${t.table} row directly`,
+        ).not.toBeNull()
 
-      // A DELETE aimed at the caller's own row. Missing grant surfaces as an error;
-      // were a future migration to grant it, the deny-all policy would instead make it
-      // match nothing. Both are acceptable — so rather than assert on which, assert on
-      // the only thing that actually matters afterwards: the row is still there.
-      await a.from(t.table).delete().eq(t.ownerColumn, t.scopeValue(ctxA))
+        // A DELETE aimed at the caller's own row. Missing grant surfaces as an error;
+        // were a future migration to grant it, the deny-all policy would instead make it
+        // match nothing. Both are acceptable — so rather than assert on which, assert on
+        // the only thing that actually matters afterwards: the row is still there.
+        await a.from(t.table).delete().eq(t.ownerColumn, t.scopeValue(ctxA))
 
-      const still = await a
-        .from(t.table)
-        .select(t.ownerColumn)
-        .eq(t.ownerColumn, t.scopeValue(ctxA))
-      expect(still.error, `A re-read of ${t.table}: ${still.error?.message}`).toBeNull()
-      expect(
-        still.data?.length ?? 0,
-        `a direct DELETE must not have removed A's own ${t.table} row`,
-      ).toBeGreaterThanOrEqual(1)
-    })
+        const still = await a
+          .from(t.table)
+          .select(t.ownerColumn)
+          .eq(t.ownerColumn, t.scopeValue(ctxA))
+        expect(still.error, `A re-read of ${t.table}: ${still.error?.message}`).toBeNull()
+        expect(
+          still.data?.length ?? 0,
+          `a direct DELETE must not have removed A's own ${t.table} row`,
+        ).toBeGreaterThanOrEqual(1)
+      },
+    )
 
-    it.each(
-      ISOLATION_TARGETS.filter((t) => t.provision === 'direct'),
-    )('lets a cross-tenant DELETE on $table match nothing without raising', async (t) => {
-      // The absence of an error is the point: a caller cannot distinguish "no such
-      // row" from "not yours". The returned set is what was actually deleted.
-      const del = await a.from(t.table).delete().eq(t.ownerColumn, t.scopeValue(ctxB)).select()
-      expect(del.error, `A cross-delete ${t.table} must not raise`).toBeNull()
-      expect(del.data ?? [], `A must delete none of B's ${t.table} rows`).toHaveLength(0)
-    })
+    it.each(ISOLATION_TARGETS.filter((t) => t.provision === 'direct'))(
+      'lets a cross-tenant DELETE on $table match nothing without raising',
+      async (t) => {
+        // The absence of an error is the point: a caller cannot distinguish "no such
+        // row" from "not yours". The returned set is what was actually deleted.
+        const del = await a.from(t.table).delete().eq(t.ownerColumn, t.scopeValue(ctxB)).select()
+        expect(del.error, `A cross-delete ${t.table} must not raise`).toBeNull()
+        expect(del.data ?? [], `A must delete none of B's ${t.table} rows`).toHaveLength(0)
+      },
+    )
 
     it('ignores an X-Org-Id header naming an org the caller does not belong to', async () => {
       // THE LOAD-BEARING ASSERTION for the org-selector design. The acting org is a

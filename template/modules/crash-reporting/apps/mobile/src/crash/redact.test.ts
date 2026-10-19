@@ -176,27 +176,21 @@ describe('secret-key pattern', () => {
 
   // Substring matching: the pattern is unanchored, so a secret alternative
   // anywhere inside a longer key still drops the value.
-  it.each([
-    'sessionToken',
-    'db_password',
-    'SENTRY_DSN',
-    'setCookieHeader',
-  ])('matches secret alternatives embedded in longer key "%s"', (key) => {
-    expect(redactedValue(key, 'hunter2-super-secret')).toBe('[redacted]')
-  })
+  it.each(['sessionToken', 'db_password', 'SENTRY_DSN', 'setCookieHeader'])(
+    'matches secret alternatives embedded in longer key "%s"',
+    (key) => {
+      expect(redactedValue(key, 'hunter2-super-secret')).toBe('[redacted]')
+    },
+  )
 
   // The other direction — without these, a pattern mutated to match everything
   // would still pass. Values are chosen so redactText() is a no-op on them.
-  it.each([
-    'username',
-    'count',
-    'hostname',
-    'attempt',
-    'stage',
-    'requestId',
-  ])('leaves the value under non-secret key "%s" alone', (key) => {
-    expect(redactedValue(key, 'keep-me')).toBe('keep-me')
-  })
+  it.each(['username', 'count', 'hostname', 'attempt', 'stage', 'requestId'])(
+    'leaves the value under non-secret key "%s" alone',
+    (key) => {
+      expect(redactedValue(key, 'keep-me')).toBe('keep-me')
+    },
+  )
 })
 
 // ---------------------------------------------------------------------------

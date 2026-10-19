@@ -76,48 +76,48 @@ if (!RLS_SUITE_READY) {
   })
 } else {
   describe('per-role resource ceilings bind through PostgREST', () => {
-    it.each([
-      'anon',
-      'authenticated',
-    ] as const)('the %s role gets the reviewed ceilings in force, not merely in the catalog', async (role) => {
-      const svc = serviceClient()
-      let client = anonClient()
-      if (role === 'authenticated') {
-        // deleteTenant no-ops without an id, so residue from an aborted run has to be
-        // swept by email before createTenant can collide on it.
-        const { data: existing } = await svc.auth.admin.listUsers()
-        for (const u of existing?.users ?? []) {
-          if (u.email === LIMITS_TENANT.email) {
-            await svc.from('orgs').delete().eq('created_by', u.id)
-            await svc.auth.admin.deleteUser(u.id)
+    it.each(['anon', 'authenticated'] as const)(
+      'the %s role gets the reviewed ceilings in force, not merely in the catalog',
+      async (role) => {
+        const svc = serviceClient()
+        let client = anonClient()
+        if (role === 'authenticated') {
+          // deleteTenant no-ops without an id, so residue from an aborted run has to be
+          // swept by email before createTenant can collide on it.
+          const { data: existing } = await svc.auth.admin.listUsers()
+          for (const u of existing?.users ?? []) {
+            if (u.email === LIMITS_TENANT.email) {
+              await svc.from('orgs').delete().eq('created_by', u.id)
+              await svc.auth.admin.deleteUser(u.id)
+            }
           }
+          await createTenant(svc, LIMITS_TENANT)
+          client = await signIn(LIMITS_TENANT.email, LIMITS_TENANT.password)
         }
-        await createTenant(svc, LIMITS_TENANT)
-        client = await signIn(LIMITS_TENANT.email, LIMITS_TENANT.password)
-      }
-      try {
-        const { data, error } = await client.rpc('effective_limits')
-        expect(error, `effective_limits() as ${role}: ${error?.message}`).toBeNull()
+        try {
+          const { data, error } = await client.rpc('effective_limits')
+          expect(error, `effective_limits() as ${role}: ${error?.message}`).toBeNull()
 
-        const live = data as unknown as EffectiveLimits
-        // The role PostgREST actually switched to. If this is wrong every other
-        // assertion here is measuring the wrong ceiling.
-        expect(live.role, `PostgREST must impersonate ${role}`).toBe(role)
+          const live = data as unknown as EffectiveLimits
+          // The role PostgREST actually switched to. If this is wrong every other
+          // assertion here is measuring the wrong ceiling.
+          expect(live.role, `PostgREST must impersonate ${role}`).toBe(role)
 
-        for (const [knob, want] of Object.entries(LIMITS.roles[role] ?? {})) {
-          // Compared in milliseconds, not as strings: PostgreSQL normalizes '8s' to
-          // '8s' but '10s' for idle_in_transaction can come back as '10s' or '10000ms'
-          // depending on the unit it picks, and a string compare would fail on a
-          // database that is entirely correct.
-          expect(
-            toMs(live[knob as keyof EffectiveLimits] as string),
-            `${role}.${knob} is '${live[knob as keyof EffectiveLimits]}' in force but '${want}' in tools/db-limits.json — the ceiling exists in the catalog and PostgREST is not applying it`,
-          ).toBe(toMs(want))
+          for (const [knob, want] of Object.entries(LIMITS.roles[role] ?? {})) {
+            // Compared in milliseconds, not as strings: PostgreSQL normalizes '8s' to
+            // '8s' but '10s' for idle_in_transaction can come back as '10s' or '10000ms'
+            // depending on the unit it picks, and a string compare would fail on a
+            // database that is entirely correct.
+            expect(
+              toMs(live[knob as keyof EffectiveLimits] as string),
+              `${role}.${knob} is '${live[knob as keyof EffectiveLimits]}' in force but '${want}' in tools/db-limits.json — the ceiling exists in the catalog and PostgREST is not applying it`,
+            ).toBe(toMs(want))
+          }
+        } finally {
+          if (role === 'authenticated') await deleteTenant(svc, LIMITS_TENANT)
         }
-      } finally {
-        if (role === 'authenticated') await deleteTenant(svc, LIMITS_TENANT)
-      }
-    })
+      },
+    )
 
     it('the ceilings are TIGHTER than the login role a direct connection would get', async () => {
       // The property that makes them worth having: `authenticator` (what PostgREST

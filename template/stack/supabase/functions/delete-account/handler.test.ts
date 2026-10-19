@@ -292,22 +292,21 @@ describe('the HTTP surface', () => {
     expect(res.headers.get('access-control-allow-methods')).toBe('POST, OPTIONS')
   })
 
-  it.each([
-    ['SUPABASE_URL'],
-    ['SUPABASE_PUBLISHABLE_KEY'],
-    ['SUPABASE_SECRET_KEY'],
-  ])('answers 500 server_misconfigured without %s, naming both key generations', async (missing) => {
-    const env = { ...BASE_ENV }
-    delete env[missing]
-    const w = world({}, env)
-    const res = await w.handler(post())
-    expect(res.status).toBe(500)
-    expect(await body(res)).toEqual({ error: 'server_misconfigured' })
-    expect(w.connects).toEqual([])
-    expect(w.logged).toEqual([
-      'delete-account: missing SUPABASE_URL, or a publishable key (SUPABASE_PUBLISHABLE_KEYS / SUPABASE_PUBLISHABLE_KEY / SUPABASE_ANON_KEY), or a secret key (SUPABASE_SECRET_KEYS / SUPABASE_SECRET_KEY / SUPABASE_SERVICE_ROLE_KEY)',
-    ])
-  })
+  it.each([['SUPABASE_URL'], ['SUPABASE_PUBLISHABLE_KEY'], ['SUPABASE_SECRET_KEY']])(
+    'answers 500 server_misconfigured without %s, naming both key generations',
+    async (missing) => {
+      const env = { ...BASE_ENV }
+      delete env[missing]
+      const w = world({}, env)
+      const res = await w.handler(post())
+      expect(res.status).toBe(500)
+      expect(await body(res)).toEqual({ error: 'server_misconfigured' })
+      expect(w.connects).toEqual([])
+      expect(w.logged).toEqual([
+        'delete-account: missing SUPABASE_URL, or a publishable key (SUPABASE_PUBLISHABLE_KEYS / SUPABASE_PUBLISHABLE_KEY / SUPABASE_ANON_KEY), or a secret key (SUPABASE_SECRET_KEYS / SUPABASE_SECRET_KEY / SUPABASE_SERVICE_ROLE_KEY)',
+      ])
+    },
+  )
 
   it('reads the environment once, when the handler is built, not per request', async () => {
     const w = world({ lookup: NO_ORG, sweep: NO_ORG, recheck: NO_ORG })
