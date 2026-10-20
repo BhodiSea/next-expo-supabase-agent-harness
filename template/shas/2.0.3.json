@@ -1637,6 +1637,9 @@
     "tools/check-licenses.mjs": [
       {
         "sha256": "a971199ea402e1121cd7bb8b8844b70d320c0786d2a051b77fb0f38f259c88f4"
+      },
+      {
+        "sha256": "ca8f6ea207d85a2307eade7f7ef23df0009bf2a8f795518c07d865ff5a832b8c"
       }
     ],
     "tools/check-migrations.mjs": [
@@ -1668,6 +1671,9 @@
       }
     ],
     "tools/check-notices.mjs": [
+      {
+        "sha256": "43d5a62a2c9e50dcc438a37ba27df847dd49573d715e8b9a969ccf117f9c86be"
+      },
       {
         "sha256": "4858654aadc5e2cb678ca48525d9d84265ed6ff87d46021c9fad8a3c10da7ae7"
       }
