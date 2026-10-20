@@ -134,29 +134,28 @@ describe('requireServerMajor', () => {
 })
 
 describe('the skew gate on the wire', () => {
-  it.each(clientVersionCases)('a client on $clientVersion — $pins', async ({
-    clientVersion,
-    skewed,
-  }) => {
-    const caller = await callerFor(clientVersion)
-    if (skewed) {
-      await expect(caller.system.health()).rejects.toMatchObject({ code: 'CONFLICT' })
-    } else {
-      await expect(caller.system.health()).resolves.toEqual({ ok: true, version: SERVER_VERSION })
-    }
-  })
+  it.each(clientVersionCases)(
+    'a client on $clientVersion — $pins',
+    async ({ clientVersion, skewed }) => {
+      const caller = await callerFor(clientVersion)
+      if (skewed) {
+        await expect(caller.system.health()).rejects.toMatchObject({ code: 'CONFLICT' })
+      } else {
+        await expect(caller.system.health()).resolves.toEqual({ ok: true, version: SERVER_VERSION })
+      }
+    },
+  )
 
-  it.each(serverVersionCases)('a server on $serverVersion — $pins', async ({
-    other,
-    same,
-    serverVersion,
-  }) => {
-    const matched = await callerFor(same, serverVersion)
-    await expect(matched.system.health()).resolves.toMatchObject({ ok: true })
+  it.each(serverVersionCases)(
+    'a server on $serverVersion — $pins',
+    async ({ other, same, serverVersion }) => {
+      const matched = await callerFor(same, serverVersion)
+      await expect(matched.system.health()).resolves.toMatchObject({ ok: true })
 
-    const skewed = await callerFor(other, serverVersion)
-    await expect(skewed.system.health()).rejects.toMatchObject({ code: 'CONFLICT' })
-  })
+      const skewed = await callerFor(other, serverVersion)
+      await expect(skewed.system.health()).rejects.toMatchObject({ code: 'CONFLICT' })
+    },
+  )
 
   it('passes a request with NO version header (curl, health tooling, smoke checks)', async () => {
     const caller = await callerFor()
@@ -238,18 +237,14 @@ describe('parseSemver — the full triple the floor orders on', () => {
     expect(parseSemver(version)).toEqual(triple)
   })
 
-  it.each([
-    '1',
-    '1.2',
-    'v1',
-    'nope',
-    '',
-    '.1.2',
-  ])('returns null for the incomplete %j', (v: string) => {
-    // A bare major or major.minor cannot be ordered against a full floor, so it
-    // does not parse HERE — the major-skew check governs it instead.
-    expect(parseSemver(v)).toBeNull()
-  })
+  it.each(['1', '1.2', 'v1', 'nope', '', '.1.2'])(
+    'returns null for the incomplete %j',
+    (v: string) => {
+      // A bare major or major.minor cannot be ordered against a full floor, so it
+      // does not parse HERE — the major-skew check governs it instead.
+      expect(parseSemver(v)).toBeNull()
+    },
+  )
 })
 
 describe('isBelowMinimum — the floor, distinct from skew', () => {

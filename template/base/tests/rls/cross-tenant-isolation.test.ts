@@ -30,6 +30,13 @@ import {
   type TenantContext,
 } from './db-context'
 
+// Named rather than filtered inline: an inline filter makes `it.each(...)(...)` wrap, and
+// Biome 2.5.3 and 2.5.15 wrap it differently. This file is owned, so it has to come out the
+// same under the Biome an older install still pins. For the same reason a title too long to
+// keep the call on one line goes in a loop over plain `it`, which both versions leave alone.
+const SEAT_TARGETS = ISOLATION_TARGETS.filter((t) => t.provision === 'rpc')
+const DIRECT_TARGETS = ISOLATION_TARGETS.filter((t) => t.provision === 'direct')
+
 if (!RLS_SUITE_READY) {
   describe.skip('cross-tenant isolation via the Supabase client (skipped: no local stack)', () => {
     it('self-skips — run `node tests/rls/run-rls.mjs`; this layer FAILS CLOSED in CI', () => {
@@ -61,7 +68,7 @@ if (!RLS_SUITE_READY) {
 
       // Then the directly-writable rows, THROUGH the RLS path: that a self-write is
       // ADMITTED is itself part of the contract the INSERT policies encode.
-      for (const t of ISOLATION_TARGETS.filter((x) => x.provision === 'direct')) {
+      for (const t of DIRECT_TARGETS) {
         for (const [client, ctx, who] of [
           [a, ctxA, TENANT_A.email],
           [b, ctxB, TENANT_B.email],
@@ -107,9 +114,7 @@ if (!RLS_SUITE_READY) {
       ).toBeGreaterThanOrEqual(1)
     })
 
-    it.each(
-      ISOLATION_TARGETS.filter((t) => t.provision === 'rpc'),
-    )('refuses a DIRECT write to the seat table $table', async (t) => {
+    it.each(SEAT_TARGETS)('refuses a DIRECT write to the seat table $table', async (t) => {
       // The seat tables are read-only to `authenticated`: every write goes through an
       // allowlisted definer RPC. A policy keyed on the caller would be a self-service
       // seat grant — any user could award themselves any rank in any org whose id they
@@ -138,15 +143,15 @@ if (!RLS_SUITE_READY) {
       ).toBeGreaterThanOrEqual(1)
     })
 
-    it.each(
-      ISOLATION_TARGETS.filter((t) => t.provision === 'direct'),
-    )('lets a cross-tenant DELETE on $table match nothing without raising', async (t) => {
-      // The absence of an error is the point: a caller cannot distinguish "no such
-      // row" from "not yours". The returned set is what was actually deleted.
-      const del = await a.from(t.table).delete().eq(t.ownerColumn, t.scopeValue(ctxB)).select()
-      expect(del.error, `A cross-delete ${t.table} must not raise`).toBeNull()
-      expect(del.data ?? [], `A must delete none of B's ${t.table} rows`).toHaveLength(0)
-    })
+    for (const t of DIRECT_TARGETS) {
+      it(`lets a cross-tenant DELETE on ${t.table} match nothing without raising`, async () => {
+        // The absence of an error is the point: a caller cannot distinguish "no such
+        // row" from "not yours". The returned set is what was actually deleted.
+        const del = await a.from(t.table).delete().eq(t.ownerColumn, t.scopeValue(ctxB)).select()
+        expect(del.error, `A cross-delete ${t.table} must not raise`).toBeNull()
+        expect(del.data ?? [], `A must delete none of B's ${t.table} rows`).toHaveLength(0)
+      })
+    }
 
     it('ignores an X-Org-Id header naming an org the caller does not belong to', async () => {
       // THE LOAD-BEARING ASSERTION for the org-selector design. The acting org is a

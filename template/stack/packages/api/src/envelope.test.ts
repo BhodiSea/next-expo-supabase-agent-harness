@@ -110,26 +110,25 @@ describe('health — public, and the one procedure that is not enveloped', () =>
 })
 
 describe('the auth rung THROWS — the one sanctioned transport-level rejection', () => {
-  it.each([
-    'system.me',
-    'system.exportMyData',
-    'probe.actingOrg',
-  ])('%s rejects an anonymous caller', async (path) => {
-    const caller = await callerFor(null, untouchableDb)
-    const groups = caller as unknown as Record<
-      string,
-      Record<string, (input?: unknown) => Promise<unknown>>
-    >
-    const [namespace, procedure] = path.split('.')
-    const call = groups[namespace ?? '']?.[procedure ?? '']
+  it.each(['system.me', 'system.exportMyData', 'probe.actingOrg'])(
+    '%s rejects an anonymous caller',
+    async (path) => {
+      const caller = await callerFor(null, untouchableDb)
+      const groups = caller as unknown as Record<
+        string,
+        Record<string, (input?: unknown) => Promise<unknown>>
+      >
+      const [namespace, procedure] = path.split('.')
+      const call = groups[namespace ?? '']?.[procedure ?? '']
 
-    // Input is irrelevant here: the auth middleware sits BEFORE the input
-    // parser, so an anonymous caller is rejected whatever it sends.
-    const thrown: unknown = await call?.(undefined).catch((cause: unknown) => cause)
-    expect(thrown).toBeInstanceOf(TRPCError)
-    if (!(thrown instanceof TRPCError)) return
-    expect(thrown.code).toBe('UNAUTHORIZED')
-  })
+      // Input is irrelevant here: the auth middleware sits BEFORE the input
+      // parser, so an anonymous caller is rejected whatever it sends.
+      const thrown: unknown = await call?.(undefined).catch((cause: unknown) => cause)
+      expect(thrown).toBeInstanceOf(TRPCError)
+      if (!(thrown instanceof TRPCError)) return
+      expect(thrown.code).toBe('UNAUTHORIZED')
+    },
+  )
 
   it('returns the actor view on the envelope once authenticated', async () => {
     const caller = await callerFor(member, untouchableDb)
