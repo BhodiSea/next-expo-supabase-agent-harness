@@ -193,44 +193,45 @@ function expectInputsLabelled(): void {
 
 const NETWORK_ROUTES = [HOME, MATRIX] as const
 
-describe.each(
-  NETWORK_ROUTES.map((route) => [route.id, route] as const),
-)('route %s — deep a11y per canonical state', (_id, route) => {
-  it(`held query: ${route.states.loading} is visible to assistive tech; every control is named`, async () => {
-    installFor('held')
-    renderRouter('./app', { initialUrl: route.path })
-    expect(await screen.findByTestId(route.states.loading)).toBeVisible()
-    expectInteractiveElementsNamed()
-    expectInputsLabelled()
-  })
+describe.each(NETWORK_ROUTES.map((route) => [route.id, route] as const))(
+  'route %s — deep a11y per canonical state',
+  (_id, route) => {
+    it(`held query: ${route.states.loading} is visible to assistive tech; every control is named`, async () => {
+      installFor('held')
+      renderRouter('./app', { initialUrl: route.path })
+      expect(await screen.findByTestId(route.states.loading)).toBeVisible()
+      expectInteractiveElementsNamed()
+      expectInputsLabelled()
+    })
 
-  it(`zero items: ${route.states.empty} is visible to assistive tech; every control is named`, async () => {
-    installFor('empty')
-    renderRouter('./app', { initialUrl: route.path })
-    expect(await screen.findByTestId(route.states.empty)).toBeVisible()
-    expectInteractiveElementsNamed()
-    expectInputsLabelled()
-  })
+    it(`zero items: ${route.states.empty} is visible to assistive tech; every control is named`, async () => {
+      installFor('empty')
+      renderRouter('./app', { initialUrl: route.path })
+      expect(await screen.findByTestId(route.states.empty)).toBeVisible()
+      expectInteractiveElementsNamed()
+      expectInputsLabelled()
+    })
 
-  it(`a 500 envelope: ${route.states.error} is visible; retry is reachable BY ROLE with its catalog name`, async () => {
-    installFor('error')
-    renderRouter('./app', { initialUrl: route.path })
-    expect(await screen.findByTestId(route.states.error)).toBeVisible()
-    // Recovery on the ANNOUNCED surface: role=button + the catalog name —
-    // a retry reachable only by testID is invisible to a screen-reader user.
-    expect(screen.getByRole('button', { name: en['common.retry'] })).toBeVisible()
-    expectInteractiveElementsNamed()
-    expectInputsLabelled()
-  })
+    it(`a 500 envelope: ${route.states.error} is visible; retry is reachable BY ROLE with its catalog name`, async () => {
+      installFor('error')
+      renderRouter('./app', { initialUrl: route.path })
+      expect(await screen.findByTestId(route.states.error)).toBeVisible()
+      // Recovery on the ANNOUNCED surface: role=button + the catalog name —
+      // a retry reachable only by testID is invisible to a screen-reader user.
+      expect(screen.getByRole('button', { name: en['common.retry'] })).toBeVisible()
+      expectInteractiveElementsNamed()
+      expectInputsLabelled()
+    })
 
-  it('ready (one item): the populated surface keeps every control named', async () => {
-    installReady()
-    renderRouter('./app', { initialUrl: route.path })
-    expect(await screen.findByText('Deep sweep fixture note')).toBeVisible()
-    expectInteractiveElementsNamed()
-    expectInputsLabelled()
-  })
-})
+    it('ready (one item): the populated surface keeps every control named', async () => {
+      installReady()
+      renderRouter('./app', { initialUrl: route.path })
+      expect(await screen.findByText('Deep sweep fixture note')).toBeVisible()
+      expectInteractiveElementsNamed()
+      expectInputsLabelled()
+    })
+  },
+)
 
 describe('route actions — deep a11y (loading/error honestly unreachable)', () => {
   it('the default modal surface: search input labelled, every option named', async () => {

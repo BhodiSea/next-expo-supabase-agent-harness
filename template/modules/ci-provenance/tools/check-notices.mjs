@@ -16,9 +16,11 @@ import { fail, ok, runCmd, skipOrFail } from './lib/gate.mjs'
 const GATE = 'notices'
 const NOTICES_PATH = 'NOTICES.md'
 
+// --recursive for the reason check-licenses.mjs gives: from pnpm 11.28 a root-only listing
+// sees none of the workspace packages' production dependencies.
 let raw
 try {
-  raw = runCmd('pnpm licenses list --prod --json')
+  raw = runCmd('pnpm licenses list --prod --json --recursive')
 } catch {
   skipOrFail(GATE, 'pnpm licenses failed (no install yet? run pnpm install)')
 }
@@ -28,7 +30,7 @@ let byLicense
 try {
   byLicense = JSON.parse(raw)
 } catch {
-  fail(GATE, 'could not parse `pnpm licenses list --prod --json` output')
+  fail(GATE, 'could not parse `pnpm licenses list --prod --json --recursive` output')
 }
 
 const lines = [

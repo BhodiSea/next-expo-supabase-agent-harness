@@ -43,6 +43,14 @@ const GATE = fileURLToPath(
 const TEMPLATE_EAS = fileURLToPath(
   new URL('../../template/stack/apps/mobile/eas.json', import.meta.url),
 )
+// The SHIPPED pnpm pin, so the real-tree test pairs the real eas.json with the packageManager
+// it actually ships beside (Renovate bumps both together; a literal here drifts on every bump).
+const TEMPLATE_PACKAGE_MANAGER = /"packageManager":\s*"([^"]+)"/.exec(
+  readFileSync(
+    fileURLToPath(new URL('../../template/base/package.json.tmpl', import.meta.url)),
+    'utf8',
+  ),
+)?.[1]
 // The SHIPPED reviewed floor record — the green fixtures ride it so they can only be green
 // while the template actually carries the iosToolchain record the tier-row probe names.
 const shippedStorePolicy = JSON.parse(
@@ -748,7 +756,7 @@ test('REAL TREE: the shipped eas.json pin + the shipped store-policy floor satis
     fixture({
       nodeVersion: '22\n',
       nvmrc: '22\n',
-      packageManager: 'pnpm@11.11.0',
+      packageManager: TEMPLATE_PACKAGE_MANAGER,
       eas: realEas,
       storePolicy: shippedStorePolicy,
     }),

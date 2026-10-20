@@ -46,6 +46,7 @@ import {
   NOTES_EVENT_CATALOG_LINE,
   readTextOrNull,
   reconcileDataFlowExclusions,
+  withInstallToolchainPins,
   withNotesEventCatalog,
 } from '../../scripts/ci/upgrade-sweep.mjs'
 
@@ -795,6 +796,35 @@ test('2.0.3 — a swept install takes each module the derived pass now imports, 
   const old = computeSweepSet(MIGRATIONS, '0.3.0', '2.0.3').adopt
   assert.ok(!old.includes('apps/web/__tests__/request-ports.test.ts'))
   assert.ok(!old.includes('apps/web/__tests__/notes-write-context.test.ts'))
+})
+
+test('2.0.3 — an install made before 0.4.0 takes the oxc vitest config; a later one keeps its own', () => {
+  // typescript-eslint 8.72.0 reds the seeded `esbuild` key as deprecated (leg E, v0.3.0).
+  const config = 'apps/web/vitest.config.ts'
+  assert.ok(computeSweepSet(MIGRATIONS, '0.3.0', '2.0.3').adopt.includes(config), 'below 0.4.0: the esbuild spelling')
+  for (const base of ['0.4.0', '0.9.5', '2.0.2']) {
+    assert.ok(!computeSweepSet(MIGRATIONS, base, '2.0.3').adopt.includes(config), `${base}: already oxc`)
+  }
+})
+
+test('withInstallToolchainPins keeps the install node and pnpm pins and takes everything else from HEAD', () => {
+  const head = `${JSON.stringify(
+    {
+      build: {
+        base: { node: '22.23.3', pnpm: '11.28.5', env: { APP_VARIANT: 'production' } },
+        production: { extends: 'base', ios: { image: 'macos-tahoe-26.5-xcode-26.6' } },
+      },
+    },
+    null,
+    2,
+  )}\n`
+  const install = `${JSON.stringify({ build: { base: { node: '22.14.0', pnpm: '11.11.0' }, production: {} } }, null, 2)}\n`
+  const kept = JSON.parse(withInstallToolchainPins(head, install))
+  assert.deepEqual(kept.build.base, { node: '22.14.0', pnpm: '11.11.0', env: { APP_VARIANT: 'production' } })
+  assert.equal(kept.build.production.ios.image, 'macos-tahoe-26.5-xcode-26.6', 'the 0.7.0 pin still lands')
+  assert.equal(withInstallToolchainPins(head, null), head, 'no install copy: HEAD as shipped')
+  assert.equal(withInstallToolchainPins(head, '{"build":{}}\n'), head, 'no pins to keep: HEAD as shipped')
+  assert.equal(withInstallToolchainPins(head, head), head, 'idempotent: a second sweep changes no byte')
 })
 
 test('withNotesEventCatalog appends the runbook line once, and only where it can name noteEvents', () => {

@@ -474,8 +474,15 @@ const SWEEPS = {
   //     unapplied beside the scaffold's applied history. A leg keeps its old seeded
   //     auth_trail.test.sql, whose assertions pass on the copied functions, so nothing on the
   //     leg asks for the shared ones and it is green without the migration.
+  //   - adoptBelow '0.4.0': apps/web/vitest.config.ts. 0.4.0 moved the template's JSX override
+  //     from `esbuild` to `oxc` (Vitest 4 ignores the esbuild block), but the file is SEEDED and
+  //     no record parks the correction, so an install made before 0.4.0 still carries the old
+  //     key. typescript-eslint 8.72.0 (2026-10-19) reports deprecated object-literal keys, and
+  //     vite marks `esbuild` @deprecated, so leg E (v0.3.0) went red on `lint` after the sweep
+  //     once the lane resolved it. The template's copy differs only in that block.
   '2.0.3': {
     adoptBelow: {
+      '0.4.0': ['apps/web/vitest.config.ts'],
       '0.7.0': ['packages/verticals/notes/src/data/write-context.ts'],
       '0.9.5': ['apps/web/lib/app-data/notes-port.ts', 'apps/web/lib/request-ports.ts'],
     },
@@ -610,6 +617,34 @@ function adoptedBelow(below, baseVersion) {
   return Object.entries(below ?? {})
     .filter(([version]) => cmpVersions(baseVersion, version) < 0)
     .flatMap(([, paths]) => paths)
+}
+
+/** The seeded EAS profile the 0.7.0 derived pass copies for its -xcode- image pin. */
+export const EAS_JSON = 'apps/mobile/eas.json'
+
+/**
+ * HEAD's eas.json with the install's own build.base node and pnpm pins kept. The 0.7.0 remedy
+ * is one line, the production ios.image pin, but the derived pass copies the whole file, and
+ * version-sync requires build.base.pnpm to equal the install's packageManager, which `update`
+ * never writes (package.json is seeded). So the toolchain pins stay the install's own, as they
+ * would for a consumer who added the one line by hand. Returns HEAD's text unchanged when the
+ * install's copy is absent or names neither pin.
+ * @param {string} headText
+ * @param {string | null} installText
+ * @returns {string}
+ */
+export function withInstallToolchainPins(headText, installText) {
+  if (installText === null) return headText
+  const own = JSON.parse(installText)?.build?.base ?? {}
+  const head = JSON.parse(headText)
+  let changed = false
+  for (const key of ['node', 'pnpm']) {
+    if (typeof own[key] === 'string' && head.build?.base?.[key] !== own[key]) {
+      head.build.base[key] = own[key]
+      changed = true
+    }
+  }
+  return changed ? `${JSON.stringify(head, null, 2)}\n` : headText
 }
 
 /** The line the 2.0.0 runbook gives an install made before 1.1.0. */
@@ -771,7 +806,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     if (src === null) return
     const dest = join(installDir, rel)
     mkdirSync(dirname(dest), { recursive: true })
-    copyFileSync(src, dest)
+    if (rel === EAS_JSON) {
+      writeFileSync(dest, withInstallToolchainPins(readFileSync(src, 'utf8'), readTextOrNull(dest)))
+    } else {
+      copyFileSync(src, dest)
+    }
     done.push(rel)
   }
 

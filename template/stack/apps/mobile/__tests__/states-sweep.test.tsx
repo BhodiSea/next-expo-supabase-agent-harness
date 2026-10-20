@@ -69,39 +69,40 @@ afterEach(() => {
 
 const NETWORK_ROUTES = [HOME] as const
 
-describe.each(
-  NETWORK_ROUTES.map((route) => [route.id, route] as const),
-)('route %s canonical states', (_id, route) => {
-  it(`held query renders ${route.states.loading} as a progressbar skeleton, never prose`, async () => {
-    installFor('held')
-    renderRouter('./app', { initialUrl: route.path })
-    const loading = await screen.findByTestId(route.states.loading)
-    // The loading surface is a Skeleton/Spinner (announced progressbar with the
-    // catalog's loading copy) — a bare "Loading…" text line reds here.
-    expect(loading.props['accessibilityRole'] as string).toBe('progressbar')
-    expect(loading.props['accessibilityLabel'] as string).toBe(en['common.loading'])
-  })
+describe.each(NETWORK_ROUTES.map((route) => [route.id, route] as const))(
+  'route %s canonical states',
+  (_id, route) => {
+    it(`held query renders ${route.states.loading} as a progressbar skeleton, never prose`, async () => {
+      installFor('held')
+      renderRouter('./app', { initialUrl: route.path })
+      const loading = await screen.findByTestId(route.states.loading)
+      // The loading surface is a Skeleton/Spinner (announced progressbar with the
+      // catalog's loading copy) — a bare "Loading…" text line reds here.
+      expect(loading.props['accessibilityRole'] as string).toBe('progressbar')
+      expect(loading.props['accessibilityLabel'] as string).toBe(en['common.loading'])
+    })
 
-  it(`zero items render ${route.states.empty}`, async () => {
-    installFor('empty')
-    renderRouter('./app', { initialUrl: route.path })
-    expect(await screen.findByTestId(route.states.empty)).toBeTruthy()
-  })
+    it(`zero items render ${route.states.empty}`, async () => {
+      installFor('empty')
+      renderRouter('./app', { initialUrl: route.path })
+      expect(await screen.findByTestId(route.states.empty)).toBeTruthy()
+    })
 
-  it(`a failure envelope renders ${route.states.error} CONTAINING a retry that recovers`, async () => {
-    installFor('error')
-    renderRouter('./app', { initialUrl: route.path })
-    const surface = await screen.findByTestId(route.states.error)
-    expect(surface).toBeTruthy()
-    // The manifest contract: the error surface CONTAINS the retry affordance,
-    // and the retry actually re-runs the query (swap the double to empty first,
-    // so recovery is observable).
-    uninstallMockServer()
-    installFor('empty')
-    fireEvent.press(screen.getByRole('button', { name: en['common.retry'] }))
-    expect(await screen.findByTestId(route.states.empty)).toBeTruthy()
-  })
-})
+    it(`a failure envelope renders ${route.states.error} CONTAINING a retry that recovers`, async () => {
+      installFor('error')
+      renderRouter('./app', { initialUrl: route.path })
+      const surface = await screen.findByTestId(route.states.error)
+      expect(surface).toBeTruthy()
+      // The manifest contract: the error surface CONTAINS the retry affordance,
+      // and the retry actually re-runs the query (swap the double to empty first,
+      // so recovery is observable).
+      uninstallMockServer()
+      installFor('empty')
+      fireEvent.press(screen.getByRole('button', { name: en['common.retry'] }))
+      expect(await screen.findByTestId(route.states.empty)).toBeTruthy()
+    })
+  },
+)
 
 describe('route actions canonical states', () => {
   it(`a no-match query renders ${ACTIONS.states.empty} (loading/error are honestly unreachable)`, async () => {

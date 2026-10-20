@@ -150,9 +150,13 @@ if (existsSync(EXCEPTIONS_FILE)) {
   }
 }
 
+// --recursive: the production surface lives in the workspace packages, not the root (whose
+// `dependencies` are empty). pnpm through 11.11 walked the workspace from the root anyway;
+// 11.28 lists the root importer only and prints "No licenses in packages found", which is
+// not JSON, so this gate failed closed on every fresh scaffold until the flag was explicit.
 let parsed
 try {
-  const out = runCmd('pnpm licenses list --prod --json')
+  const out = runCmd('pnpm licenses list --prod --json --recursive')
   parsed = JSON.parse(out)
 } catch (e) {
   skipOrFail(GATE, `pnpm licenses failed (${e.message?.slice(0, 120)})`)
