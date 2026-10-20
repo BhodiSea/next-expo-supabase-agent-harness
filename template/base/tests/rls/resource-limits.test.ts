@@ -76,9 +76,11 @@ if (!RLS_SUITE_READY) {
   })
 } else {
   describe('per-role resource ceilings bind through PostgREST', () => {
-    it.each(['anon', 'authenticated'] as const)(
-      'the %s role gets the reviewed ceilings in force, not merely in the catalog',
-      async (role) => {
+    // A loop over plain `it`, not `it.each`: the title is too long for one line, and Biome 2.5.3
+    // and 2.5.15 wrap an over-long `it.each(...)(...)` differently. This file is owned, so it
+    // has to come out the same under the Biome an older install still pins.
+    for (const role of ['anon', 'authenticated'] as const) {
+      it(`the ${role} role gets the reviewed ceilings in force, not merely in the catalog`, async () => {
         const svc = serviceClient()
         let client = anonClient()
         if (role === 'authenticated') {
@@ -116,8 +118,8 @@ if (!RLS_SUITE_READY) {
         } finally {
           if (role === 'authenticated') await deleteTenant(svc, LIMITS_TENANT)
         }
-      },
-    )
+      })
+    }
 
     it('the ceilings are TIGHTER than the login role a direct connection would get', async () => {
       // The property that makes them worth having: `authenticator` (what PostgREST

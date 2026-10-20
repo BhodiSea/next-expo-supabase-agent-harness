@@ -1469,18 +1469,18 @@
     ],
     "tests/rls/cross-tenant-isolation.test.ts": [
       {
-        "sha256": "756ceb7535e34c7262754f1c307b707e687edc008d03aeeaf57cd1f224f643c4"
+        "sha256": "0e5ac70a1432986bf52360ab8e330563a5c95b4af2b743c0e5e5de5096dd0a15"
       },
       {
-        "sha256": "8ba01f2ef1a74479a2fe5c3a4c4b763556ff7230f63ee296d208f692c50b4e03"
+        "sha256": "756ceb7535e34c7262754f1c307b707e687edc008d03aeeaf57cd1f224f643c4"
       }
     ],
     "tests/rls/resource-limits.test.ts": [
       {
-        "sha256": "e5dc0ce4809ebe4e56ed12db4655e4f6d63730441d673596d7165e49eaf5d88d"
+        "sha256": "036c25a2e2d8356d62aecd439eae99c212f5b1604f67a2e5d4a8eabc4878937f"
       },
       {
-        "sha256": "e9cc8f72d456a753086cc40881d75daf8e6ad9d600012e625f8968516582972f"
+        "sha256": "e5dc0ce4809ebe4e56ed12db4655e4f6d63730441d673596d7165e49eaf5d88d"
       }
     ],
     "tests/rls/run-rls.mjs": [
