@@ -49,9 +49,9 @@ git add -A && git commit -m "chore: scaffold"   # the first commit must include 
 pnpm validate
 ```
 
-**Status: stable (2.0.x).** CI proves the scaffold on Linux only. The installer's
-unit tests also run on Windows. `pnpm validate` has never run in CI on macOS or
-Windows. See [Limitations](#limitations).
+**Status: stable (2.0.x).** CI proves the scaffold on Linux, and on macOS without
+the database gates. The installer's unit tests run on Linux, Windows and macOS.
+`pnpm validate` has never run in CI on Windows. See [Limitations](#limitations).
 
 ## Requirements
 
@@ -129,10 +129,33 @@ Tiers choose which opt-in modules are installed. `core` installs none.
 `push-notifications`, `eval-live`, `observability` and `e2ee`. The Vercel deploy
 workflow, EAS Build/Submit and release-please come from modules, not the base.
 
+## Claude Code plugin
+
+The agents, slash commands and skills also come as a Claude Code plugin, for a session
+outside a harness-installed project. Install it from this repository's marketplace:
+
+```sh
+claude plugin marketplace add BhodiSea/next-expo-supabase-agent-harness
+claude plugin install next-expo-supabase-agent-harness@next-expo-supabase-agent-harness
+```
+
+or, inside a session on Claude Code 2.1.275 or later:
+
+```
+/plugin install next-expo-supabase-agent-harness --marketplace BhodiSea/next-expo-supabase-agent-harness
+```
+
+The plugin carries no hooks, gates or permissions; those come with `init`. Inside a
+harness-installed project you do not need it, and its reviewers' verdicts do not count
+toward the reviewer ledger. See [plugin/README.md](plugin/README.md).
+
 ## Limitations
 
-- **Linux-only proof.** Every CI lane that runs the scaffold runs on
-  `ubuntu-latest`. There is no macOS lane.
+- **The database gates are proven on Linux only.** Every CI lane with a
+  Supabase stack runs on `ubuntu-latest`. The `macos-scaffold` lane runs
+  `init` and `pnpm validate` on a Mac without Docker, the way a laptop runs
+  them, and fails if any gate skips except `types-drift`, which needs the
+  database. No lane runs a scaffold on Windows.
 - **Rate limiting covers the application layer only.** It binds the tRPC router
   and Next.js Server Actions. It does not bound direct PostgREST calls made
   with a user's JWT, or sign-in and sign-up, which go to Supabase Auth. If the

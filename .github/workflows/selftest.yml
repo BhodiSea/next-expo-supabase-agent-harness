@@ -31,12 +31,14 @@ defaults:
 jobs:
   # Both unit lanes run on ubuntu AND windows: the path-separator/CRLF/shell
   # bug class only reproduces on a real Windows filesystem — a Linux-only unit
-  # lane cannot make that class extinct.
+  # lane cannot make that class extinct. macOS joined at 2.0.4 (#168) for the
+  # same reason: BSD userland, bash 3.2 and a case-insensitive default
+  # filesystem only reproduce on a Mac.
   installer-unit:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
@@ -120,6 +122,55 @@ jobs:
         run: node scripts/check-residue.mjs "$RUNNER_TEMP/scaffold-metal"
       - name: metal scaffold passes the syntax scan
         run: node scripts/check-syntax.mjs "$RUNNER_TEMP/scaffold-metal"
+
+  # 2.0.4 (#168): what a developer's Mac without Docker gets. An Expo project ships an iOS
+  # app, so macOS is where many installs run init, validate and the Stop hook, and until
+  # now no lane ran a scaffold there (BSD sed/date/grep, bash 3.2, a case-insensitive
+  # filesystem). The runner has no Docker, so the database gates cannot run: validate runs
+  # with CI unset, the laptop posture, where a gate with a missing prerequisite skips loudly
+  # instead of failing closed (inCI(), template/base/tools/lib/gate.mjs). The lane then reds
+  # on any skip other than the database gates' (scripts/lib/skip-verdict.mjs), so a macOS
+  # defect cannot hide behind a skip and no escape switch enters the harness.
+  # Cadence: every trigger of this workflow, like the Linux lanes. If macOS runner
+  # concurrency makes it the slow lane, it moves to the nightly schedule and tags only.
+  macos-scaffold:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        # harden-runner egress blocking is Linux-only; audit keeps the step identical.
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - name: init --yes, in the order the README gives
+        run: node installer/cli.mjs init --dir "$RUNNER_TEMP/mac" --tier core --yes
+      - name: corepack, git init, pnpm install, baseline commit (the commit includes the lockfile)
+        working-directory: ${{ runner.temp }}/mac
+        run: |
+          corepack enable
+          corepack prepare --activate
+          git init -q -b main
+          node "$GITHUB_WORKSPACE/scripts/ci/pnpm-install-retry.mjs" --no-frozen-lockfile
+          git add -A
+          git -c user.email=selftest@localhost -c user.name=selftest commit -qm 'chore: scaffold'
+      # CI and HARNESS_REQUIRE_TOOLCHAINS unset is the laptop posture this lane exists to
+      # prove. GITHUB_BASE_REF is unset because the scaffold is a different repository (see
+      # bootstrap-linux's THE GATE). --report-all runs every step, so one skip cannot hide
+      # behind an earlier red; the exit code is kept for the verdict step, not acted on here.
+      - name: validate with CI unset (every step, log kept)
+        working-directory: ${{ runner.temp }}/mac
+        run: |
+          set +e
+          env -u CI -u HARNESS_REQUIRE_TOOLCHAINS -u GITHUB_BASE_REF \
+            node tools/validate.mjs --min-floor --report-all 2>&1 | tee validate.log
+          echo "${PIPESTATUS[0]}" > validate.code
+      - name: no gate skipped except the database gates, and validate is green
+        run: node scripts/ci/skip-verdict.mjs "$RUNNER_TEMP/mac/validate.log" "$(cat "$RUNNER_TEMP/mac/validate.code")"
 
   # One deliberate violation per gate DIRECTION; each must turn the matching
   # gate red on an otherwise-green scaffold. Baseline-pass first so a failure is

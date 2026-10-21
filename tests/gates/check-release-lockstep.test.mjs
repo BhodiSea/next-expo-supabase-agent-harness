@@ -52,7 +52,7 @@ function writeTree(files) {
 // One version everywhere — the state the gate promises to hold the repo in.
 const clean = () => ({
   'package.json': JSON.stringify({ version: '1.2.3' }),
-  '.claude-plugin/plugin.json': JSON.stringify({ version: '1.2.3' }),
+  'plugin/.claude-plugin/plugin.json': JSON.stringify({ version: '1.2.3' }),
   'template/base/.claude/hooks/alpha.mjs':
     "const HARNESS_HOOK_VERSION = '1.2.3'\nexport default HARNESS_HOOK_VERSION\n",
   'template/base/.claude/hooks/beta.mjs':
@@ -89,7 +89,7 @@ test('RED: every comparison the gate makes, watched failing at once and each nam
     ...clean(),
     // Five skews, one per surface the gate reads. beta.mjs loses its stamp entirely —
     // "no stamp" and "stale stamp" are different findings and both must fire.
-    '.claude-plugin/plugin.json': JSON.stringify({ version: '9.9.9' }),
+    'plugin/.claude-plugin/plugin.json': JSON.stringify({ version: '9.9.9' }),
     'template/base/.claude/hooks/alpha.mjs':
       "const HARNESS_HOOK_VERSION = '1.2.2'\nexport default HARNESS_HOOK_VERSION\n",
     'template/base/.claude/hooks/beta.mjs': 'export default 1\n',
@@ -99,7 +99,7 @@ test('RED: every comparison the gate makes, watched failing at once and each nam
   const { code, out } = run(dir, { GITHUB_REF_NAME: 'v9.9.9' })
   assert.equal(code, 1, `a fully skewed tree must red:\n${out}`)
   assert.match(out, /release lockstep FAILED:/)
-  assert.match(out, /\.claude-plugin\/plugin\.json version 9\.9\.9 != package\.json 1\.2\.3/)
+  assert.match(out, /plugin\/\.claude-plugin\/plugin\.json version 9\.9\.9 != package\.json 1\.2\.3/)
   assert.match(out, /hooks\/alpha\.mjs stamp 1\.2\.2 != package\.json 1\.2\.3/)
   assert.match(out, /hooks\/beta\.mjs carries no HARNESS_HOOK_VERSION stamp/)
   assert.match(out, /git tag v9\.9\.9 != package\.json 1\.2\.3/)
