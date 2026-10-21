@@ -4431,6 +4431,12 @@ alone, and its window lapses in the scheduled `floor-review` job on your own dat
 the review, run `update --refresh-seeded tools/eol.json` on an untouched register, or copy
 the `products` sets and the two dates by hand.
 
+The same day, `@expo/config-plugins` 57.0.11 moved to `xcode` 4, which drops `uuid`, so the
+register's `uuid` row (the one production-scope acceptance, with `removalTarget` 2.1.0) is
+deleted. Your own register keeps it until you act. After your next `pnpm install` resolves
+the new config-plugins, `version-sync` reds the row as matching no deprecated resolution.
+Delete the row, or take the whole register with `update --refresh-seeded tools/eol.json`.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it
