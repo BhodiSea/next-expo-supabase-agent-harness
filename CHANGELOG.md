@@ -11,13 +11,32 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
-## [Unreleased]
+## [2.0.4] — 2026-10-21
 
-**2.0.4 work that lands before the 2.0.4 bump.** The bump is its own commit, made when the
-release is cut: it opens the 2.0.4 section and moves these entries there.
+**A patch: the v2.0.x defect fixes continue.** Each item that lands after this bump adds its
+entry below. No gate is added, the chain length does not change, and no ramp opens or moves.
+The `template/migrations.json` record restates 2.0.0's twenty-vintage `rampExpiry`
+population, and `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `2.0.3`.
 
-### Added
+### Fixed
 
+<!-- Entries from the 2.0.4 items that land after the version bump go here. The cut removes
+this comment. -->
+
+### Changed
+
+- **The Claude Code plugin installs its own folder, not the whole repository** (#163). The
+  marketplace entry's `source` is now `./plugin`, which holds the manifest, a README, the
+  LICENSE and the agents, commands and skills, copied from `template/base/.claude/` as
+  regular files by `scripts/generate-plugin-folder.mjs`. An install used to copy every
+  tracked file, a folder the plugin directory holds for a reviewer at 512 files or with a
+  non-image file over 256 KiB. `scripts/check-plugin-manifest.mjs` now reds when `plugin/`
+  drifts from its sources, holds a link or a stray file, or breaks those limits, and
+  `scripts/check-release-lockstep.mjs` reads the manifest at its new path,
+  `plugin/.claude-plugin/plugin.json`. Its description no longer says hooks cannot ship in a
+  plugin: what a plugin cannot carry is permissions, and the harness's hooks run the
+  project's own tools. The README gains the install commands. Factory only: nothing changes
+  for an install.
 - **The README shows the harness running, and says which projects it fits** (#165). A
   recording near the top of the README is rendered by vhs from
   `docs/media/harness-demo.tape`, with no model in it: `init` writes a project, the Bash guard

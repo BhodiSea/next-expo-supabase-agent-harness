@@ -113,7 +113,7 @@ node scripts/hygiene.mjs                # leaked-string + placeholder closure + 
 node scripts/check-reuse.mjs            # REUSE dual-license structure (offline mirror of `reuse lint`)
 node scripts/check-claims.mjs           # README/CHANGELOG numbers recomputed from the sources of truth
 node scripts/check-release-lockstep.mjs # one version across package.json, plugin, hooks, CITATION, CHANGELOG
-node scripts/check-plugin-manifest.mjs  # plugin/marketplace fields + every referenced path exists
+node scripts/check-plugin-manifest.mjs  # plugin/marketplace fields, and plugin/ in sync with its sources (regenerate: node scripts/generate-plugin-folder.mjs --write)
 node scripts/check-canary-coverage.mjs  # every gate AND every job in every shipped workflow, base and modules, has a registered, RUNNING red-proof
 node scripts/generate-floor.mjs --check    # BOTH frozen snapshots (validate.floor.json, stop.floor.json) mirror the config
 node scripts/generate-skill-references.mjs --check  # the slice skill's code blocks match the example's marked spans
@@ -229,7 +229,7 @@ review. The last two are conventions the maintainer will ask for.
 
 1. Add a `## [x.y.z] — YYYY-MM-DD` section to `CHANGELOG.md`.
 2. Bump the version everywhere the lockstep gate looks: `package.json`,
-   `.claude-plugin/plugin.json`, `CITATION.cff`, and the **nine**
+   `plugin/.claude-plugin/plugin.json`, `CITATION.cff`, and the **nine**
    `HARNESS_HOOK_VERSION` stamps under `template/base/.claude/hooks/`
    (`subagent-verdict.mjs` joined them in 0.6.0, `launch.mjs` in 1.0.0 and
    `session-brief.mjs` in 1.1.0 — the

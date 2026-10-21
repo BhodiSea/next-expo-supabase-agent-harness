@@ -128,6 +128,10 @@ jobs:
       - name: Validate Claude Code plugin manifests (advisory)
         continue-on-error: true
         run: npx --yes @anthropic-ai/claude-code@latest plugin validate .
+      # The folder the marketplace installs (#163); --strict fails on its warnings too.
+      - name: Validate the installable plugin folder (advisory)
+        continue-on-error: true
+        run: npx --yes @anthropic-ai/claude-code@latest plugin validate --strict ./plugin
 
   # The machinery under its own bar: the installer/scripts/tests/gate scripts +
   # hooks that enforce strictTypeChecked, cognitive-complexity <= 15 and knip on
