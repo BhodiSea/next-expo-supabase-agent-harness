@@ -48,6 +48,15 @@ this comment. -->
   The window runs to 2026-11-20. **The register is seeded, so `update` does not deliver
   the review.** An install on Expo SDK 54 or 55 that copies the new supported set reds the
   vendor-support census; the scaffold pins SDK 57.
+- **`uuid` 7 leaves `tools/eol.json`: the upstream discharge arrived.** Later on the review
+  day, `@expo/config-plugins` 57.0.11 moved to `xcode` ^4.0.0, which has no uuid dependency,
+  so a fresh resolution has no `uuid@7` and the row accepting it matched nothing.
+  `version-sync` reds such a row, and `consumer-ci-static` went red on every branch. The row
+  is deleted rather than re-dated, so the register has no production-scope row left. **An
+  install keeps its own row** (the register is seeded): after its next re-resolve,
+  `version-sync` names it as matching no deprecated resolution, and the remedy is to delete
+  it, or `update --refresh-seeded tools/eol.json` on an untouched register. The arrival ramp
+  in `tools/check-version-sync.mjs` still runs to 2.1.0 for installs holding the row.
 - **The agent-facing docs teach the org-scoped RLS shape** (#255). The vertical-slice skill's
   step 1, `/new-feature`, `/verify-invariants`, `.claude/rules/security-invariants.md`, the
   `migration-rls-author` and `security-reviewer` agents and `AGENTS.md` still taught policies
@@ -72,6 +81,19 @@ this comment. -->
   section and nothing else.
 
 ### Added
+
+- **The README shows the harness running, and says which projects it fits** (#165). A
+  recording near the top of the README is rendered by vhs from
+  `docs/media/harness-demo.tape`, with no model in it: `init` writes a project, the Bash guard
+  gets a force-push payload the way `.claude/settings.json` invokes it and prints its deny,
+  and the secrets gate goes red on its own Canary 26 key in a tracked file, then green once
+  the file is removed. `tests/installer/readme-recording.test.mjs` runs every command the
+  tape types, in plain bash against the checkout, and holds each to the `# expect:` and
+  `# exit:` lines written above it, so a guard or gate message that changes reds until the
+  tape is updated and the GIF regenerated; it also holds the GIF to 2 MB and the README to
+  embedding it. A new "Who this is for" section names the shape the harness assumes and,
+  for a web-only app, an existing monorepo with its own CI, and an agent that is not Claude
+  Code, which layers still apply. Factory only: nothing changes for an install.
 
 - **macOS in CI** (#168). `installer-unit` runs on `macos-latest` beside Linux and Windows. A
   new `macos-scaffold` lane runs `init`, `pnpm install` and `pnpm validate --min-floor
