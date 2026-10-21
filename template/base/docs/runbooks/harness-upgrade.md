@@ -4422,6 +4422,15 @@ commit-time layer. The write guard now reads `notebook_path`, and two new bash r
 `docs/security/threat-model.md`, all owned. Nothing is left to you. A command that only
 quotes `LEFTHOOK=0`, such as a grep for it, is denied as well; put the text in a file.
 
+### `tools/eol.json` re-reviewed
+
+The template's end-of-life register lapsed on 2026-10-20 and is re-reviewed to 2026-11-20.
+The registry sweep found no new deprecation. Expo's supported set is now SDK 58, 57 and 56,
+and react-native's is 0.88 down to 0.85. The register is seeded, so `update` leaves yours
+alone, and its window lapses in the scheduled `floor-review` job on your own dates. To take
+the review, run `update --refresh-seeded tools/eol.json` on an untouched register, or copy
+the `products` sets and the two dates by hand.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

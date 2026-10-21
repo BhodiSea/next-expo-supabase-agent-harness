@@ -38,6 +38,16 @@ this comment. -->
   allowed. `tests/hooks/hook-contract.test.mjs` denies all fourteen spellings, red on 2.0.3,
   and `docs/security/threat-model.md` lists both rules. Every file this changes is owned and
   reaches an install with `update`.
+- **`tools/eol.json` re-reviewed** (lapsed 2026-10-20). The registry sweep over a fresh
+  strict-tier scaffold probed 1620 pairs with zero errors and found the same seven
+  deprecations the register carries, with unchanged messages. Both product tables moved:
+  Expo's compatibility table now lists SDK 58, 57 and 56, so 55 and 54 leave the supported
+  set, and `react-native` 0.88 joins it (npm `latest` since 2026-10-15), with 0.85 kept
+  while the vendor's table still calls it End of Cycle. `uuid`'s `removalTarget` stays
+  2.1.0: `xcode` 4.0.0 drops uuid, but `@expo/config-plugins` still depends on `xcode` 3.
+  The window runs to 2026-11-20. **The register is seeded, so `update` does not deliver
+  the review.** An install on Expo SDK 54 or 55 that copies the new supported set reds the
+  vendor-support census; the scaffold pins SDK 57.
 
 ## [2.0.3] — 2026-10-17
 

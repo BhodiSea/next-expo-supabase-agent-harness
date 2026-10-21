@@ -936,6 +936,15 @@
         ]
       },
       {
+        "sha256": "bb70b8b9822814a5599c1398718ca327d311e3882f5d96f4fb8db9a8483e6355",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "c9becbad1543ca740e90dc01d1a430cc9945cc1387268eff8c73bbe1253036b2",
         "sites": [
           [
@@ -1862,6 +1871,9 @@
     ],
     "tools/lib/planted-shas.json": [
       {
+        "sha256": "2af6b8f29f53bfbac9b014a61257e57c3d57374c8b57e81b590b347c1f5aecf7"
+      },
+      {
         "sha256": "932a7a180765e4be28b4f62be734e7c9564fdf78e2db8722430cfde39482243b"
       }
     ],
@@ -2165,6 +2177,9 @@
     "tools/eol.json": [
       {
         "sha256": "107aa127f6ed2f5b1571562e6aad183d8fb28a8a7ccc77b3aa202074c985bb8e"
+      },
+      {
+        "sha256": "ecdc0521a559ea206e298492e217f705e96c11ae3a4ea1efb52660e02b853535"
       }
     ],
     "tools/expo-permissions.json": [
