@@ -18,13 +18,13 @@ import { join } from 'node:path'
 import { walkFiles } from '../../installer/lib/fs-walk.mjs'
 
 export const PLUGIN_DIR = 'plugin'
-export const COMPONENT_SOURCE = 'template/base/.claude'
-export const COMPONENTS = ['agents', 'commands', 'skills']
-export const HAND_EDITED = ['.claude-plugin/plugin.json', 'README.md']
+const COMPONENT_SOURCE = 'template/base/.claude'
+const COMPONENTS = ['agents', 'commands', 'skills']
+const HAND_EDITED = ['.claude-plugin/plugin.json', 'README.md']
 
 // The plugin directory's pre-submission limits ("Files in the plugin folder").
-export const MAX_FILES = 512
-export const MAX_FILE_BYTES = 256 * 1024
+const MAX_FILES = 512
+const MAX_FILE_BYTES = 256 * 1024
 const IMAGE_EXT = /\.(?:png|jpe?g|gif|webp|svg)$/i
 
 /**
