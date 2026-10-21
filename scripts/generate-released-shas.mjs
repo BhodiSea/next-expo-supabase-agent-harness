@@ -12,7 +12,8 @@
 //       install command has no tag, so an install can come from ANY of those commits, and
 //       a table that knew only the tags would call its untouched files forks.
 //
-// Both modes also fold each tree's PLANTED map (1.1.0, #84) into the table's `planted`: per
+// Both modes also fold each tree's DEMO map (2.0.4: every path template/demo ships, which
+// `eject` reads to recognise an earlier release's untouched demo file) and its PLANTED map (1.1.0, #84) into the table's `planted`: per
 // path in today's ESCAPE_LISTS, what that tree's template ships. Then they rewrite
 // template/base/tools/lib/planted-shas.json, the union of every table's `planted` map, which
 // gate-integrity reads in an install to ask whether a release planted an untracked escape
@@ -48,6 +49,7 @@ import { LINEAGE_FLOOR, cmpDotted } from './lib/ramp-sites.mjs'
 import { git, mapsOfTree, releaseCommits, withExtracted } from './lib/released-shas-history.mjs'
 import {
   PLANTED_INSTALL_PATH,
+  demoMap,
   ownedMap,
   plantedFileText,
   plantedMap,
@@ -61,7 +63,8 @@ const args = process.argv.slice(2)
 const outDir = args.includes('--out') ? args[args.indexOf('--out') + 1] : join(templateRoot(), 'shas')
 const plantedOut = args.includes('--out') ? join(outDir, 'planted-shas.json') : join(templateRoot(), 'base', PLANTED_INSTALL_PATH)
 
-/** @typedef {{ owned: import('./lib/released-shas.mjs').OwnedMap, planted: import('./lib/released-shas.mjs').OwnedMap }} Maps */
+/** @typedef {import('./lib/released-shas.mjs').OwnedMap} OwnedMap */
+/** @typedef {{ owned: OwnedMap, planted: OwnedMap, demo: OwnedMap }} Maps */
 
 /** @param {string} version @returns {import('./lib/released-shas.mjs').Table | null} */
 function readTable(version) {
@@ -191,7 +194,7 @@ async function generateAll() {
     }
     const maps = byTrees.get(trees) ?? (await provedMapsOf(commit, version))
     byTrees.set(trees, maps)
-    tables.set(version, unionInto(tables.get(version) ?? readTable(version), version, maps.owned, maps.planted))
+    tables.set(version, unionInto(tables.get(version) ?? readTable(version), version, maps.owned, maps.planted, maps.demo))
   }
   for (const table of tables.values()) writeTable(table)
   const plantedPaths = writePlanted()
@@ -204,7 +207,7 @@ async function generateAll() {
 
 /** @param {import('./lib/released-shas.mjs').Table | null} table */
 const variantCount = (table) =>
-  [table?.files, table?.planted].reduce((n, map) => n + Object.values(map ?? {}).reduce((m, variants) => m + variants.length, 0), 0)
+  [table?.files, table?.planted, table?.demo].reduce((n, map) => n + Object.values(map ?? {}).reduce((m, variants) => m + variants.length, 0), 0)
 
 function generateCurrent() {
   const version = installerVersion()
@@ -212,12 +215,18 @@ function generateCurrent() {
   const before = readTable(version)
   // The planted map and the evidence file FIRST: tools/lib/planted-shas.json is itself an
   // owned file, so its bytes must be final before the owned map hashes it.
-  const planted = unionInto(before, version, {}, plantedMap({ trees, walkTemplate, renderEntry, paths: ESCAPE_LISTS }))
+  const planted = unionInto(
+    before,
+    version,
+    {},
+    plantedMap({ trees, walkTemplate, renderEntry, paths: ESCAPE_LISTS }),
+    demoMap({ trees, walkTemplate, renderEntry }),
+  )
   const plantedPaths = writePlanted(planted)
   const table = unionInto(planted, version, ownedMap({ trees, walkTemplate, renderEntry, fileMode }))
   writeTable(table)
   console.log(
-    `generate-released-shas: template/shas/${version}.json — ${String(Object.keys(table.files).length)} owned path(s), ${String(variantCount(table) - variantCount(before))} new variant(s); ${String(Object.keys(table.planted).length)} planted path(s); ${PLANTED_INSTALL_PATH} lists ${String(plantedPaths)}`,
+    `generate-released-shas: template/shas/${version}.json — ${String(Object.keys(table.files).length)} owned path(s), ${String(variantCount(table) - variantCount(before))} new variant(s); ${String(Object.keys(table.planted).length)} planted path(s); ${String(Object.keys(table.demo).length)} demo path(s); ${PLANTED_INSTALL_PATH} lists ${String(plantedPaths)}`,
   )
 }
 

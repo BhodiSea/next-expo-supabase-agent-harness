@@ -22,6 +22,7 @@ import { fileMode } from '../../installer/lib/manifest.mjs'
 import { VINTAGES } from '../../scripts/lib/ramp-sites.mjs'
 import {
   PLANTED_INSTALL_PATH,
+  demoMap,
   lintTable,
   missingFrom,
   missingVersions,
@@ -252,7 +253,7 @@ test('RED: a table with no planted map, or an unsorted one', () => {
 
 test('unionInto folds a planted map beside files, additively, and plantedUnion merges every table', () => {
   const first = unionInto(null, '9.9.9', { 'a.mjs': [{ sha256: 'a'.repeat(64) }] }, { 'tools/x.json': [{ sha256: 'c'.repeat(64) }] })
-  assert.deepEqual(Object.keys(first), ['//', 'version', 'files', 'planted'])
+  assert.deepEqual(Object.keys(first), ['//', 'version', 'files', 'planted', 'demo'])
   const second = unionInto(first, '9.9.9', {}, { 'tools/x.json': [{ sha256: 'b'.repeat(64) }] })
   assert.deepEqual(second.files, first.files, 'folding only a planted map leaves files alone')
   assert.deepEqual(
@@ -268,4 +269,42 @@ test('unionInto folds a planted map beside files, additively, and plantedUnion m
   assert.match(plantedFileText(union), /"sites": \[\[3, "SECURITY_OWNERS"\]\]/, 'sites stay on one line, the way the formatter writes them')
   assert.deepEqual(JSON.parse(plantedFileText(union)), union)
   assert.match(missingFrom({ 'tools/x.json': [{ sha256: 'e'.repeat(64) }] }, second, 'live tree', 'planted')[0], /does not list it under planted/)
+})
+
+// 2.0.4: the worked example's map, which `eject` reads to know an earlier release's
+// untouched demo file from a re-recorded fork.
+const liveDemo = () => demoMap({ trees: templateTrees(TEMPLATE), walkTemplate, renderEntry })
+
+test('the demo walk is not vacuous, and every shipped table carries a demo map that covers the live tree', () => {
+  const map = liveDemo()
+  assert.ok(Object.keys(map).length > 50, `only ${String(Object.keys(map).length)} demo paths`)
+  assert.ok(map['packages/verticals/notes/src/index.ts'], 'the notes vertical is the worked example')
+  assert.deepEqual(demoMap({ trees: ['base', 'stack'], walkTemplate, renderEntry }), {}, 'a tree with no demo ships no demo map')
+  const current = JSON.parse(readFileSync(join(TABLES, `${VERSION}.json`), 'utf8'))
+  assert.deepEqual(missingFrom(map, current, 'live tree', 'demo'), [])
+  for (const table of shippedTables()) assert.equal(typeof table.demo, 'object', `${table.version}.json has no demo map`)
+  // The tables reach back past this release: 2.0.0 shipped the first demo, and its map is filled.
+  assert.ok(Object.keys(JSON.parse(readFileSync(join(TABLES, '2.0.0.json'), 'utf8')).demo).length > 50)
+})
+
+test('RED: a live demo variant the current table does not list under demo, or a table with no demo map', () => {
+  const stale = doctored((d) =>
+    editTable(d, VERSION, (table) => {
+      table.demo['packages/verticals/notes/src/index.ts'] = [{ sha256: 'f'.repeat(64) }]
+      return table
+    }),
+  )
+  const a = run(['--tables-dir', stale])
+  assert.equal(a.code, 1, a.out)
+  assert.match(a.out, /live tree: packages\/verticals\/notes\/src\/index\.ts ships sha256 [0-9a-f]{12}… and template\/shas\/[\d.]+\.json does not list it under demo/)
+
+  const missing = doctored((d) =>
+    editTable(d, VERSION, (table) => {
+      delete table.demo
+      return table
+    }),
+  )
+  const b = run(['--tables-dir', missing])
+  assert.equal(b.code, 1, b.out)
+  assert.match(b.out, /has no demo map/)
 })

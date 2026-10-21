@@ -4431,6 +4431,17 @@ alone, and its window lapses in the scheduled `floor-review` job on your own dat
 the review, run `update --refresh-seeded tools/eol.json` on an untouched register, or copy
 the `products` sets and the two dates by hand.
 
+### `eject` removes the demo files an earlier release wrote (#256)
+
+Most of the worked example is seeded, so `update` leaves an untouched demo file at the bytes
+your release wrote. Through 2.0.3, `eject` compared a seeded demo file only with its own
+release's demo, so on an install made with `--with-demo` by an earlier release it kept every
+demo file a later release changed as a "re-recorded fork" and parked the default copy of each
+such shared file. From a v2.0.2 install that was eight files, five parked defaults and two
+`PARITY.md` rows. It now also accepts the bytes any earlier release shipped as the demo. Nothing
+is planted and nothing is left to you; if an earlier `eject` already kept such files, delete
+them by hand, or take each parked default from `.harness/pending/`.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

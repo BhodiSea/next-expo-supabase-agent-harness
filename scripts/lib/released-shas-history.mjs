@@ -16,7 +16,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { derender } from '../../installer/lib/provenance.mjs'
 import { ESCAPE_LISTS } from '../../template/base/tools/lib/enforcement-surface.mjs'
-import { ownedMap, plantedMap, templateTrees } from './released-shas.mjs'
+import { demoMap, ownedMap, plantedMap, templateTrees } from './released-shas.mjs'
 
 /** @param {string} root @param {string[]} argv */
 export const git = (root, argv) =>
@@ -34,9 +34,9 @@ function probeAnswers(tokens) {
 }
 
 /**
- * The owned map and the planted map (1.1.0, #84) of one extracted tree, SELF-PROVED: that
- * tree's own `render`, fed probe answers, must `derender` back to the source for every
- * placeholder-bearing file either map lists. The sites are computed with today's token
+ * The owned map, the planted map (1.1.0, #84) and the demo map (2.0.4) of one extracted
+ * tree, SELF-PROVED: that tree's own `render`, fed probe answers, must `derender` back to
+ * the source for every placeholder-bearing file any map lists. The sites are computed with today's token
  * regex and the inversion is checked against the historical renderer, so a commit whose
  * token syntax differed would fail here, loudly, instead of yielding a table that parks that
  * vintage's untouched files or calls its planted escape lists widenings.
@@ -46,7 +46,8 @@ function probeAnswers(tokens) {
  * mode was then.
  *
  * @param {string} dir an extracted `installer/` + `template/` tree @param {string} label
- * @returns {Promise<{ owned: import('./released-shas.mjs').OwnedMap, planted: import('./released-shas.mjs').OwnedMap }>}
+ * @returns {Promise<{ owned: import('./released-shas.mjs').OwnedMap, planted: import('./released-shas.mjs').OwnedMap,
+ *                    demo: import('./released-shas.mjs').OwnedMap }>}
  */
 export async function mapsOfTree(dir, label) {
   const copy = await import(pathToFileURL(join(dir, 'installer/lib/copy.mjs')).href)
@@ -56,8 +57,9 @@ export async function mapsOfTree(dir, label) {
   const walker = { trees, walkTemplate: copy.walkTemplate, renderEntry: copy.renderEntry }
   const owned = ownedMap({ ...walker, fileMode: manifest.fileMode })
   const planted = plantedMap({ ...walker, paths: ESCAPE_LISTS })
+  const demo = demoMap(walker)
   for (const entry of trees.flatMap((tree) => copy.walkTemplate(tree))) {
-    const variants = [...(owned[entry.installPath] ?? []), ...(planted[entry.installPath] ?? [])]
+    const variants = [owned, planted, demo].flatMap((map) => map[entry.installPath] ?? [])
     const sites = variants.find((v) => v.sites)?.sites
     const source = sites === undefined ? null : copy.renderEntry(entry, {})
     if (sites === undefined || typeof source !== 'string') continue
@@ -66,7 +68,7 @@ export async function mapsOfTree(dir, label) {
       throw new Error(`${label}: derender does not invert this commit's own render for ${entry.installPath}`)
     }
   }
-  return { owned, planted }
+  return { owned, planted, demo }
 }
 
 /**

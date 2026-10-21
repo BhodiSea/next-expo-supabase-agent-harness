@@ -48,6 +48,18 @@ this comment. -->
   The window runs to 2026-11-20. **The register is seeded, so `update` does not deliver
   the review.** An install on Expo SDK 54 or 55 that copies the new supported set reds the
   vendor-support census; the scaffold pins SDK 57.
+- **`eject` removes the demo files an earlier release wrote** (#256). Most of the worked
+  example is seeded, so `update` leaves an untouched demo file at the bytes the install's own
+  release wrote, and `eject` compared a seeded demo file only with its own release's demo. An
+  untouched v2.0.2 `--with-demo` install, updated and ejected, kept eight demo files as
+  "re-recorded forks", parked the default copy of five shared files and kept two `PARITY.md`
+  rows. Each table under `template/shas/` now carries a `demo` map, every byte-variant of
+  every path `template/demo` shipped, backfilled from 2.0.0 by `generate-released-shas.mjs
+  --all`; `check-released-shas.mjs` holds it closed over the live tree and every tag, and
+  `eject` accepts any release's demo bytes up to its own. `tests/installer/
+  demo-eject-older-release.test.mjs` runs v2.0.2's own `init`, this `update` and this `eject`,
+  red before the fix. The CLI carries the change; `update` plants this release's runbook
+  section and nothing else.
 
 ### Added
 
