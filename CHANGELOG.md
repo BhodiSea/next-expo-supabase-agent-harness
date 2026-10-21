@@ -58,6 +58,21 @@ this comment. -->
   it, or `update --refresh-seeded tools/eol.json` on an untouched register. The arrival ramp
   in `tools/check-version-sync.mjs` still runs to 2.1.0 for installs holding the row.
 
+### Added
+
+- **The README shows the harness running, and says which projects it fits** (#165). A
+  recording near the top of the README is rendered by vhs from
+  `docs/media/harness-demo.tape`, with no model in it: `init` writes a project, the Bash guard
+  gets a force-push payload the way `.claude/settings.json` invokes it and prints its deny,
+  and the secrets gate goes red on its own Canary 26 key in a tracked file, then green once
+  the file is removed. `tests/installer/readme-recording.test.mjs` runs every command the
+  tape types, in plain bash against the checkout, and holds each to the `# expect:` and
+  `# exit:` lines written above it, so a guard or gate message that changes reds until the
+  tape is updated and the GIF regenerated; it also holds the GIF to 2 MB and the README to
+  embedding it. A new "Who this is for" section names the shape the harness assumes and,
+  for a web-only app, an existing monorepo with its own CI, and an agent that is not Claude
+  Code, which layers still apply. Factory only: nothing changes for an install.
+
 ### Changed
 
 - **The Claude Code plugin installs its own folder, not the whole repository** (#163). The
