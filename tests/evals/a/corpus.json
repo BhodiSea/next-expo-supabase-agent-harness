@@ -1,0 +1,407 @@
+{
+  "v": 1,
+  "seed": 188,
+  "comment": "Eval A corpus (scripts/eval-a.mjs). Built from tests/evals/b/fixture by --build-corpus; never edited by hand.",
+  "helpers": [
+    {
+      "id": "h01",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "relativeLuminance",
+      "from": "packages/design-tokens/src/oklch.ts:59",
+      "tokens": 33,
+      "dataShaped": false,
+      "text": "export function relativeLuminance({ r, g, b }: LinearSrgb): number {\n  return 0.2126 * r + 0.7152 * g + 0.0722 * b\n}\n"
+    },
+    {
+      "id": "h02",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "parseNativePublicEnv",
+      "from": "packages/platform/env/src/client.ts:346",
+      "tokens": 28,
+      "dataShaped": false,
+      "text": "export function parseNativePublicEnv(source: EnvSource = readNativePublicEnv()): NativePublicEnv {\n  assertNoServerOnlyKeys(source, 'parseNativePublicEnv')\n  return parseEnvOrThrow(NativePublicEnvSchema, source, 'native public (EXPO_PUBLIC_*)')\n}\n"
+    },
+    {
+      "id": "h03",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "normalizeTitle",
+      "from": "packages/verticals/notes/src/domain/note.ts:29",
+      "tokens": 22,
+      "dataShaped": false,
+      "text": "export function normalizeTitle(raw: string): string {\n  return raw.replace(/\\s+/gu, ' ').trim()\n}\n"
+    },
+    {
+      "id": "h04",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "readMiss",
+      "from": "packages/platform/supabase/src/errors.ts:259",
+      "tokens": 28,
+      "dataShaped": false,
+      "text": "export function readMiss(resource?: string): AppError {\n  return appError.notFound(resource === undefined ? {} : { resource })\n}\n"
+    },
+    {
+      "id": "h05",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "applyLocale",
+      "from": "apps/mobile/src/i18n/index.ts:147",
+      "tokens": 20,
+      "dataShaped": false,
+      "text": "function applyLocale(locale: Locale): void {\n  platform.applyDirection(locale, directionOf(locale))\n}\n"
+    },
+    {
+      "id": "h06",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "key",
+      "from": "packages/design-system-native/src/preset.ts:64",
+      "tokens": 22,
+      "dataShaped": false,
+      "text": "function key(name: string): string {\n  return BARE_KEY.test(name) ? name : `'${name}'`\n}\n"
+    },
+    {
+      "id": "h07",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "bucketForAction",
+      "from": "apps/web/lib/rate-limit.ts:117",
+      "tokens": 32,
+      "dataShaped": false,
+      "text": "export function bucketForAction(name: string): RateLimitBucket | null {\n  if (!Object.hasOwn(ACTION_BUCKETS, name)) return WRITE\n  return ACTION_BUCKETS[name] ?? null\n}\n"
+    },
+    {
+      "id": "h08",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "errorCopy",
+      "from": "apps/web/lib/i18n/errors.ts:56",
+      "tokens": 26,
+      "dataShaped": false,
+      "text": "export function errorCopy(error: AppError): string {\n  return t(KEY_BY_CODE[error.code] ?? KEY_BY_KIND[error.kind])\n}\n"
+    },
+    {
+      "id": "h09",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "parseMajor",
+      "from": "packages/api/src/skew.ts:41",
+      "tokens": 39,
+      "dataShaped": false,
+      "text": "export function parseMajor(version: string): number | null {\n  const match = /^\\s*v?(\\d+)(?:\\.|$)/.exec(version)\n  const major = match?.[1]\n  return major === undefined ? null : Number(major)\n}\n"
+    },
+    {
+      "id": "h10",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "renderPreset",
+      "from": "packages/design-system-native/src/preset.ts:132",
+      "tokens": 67,
+      "dataShaped": false,
+      "text": "export function renderPreset(): string {\n  const body: string[] = []\n  emitColors(body)\n  emitSpacing(body)\n  emitRadius(body)\n  emitTypography(body)\n\n  const lines = [...PRESET_HEADER, ...body.map((line) => `      ${line}`), '    },', '  },', '}']\n  return `${lines.join('\\n')}\\n`\n}\n"
+    },
+    {
+      "id": "h11",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "readOptionalServerEnv",
+      "from": "packages/platform/env/src/optional.ts:108",
+      "tokens": 41,
+      "dataShaped": false,
+      "text": "export function readOptionalServerEnv(): EnvSource {\n  return {\n    UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,\n    UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,\n    APP_VERSION: process.env.APP_VERSION,\n    MIN_SUPPORTED_CLIENT: process.env.MIN_SUPPORTED_CLIENT,\n  }\n}\n"
+    },
+    {
+      "id": "h12",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "toOutcomeAsync",
+      "from": "packages/platform/errors/src/index.ts:372",
+      "tokens": 64,
+      "dataShaped": false,
+      "text": "export async function toOutcomeAsync<T>(\n  run: () => Promise<T>,\n  onThrow?: (cause: unknown) => void,\n): Promise<ActionOutcome<T>> {\n  try {\n    return outcomeOk(await run())\n  } catch (cause) {\n    onThrow?.(cause)\n    return outcomeErr(appError.unknown())\n  }\n}\n"
+    },
+    {
+      "id": "h13",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "decodeNotesCursor",
+      "from": "packages/verticals/notes/src/domain/cursor.ts:153",
+      "tokens": 68,
+      "dataShaped": false,
+      "text": "export function decodeNotesCursor(token: string): NoteCursor | null {\n  if (token.length === 0 || token.length > NOTES_CURSOR_MAX) return null\n  const json = fromBase64Url(token)\n  if (json === null) return null\n  try {\n    // Annotated `unknown`, not left as JSON.parse's `any`: an `any` flowing\n    // into a zod parse silently disables every downstream type check the\n    // lint rules exist to enforce.\n    const decoded: unknown = JSON.parse(json)\n    return CursorKey.parse(decoded)\n  } catch {\n    return null\n  }\n}\n"
+    },
+    {
+      "id": "h14",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "encodePushCursor",
+      "from": "packages/verticals/push/src/domain/cursor.ts:125",
+      "tokens": 40,
+      "dataShaped": false,
+      "text": "export function encodePushCursor(key: PushCursor): string {\n  const safe = PushCursorKey.parse(key)\n  return toBase64Url(JSON.stringify({ createdAt: safe.createdAt, id: safe.id }))\n}\n"
+    },
+    {
+      "id": "h15",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "shapedCode",
+      "from": "apps/mobile/src/lib/trpc/normalize.ts:111",
+      "tokens": 56,
+      "dataShaped": false,
+      "text": "function shapedCode(data: unknown): string | null {\n  if (typeof data !== 'object' || data === null || !('code' in data)) return null\n  const code = (data as { readonly code?: unknown }).code\n  return typeof code === 'string' ? code : null\n}\n"
+    },
+    {
+      "id": "h16",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "bearerToken",
+      "from": "apps/web/app/api/trpc/[trpc]/route.ts:46",
+      "tokens": 43,
+      "dataShaped": false,
+      "text": "function bearerToken(request: Request): string | null {\n  const header = request.headers.get('authorization')\n  if (header === null) return null\n  return BEARER_SCHEME.exec(header)?.[1] ?? null\n}\n"
+    },
+    {
+      "id": "h17",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "orgGate",
+      "from": "packages/api/src/trpc.ts:218",
+      "tokens": 43,
+      "dataShaped": false,
+      "text": "function orgGate(activeOrg: OrgSummary | null): ActionOutcome<OrgSummary> {\n  return activeOrg === null\n    ? outcomeErr(\n        appError.forbidden({\n          code: 'org_context_required',\n          message: 'an active organization is required',\n        }),\n      )\n    : outcomeOk(activeOrg)\n}\n"
+    },
+    {
+      "id": "h18",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "emitColors",
+      "from": "packages/design-system-native/src/preset.ts:72",
+      "tokens": 48,
+      "dataShaped": false,
+      "text": "function emitColors(lines: string[]): void {\n  lines.push('colors: {')\n  for (const token of SEMANTIC_TOKENS) {\n    lines.push(`  ${key(token)}: 'var(${colorVarName(token)})',`)\n  }\n  lines.push('},')\n}\n"
+    },
+    {
+      "id": "h19",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "assertKeysAreDistinct",
+      "from": "packages/platform/env/src/index.ts:136",
+      "tokens": 39,
+      "dataShaped": false,
+      "text": "function assertKeysAreDistinct(server: ServerEnv, web: WebPublicEnv): void {\n  if (server.SUPABASE_SERVICE_ROLE_KEY !== web.NEXT_PUBLIC_SUPABASE_PUBLISHABLE) return\n  throw new Error(\n    '@app/env: NEXT_PUBLIC_SUPABASE_PUBLISHABLE holds the SAME value as ' +\n      'SUPABASE_SERVICE_ROLE_KEY. The elevated key bypasses row security and a NEXT_PUBLIC_ ' +\n      'name is compiled into the bundle served to every browser — this deployment would hand ' +\n      'every tenant read and write access to every other. Rotate the elevated key (the value ' +\n      'has to be assumed leaked) and set the PUBLISHABLE key here instead.',\n  )\n}\n"
+    },
+    {
+      "id": "h20",
+      "lang": "ts",
+      "ext": "tsx",
+      "name": "SignUpPage",
+      "from": "apps/web/app/sign-up/page.tsx:21",
+      "tokens": 54,
+      "dataShaped": false,
+      "text": "export default async function SignUpPage(): Promise<ReactNode> {\n  if ((await getVerifiedUser()) !== null) redirect('/o')\n\n  return (\n    <CeremonyShell title={t('route.signUp')} lede={t('auth.signUp.lede')}>\n      <SignUpForm />\n    </CeremonyShell>\n  )\n}\n"
+    },
+    {
+      "id": "h21",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "useI18n",
+      "from": "apps/web/lib/i18n/index.ts:131",
+      "tokens": 44,
+      "dataShaped": false,
+      "text": "export function useI18n(): {\n  readonly t: typeof t\n  readonly locale: Locale\n  readonly formatNumber: typeof formatNumber\n  readonly formatDate: typeof formatDate\n} {\n  return { t, locale: DEFAULT_LOCALE, formatNumber, formatDate }\n}\n"
+    },
+    {
+      "id": "h22",
+      "lang": "ts",
+      "ext": "tsx",
+      "name": "ThemeProvider",
+      "from": "packages/design-system/src/ThemeProvider.tsx:38",
+      "tokens": 92,
+      "dataShaped": false,
+      "text": "export function ThemeProvider({ theme, children, className, testID }: ThemeProviderProps) {\n  const value = useMemo(() => ({ theme }), [theme])\n  return (\n    <ThemeContext.Provider value={value}>\n      <div data-theme={theme} data-testid={testID} className={cn('bg-canvas text-ink', className)}>\n        {children}\n      </div>\n    </ThemeContext.Provider>\n  )\n}\n"
+    },
+    {
+      "id": "h23",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "oklchToHex",
+      "from": "packages/design-tokens/src/oklch.ts:92",
+      "tokens": 96,
+      "dataShaped": false,
+      "text": "export function oklchToHex(color: Oklch): string {\n  const linear = oklchToLinearSrgb(color)\n  if (!inSrgbGamut(linear)) {\n    throw new Error(\n      `oklch(${color.l} ${color.c} ${color.h}) is outside the sRGB gamut — retune the ramp value`,\n    )\n  }\n  const bytes = [linear.r, linear.g, linear.b].map(channelToByte)\n  return `#${bytes.map((b) => b.toString(16).padStart(2, '0')).join('')}`\n}\n"
+    },
+    {
+      "id": "h24",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "startSpan",
+      "from": "packages/platform/observability/src/index.ts:386",
+      "tokens": 121,
+      "dataShaped": false,
+      "text": "export function startSpan(logger: Logger, name: string, fields: LogFields = {}): Span {\n  const startedAt = logger.now()\n  let settled: number | null = null\n\n  const end = (endFields: LogFields = {}): number => {\n    if (settled !== null) return settled\n    const durationMs = Math.max(0, Math.round(logger.now() - startedAt))\n    settled = durationMs\n    logger.info(`span ${name}`, { ...fields, ...endFields, span: name, durationMs })\n    return durationMs\n  }\n\n  return { name, end }\n}\n"
+    },
+    {
+      "id": "h25",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "withSpanAsync",
+      "from": "packages/platform/observability/src/index.ts:437",
+      "tokens": 89,
+      "dataShaped": false,
+      "text": "export async function withSpanAsync<T>(\n  logger: Logger,\n  name: string,\n  run: () => Promise<T>,\n  fields: LogFields = {},\n): Promise<T> {\n  const span = startSpan(logger, name, fields)\n  try {\n    const result = await run()\n    span.end({ outcome: 'ok' })\n    return result\n  } catch (cause) {\n    span.end({ outcome: 'threw', cause })\n    throw cause\n  }\n}\n"
+    },
+    {
+      "id": "h26",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "createRateLimiter",
+      "from": "packages/platform/ratelimit/src/index.ts:419",
+      "tokens": 138,
+      "dataShaped": false,
+      "text": "export function createRateLimiter(options: {\n  readonly onMemoryFallback?: () => void\n  readonly onUnavailable: (error: unknown) => void\n  // SOURCE: docs/adr/20260204-rate-limiting.md (the host may tighten the REST deadline)\n  readonly timeoutMs?: number\n  readonly upstashToken?: string | undefined\n  readonly upstashUrl?: string | undefined\n}): RateLimiter {\n  const { upstashToken, upstashUrl } = options\n  if (upstashUrl != null && upstashUrl !== '' && upstashToken != null && upstashToken !== '') {\n    return withFailOpen(\n      createUpstashRateLimiter({\n        // Spread rather than `timeoutMs: options.timeoutMs`: under\n        // exactOptionalPropertyTypes an explicit `undefined` is NOT the same as an absent\n        // key, and passing one would defeat the adapter's own default.\n        // SOURCE: docs/adr/20260204-rate-limiting.md\n        ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),\n        token: upstashToken,\n        url: upstashUrl,\n      }),\n      options.onUnavailable,\n    )\n  }\n  options.onMemoryFallback?.()\n  return withFailOpen(createMemoryRateLimiter(), options.onUnavailable)\n}\n"
+    },
+    {
+      "id": "h27",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "chunkCookieValue",
+      "from": "packages/platform/supabase/src/cookies.ts:170",
+      "tokens": 98,
+      "dataShaped": false,
+      "text": "export function chunkCookieValue(value: string, limit: number = CHUNK_BYTES): readonly string[] {\n  const chunks: string[] = []\n  let current = ''\n  let size = 0\n  for (const character of value) {\n    const bytes = utf8Bytes(character.codePointAt(0) ?? 0)\n    if (size + bytes > limit && current !== '') {\n      chunks.push(current)\n      current = ''\n      size = 0\n    }\n    current += character\n    size += bytes\n  }\n  chunks.push(current)\n  return chunks\n}\n"
+    },
+    {
+      "id": "h28",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "createBrowserSupabaseClient",
+      "from": "packages/platform/supabase/src/browser.ts:56",
+      "tokens": 91,
+      "dataShaped": false,
+      "text": "export function createBrowserSupabaseClient(\n  options: BrowserClientOptions = {},\n): SupabaseBrowserClient {\n  const { publishableKey, url } = options.credentials\n    ? requireCredentials(options.credentials, 'the caller')\n    : publicCredentials()\n\n  // eslint-disable-next-line @typescript-eslint/no-unsafe-return -- @supabase/supabase-js's createClient is untyped by deliberate doctrine (types.ts: no Database generic; rows are re-parsed at the DAL exit). This return is the intentional untyped-client boundary.\n  return createClient(url, publishableKey, {\n    auth: {\n      // The browser is the one host where an unattended refresh timer is right:\n      // the tab is alive, the user is present, and a session that lapses mid-use\n      // is a form that loses its contents on submit.\n      autoRefreshToken: true,\n      // Magic-link and OAuth returns land back on the app with the credential in\n      // the URL. False here means the client ignores it and the user bounces\n      // back to sign-in holding a token nobody read.\n      detectSessionInUrl: true,\n      // PKCE, not implicit. The implicit flow puts the token in the URL\n      // FRAGMENT, where it lands in browser history, in `Referer` on the next\n      // navigation, and in any analytics script that reports `location.href`.\n      // PKCE returns a single-use code bound to a verifier this client holds.\n      // SOURCE: https://www.rfc-editor.org/rfc/rfc9700 (OAuth 2.0 security best\n      // current practice: the implicit grant SHOULD NOT be used)\n      flowType: 'pkce',\n      persistSession: true,\n      ...(options.storage === undefined ? {} : { storage: options.storage }),\n    },\n  })\n}\n"
+    },
+    {
+      "id": "h29",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "installMockSupabase",
+      "from": "apps/mobile/src/testing/mock-supabase.ts:250",
+      "tokens": 79,
+      "dataShaped": false,
+      "text": "export function installMockSupabase(next: MockSupabaseBehavior = {}): void {\n  behavior = next\n  factorsState = [...(next.factors ?? [])]\n  mockSupabaseCalls.signIn = []\n  mockSupabaseCalls.signUp = []\n  mockSupabaseCalls.signOut = 0\n  mockSupabaseCalls.invoked = []\n  mockSupabaseCalls.enrolls = 0\n  mockSupabaseCalls.listFactors = 0\n  mockSupabaseCalls.challenges = []\n  mockSupabaseCalls.verifies = []\n  mockSupabaseCalls.unenrolls = []\n}\n"
+    },
+    {
+      "id": "h30",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "parseProbeBudgets",
+      "from": "apps/mobile/src/lib/perf-probes.ts:68",
+      "tokens": 81,
+      "dataShaped": false,
+      "text": "export function parseProbeBudgets(params: Readonly<Record<string, ParamValue>>): ProbeBudgets {\n  return {\n    tabSwitchMs: positiveNumber(params['tabSwitchMs'], DEFAULT_PROBE_BUDGETS.tabSwitchMs),\n    actionsOpenMs: positiveNumber(params['actionsOpenMs'], DEFAULT_PROBE_BUDGETS.actionsOpenMs),\n    frameDropMax: positiveNumber(params['frameDropMax'], DEFAULT_PROBE_BUDGETS.frameDropMax),\n    runs: Math.round(positiveNumber(params['runs'], DEFAULT_PROBE_BUDGETS.runs)),\n  }\n}\n"
+    },
+    {
+      "id": "h31",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "redactObject",
+      "from": "packages/platform/observability/src/index.ts:199",
+      "tokens": 188,
+      "dataShaped": false,
+      "text": "function redactObject(value: object, depth: number, seen: WeakSet<object>): unknown {\n  if (Array.isArray(value)) {\n    return (value as readonly unknown[]).map((item) => redactValue(item, depth + 1, seen))\n  }\n\n  // An Error is the most likely non-plain value here: it is what the kernel's\n  // `toOutcome(run, onThrow)` hands over. Name and message only — a stack is not\n  // enumerable (JSON.stringify drops it anyway) and routinely carries absolute\n  // build-machine paths, which is not information this seam should forward to a\n  // client transport.\n  if (value instanceof Error) return { name: value.name, message: value.message }\n\n  // A Date is JSON-safe already, but only via its own toJSON; making the ISO\n  // string explicit means the record's own JSON-safety does not depend on a\n  // sink calling JSON.stringify rather than inspecting the object.\n  if (value instanceof Date) return value.toISOString()\n\n  // Maps and Sets have no own enumerable properties, so the generic walk below\n  // would report them as `{}` — an empty object where there was data is worse\n  // than a tag that says how much data there was.\n  if (value instanceof Map) return `[Map(${String(value.size)})]`\n  if (value instanceof Set) return `[Set(${String(value.size)})]`\n\n  // The cast is what `Object.entries` cannot express for a bare `object` (it\n  // would hand back `any` values, and an `any` inside the redaction pass is a\n  // hole in exactly the wrong place). Sound here: every remaining case is a\n  // walkable object, and each value is immediately re-entered as `unknown`.\n  const out: Record<string, unknown> = {}\n  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {\n    if (nested === undefined) continue // absent in, absent out — see @app/errors\n    out[key] = isSensitiveKey(key) ? REDACTED : redactValue(nested, depth + 1, seen)\n  }\n  return out\n}\n"
+    },
+    {
+      "id": "h32",
+      "lang": "ts",
+      "ext": "tsx",
+      "name": "Providers",
+      "from": "apps/web/app/providers.tsx:29",
+      "tokens": 70,
+      "dataShaped": false,
+      "text": "export function Providers({ children }: { readonly children: ReactNode }): ReactNode {\n  const [queryClient] = useState(\n    () =>\n      new QueryClient({\n        defaultOptions: {\n          queries: {\n            // A short window, not zero and not minutes. Zero refetches on every mount and\n            // makes React's development double-render look like a network storm; long values\n            // show a user their own stale writes after a mutation. Thirty seconds is long\n            // enough to absorb navigation, short enough that nothing looks frozen.\n            // SOURCE: docs/harness/README.md (tuning constants are stated, not defaulted)\n            staleTime: 30_000,\n            // Refetching whenever a window regains focus is a sensible default for a\n            // dashboard and a wasteful one for a form the user tabbed away from mid-edit.\n            // Off globally; opt in per query where freshness actually matters.\n            refetchOnWindowFocus: false,\n          },\n        },\n      }),\n  )\n\n  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>\n}\n"
+    },
+    {
+      "id": "h33",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "ensurePersonalOrgAction",
+      "from": "apps/web/app/actions/orgs.ts:62",
+      "tokens": 79,
+      "dataShaped": false,
+      "text": "export async function ensurePersonalOrgAction(): Promise<ActionOutcome<readonly OrgSummary[]>> {\n  // The rate-limit seam. FIRST, before any work and before the identity round trip: an\n  // unauthenticated flood at a Server Action id is the flood worth stopping, and a limit\n  // applied after `getUser()` still pays an auth call per abusive request.\n  const limited = await enforceActionRateLimit('ensurePersonalOrgAction')\n  if (limited !== null) return limited\n  const result = await runEnsurePersonalOrg()\n  if (result.data !== undefined) return result.data\n  if (result.serverError !== undefined) return outcomeErr(result.serverError)\n  return outcomeErr(appError.unknown({ message: 'Could not create your workspace.' }))\n}\n"
+    },
+    {
+      "id": "h34",
+      "lang": "ts",
+      "ext": "ts",
+      "name": "requireOrgContext",
+      "from": "apps/web/lib/auth/session.ts:151",
+      "tokens": 131,
+      "dataShaped": false,
+      "text": "export async function requireOrgContext(orgSlug: string): Promise<ActionOutcome<OrgContextValue>> {\n  const client = await createRequestScopedClient()\n  const session = await resolveHostSession(client)\n  if (session === null) return outcomeErr(appError.unauthorized())\n\n  const wanted = orgSlug.trim().toLowerCase()\n  const org = session.orgs.find((o) => o.slug === wanted)\n  if (org === undefined) {\n    return outcomeErr(\n      appError.forbidden({\n        code: 'org_context_required',\n        message: 'an active organization is required',\n      }),\n    )\n  }\n  return outcomeOk({ client, org, orgs: session.orgs, userId: session.actor.userId })\n}\n"
+    },
+    {
+      "id": "h35",
+      "lang": "sql",
+      "ext": "sql",
+      "name": "private.caller_aal",
+      "from": "supabase/migrations/20260812000000_mfa_aal2.sql:79",
+      "tokens": 53,
+      "dataShaped": false,
+      "text": "-- ─────────────────────────────────────────────────────────────────────────────\n-- The caller's assurance level\n-- ─────────────────────────────────────────────────────────────────────────────\n-- SECURITY INVOKER and zero-argument, exactly like private.caller_id(): it reads only\n-- the request's own GUCs, holds no privilege, and the planner hoists a zero-argument\n-- call wrapped in a scalar sub-select into one InitPlan per statement.\n--\n-- Both GUC spellings, and for the same reason caller_id() reads both: PostgREST sets\n-- the per-claim `request.jwt.claim.<name>` form as well as the blob, and a caller who\n-- is one assurance level in a policy and another inside a function is a bug no test\n-- would describe correctly. NULL when neither is set — a direct psql session or a\n-- migration has no JWT, and the predicate below treats NULL as \"not aal2\", which is\n-- the direction that fails closed.\n-- SOURCE: transaction-local GUCs — identity travels in request.jwt.claims, which is\n-- role-switch-independent [corpus: postgres/guc-set-local]\nCREATE FUNCTION private.caller_aal()\nRETURNS text\nLANGUAGE sql\nSTABLE\nSECURITY INVOKER\nSET search_path = ''\nAS $$\n  -- SOURCE: transaction-local GUCs — request.jwt.claims, plus the legacy per-claim GUC PostgREST still sets [corpus: postgres/guc-set-local]\n  SELECT coalesce(\n    nullif(pg_catalog.current_setting('request.jwt.claim.aal', true), ''),\n    (nullif(pg_catalog.current_setting('request.jwt.claims', true), '')::jsonb ->> 'aal')\n  )\n$$;\n"
+    },
+    {
+      "id": "h36",
+      "lang": "sql",
+      "ext": "sql",
+      "name": "private.member_ranks",
+      "from": "supabase/migrations/20260815000000_privilege_lifecycle_jit.sql:238",
+      "tokens": 127,
+      "dataShaped": false,
+      "text": "-- ─────────────────────────────────────────────────────────────────────────────\n-- The effective-rank fold — the discharge itself\n-- ─────────────────────────────────────────────────────────────────────────────\n-- CREATE OR REPLACE, judged by check-tenancy.mjs's last-definition-wins fold. The\n-- CASE folds the lifecycle INTO the rank map every rank-floor predicate reads:\n-- a privileged rank is reported only while the seat is revalidated (12 months,\n-- RAP-02) AND currently elevated (RAP-13); otherwise the seat reads as LEAST(rank,\n-- 20) — a member. SECURITY INVOKER is unchanged and is the safety property: the\n-- elevation read happens under admin_elevations' own self-only policies, so the\n-- helper can only ever consult the caller's own elevation.\n-- SOURCE: RLS performance — the initPlan sub-select pattern [corpus: postgres/rls-initplan]\nCREATE OR REPLACE FUNCTION private.member_ranks()\nRETURNS jsonb\nLANGUAGE sql\nSTABLE\nSECURITY INVOKER\nSET search_path = ''\nAS $$\n  SELECT coalesce(pg_catalog.jsonb_object_agg(\n    m.org_id::text,\n    CASE\n      WHEN m.role_rank >= 30\n       AND m.revalidated_at > pg_catalog.now() - interval '12 months'\n       AND EXISTS (\n             SELECT 1 FROM public.admin_elevations e\n              WHERE e.user_id = m.user_id\n                AND e.org_id = m.org_id\n                AND e.expires_at > pg_catalog.now()\n           )\n      THEN m.role_rank\n      -- LEAST is a SQL conditional expression, not a resolvable function name —\n      -- it needs (and permits) no pg_catalog qualification under the empty path.\n      ELSE least(m.role_rank, 20::smallint)\n    END\n  ), '{}'::jsonb)\n    FROM public.memberships m\n   WHERE m.user_id = (SELECT private.caller_id());\n$$;\n"
+    },
+    {
+      "id": "h37",
+      "lang": "sql",
+      "ext": "sql",
+      "name": "private.mfa_satisfied",
+      "from": "supabase/migrations/20260812000000_mfa_aal2.sql:142",
+      "tokens": 37,
+      "dataShaped": false,
+      "text": "-- ─────────────────────────────────────────────────────────────────────────────\n-- The predicate the policies use\n-- ─────────────────────────────────────────────────────────────────────────────\n-- Reads as: this statement is allowed through unless the caller has a second factor\n-- and did not use it. Written as a single boolean with no CASE and no set membership,\n-- so there is no branch whose default is \"allow\" — the defect the vendor policy has.\n--\n-- SECURITY INVOKER: it needs no privilege of its own, and keeping the definer surface\n-- to the one function that genuinely requires it is the point. A definer wrapper\n-- around a predicate is a definer wrapper around every future edit to that predicate.\n-- SOURCE: RLS performance — wrap the identity call in a scalar sub-select so the\n-- planner hoists it into an InitPlan [corpus: postgres/rls-initplan]\nCREATE FUNCTION private.mfa_satisfied()\nRETURNS boolean\nLANGUAGE sql\nSTABLE\nSECURITY INVOKER\nSET search_path = ''\nAS $$\n  SELECT (SELECT private.caller_aal()) = 'aal2'\n      OR NOT (SELECT private.mfa_is_required())\n$$;\n"
+    },
+    {
+      "id": "h38",
+      "lang": "sql",
+      "ext": "sql",
+      "name": "public.elevate",
+      "from": "supabase/migrations/20260815000000_privilege_lifecycle_jit.sql:370",
+      "tokens": 322,
+      "dataShaped": false,
+      "text": "-- ─────────────────────────────────────────────────────────────────────────────\n-- The RPCs\n-- ─────────────────────────────────────────────────────────────────────────────\n\n-- The JIT door. Reads the RAW seat (this function MINTS what the effective helpers\n-- consult, so it cannot itself consult them), applies both ASD windows at the\n-- threshold, and mints or refreshes a one-hour elevation. Returns the expiry so the\n-- UI can show \"elevated until …\".\nCREATE FUNCTION public.elevate(p_org_id uuid)\nRETURNS timestamptz\nLANGUAGE plpgsql\nSECURITY DEFINER\nSET search_path = ''\nAS $$\nDECLARE\n  v_caller uuid := (SELECT private.caller_id());\n  v_raw_rank smallint;\n  v_revalidated_at timestamptz;\n  v_last_active timestamptz;\n  v_expires timestamptz;\nBEGIN\n  IF v_caller IS NULL THEN\n    RAISE EXCEPTION 'authentication required' USING ERRCODE = '42501';\n  END IF;\n\n  SELECT m.role_rank, m.revalidated_at INTO v_raw_rank, v_revalidated_at\n    FROM public.memberships m\n   WHERE m.user_id = v_caller AND m.org_id = p_org_id;\n  IF v_raw_rank IS NULL OR v_raw_rank < 30 THEN\n    RAISE EXCEPTION 'no privileged seat in this org' USING ERRCODE = '42501';\n  END IF;\n\n  -- The seat's last privileged ACTIVITY: the elevation trail's stamp when one\n  -- exists, else the seat's own revalidation. Both windows are judged at this one\n  -- threshold, because both have the same remedy.\n  -- GREATEST, like LEAST above, is SQL syntax rather than a catalog function.\n  SELECT greatest(\n           coalesce((SELECT e.last_privileged_at\n                       FROM public.admin_elevations e\n                      WHERE e.user_id = v_caller AND e.org_id = p_org_id),\n                    v_revalidated_at),\n           v_revalidated_at)\n    INTO v_last_active;\n\n  -- RAP-02: revalidated within 12 months. RAP-03: active within 45 days. ASD's\n  -- verbatim numbers — see the header for why no others may appear here.\n  IF v_revalidated_at <= pg_catalog.now() - interval '12 months'\n     OR v_last_active < pg_catalog.now() - interval '45 days' THEN\n    IF v_raw_rank >= 40 THEN\n      -- The deadlock-breaker: there is no rank above owner to revalidate an owner,\n      -- so a lapsed rank-40 seat revalidates ITSELF — gated on a verified second\n      -- factor, through the one narrow policy that admits exactly this write.\n      IF NOT (SELECT private.mfa_satisfied()) THEN\n        RAISE EXCEPTION 'this seat has lapsed (12-month revalidation / 45-day activity); revalidating an owner seat requires a verified second factor (aal2) — complete an MFA challenge and retry'\n          USING ERRCODE = '42501';\n      END IF;\n      UPDATE public.memberships SET revalidated_at = pg_catalog.now()\n       WHERE user_id = v_caller AND org_id = p_org_id AND role_rank = 40;\n      IF NOT FOUND THEN\n        RAISE EXCEPTION 'could not revalidate the owner seat' USING ERRCODE = '42501';\n      END IF;\n    ELSE\n      RAISE EXCEPTION 'this seat has lapsed (12-month revalidation / 45-day activity) — ask an owner to run revalidate_member for you'\n        USING ERRCODE = '42501';\n    END IF;\n  END IF;\n\n  INSERT INTO public.admin_elevations (user_id, org_id, session_id)\n  VALUES (v_caller, p_org_id, (SELECT private.caller_session()))\n  ON CONFLICT (user_id, org_id) DO UPDATE\n    SET expires_at = pg_catalog.now() + interval '1 hour',\n        last_privileged_at = pg_catalog.now(),\n        session_id = excluded.session_id\n  RETURNING expires_at INTO v_expires;\n  RETURN v_expires;\nEND;\n$$;\n"
+    },
+    {
+      "id": "h39",
+      "lang": "sql",
+      "ext": "sql",
+      "name": "public.revalidate_member",
+      "from": "supabase/migrations/20260815000000_privilege_lifecycle_jit.sql:445",
+      "tokens": 59,
+      "dataShaped": false,
+      "text": "-- The human half of RAP-02: an elevated owner re-affirms that a colleague's\n-- privileged seat is still warranted. Rides memberships_update_rpc (effective rank\n-- >= 30, target strictly below the caller), so the caller must themselves be\n-- ELEVATED — revalidating someone is an administrative act and takes the same door\n-- as every other one.\nCREATE FUNCTION public.revalidate_member(p_org_id uuid, p_target_user_id uuid)\nRETURNS void\nLANGUAGE plpgsql\nSECURITY DEFINER\nSET search_path = ''\nAS $$\nBEGIN\n  UPDATE public.memberships SET revalidated_at = pg_catalog.now()\n   WHERE org_id = p_org_id AND user_id = p_target_user_id;\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'no such member, or that seat is not yours to revalidate'\n      USING ERRCODE = '42501';\n  END IF;\nEND;\n$$;\n"
+    },
+    {
+      "id": "h40",
+      "lang": "sql",
+      "ext": "sql",
+      "name": "public.set_updated_at",
+      "from": "supabase/migrations/20260101000000_account_spine.sql:28",
+      "tokens": 31,
+      "dataShaped": false,
+      "text": "-- 20260101000000_account_spine — the shared updated_at trigger and public.profiles.\n--\n-- APPLIED HISTORY, NOT DESIRED STATE. The desired state lives in\n-- supabase/schemas/00_shared.sql and supabase/schemas/10_account.sql, and the\n-- reasoning for every choice below lives there — this file is the forward step\n-- that gets a database from empty to that state, and it exists to be replayed,\n-- not read for rationale.\n--\n-- APPEND-ONLY, ABSOLUTELY. `supabase db push` records a migration by FILENAME in\n-- supabase_migrations.schema_migrations. Editing an applied file therefore\n-- changes nothing on any database that already ran it: the deployed schema and\n-- the committed history diverge, and no diff, gate or reviewer can see it —\n-- every environment is quietly running a schema that no file in this repo\n-- describes. Change the schema by adding a NEW migration, always.\n--\n-- DML-FREE. Structure only; fixtures live in supabase/seed.sql. The `migrations`\n-- gate rejects INSERT/UPDATE/DELETE here without an explicit reviewed marker,\n-- because reference data that arrives through a migration is data no seed can\n-- reproduce and no test can reset.\n\n-- Maintains updated_at in the database rather than in each caller, so the web\n-- Server Action, the tRPC procedure, a psql session and a future Edge Function\n-- all get it. SECURITY INVOKER (it needs no privilege of its own) and a pinned\n-- empty search_path (nothing planted in a caller-controlled schema can be\n-- resolved from the body — hence pg_catalog.now()).\n-- SOURCE: PostgreSQL CREATE FUNCTION — security and search_path\n-- https://www.postgresql.org/docs/current/sql-createfunction.html\nCREATE OR REPLACE FUNCTION public.set_updated_at()\nRETURNS trigger\nLANGUAGE plpgsql\nSECURITY INVOKER\nSET search_path = ''\nAS $$\nBEGIN\n  NEW.updated_at = pg_catalog.now();\n  RETURN NEW;\nEND;\n$$;\n"
+    }
+  ]
+}

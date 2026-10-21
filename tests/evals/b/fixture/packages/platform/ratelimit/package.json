@@ -1,0 +1,13 @@
+{
+  "name": "@app/ratelimit",
+  "version": "0.1.0",
+  "description": "The rate-limit seam: a RateLimiter port, a fail-open guard, an in-memory adapter, and an Upstash REST adapter over plain fetch — imports nothing",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "devDependencies": {
+    "vitest": "catalog:"
+  }
+}

@@ -1,0 +1,362 @@
+{
+  "v": 1,
+  "labels": {
+    "0157d490a3d47042": {
+      "case": "h14:resemble",
+      "rule": "near-miss",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "045e9fb835bc7c30": {
+      "case": "exact:seam-constructors",
+      "rule": "exact-small",
+      "tier": "advisory",
+      "verdict": "decoy",
+      "by": "construction"
+    },
+    "0698992690ae7593": {
+      "case": "h09:resemble",
+      "rule": "near-miss",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "0ca9ee8580546e89": {
+      "case": "h04:rename",
+      "rule": "exact-small",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "0f3fffe447ead9ae": {
+      "case": "h25:rename",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "190c3a047b166b24": {
+      "case": "h36:literal",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "1aa611295d03e17e": {
+      "case": "h11:sibling",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "2be5e74cbe6428ea": {
+      "case": "h15:reorder",
+      "rule": "near-miss",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "2c84b30b0d5de2a5": {
+      "case": "h39:literal",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "31207c53821956a5": {
+      "case": "h29:resemble",
+      "rule": "near-miss",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "335cfd107c588ef1": {
+      "case": "h15:resemble",
+      "rule": "near-miss",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "35954dc00b0a1d45": {
+      "case": "exact:tag-only-twin",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "362c7dfcaad3fcce": {
+      "case": "h29:rename",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "3bf4fd4efef81a0f": {
+      "case": "h15:rename",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "3c0c560427f20637": {
+      "case": "h37:literal",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "4276c47c6d89da35": {
+      "case": "h25:resemble",
+      "rule": "near-miss",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "452329e7c189fa95": {
+      "case": "h25:reorder",
+      "rule": "near-miss",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "484e0f9db3aebbaa": {
+      "case": "h28:reorder",
+      "rule": "near-miss",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "533a9df8cad5bd73": {
+      "case": "h10:rename",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "5512a86a92efbd5f": {
+      "case": "h18:rename",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "5e93d025731855e5": {
+      "case": "h10:resemble",
+      "rule": "near-miss",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "629f93741d3f21ee": {
+      "case": "h28:rename",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "6f0e0a488587671f": {
+      "case": "h24:rename",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "70f194162a368edc": {
+      "case": "h27:resemble",
+      "rule": "near-miss",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "71d3eb818cfcadfc": {
+      "case": "h13:reorder",
+      "rule": "near-miss",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "7ac1f5226974642b": {
+      "case": "h35:literal",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "7f84b25276849480": {
+      "case": "h24:literal",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "840e7f55fb03a3bc": {
+      "case": "h23:rename",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "8c96296beb835fc0": {
+      "case": "h01:rename",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "8e9f64eec96aaf48": {
+      "case": "h27:rename",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "93c5fdb398b5f31f": {
+      "case": "h23:resemble",
+      "rule": "near-miss",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "9cf0f7cb09f96e5a": {
+      "case": "exact:design-system-mirror",
+      "rule": "exact-small",
+      "tier": "advisory",
+      "verdict": "decoy",
+      "by": "construction"
+    },
+    "a1ab59a967989d42": {
+      "case": "h08:rename",
+      "rule": "exact-small",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "b128b1f06608c1aa": {
+      "case": "h31:reorder",
+      "rule": "near-miss",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "b44ce28957ada4ae": {
+      "case": "h29:reorder",
+      "rule": "near-miss",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "b4ced8da0b768925": {
+      "case": "h38:literal",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "bd612f035195568a": {
+      "case": "h14:reorder",
+      "rule": "near-miss",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "be94f521028cf75e": {
+      "case": "h28:resemble",
+      "rule": "near-miss",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "c1bff10f38e29a04": {
+      "case": "h18:reorder",
+      "rule": "near-miss",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "c90fbdf64fcb9c8d": {
+      "case": "h09:rename",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "ce126304a5f9758d": {
+      "case": "h21:sibling",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "d35c0fba3702c15b": {
+      "case": "h19:rename",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "d6812c023541c4a4": {
+      "case": "h17:rename",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "d7a76f452aa4d2c5": {
+      "case": "h31:resemble",
+      "rule": "near-miss",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "ed50d0508a454da3": {
+      "case": "h23:reorder",
+      "rule": "near-miss",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "f1ca3d8e84b4d7db": {
+      "case": "h02:rename",
+      "rule": "exact-small",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "f22edde3c4391613": {
+      "case": "h14:rename",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "f25c0a9eef6518cc": {
+      "case": "h13:rename",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "f65e7a00ebf41076": {
+      "case": "h07:rename",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "f913ef0788111814": {
+      "case": "h40:sql-schema",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    },
+    "fa79f99eb3f8d878": {
+      "case": "h31:rename",
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "construction"
+    }
+  }
+}

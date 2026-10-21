@@ -1,0 +1,26 @@
+{
+  // @app/errors — THE KERNEL of the layering law: it sits at the bottom of the
+  // import graph and depends on nothing (no zod, no vendor SDK, no sibling
+  // workspace). That is why it has no `references` array and no runtime
+  // dependency block: a kernel that imports anything stops being a kernel, and
+  // the cycle it opens is invisible until a Metro bundle drags a server graph
+  // into a native binary.
+  // Extends the repo-wide max-strict base; NodeNext module semantics are
+  // restated here so this package typechecks identically no matter which
+  // resolution a consuming workspace picks (packages are node16-style,
+  // apps/mobile is bundler-style).
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "src",
+    "outDir": "dist",
+    // TypeScript 6 no longer auto-includes node_modules/@types. The kernel
+    // touches no host API at all — no process, no console, no DOM — so the
+    // ambient type list is deliberately EMPTY. An accidental `process.env` read
+    // in here reds at typecheck instead of shipping into a native bundle.
+    "types": []
+  },
+  "include": ["src"]
+}
