@@ -17,8 +17,11 @@
 //      template/base/tools/lib/planted-shas.json is EXACTLY the generated union of every
 //      table's `planted` map — gate-integrity reads it in an install to ask whether a harness
 //      release planted an untracked escape list, so a hand edit there is a forged witness;
+//   3b. the worked example (2.0.4): every table carries a `demo` map, and LIVE's demo tree
+//      ⊆ table[package.json version].demo — `eject` reads it to know an earlier release's
+//      untouched demo file, so a stale one turns those files into forks again;
 //   4. --verify-tags: TAG ⊆ table[tag's version], judged by that tag's own installer, for
-//      the owned map and the planted map both.
+//      the owned map, the planted map and the demo map.
 //      Needs the tags, so it runs where the checkout has them: lint.yml machinery-lint
 //      (fetch-depth: 0), on every pull request AND at the tag ref, where publish blocks on
 //      it — so the tag being cut is verified too. A COMPLETE clone with zero tags — a fresh
@@ -42,6 +45,7 @@ import { VINTAGES } from './lib/ramp-sites.mjs'
 import { git, mapsOfTree, releaseTags, withExtracted } from './lib/released-shas-history.mjs'
 import {
   PLANTED_INSTALL_PATH,
+  demoMap,
   lintTable,
   missingFrom,
   missingVersions,
@@ -96,16 +100,18 @@ for (const version of missingVersions(VINTAGES, VERSION, [...tables.keys()])) {
 const walker = { trees: templateTrees(templateRoot()), walkTemplate, renderEntry }
 const live = ownedMap({ ...walker, fileMode })
 const livePlanted = plantedMap({ ...walker, paths: ESCAPE_LISTS })
+const liveDemo = demoMap(walker)
 const stale = tables.has(VERSION)
   ? [
       ...missingFrom(live, tables.get(VERSION) ?? null, 'live tree'),
       ...missingFrom(livePlanted, tables.get(VERSION) ?? null, 'live tree', 'planted'),
+      ...missingFrom(liveDemo, tables.get(VERSION) ?? null, 'live tree', 'demo'),
     ]
   : []
 if (stale.length > 0) {
   problems.push(
     ...stale,
-    `→ an owned template file or an escape list changed and template/shas/${VERSION}.json was not regenerated. Run \`node scripts/generate-released-shas.mjs --current\` and commit the result (it only adds variants).`,
+    `→ an owned template file, an escape list or a worked-example file changed and template/shas/${VERSION}.json was not regenerated. Run \`node scripts/generate-released-shas.mjs --current\` and commit the result (it only adds variants).`,
   )
 }
 
@@ -144,9 +150,10 @@ function tagsOrSkip() {
 let verified = 0
 if (args.includes('--verify-tags')) {
   for (const { tag, commit, version } of tagsOrSkip()) {
-    const { owned, planted } = await withExtracted(ROOT, commit, (dir) => mapsOfTree(dir, tag))
+    const { owned, planted, demo } = await withExtracted(ROOT, commit, (dir) => mapsOfTree(dir, tag))
     problems.push(...missingFrom(owned, tables.get(version) ?? null, `tag ${tag}`))
     problems.push(...missingFrom(planted, tables.get(version) ?? null, `tag ${tag}`, 'planted'))
+    problems.push(...missingFrom(demo, tables.get(version) ?? null, `tag ${tag}`, 'demo'))
     verified += 1
   }
 }
@@ -157,5 +164,5 @@ if (problems.length > 0) {
   process.exit(1)
 }
 console.log(
-  `released-shas: OK — ${String(Object.keys(live).length)} live owned path(s) and ${String(Object.keys(livePlanted).length)} planted escape list(s) inside template/shas/${VERSION}.json; ${PLANTED_INSTALL_PATH} is the union of the planted maps; ${String(tables.size)} table(s) cover every released vintage${args.includes('--verify-tags') ? `; ${String(verified)} tag(s) verified against their own installer` : ''}`,
+  `released-shas: OK — ${String(Object.keys(live).length)} live owned path(s), ${String(Object.keys(livePlanted).length)} planted escape list(s) and ${String(Object.keys(liveDemo).length)} demo path(s) inside template/shas/${VERSION}.json; ${PLANTED_INSTALL_PATH} is the union of the planted maps; ${String(tables.size)} table(s) cover every released vintage${args.includes('--verify-tags') ? `; ${String(verified)} tag(s) verified against their own installer` : ''}`,
 )
