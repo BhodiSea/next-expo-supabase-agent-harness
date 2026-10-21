@@ -23,6 +23,16 @@ population, and `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `2.0.3`.
 <!-- Entries from the 2.0.4 items that land after the version bump go here. The cut removes
 this comment. -->
 
+### Added
+
+- **macOS in CI** (#168). `installer-unit` runs on `macos-latest` beside Linux and Windows. A
+  new `macos-scaffold` lane runs `init`, `pnpm install` and `pnpm validate --min-floor
+  --report-all` on `macos-latest` with `CI` unset, which is what a developer's Mac without
+  Docker gets: a gate whose prerequisite is missing skips instead of failing closed. The lane
+  then reds on any skip except `types-drift`, the one validate step that needs the database
+  (`scripts/lib/skip-verdict.mjs`, proven red by `tests/gates/skip-verdict.test.mjs`). The
+  database gates are still proven on Linux only. Factory only: nothing changes for an install.
+
 ## [2.0.3] — 2026-10-17
 
 **A patch: the v2.0.x defect fixes, a security floor move, and two additions.** The `next`
