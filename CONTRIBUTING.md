@@ -16,7 +16,9 @@ and vulnerabilities through the private channel in [SECURITY.md](SECURITY.md).
    `init --with-demo` scaffold, before and after `eject`) — must still produce a
    project where `pnpm validate` passes out of the box. Both run on **ubuntu only**:
    the one Windows runner in the matrix is `installer-unit`, which exists for
-   the path-separator/CRLF bug class and does not build a scaffold. (This
+   the path-separator/CRLF bug class and does not build a scaffold. On macOS,
+   `installer-unit` runs too, and `macos-scaffold` runs `pnpm validate` on a
+   scaffold without Docker; it reds on any skip but the database gate's. (This
    sentence claimed a Windows `bootstrap` job through 0.5.0. There has never
    been one — so "green on Windows" has never meant "a Windows scaffold is
    green", and nobody should read it that way.)
