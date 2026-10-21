@@ -24,7 +24,9 @@ export default [
     // template's own code, already linted at its source. Without it, running the lane makes
     // `eslint .` — and so the complexity ratchet — report the SCAFFOLD's functions as new
     // factory findings, which is a red that depends on whether you happened to run a lane.
-    ignores: ['node_modules/**', 'template/stack/**', 'template/presets/**', '.fixtures/**', '.selftest/**', 'coverage/**'],
+    // 'plugin/**' is the same class (#163): byte copies of template/base/.claude/, linted at
+    // their source and held to it by check-plugin-manifest.
+    ignores: ['node_modules/**', 'template/stack/**', 'template/presets/**', '.fixtures/**', '.selftest/**', 'coverage/**', 'plugin/**'],
   },
   {
     files: ['**/*.mjs', '**/*.js', '**/*.cjs'],
