@@ -45,6 +45,21 @@ export function generatedFiles(root) {
 }
 
 /**
+ * Whether a generated copy is missing, differs from its source bytes, or is a link.
+ * @param {string} dest
+ * @param {Buffer} source
+ */
+function copyIsStale(dest, source) {
+  let copy
+  try {
+    copy = readFileSync(dest)
+  } catch {
+    return true
+  }
+  return !copy.equals(source) || lstatSync(dest).isSymbolicLink()
+}
+
+/**
  * The difference between plugin/ on disk and what it must hold, as one line per problem.
  * `stale` lists the generated paths a write would create or replace, `extra` the paths a
  * write would delete; `problems` adds what no write fixes (a missing hand-edited file, a
@@ -57,14 +72,14 @@ export function pluginDrift(root) {
   const want = generatedFiles(root)
   const stale = []
   const problems = []
+  // Read first, then lstat: no existence check runs before a read of the same path.
   for (const [rel, src] of want) {
+    const source = readFileSync(join(root, src))
     if (lstatSync(join(root, src)).isSymbolicLink()) {
       problems.push(`${src} is a symbolic link: the plugin directory rejects links, so the source must be a regular file`)
       continue
     }
-    const dest = join(pluginAbs, rel)
-    if (!existsSync(dest) || lstatSync(dest).isSymbolicLink()) stale.push(rel)
-    else if (!readFileSync(dest).equals(readFileSync(join(root, src)))) stale.push(rel)
+    if (copyIsStale(join(pluginAbs, rel), source)) stale.push(rel)
   }
   const onDisk = walkFiles(pluginAbs)
   const extra = onDisk.filter((rel) => !want.has(rel) && !HAND_EDITED.includes(rel))
