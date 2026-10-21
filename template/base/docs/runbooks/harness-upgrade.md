@@ -4400,6 +4400,16 @@ assertions that prove the shared functions, after the migration is applied:
 `supabase/schemas/40_audit.sql` declares `audit.deny_mutation()`; replace it there with the
 body above, or pull the file the same way.
 
+## 2.0.4 — a patch: defect fixes
+
+**No ramp here applies to any install.** 2.0.4 opens no ramp and moves no deadline. The
+population 2.0.0 reds is restated in this release's record, and the 1.1.0 and 2.0.0 sections
+above are still the sweep for an install below 1.1.0.
+
+**What `update` plants.** Owned files, re-planted when your copy still matches a released
+sha: this runbook and the hooks under `.claude/hooks/` (their version stamps). Each fix below
+says what else it delivers and what it leaves to you.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it
