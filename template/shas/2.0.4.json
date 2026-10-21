@@ -951,6 +951,15 @@
     ],
     "docs/runbooks/harness-upgrade.md": [
       {
+        "sha256": "2dd844ba4c30a1d9b5fe3fd3271b78f9311c88882a462372a7dffb45529d6e8a",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "580ea0683d645b1a6d6d870360600c5746930e3e66803fe368cd55d03fb34ef3",
         "sites": [
           [
@@ -1512,6 +1521,9 @@
     "tools/check-version-sync.mjs": [
       {
         "sha256": "2c5be04855af63384f69d4a535ba6726ab458715916463f6b8fbc44a81652bdc"
+      },
+      {
+        "sha256": "e88021fae4e0689b46d078061e0ec6d91db92905f072994e86ea5b8fbbef703e"
       }
     ],
     "tools/check-web-build.mjs": [
@@ -1899,6 +1911,9 @@
       },
       {
         "sha256": "932a7a180765e4be28b4f62be734e7c9564fdf78e2db8722430cfde39482243b"
+      },
+      {
+        "sha256": "b0e69835349135e299e2c6ce7a16347b05cdc0f8d643b7ed83ed8c7bd2a3f2d8"
       }
     ],
     "tools/lib/png.mjs": [
@@ -2201,6 +2216,9 @@
     "tools/eol.json": [
       {
         "sha256": "107aa127f6ed2f5b1571562e6aad183d8fb28a8a7ccc77b3aa202074c985bb8e"
+      },
+      {
+        "sha256": "560f282b1c110b64148ef502b777d4479f3ceddf389f4669edd8c57bc1b6e2c3"
       },
       {
         "sha256": "ecdc0521a559ea206e298492e217f705e96c11ae3a4ea1efb52660e02b853535"
