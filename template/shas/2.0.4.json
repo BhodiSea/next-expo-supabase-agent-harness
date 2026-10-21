@@ -35,6 +35,9 @@
     ],
     ".claude/agents/migration-rls-author.md": [
       {
+        "sha256": "2c40354ddf3df297b288fd1d28d7bc55a90e2411f4b4fc665fe461c4d943f867"
+      },
+      {
         "sha256": "f2ebc11b2f58ee9203be69a4b0f83f276494b5f83e09170bf1500a6ed9b348de"
       }
     ],
@@ -44,6 +47,15 @@
       }
     ],
     ".claude/agents/security-reviewer.md": [
+      {
+        "sha256": "1d1f03d927a09ef1ee0beb3b69d8e7b8258e3e261c42a23b92cd3a89f5c68ab0",
+        "sites": [
+          [
+            6358,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
       {
         "sha256": "f511b214812470f12183e8042a5f67b7d03c11b0e4083ee2a7d52a0972830a71",
         "sites": [
@@ -81,6 +93,9 @@
     ],
     ".claude/commands/new-feature.md": [
       {
+        "sha256": "2f37918fad51fb341b24b328e729c7a5daefc6949e9014779329cad1324d1261"
+      },
+      {
         "sha256": "e4e93f72d19b19fc808f9c0e45dd7bc338573f38133d50e14a8e7e5f8d25b45c"
       }
     ],
@@ -100,6 +115,9 @@
       }
     ],
     ".claude/commands/verify-invariants.md": [
+      {
+        "sha256": "31ef32b3e3ef36dae57f3a07b05bb5420eddc2d4dd39fe0047af330868c5522c"
+      },
       {
         "sha256": "fdddd9f65fd9a2f80946eb9f699fde906a65d0ce4ddae53ffe7bb55843aa52d4"
       }
@@ -203,6 +221,9 @@
     ],
     ".claude/rules/security-invariants.md": [
       {
+        "sha256": "0472694fb2917833a3ce6e9e301337eb50c50629faa96e6ad5e3f117410d1a6b"
+      },
+      {
         "sha256": "fac6e2c3b019c250cecc61a0e170918a004475bdbc8bee6b748d66c4f60429ce"
       }
     ],
@@ -224,6 +245,9 @@
     ".claude/skills/authoring-vertical-slice/SKILL.md": [
       {
         "sha256": "9b4354376eec92c48be4de33cf96c9c6ebbf742a9030b3ca47d2849da2274d13"
+      },
+      {
+        "sha256": "c76ce7807417e1f75adec209dce5797ae7afde2a82d7ff790ad3d0bf35b8a90c"
       }
     ],
     ".claude/skills/authoring-vertical-slice/references/dal-dto.md": [

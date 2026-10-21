@@ -19,11 +19,13 @@ ref, and ends `VERDICT: PASS` or `VERDICT: BLOCK`). Then RECONCILE its findings 
 each invariant family below — a `VERDICT: PASS` is necessary but not sufficient; you own
 the final call, and a weakened invariant the reviewer under-ranked is still a FAIL.
 
-- **RLS keyed on `auth.uid()` is THE authorization boundary.** Every user-scoped table
-  ships `ENABLE` + `FORCE ROW LEVEL SECURITY` in the SAME migration that creates it, four
-  per-operation policies `TO authenticated` (never `FOR ALL`, never `TO public`), each
-  predicate REAL and keyed on the `(select auth.uid())` initPlan sub-select, `WITH CHECK`
-  on INSERT/UPDATE, and a LEADING-column owner index. Both surfaces reach the same rows
+- **RLS scoped by `org_id` is THE authorization boundary.** Every tenant table carries a
+  NOT NULL, trigger-frozen `org_id` and ships `ENABLE` + `FORCE ROW LEVEL SECURITY` in the
+  SAME migration that creates it, four per-operation policies `TO authenticated` (never
+  `FOR ALL`, never `TO public`), each predicate REAL and in a `tools/tenancy.json` form
+  (`org_id = ANY((SELECT private.member_org_ids())::uuid[])` or the `member_ranks()` rank
+  floor), `WITH CHECK` on INSERT/UPDATE, and a LEADING `org_id` index. A per-user
+  `owner_id = (select auth.uid())` scope is a FAIL, not a stricter pass. Both surfaces reach the same rows
   through these policies, so an app-side `owner_id` filter is not defence — it MASKS a
   policy regression. Exemptions live only in the human-reviewed `tools/rls-exempt.json`.
 - **`service_role` BYPASSES RLS and has exactly one home.** Reachable ONLY inside an
