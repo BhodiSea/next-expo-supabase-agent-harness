@@ -23,6 +23,22 @@ population, and `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `2.0.3`.
 <!-- Entries from the 2.0.4 items that land after the version bump go here. The cut removes
 this comment. -->
 
+- **The shipped guards deny a NotebookEdit of a protected path, lefthook's skip variables and
+  `git push --no-verify`** (#249). `.claude/hooks/pretool-write-guard.mjs` read
+  `file_path ?? path`, but NotebookEdit names its subject `notebook_path`, so a notebook edit
+  was judged on an empty path and passed, `.github/workflows/` included; it now reads
+  `notebook_path` too, as the factory's own guard has since #224. The bash guard in
+  `.claude/hooks/lib/guard-rules.mjs` gains two rules. `git-push-no-verify` denies
+  `git push --no-verify` and every prefix of it down to `--no-v`, after global options too,
+  which skipped the pre-push typecheck, lint and dead-code jobs. `lefthook-skip-env` denies an
+  assignment to `LEFTHOOK` (`=0` or `=false` turns the hook script into an exit 0),
+  `LEFTHOOK_EXCLUDE`, `LEFTHOOK_BIN` or `LEFTHOOK_CONFIG`, in the prefix, `export`, `env` and
+  PowerShell `$env:` spellings, which skipped or replaced the commit-time layer with no flag on
+  the git command. `git push -n`, `--no-verbose`, `LEFTHOOK_VERBOSE` and `LEFTHOOK_OUTPUT` stay
+  allowed. `tests/hooks/hook-contract.test.mjs` denies all fourteen spellings, red on 2.0.3,
+  and `docs/security/threat-model.md` lists both rules. Every file this changes is owned and
+  reaches an install with `update`.
+
 ## [2.0.3] — 2026-10-17
 
 **A patch: the v2.0.x defect fixes, a security floor move, and two additions.** The `next`

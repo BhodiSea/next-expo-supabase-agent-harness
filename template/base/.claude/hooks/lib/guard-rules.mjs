@@ -280,6 +280,32 @@ export const BASH_RULES = [
       'Blocked: bypassing commit hooks (--no-verify) defeats the gate; fix the failure instead.',
   },
   {
+    // 2.0.4 (#249): the pre-push jobs (typecheck, lint, dead-code) had no rule at all. The
+    // shape is git-commit-no-verify's: global options before the subcommand, `push` as a whole
+    // word, and every prefix of `--no-verify` down to `--no-v`. Push has no short spelling of
+    // it (its `-n` is --dry-run), so there is no short-flag arm, and `--no-verbose` stays
+    // allowed.
+    id: 'git-push-no-verify',
+    re: /git(?:\s+-[^\s|;&]*(?:\s+(?:"[^"]*"|'[^']*'|[^\s|;&"'-][^\s|;&]*))?)*\s+push(?=\s)[^|;&]*?(?:--no-verify|--no-v(?:e(?:r(?:if?)?)?)?(?![\w-]))/,
+    message:
+      'Blocked: bypassing the pre-push hooks (--no-verify) skips the typecheck, lint and dead-code jobs; fix the failure instead.',
+  },
+  {
+    // 2.0.4 (#249): lefthook skips or replaces the commit-time layer on four variables, none
+    // of which is a flag on the git command: LEFTHOOK=0|false (the installed hook script
+    // exits 0), LEFTHOOK_EXCLUDE (skips the named jobs or tags), LEFTHOOK_BIN (the script runs
+    // that binary instead) and LEFTHOOK_CONFIG (another file replaces lefthook.yml). Read off
+    // lefthook 2.1.10, the version the template pins. Any assignment is denied, in any shell
+    // spelling (`VAR=`, `export VAR=`, `env VAR=`, `set VAR=`, PowerShell `$env:VAR =`), since
+    // no agent task needs one; LEFTHOOK_VERBOSE and LEFTHOOK_OUTPUT only change what is printed
+    // and stay allowed. A command that merely quotes an assignment is denied too, the safe
+    // direction this tripwire already accepts.
+    id: 'lefthook-skip-env',
+    re: /(?<![\w$-])(?:\$env:)?LEFTHOOK(?:_EXCLUDE|_BIN|_CONFIG)?\s*=/i,
+    message:
+      'Blocked: LEFTHOOK=0, LEFTHOOK_EXCLUDE, LEFTHOOK_BIN and LEFTHOOK_CONFIG each skip or replace the lefthook commit-time layer; fix the failure instead.',
+  },
+  {
     id: 'fork-bomb',
     re: /:\(\)\s*\{\s*:\|:&\s*\}\s*;/,
     message: 'Blocked: fork bomb pattern.',
