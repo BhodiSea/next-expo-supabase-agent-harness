@@ -32,6 +32,18 @@ this comment. -->
   then reds on any skip except `types-drift`, the one validate step that needs the database
   (`scripts/lib/skip-verdict.mjs`, proven red by `tests/gates/skip-verdict.test.mjs`). The
   database gates are still proven on Linux only. Factory only: nothing changes for an install.
+- **Evals A and B, the Single Home detector's model-free harnesses** (#188), work for 2.1.0.
+  `node scripts/eval-a.mjs --split dev` mutates about 40 helpers from the template with seven
+  scripted mutators (locals renamed, a literal swapped, statements edited or reordered, a
+  sibling-vertical copy, a SQL copy across schemas, a move, an edit into resemblance), adds
+  the decoys and v3's plantings, sweeps each case with `--sweep`'s library and prints recall
+  per mutator, precision per rule and tier and the ±3-token audit around FLOOR. `--split
+  holdout` refuses to run until `tests/evals/a/frozen.json` exists. `node scripts/eval-b.mjs`
+  sweeps a frozen copy of the 2.0.0 stack head (core with the demo and the push slice
+  applied), scores it against its labels and prints the dogfood coverage table. Both fail on
+  an unlabelled key, and `tests/evals/sweep-digest.test.mjs` holds the sweep's output
+  byte-identical on ubuntu and on Windows (a new `eval-digest-windows` job in `lint.yml`).
+  Most labels are the maintainer's to give. Factory only: nothing changes for an install.
 
 ### Changed
 
