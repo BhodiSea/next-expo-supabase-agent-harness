@@ -158,6 +158,17 @@ const pathAllow = (file_path, env) => ({
   expectDeny: false,
   env,
 })
+const notebookDeny = (notebook_path) => ({
+  hook: 'pretool-write-guard.mjs',
+  input: { tool_name: 'NotebookEdit', tool_input: { notebook_path, new_source: 'x\n' } },
+  expectDeny: true,
+})
+const notebookAllow = (notebook_path, env) => ({
+  hook: 'pretool-write-guard.mjs',
+  input: { tool_name: 'NotebookEdit', tool_input: { notebook_path, new_source: 'x\n' } },
+  expectDeny: false,
+  env,
+})
 const contentDeny = (file_path, content) => ({
   hook: 'pretool-write-guard.mjs',
   input: { tool_input: { file_path, content } },
@@ -440,6 +451,37 @@ const RULE_CANARIES = {
     bashAllow('git commit --no-verbose -m x'),
     bashAllow('git commit-tree HEAD^{tree} -m x'),
   ],
+  // 2.0.4 (#249): the pre-push jobs (typecheck, lint, dead-code) were skipped by
+  // `git push --no-verify`, which no rule matched. Every prefix git accepts is denied, as
+  // for commit; push has no short spelling of it (`-n` is --dry-run, and stays allowed).
+  'git-push-no-verify': [
+    bashDeny('git push --no-verify origin main'),
+    bashDeny('git push origin main --no-verify'),
+    bashDeny('git push -u origin x --no-veri'),
+    bashDeny('git -C . push --no-verify'),
+    bashDeny('git -c push.default=current push --no-v'),
+    bashAllow('git push -u origin claude/x'),
+    bashAllow('git push -n origin main'),
+    bashAllow('git push --no-verbose origin main'),
+  ],
+  // 2.0.4 (#249): lefthook reads four variables that skip or replace the commit-time layer
+  // without a flag on the git command: LEFTHOOK=0|false (the hook script exits 0),
+  // LEFTHOOK_EXCLUDE (skips named jobs), LEFTHOOK_BIN (runs that binary instead) and
+  // LEFTHOOK_CONFIG (replaces lefthook.yml). Read off lefthook 2.1.10's binary.
+  'lefthook-skip-env': [
+    bashDeny('LEFTHOOK=0 git commit -m x'),
+    bashDeny('LEFTHOOK=false git push origin main'),
+    bashDeny('export LEFTHOOK=0 && git commit -m x'),
+    bashDeny('env LEFTHOOK=0 git commit -m x'),
+    bashDeny("$env:LEFTHOOK = '0'; git commit -m x"),
+    bashDeny('LEFTHOOK_EXCLUDE=secrets git commit -m x'),
+    bashDeny('LEFTHOOK_BIN=true git commit -m x'),
+    bashDeny('LEFTHOOK_CONFIG=/tmp/empty.yml git push'),
+    bashAllow('LEFTHOOK_VERBOSE=1 git commit -m x'),
+    bashAllow('LEFTHOOK_OUTPUT=summary git push origin main'),
+    bashAllow('pnpm exec lefthook run pre-commit'),
+    bashAllow('MY_LEFTHOOK=0 echo x'),
+  ],
   'fork-bomb': [bashDeny(':(){ :|:& };:')],
   'read-env-file': [
     bashDeny('cat .env.local'),
@@ -707,7 +749,13 @@ const RULE_CANARIES = {
     bashAllow('git config user.email dev@example.com'),
     pathAllow('.git/config', SELF_EDIT),
   ],
-  'github-workflows': [pathDeny('.github/workflows/quality-gate.yml')],
+  'github-workflows': [
+    pathDeny('.github/workflows/quality-gate.yml'),
+    // 2.0.4 (#249): NotebookEdit names its subject `notebook_path`. Through 2.0.3 the guard
+    // read only `file_path ?? path`, judged a notebook edit on an empty path, and passed it.
+    notebookDeny('.github/workflows/ci.ipynb'),
+    notebookAllow('.github/workflows/ci.ipynb', SELF_EDIT),
+  ],
   'eslint-config': [pathDeny('eslint.config.mjs')],
   'biome-config': [pathDeny('biome.jsonc')],
   'knip-config': [pathDeny('knip.json')],
