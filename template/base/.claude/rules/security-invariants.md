@@ -6,14 +6,20 @@ PreToolUse/Stop hooks, ESLint/depcruise, the SQL RLS suite under
 them so the gates never fire.
 SOURCE: docs/harness/README.md (security-invariants rule)
 
-- **RLS keyed on `auth.uid()` is THE authorization boundary.** Both surfaces
+- **RLS scoped by `org_id` is THE authorization boundary.** Both surfaces
   reach the same database through the same policies, so an authorization mistake
-  is a mistake in ONE place. Every table ships `ENABLE` + `FORCE ROW LEVEL
-  SECURITY`, four per-operation policies `TO authenticated` (never `FOR ALL`,
-  never `TO public`) each with a REAL predicate keyed on `(SELECT auth.uid())`
-  (the scalar sub-select the planner hoists into an InitPlan — once per statement,
-  not once per row), and a leading-column index on the owner column, in the SAME
-  migration that creates the table. The caller runs as the `authenticated` role
+  is a mistake in ONE place. Every table carries a NOT NULL `org_id` tenant key
+  (frozen by `private.freeze_org_id`; `owner_id` is nullable attribution, never the
+  scope) and ships `ENABLE` + `FORCE ROW LEVEL SECURITY`, four per-operation
+  policies `TO authenticated` (never `FOR ALL`, never `TO public`) each with a REAL
+  predicate in one of the two forms `tools/tenancy.json` allows — `org_id =
+  ANY((SELECT private.member_org_ids())::uuid[])` or the `(SELECT
+  private.member_ranks())` rank floor (uncorrelated scalar sub-selects the planner
+  hoists into an InitPlan — once per statement, not once per row) — and a LEADING
+  `org_id` index, in the SAME migration that creates the table. A per-user
+  `owner_id = (SELECT auth.uid())` scope is a regression no isolation test catches:
+  it is tighter than org scope, so it hides rows from colleagues while every
+  cross-tenant assertion still passes. The caller runs as the `authenticated` role
   via a verified GoTrue JWT (`auth.uid()` resolves from `request.jwt.claims`); a
   forged or expired token matches no rows. **The mobile client, `LargeSecureStore`,
   and the app config are NOT authorization** — the app is an untrusted bearer of a

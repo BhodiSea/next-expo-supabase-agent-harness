@@ -38,11 +38,18 @@ Only when nothing covers the need do you scaffold a new slice.
 1. **Migration + RLS** — read `references/migration-rls.md`. The desired shape is a
    declarative table in `supabase/schemas/<NN>_<slice>.sql`; the APPLIED change is a NEW
    timestamped, append-only migration `supabase/migrations/<timestamp>_<slice>.sql` carrying
-   `ENABLE` + `FORCE ROW LEVEL SECURITY`, four per-operation policies keyed on `auth.uid()`
-   (`TO authenticated`), a leading-column owner index, `REVOKE ALL` from `anon`,
-   `service_role` AND `authenticated`, and then the exact `authenticated` grants the
-   policies admit (a GRANT removes nothing — see `references/migration-rls.md`). Never a GUC — RLS keys on the request's verified JWT
-   (`auth.uid()` reads `request.jwt.claims`), never on an application-set identity value.
+   a NOT NULL `org_id` tenant key (`owner_id` is nullable attribution that decides nothing),
+   `ENABLE` + `FORCE ROW LEVEL SECURITY`, four per-operation policies (`TO authenticated`)
+   scoped by org through the hoisted helpers, `org_id = ANY((SELECT
+   private.member_org_ids())::uuid[])` to read and the `private.member_ranks()` rank floor
+   to write (the only two forms the `tenancy` gate accepts), the `freeze_org_id` trigger, a
+   LEADING `org_id` index, `REVOKE ALL` from `anon`, `service_role` AND `authenticated`,
+   and then the exact `authenticated` grants the policies admit (a GRANT removes nothing —
+   see `references/migration-rls.md`). Never a per-user `owner_id = (SELECT auth.uid())`
+   scope: it passes every cross-tenant test while hiding rows from the colleagues who
+   should share them. Never a GUC — the helpers resolve membership from the request's
+   verified JWT (`auth.uid()` reads `request.jwt.claims`), never from an application-set
+   identity value.
    Delegate to the `migration-rls-author` subagent.
 2. **RLS tests** — read `references/tests.md`. TWO twins, both run by `pnpm test:rls`:
    pgTAP under `supabase/tests/*.sql` (the structural + isolation suites read back what the

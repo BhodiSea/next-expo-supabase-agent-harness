@@ -41,7 +41,8 @@ SOURCE: docs/harness/README.md.
   tokens + icon paths, never components.
 - **Supabase** — Postgres + RLS + Auth, ONE backend for both surfaces. Schema is
   SQL-first: `supabase/schemas/*.sql` (declarative) + `supabase/migrations/*.sql`
-  (append-only). RLS keys on `auth.uid()`; the caller runs as `authenticated`.
+  (append-only). RLS scopes every table by `org_id` through membership helpers
+  that read `auth.uid()`; the caller runs as `authenticated`.
   `pnpm db:up` = `supabase start` (API 54321, Postgres 54322, Studio 54323).
 
 ## Package manager: pnpm 11 (pinned via `packageManager`), Node >= 22
@@ -107,16 +108,20 @@ an Edge Function's own `deno.json` + `deno.lock`, which it deploys with).
 
 ## Security invariants (NON-NEGOTIABLE — hook- and lint-enforced)
 
-- **RLS on `auth.uid()` IS the authorization boundary.** Every user-scoped table
-  ships `ENABLE` + `FORCE ROW LEVEL SECURITY` in the SAME migration, with
-  per-operation policies (`TO authenticated`, `WITH CHECK` on INSERT/UPDATE) keyed
-  on `auth.uid()`, a leading-column owner index, `REVOKE ALL` from `anon`, `service_role`
+- **RLS scoped by `org_id` IS the authorization boundary.** Every tenant table
+  carries a NOT NULL `org_id` (frozen by trigger; `owner_id` is nullable attribution)
+  and ships `ENABLE` + `FORCE ROW LEVEL SECURITY` in the SAME migration, with
+  per-operation policies (`TO authenticated`, `WITH CHECK` on INSERT/UPDATE) in the
+  two forms `tools/tenancy.json` allows: `org_id = ANY((SELECT
+  private.member_org_ids())::uuid[])` to read, the `private.member_ranks()` rank floor
+  to write. Never a per-user `owner_id = (SELECT auth.uid())` scope. Then a LEADING
+  `org_id` index, `REVOKE ALL` from `anon`, `service_role`
   AND `authenticated`, then the EXACT grants its policies admit (a GRANT removes nothing;
   the default leaves it TRUNCATE). `pnpm gen` regenerates the exact-privilege pgTAP
   file, never a hand edit. Web and mobile hit the SAME policies, so isolation
   is enforced in ONE place; `supabase/tests/**` (pgTAP) + `tests/rls/` (supabase-js)
-  prove tenant B cannot read A on every `db reset`. **The owner index must carry the
-  ORDERING, not just the filter** — `(owner_id, <ORDER BY columns, direction>)` so
+  prove tenant B cannot read A on every `db reset`. **The `org_id` index must carry the
+  ORDERING, not just the filter** — `(org_id, <ORDER BY columns, direction>)` so
   one index serves the policy, the sort and the cursor range. Exemptions =
   human-reviewed `tools/rls-exempt.json`.
 - **`service_role` bypasses RLS — it lives ONLY in an ADR-governed Edge Function**
