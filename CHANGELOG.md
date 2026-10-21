@@ -11,6 +11,26 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [Unreleased]
+
+**2.0.4 work that lands before the 2.0.4 bump.** The bump is its own commit, made when the
+release is cut: it opens the 2.0.4 section and moves these entries there.
+
+### Added
+
+- **The README shows the harness running, and says which projects it fits** (#165). A
+  recording near the top of the README is rendered by vhs from
+  `docs/media/harness-demo.tape`, with no model in it: `init` writes a project, the Bash guard
+  gets a force-push payload the way `.claude/settings.json` invokes it and prints its deny,
+  and the secrets gate goes red on its own Canary 26 key in a tracked file, then green once
+  the file is removed. `tests/installer/readme-recording.test.mjs` runs every command the
+  tape types, in plain bash against the checkout, and holds each to the `# expect:` and
+  `# exit:` lines written above it, so a guard or gate message that changes reds until the
+  tape is updated and the GIF regenerated; it also holds the GIF to 2 MB and the README to
+  embedding it. A new "Who this is for" section names the shape the harness assumes and,
+  for a web-only app, an existing monorepo with its own CI, and an agent that is not Claude
+  Code, which layers still apply. Factory only: nothing changes for an install.
+
 ## [2.0.3] — 2026-10-17
 
 **A patch: the v2.0.x defect fixes, a security floor move, and two additions.** The `next`
