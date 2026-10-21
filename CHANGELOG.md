@@ -73,6 +73,14 @@ this comment. -->
   for a web-only app, an existing monorepo with its own CI, and an agent that is not Claude
   Code, which layers still apply. Factory only: nothing changes for an install.
 
+- **macOS in CI** (#168). `installer-unit` runs on `macos-latest` beside Linux and Windows. A
+  new `macos-scaffold` lane runs `init`, `pnpm install` and `pnpm validate --min-floor
+  --report-all` on `macos-latest` with `CI` unset, which is what a developer's Mac without
+  Docker gets: a gate whose prerequisite is missing skips instead of failing closed. The lane
+  then reds on any skip except `types-drift`, the one validate step that needs the database
+  (`scripts/lib/skip-verdict.mjs`, proven red by `tests/gates/skip-verdict.test.mjs`). The
+  database gates are still proven on Linux only. Factory only: nothing changes for an install.
+
 ### Changed
 
 - **The Claude Code plugin installs its own folder, not the whole repository** (#163). The

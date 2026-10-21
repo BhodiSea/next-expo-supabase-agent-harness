@@ -1257,7 +1257,7 @@
     "selftest.yml#installer-unit": [
       {
         "kind": "steps",
-        "note": "runs five factory gates (syntax, hygiene, release-lockstep, plugin-manifest — proven in #factoryGates), THIS CHECKER in full spawn mode, and the whole suite under coverage floors on ubuntu AND windows — the job is the execution vehicle for every fixture proof in this registry; it installs nothing, so the i18n tests that need `typescript` skip there by name and run in lint.yml#machinery-lint (#76)"
+        "note": "runs five factory gates (syntax, hygiene, release-lockstep, plugin-manifest — proven in #factoryGates), THIS CHECKER in full spawn mode, and the whole suite under coverage floors on ubuntu, windows AND macos (macos since 2.0.4, #168) — the job is the execution vehicle for every fixture proof in this registry; it installs nothing, so the i18n tests that need `typescript` skip there by name and run in lint.yml#machinery-lint (#76)"
       }
     ],
     "selftest.yml#render-smoke": [
@@ -1265,6 +1265,13 @@
         "kind": "fixture",
         "ref": "tests/installer/lifecycle.test.mjs",
         "note": "init on real scratch dirs (core + metal) then check-residue and check-syntax on each; the lifecycle suite is where the render/residue logic is proven red-able, and the lane proves it on a REAL rendered scaffold"
+      }
+    ],
+    "selftest.yml#macos-scaffold": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/skip-verdict.test.mjs",
+        "note": "2.0.4 (#168): init, pnpm install and validate --min-floor --report-all on macos-latest with CI unset, the posture of a developer's Mac without Docker, where a gate with a missing prerequisite skips instead of failing closed. The lane's verdict is scripts/lib/skip-verdict.mjs: any skip outside DATABASE_STEPS (types-drift) reds, as does a red validate or a log with no summary. Its CANARY test makes the format gate skip on an otherwise green log and requires the verdict, and the runner's exit, to red."
       }
     ],
     "selftest.yml#canary": [

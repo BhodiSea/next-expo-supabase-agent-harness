@@ -459,8 +459,10 @@ let it close, and none has a date because none is in this project's hands.
   WebAuthn support in Supabase Auth.
 - **Backup store posture and immutability.** Depends on what the hosting
   platform exposes to a project.
-- **A validate lane off Linux.** The blocker is the database: the isolation
-  tests need the local Supabase stack, which needs Docker on the runner.
+- **The database gates off Linux.** Since 2.0.4 the `macos-scaffold` lane runs
+  validate on macOS with every gate but `types-drift`. The rest waits on the
+  database: the isolation tests need the local Supabase stack, which needs
+  Docker on the runner.
 - **A passphrase KDF for the `e2ee` module.** WebCrypto has no memory-hard KDF,
   so this stays a consumer decision until that changes.
 
