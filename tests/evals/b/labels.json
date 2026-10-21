@@ -1,0 +1,690 @@
+{
+  "v": 1,
+  "comment": "Eval B's labels (scripts/eval-b.mjs explains the format and the sampling). `by: plan` labels transcribe a verdict the Single Home plan's Dogfood table already verified against the 2.0.0 stack head; `pending` keys wait for the maintainer, who replaces verdict and by (by: maintainer) and adds `actionable` on the complexity families.",
+  "labels": {
+    "025afbee55063471": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "02cafc735d5c348d": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "033c4ed64226b350": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "043d5c80df3b7ba0": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "045e9fb835bc7c30": {
+      "rule": "exact-small",
+      "tier": "advisory",
+      "verdict": "deliberate",
+      "by": "plan: Dogfood #8",
+      "why": "export.ts documents the mirror of the notes answer as deliberate; eval A labels it a decoy"
+    },
+    "04826c50aa65516d": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "05324c493bd06671": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "0ae5cc71a20f911d": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "0e5e4af301bb5fa1": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "0ebb420e609ee3f0": {
+      "rule": "helper-split",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "0eeec057a96b1b7b": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "0ff5f4448fd3bbf2": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "11ca257752120a76": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "11e688e37dbaf26b": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "11f8196b78e7ba9f": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "1292477e6a1762c4": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "13c532f2b83025c9": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "15dec2d6a3a32764": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "180cdac8cfece142": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "19263ea3db313488": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "1a0bf042a852c026": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "1a2de2c32a641e31": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "1b1a260913a628e9": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "1b39bd830a4e876f": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "1baba134c0c41889": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "1d031d49c01bf941": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "1ef534cdf5daa4b6": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "20ffa1218c5dd2f3": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "23ee04d549b5a765": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "25707cbbf58458ce": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "273d07c19bd64cb2": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "273d403a04d1e795": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "28dc237403a6d47d": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "2917743c7c6d3653": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "29d6e51ca4c37aad": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "2a3cbd1d809c5b40": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "2ad2e9c4eed82854": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "2b09944182abe627": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "2b7fdaced079f99d": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "3169f471f7626d6c": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "322cec16a03683cc": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "336c39cc32842d07": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "341d79bcc2799c91": {
+      "rule": "helper-split",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "3466d9c9501e326f": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "34a9af3324312017": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "3560aaa6eb394ca7": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "35954dc00b0a1d45": {
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "plan: Dogfood #23",
+      "why": "noteCreated and noteDeleted differ only in the event name (N2)"
+    },
+    "35e6f8e36f473c59": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "36a7728b28f0c99c": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "38b5e97e8a1bc2a6": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "39e6194e7c27269b": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "3aca57fc1052ec51": {
+      "rule": "exact-nohome",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "plan: Dogfood #6",
+      "why": "the push cursor codec copies notes; a pure helper"
+    },
+    "3b3229e93f21c988": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "3bc3e7b83cb74ad1": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "3f3a44c96e82fdeb": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "430d11e3434dc3fb": {
+      "rule": "helper-split",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "433ac5c5b7ceb128": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "43826123e96cb02f": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "4904a3f661cb5594": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "4a010c9390b5e792": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "4be7fd6f267b3a5e": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "4c4023899095ec8d": {
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "plan: Dogfood #2",
+      "why": "a hand-rolled external store copied"
+    },
+    "4fa36cc61ce6762a": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "5030a54728712f0e": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "53ebef4c80884313": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "58f85269e357e17d": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "5a0cbcd2e9dfc68c": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "5a6b3f3f038db0ed": {
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "plan: Dogfood #1",
+      "why": "identical bodies; one home in the same package"
+    },
+    "5df219a42ec866b1": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "65916ffdfb002f3b": {
+      "rule": "near-miss",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "65995bce1a7954dc": {
+      "rule": "pass-through",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "66336b7ceb7288f2": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "6746262881fead7f": {
+      "rule": "helper-split",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "6ca0f02e83b9daf5": {
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "plan: Dogfood #4",
+      "why": "only the literals differ"
+    },
+    "6e5e9aee20dabb75": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "7036a59773b62773": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "79cc587e0759ae24": {
+      "rule": "exact-small",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "plan: Dogfood #7",
+      "why": "the same row coercion in two verticals"
+    },
+    "7af2e71df46544a2": {
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "plan: Dogfood #5",
+      "why": "only the literals differ"
+    },
+    "7ca7f3360547ed44": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "8a8edcbd83dcf0d2": {
+      "rule": "helper-split",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "8b5620a89e0d3fe7": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "8b76ffb9bc8bbf07": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "9055b0592d43af33": {
+      "rule": "helper-split",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "9219190eed1b5120": {
+      "rule": "near-miss",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "96ead5947f1994ba": {
+      "rule": "exact-nohome",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "plan: Dogfood #6",
+      "why": "the push cursor codec copies notes; a pure helper"
+    },
+    "9758f26430c2603d": {
+      "rule": "exact-nohome",
+      "tier": "advisory",
+      "verdict": "true",
+      "by": "plan: Dogfood #6",
+      "why": "the push cursor codec copies notes; a pure helper"
+    },
+    "989757714c2e9fd8": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "99aedd436e4318e1": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "9cf0f7cb09f96e5a": {
+      "rule": "exact-small",
+      "tier": "advisory",
+      "verdict": "deliberate",
+      "by": "plan: Dogfood #9",
+      "why": "the web and native design systems mirror one API on purpose"
+    },
+    "a2f5d33a08be9bb8": {
+      "rule": "helper-split",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "a48b5a5b1075e9dd": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "a6118d16c27c76ae": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "a639876dae190413": {
+      "rule": "single-consumer",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "a710aa5b83477dc1": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "b0c3c88845990898": {
+      "rule": "pass-through",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "b24c851cd75aa1b2": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "b7bcb13d0c3afedb": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "b81bdab65999af15": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "bb90c3163271d7eb": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "bbdffcc7f6de10f2": {
+      "rule": "helper-split",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "be2bc13da52a04ed": {
+      "rule": "helper-split",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "c409b49f2ffee22a": {
+      "rule": "helper-split",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "c4f12e1b5c542198": {
+      "rule": "bool-selector",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "cbd2e2e2010b47b7": {
+      "rule": "helper-split",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "cdc4628ab0d15d75": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "d1dcd7ac8add7ec2": {
+      "rule": "pass-through",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "d7f026df16a39518": {
+      "rule": "pass-through",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "d95f7b654d826b17": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "e0be7fb5674bfaec": {
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "true",
+      "by": "plan: Dogfood #3",
+      "why": "only the literals differ (2 literal parameters)"
+    },
+    "e2761a46f52be229": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "e2a92fbdb4a46398": {
+      "rule": "exact",
+      "tier": "owed",
+      "verdict": "pending",
+      "by": "pending"
+    },
+    "fde19e476333b9dc": {
+      "rule": "intent-hiding",
+      "tier": "advisory",
+      "verdict": "pending",
+      "by": "pending"
+    }
+  }
+}

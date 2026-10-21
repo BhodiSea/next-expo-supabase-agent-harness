@@ -1,0 +1,21 @@
+{
+  "name": "@app/notes",
+  "version": "0.1.0",
+  "description": "The seeded reference vertical — pure domain, zod input schemas, the Supabase DAL, and the events it emits",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts"
+  },
+  "dependencies": {
+    "@app/contracts": "workspace:*",
+    "@app/errors": "workspace:*",
+    "@app/events": "workspace:*",
+    "@app/supabase": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "vitest": "catalog:"
+  }
+}

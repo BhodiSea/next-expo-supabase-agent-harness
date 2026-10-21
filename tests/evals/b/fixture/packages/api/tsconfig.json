@@ -1,0 +1,27 @@
+{
+  // @app/api — the tRPC router. Plain ESM, no bundler: the web app consumes the
+  // TypeScript source directly through its transpilePackages list, and the
+  // mobile app consumes only the exported TYPE.
+  // Extends the repo-wide max-strict base; NodeNext module semantics are
+  // restated here so this package typechecks identically regardless of what
+  // resolution the base picks for the app workspaces.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "src",
+    "outDir": "dist",
+    // The router runs on a server runtime, so the node ambient types are
+    // available here (globalThis.crypto for the request id). This is the ONLY
+    // package in the api/verticals path that gets them — the vertical below it
+    // is bundled into the native app and keeps an empty list.
+    "types": ["node"]
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../contracts" },
+    { "path": "../platform/errors" },
+    { "path": "../verticals/notes" }
+  ]
+}
