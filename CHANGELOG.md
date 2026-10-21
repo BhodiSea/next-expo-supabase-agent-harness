@@ -48,6 +48,15 @@ this comment. -->
   The window runs to 2026-11-20. **The register is seeded, so `update` does not deliver
   the review.** An install on Expo SDK 54 or 55 that copies the new supported set reds the
   vendor-support census; the scaffold pins SDK 57.
+- **`uuid` 7 leaves `tools/eol.json`: the upstream discharge arrived.** Later on the review
+  day, `@expo/config-plugins` 57.0.11 moved to `xcode` ^4.0.0, which has no uuid dependency,
+  so a fresh resolution has no `uuid@7` and the row accepting it matched nothing.
+  `version-sync` reds such a row, and `consumer-ci-static` went red on every branch. The row
+  is deleted rather than re-dated, so the register has no production-scope row left. **An
+  install keeps its own row** (the register is seeded): after its next re-resolve,
+  `version-sync` names it as matching no deprecated resolution, and the remedy is to delete
+  it, or `update --refresh-seeded tools/eol.json` on an untouched register. The arrival ramp
+  in `tools/check-version-sync.mjs` still runs to 2.1.0 for installs holding the row.
 
 ### Added
 

@@ -526,6 +526,12 @@ if (eolErrs.length > 0) {
 // 2.0.0. The 2.0.0 record's seededSourceFixes probe on '"removalTarget": "1.2.0"' is the
 // re-date's channel to them.
 //
+// THE UPSTREAM DISCHARGE CAME AT 2.0.4 (2026-10-21): @expo/config-plugins 57.0.11 depends on
+// xcode ^4.0.0, which has no uuid dependency, so the template's uuid row is deleted and a
+// fresh scaffold carries no production-scope removalTarget. The ramp stays as it is until
+// 2.1.0: an install still holding the seeded row keeps its "2.1.0" date until it deletes the
+// row, which its own census asks for at its next re-resolve.
+//
 // THE DEFECT IT FIXES, found by the upgrade lane on the v0.11.0 tag and not before it.
 // `rampNote` is INERT when baseVersion >= minVersion, so minVersion 0.10.0 meant a
 // 0.10.0-vintage install was never covered. That install is precisely the one holding a
