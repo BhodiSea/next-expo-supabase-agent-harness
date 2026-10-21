@@ -120,6 +120,8 @@ jobs:
         run: node installer/cli.mjs init --dir "$RUNNER_TEMP/scaffold-metal" --tier core --yes --set DESIGN_TOKENS=metal
       - name: metal scaffold carries zero unrendered placeholders
         run: node scripts/check-residue.mjs "$RUNNER_TEMP/scaffold-metal"
+      - name: metal scaffold passes the syntax scan
+        run: node scripts/check-syntax.mjs "$RUNNER_TEMP/scaffold-metal"
 
   # 2.0.4 (#168): what a developer's Mac without Docker gets. An Expo project ships an iOS
   # app, so macOS is where many installs run init, validate and the Stop hook, and until
@@ -169,8 +171,6 @@ jobs:
           echo "${PIPESTATUS[0]}" > validate.code
       - name: no gate skipped except the database gates, and validate is green
         run: node scripts/ci/skip-verdict.mjs "$RUNNER_TEMP/mac/validate.log" "$(cat "$RUNNER_TEMP/mac/validate.code")"
-      - name: metal scaffold passes the syntax scan
-        run: node scripts/check-syntax.mjs "$RUNNER_TEMP/scaffold-metal"
 
   # One deliberate violation per gate DIRECTION; each must turn the matching
   # gate red on an otherwise-green scaffold. Baseline-pass first so a failure is
