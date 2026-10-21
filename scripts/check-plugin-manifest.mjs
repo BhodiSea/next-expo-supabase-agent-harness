@@ -1,9 +1,14 @@
 #!/usr/bin/env node
 // Static structural validation of the Claude Code plugin manifests
-// (.claude-plugin/plugin.json + marketplace.json): required fields present and
-// every referenced agents/commands/skills path actually exists in the repo —
-// a plugin shipping dangling paths is dead on install, and nothing else
+// (plugin/.claude-plugin/plugin.json + .claude-plugin/marketplace.json): required fields
+// present and every referenced agents/commands/skills path actually exists inside the
+// plugin folder — a plugin shipping dangling paths is dead on install, and nothing else
 // checks this surface (version equality is check-release-lockstep's job).
+// Since #163 the marketplace installs plugin/, not the repository root, and this gate is
+// also its drift check: plugin/'s agents, commands, skills and LICENSE must be byte copies
+// of their sources (scripts/lib/plugin-folder.mjs; regenerate with
+// scripts/generate-plugin-folder.mjs --write), within the plugin directory's file limits,
+// and its README must clear the directory's 40-word floor.
 // Also the repo-side mirror of the docs-sync agent-roster sub-check: the
 // shipped template/base/.claude/agents/*.md frontmatter is validated at its
 // SOURCE (same parser, same read-only policy — imported from the canonical
@@ -21,6 +26,7 @@ import {
   parseFrontmatter,
   splitList,
 } from '../template/base/tools/lib/agent-roster.mjs'
+import { PLUGIN_DIR, pluginDrift, proseWordCount } from './lib/plugin-folder.mjs'
 
 const ROOT = resolve(process.argv[2] ?? fileURLToPath(new URL('..', import.meta.url)))
 const errs = []
@@ -39,7 +45,8 @@ function load(rel) {
   }
 }
 
-const plugin = load('.claude-plugin/plugin.json')
+const MANIFEST = `${PLUGIN_DIR}/.claude-plugin/plugin.json`
+const plugin = load(MANIFEST)
 if (plugin !== null) {
   for (const field of ['name', 'version', 'description']) {
     if (typeof plugin[field] !== 'string' || plugin[field].trim() === '') {
@@ -49,11 +56,13 @@ if (plugin !== null) {
   if (typeof plugin.version === 'string' && !/^\d+\.\d+\.\d+$/.test(plugin.version)) {
     errs.push(`plugin.json: version "${plugin.version}" is not plain x.y.z`)
   }
+  // Component paths are optional (Claude Code finds agents/, commands/ and skills/ at the
+  // plugin root by default); one that is given resolves inside the plugin folder.
   for (const agent of Array.isArray(plugin.agents) ? plugin.agents : []) {
-    if (!existsSync(join(ROOT, agent))) errs.push(`plugin.json agents: ${agent} does not exist`)
+    if (!existsSync(join(ROOT, PLUGIN_DIR, agent))) errs.push(`plugin.json agents: ${agent} does not exist`)
   }
   for (const field of ['commands', 'skills']) {
-    if (typeof plugin[field] === 'string' && !existsSync(join(ROOT, plugin[field]))) {
+    if (typeof plugin[field] === 'string' && !existsSync(join(ROOT, PLUGIN_DIR, plugin[field]))) {
       errs.push(`plugin.json ${field}: ${plugin[field]} does not exist`)
     }
   }
@@ -75,6 +84,28 @@ if (marketplace !== null) {
   }
   if (plugin !== null && plugins[0]?.name !== plugin.name) {
     errs.push('marketplace.json plugins[0].name must match plugin.json name')
+  }
+  if (plugins.length > 0 && plugins[0]?.source !== `./${PLUGIN_DIR}`) {
+    errs.push(
+      `marketplace.json plugins[0].source must be "./${PLUGIN_DIR}": any other folder installs files the plugin does not ship`,
+    )
+  }
+}
+
+// ── the plugin folder (#163): generated copies in sync, within the directory's limits ──
+const drift = pluginDrift(ROOT)
+for (const rel of drift.stale) {
+  errs.push(`${PLUGIN_DIR}/${rel}: differs from its source or is missing — run node scripts/generate-plugin-folder.mjs --write`)
+}
+for (const rel of drift.extra) {
+  errs.push(`${PLUGIN_DIR}/${rel}: neither generated nor hand-edited — run node scripts/generate-plugin-folder.mjs --write`)
+}
+errs.push(...drift.problems)
+const readmeAbs = join(ROOT, PLUGIN_DIR, 'README.md')
+if (existsSync(readmeAbs)) {
+  const words = proseWordCount(readFileSync(readmeAbs, 'utf8'))
+  if (words < 40) {
+    errs.push(`${PLUGIN_DIR}/README.md has ${String(words)} words outside code blocks: the plugin directory asks for at least 40`)
   }
 }
 
@@ -138,19 +169,6 @@ for (const file of rosterFiles) {
     }
   }
 }
-// Roster completeness in the plugin manifest: a shipped agent file plugin.json
-// does not list is silently missing from every plugin install.
-if (plugin !== null && Array.isArray(plugin.agents)) {
-  const listed = new Set(plugin.agents.map((a) => String(a).replace(/^\.\//, '')))
-  for (const file of rosterFiles) {
-    if (!listed.has(`${AGENTS_DIR}/${file}`)) {
-      errs.push(
-        `plugin.json agents: ${AGENTS_DIR}/${file} is shipped but not listed — plugin installs would silently miss it`,
-      )
-    }
-  }
-}
-
 if (errs.length > 0) {
   console.error(`PLUGIN MANIFEST: ${errs.length} problem(s):`)
   for (const e of errs) console.error(`  ${e}`)

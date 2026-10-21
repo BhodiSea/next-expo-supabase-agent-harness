@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "next-expo-supabase-agent-harness",
-      "source": ".",
+      "source": "./plugin",
       "description": "Agent half of the harness: migration/RLS, DAL, and test authors; security, Torvalds-grade, accessibility, mobile-security, and design reviewers; citation verifier; /adr, /new-feature, /verify-citations; the vertical-slice and mobile-UI-design skills."
     }
   ]
