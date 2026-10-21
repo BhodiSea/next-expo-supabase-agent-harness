@@ -4,11 +4,11 @@ description: >
   Authors Supabase SQL-first schema changes: the declarative
   supabase/schemas/*.sql desired state AND the timestamped, append-only
   supabase/migrations/<timestamp>_<slice>.sql that carries ENABLE + FORCE ROW
-  LEVEL SECURITY, four per-operation policies on auth.uid(), the leading-column
-  owner index, the REVOKE from service_role, and the GRANT to authenticated. MUST
-  BE USED whenever a feature needs a new table, column, index, or RLS change. Use
-  PROACTIVELY for any schema work. Enforces the auth.uid() identity model and
-  append-only migrations.
+  LEVEL SECURITY, four per-operation policies scoped by org_id through the
+  membership helpers, the leading org_id index, the REVOKE from service_role, and
+  the GRANT to authenticated. MUST BE USED whenever a feature needs a new table,
+  column, index, or RLS change. Use PROACTIVELY for any schema work. Enforces the
+  org-scoped tenancy model and append-only migrations.
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: opus
 ---
@@ -45,30 +45,47 @@ Hard rules (each is gate- or hook-enforced; write SQL that passes on the first r
    `ALTER TABLE public.t ENABLE ROW LEVEL SECURITY;` AND
    `ALTER TABLE public.t FORCE ROW LEVEL SECURITY;` (FORCE so the table owner —
    `postgres`, the role migrations and SQL-editor sessions run as — is policy-
-   subject too), FOUR per-operation policies (never `FOR ALL`), a leading-column
-   owner index, and the GRANT/REVOKE wall below. The `schema-rls` gate cross-
+   subject too), FOUR per-operation policies (never `FOR ALL`), a leading `org_id`
+   index, and the GRANT/REVOKE wall below. The `schema-rls` gate cross-
    references coverage and reds `pnpm validate` on a table that is missing any of it.
-3. **Policy predicate — the initPlan pattern, never a bare `auth.uid()`:**
-   `owner_id = (SELECT auth.uid())`. The scalar sub-select is hoisted into an
-   InitPlan and evaluated ONCE per statement instead of once per candidate row —
-   invisible at two rows, quadratic-feeling at two million. `USING` on
-   SELECT/UPDATE/DELETE, `WITH CHECK` on INSERT/UPDATE (UPDATE needs BOTH, or an
-   owner could rewrite `owner_id` and hand the row away). All policies are
-   `TO authenticated`, NEVER `TO public`/`anon` — "anonymous matches no policy at
-   all" is far easier to verify than "matches a policy that evaluates false". Cite
+3. **Policy predicate — org scope through the hoisted helpers, never per user.**
+   The tenant key is `org_id`; the only two legal forms are the ones
+   `tools/tenancy.json` lists, both uncorrelated zero-argument scalar sub-selects
+   the planner hoists into ONE InitPlan per statement:
+   `org_id = ANY((SELECT private.member_org_ids())::uuid[])` (scope, for reads) and
+   `coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20`
+   (rank floor, for writes; ranks are viewer 10, member 20, admin 30, owner 40).
+   Copy the four policies of `supabase/schemas/20_notes.sql`. The `::uuid[]` cast
+   is load-bearing (without it `ANY` binds to the subquery form and the
+   `CREATE POLICY` fails), and `(SELECT private.member_rank(org_id))` is BANNED:
+   passing a row column makes it a correlated SubPlan run per row. NEVER scope a
+   table by `owner_id = (SELECT auth.uid())` — per-user isolation is tighter than
+   per-org, so it passes every cross-tenant test while hiding the row from the
+   colleagues who should share it; the `tenancy` gate reds it, and an `OR owner_id
+   = (SELECT auth.uid())` arm needs a rank term beside it (the notes DELETE policy
+   is the one sanctioned shape). `USING` on SELECT/UPDATE/DELETE, `WITH CHECK` on
+   INSERT/UPDATE (UPDATE needs BOTH). All policies are `TO authenticated`, NEVER
+   `TO public`/`anon` — "anonymous matches no policy at all" is far easier to
+   verify than "matches a policy that evaluates false". Cite
    `[corpus: postgres/rls-initplan]`.
-4. **Own the owner column, index it LEADING.** `owner_id` references `auth.users`
-   directly with `ON DELETE CASCADE` (NOT `public.profiles` — routing the FK
-   through the spine makes the first write after signup fail until a profile row
-   exists). `DEFAULT auth.uid()` is a convenience, never the control (the
-   `WITH CHECK` is). Every policy filters by the owner column on every statement,
-   so it MUST be the leading column of an index — second position does not serve
-   `owner_id = $1` and the policy degrades to a Seq Scan a two-row test can never
-   reveal. When the table is keyset-paginated, carry the ORDER BY columns in the
-   SAME index (`(owner_id, created_at DESC, id DESC)`) so one index serves the
-   policy, the sort, and the cursor range. pgvector columns are `vector(EMBEDDING_DIM)`
-   (from `@app/contracts`), indexed HNSW with the opclass matching the query
-   operator (`vector_cosine_ops` for `<=>`); cite `[corpus: pgvector/hnsw]`.
+4. **The tenant column: NOT NULL, frozen, indexed LEADING.** `org_id uuid NOT NULL
+   REFERENCES public.orgs (id) ON DELETE CASCADE` (a nullable `org_id` is invisible
+   to everyone, and the first "fix" is a global leak), a `BEFORE UPDATE` trigger on
+   `private.freeze_org_id()` so no UPDATE walks a row into another org, and
+   `PRIMARY KEY (org_id, id)`; every unique carries `org_id`. `owner_id` is
+   ATTRIBUTION — nullable, `REFERENCES auth.users (id) ON DELETE SET NULL` so an
+   employee closing their account does not delete the company's rows. Every policy
+   filters by `org_id` on every statement, so it MUST be the leading column of an
+   index — second position does not serve `org_id = ANY($1)` and the policy
+   degrades to a Seq Scan a two-row test can never reveal. When the table is
+   keyset-paginated, carry the ORDER BY columns in the SAME index
+   (`(org_id, created_at DESC, id DESC)`) so one index serves the policy, the sort,
+   and the cursor range. The full skeleton is the skill's
+   `references/migration-rls.md`; seat tables (`orgs`, `memberships`,
+   `invitations`) are NOT authored this way. pgvector columns are
+   `vector(EMBEDDING_DIM)` (from `@app/contracts`), indexed HNSW with the opclass
+   matching the query operator (`vector_cosine_ops` for `<=>`); cite
+   `[corpus: pgvector/hnsw]`.
 5. **Mirror the schema file.** Every change lands in BOTH the declarative
    `supabase/schemas/*.sql` and the migration — editing only one is the drift this
    split exists to make visible. Keyword CASE is load-bearing: the provenance

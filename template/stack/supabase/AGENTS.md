@@ -26,8 +26,10 @@ SAME RLS policies. Schema truth is SQL-first; there is no ORM.
   runs migrations — read every row; FORCE closes that, and only the REVOKE below constrains a
   `BYPASSRLS` role).
 - Four per-operation policies (SELECT/INSERT/UPDATE/DELETE, never `FOR ALL`), each `TO
-  authenticated`, each predicate REAL (no `USING (true)`), identity via the initPlan sub-select
-  `(select auth.uid())` — hoisted once per statement, not run per row.
+  authenticated`, each predicate REAL (no `USING (true)`), scoped by the NOT NULL `org_id`
+  through the initPlan helpers `org_id = ANY((SELECT private.member_org_ids())::uuid[])` and
+  the `private.member_ranks()` rank floor — hoisted once per statement, not run per row. Never a
+  per-user `owner_id = (select auth.uid())` scope; `schemas/20_notes.sql` is the pattern.
 - `WITH CHECK` on every INSERT and UPDATE (the only defence against writing under, or handing
   away, another user's owner column).
 - `REVOKE ALL … FROM anon`, `FROM service_role` AND `FROM authenticated`, then `GRANT` to

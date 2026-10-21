@@ -48,6 +48,16 @@ this comment. -->
   The window runs to 2026-11-20. **The register is seeded, so `update` does not deliver
   the review.** An install on Expo SDK 54 or 55 that copies the new supported set reds the
   vendor-support census; the scaffold pins SDK 57.
+- **The agent-facing docs teach the org-scoped RLS shape** (#255). The vertical-slice skill's
+  step 1, `/new-feature`, `/verify-invariants`, `.claude/rules/security-invariants.md`, the
+  `migration-rls-author` and `security-reviewer` agents and `AGENTS.md` still taught policies
+  keyed on `owner_id = (SELECT auth.uid())` with a leading owner index, the per-user shape
+  every scaffold left at 0.2.0 and the `tenancy` gate reds. They now teach what
+  `references/migration-rls.md`, `supabase/schemas/20_notes.sql` and `tools/tenancy.json`
+  already do: a NOT NULL, trigger-frozen `org_id`, the `member_org_ids()` scope and
+  `member_ranks()` rank-floor forms, a leading `org_id` index, and `owner_id` as nullable
+  attribution. No gate changes. The skill, rule, commands and agents are owned and reach an
+  install with `update`; `AGENTS.md` is seeded, so an install keeps its copy.
 
 ### Added
 
