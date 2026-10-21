@@ -78,8 +78,9 @@ test('every command the tape types prints what the tape says it prints', { skip:
     steps.forEach((s, i) => {
       script.push(`printf '\\n@@begin ${String(i)}\\n'`, s.command, `printf '\\n@@end ${String(i)} %s\\n' "$?"`)
     })
-    const env = { ...process.env, TMPDIR: tmp }
-    delete env.CLAUDE_PROJECT_DIR
+    // The guard finds the project from its own working directory, as the tape runs it.
+    const { CLAUDE_PROJECT_DIR: _unused, ...inherited } = process.env
+    const env = { ...inherited, TMPDIR: tmp }
     const res = spawnSync('bash', ['--noprofile', '--norc'], { cwd: ROOT, input: script.join('\n'), encoding: 'utf8', env, timeout: 120_000 })
     const out = `${res.stdout ?? ''}${res.stderr ?? ''}`
     steps.forEach((s, i) => {
