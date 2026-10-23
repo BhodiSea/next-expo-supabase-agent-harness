@@ -24,15 +24,15 @@ import { walkFiles } from './lib/fs-walk.mjs'
 // that file lacks fails at link time; through the namespace it is undefined, the guarded call
 // is a no-op, and only the record is lost.
 import * as gateLib from './lib/gate.mjs'
-import { fail, failures, ok, skipOrFail } from './lib/gate.mjs'
+import { fail, failures, inCI, ok, rampNote, skipOrFail } from './lib/gate.mjs'
 
 const GATE = 'duplication'
 const ALLOW = 'tools/duplication-allow.json'
 
 // THE READ MODES (2.1.0, #186). `--sweep --json` prints the Single Home sweep's one document
 // (every family's records and every leg's terminator) and `--explain '<key12>'` prints one
-// record of it, both from lib/sweep.mjs. It is imported only here, so the Stop run, with no
-// flag, is L0 alone: it loads no parser and no extractor, and prints no new line.
+// record of it, both from lib/sweep.mjs. The Stop run, with no flag, is L0 and then the exact
+// leg below (#174), which reads lib/sweep.mjs's exact families alone.
 const argv = process.argv.slice(2)
 if (argv.includes('--sweep') || argv.includes('--explain')) {
   const { sweepMain } = await import('./lib/sweep.mjs')
@@ -268,8 +268,80 @@ const errs = clones.map(
 // change; the families' records arrive with the extractor (#186).
 // SOURCE: docs/harness/gates-catalog.md ("Shared behavior")
 gateLib.noteComplete?.({ producer: 'duplication', leg: 'l0' })
+
+// ---- the exact leg (#174) -----------------------------------------------------------
+// L0 matches token runs, so a copied function under its window ships green, and it never
+// reads SQL. This leg reds every OWED exact class instead: members with equal `alpha` (the
+// extractor's normalised stream, lib/shapes.mjs: bound names and literals abstracted), two or
+// more of them, at least FLOOR tokens, not data-shaped, and a home lib/homes.mjs computes
+// from the rules the gates already enforce. A class with no legal home (a web↔mobile pair)
+// is never owed: the gate does not demand a move its own laws forbid. The TS functions of
+// L0's scan roots and the SQL functions the folded supabase/migrations history leaves live
+// are judged; supabase/schemas never adds a member.
+//
+// WHOLE-TREE. The verdict is a pure function of the tree: no merge base, no novelty, no
+// cache, so a PR, a direct push, a scheduled run and a local Stop all meet the same one. An
+// L0 row does not exempt a class; a row that names every member does (#175).
+//
+// NO PARSER. When `typescript` cannot load, L0 above still decides and the SQL functions are
+// still judged; the TS half alone fails closed: a NOTE locally, a FAIL in CI, and the missing
+// prerequisite recorded. The process never exits early.
+//
+// THE RAMP. The rule goes live in 2.2.0, after eval A's holdout, B, L and the D arm-2 pilot
+// are recorded (scripts/obligations.json `single-home-exact-golive` holds that release). An
+// install whose baseVersion predates it gets a NOTE and one `ramp-withheld` record per owed
+// class until harness 2.4.0, and exits 0; the template dev tree (no manifest) and an install
+// at 2.2.0 or later red at once. A record is written `blocking` whenever the leg reds.
+// SOURCE: docs/harness/gates-catalog.md (duplication gate) [corpus: harness/doctrine]
+const EXACT_FROM = '2.2.0'
+// The ledger (scripts/lib/ramp-sites.mjs) reads `until` at the call as a literal; the
+// withheld records carry the same deadline.
+const EXACT_UNTIL = '2.4.0'
+// Imported here, not at the top: lib/sweep.mjs reads newer lib/gate.mjs exports by name, and
+// an install may run this gate over a forked gate.mjs that `update` parked. A link failure
+// then costs the exact leg, which fails closed like any incomplete leg, and never L0.
+const EXACT_LEGS = ['exact-sql', 'exact-ts']
+let parser = null
+/** @type {{ owed: any[], incomplete: string[] }} */
+let exact = { owed: [], incomplete: EXACT_LEGS }
+/** @type {(r: any) => string} */
+let owedText = () => ''
+try {
+  const { loadParser } = await import('./lib/i18n-tree.mjs')
+  const sweepLib = await import('./lib/sweep.mjs')
+  owedText = sweepLib.owedText
+  parser = await loadParser()
+  exact = sweepLib.owedClasses(parser)
+} catch {
+  // exact stays incomplete: reported below.
+}
+if (exact.incomplete.length > 0) {
+  const noParser = parser === null && exact.incomplete.join() === 'exact-ts'
+  const reason = noParser
+    ? 'typescript could not be loaded, so the exact leg judged SQL functions only'
+    : `the exact leg could not complete (${exact.incomplete.join(', ')})`
+  gateLib.noteMissingPrerequisite?.(GATE, reason)
+  if (inCI()) errs.push(`${reason} — it FAILS CLOSED in CI: install the project's dependencies`)
+  else console.log(`${GATE}: NOTE — ${reason} (it FAILS CLOSED in CI)`)
+}
+if (exact.owed.length > 0) {
+  if (rampNote(GATE, EXACT_FROM, 'exact function and SQL-function classes', { until: '2.4.0' })) {
+    for (const r of exact.owed) {
+      gateLib.noteAdvisory?.({ ...r, status: 'ramp-withheld', until: EXACT_UNTIL })
+    }
+  } else {
+    for (const r of exact.owed) {
+      gateLib.noteAdvisory?.({ ...r, status: 'blocking' }, { print: false })
+      errs.push(owedText(r))
+    }
+  }
+}
+for (const leg of EXACT_LEGS) {
+  if (!exact.incomplete.includes(leg)) gateLib.noteComplete?.({ producer: 'duplication', leg })
+}
+
 failures(GATE, errs)
 ok(
   GATE,
-  `${files.length} source file(s) scanned, no clones ≥ ${MIN_TOKENS} tokens / ${MIN_LINES} lines`,
+  `${files.length} source file(s) scanned, no clones ≥ ${MIN_TOKENS} tokens / ${MIN_LINES} lines${exact.owed.length === 0 ? ', no owed exact class' : ''}`,
 )

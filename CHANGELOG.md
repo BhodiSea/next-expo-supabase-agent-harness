@@ -14,7 +14,9 @@ This lineage's own history starts at 0.1.3.
 ## [2.0.4] — 2026-10-21
 
 **A patch: the v2.0.x defect fixes continue.** Each item that lands after this bump adds its
-entry below. No gate is added, the chain length does not change, and no ramp opens or moves.
+entry below. No gate is added and the chain length does not change. One ramp opens and none
+moves: the exact-class leg of `duplication` (#174) goes live from baseVersion 2.2.0, which no
+install holds yet, so on every install it is a NOTE.
 The `template/migrations.json` record restates 2.0.0's twenty-vintage `rampExpiry`
 population, and `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `2.0.3`.
 
@@ -91,6 +93,27 @@ this comment. -->
   dependency-cruiser rules read neither file, as before: none keys off the census. No verdict
   tightens on an existing install. `update` plants the empty file, and the upgrade runbook
   says how a forked install moves its own entries across and un-forks.
+
+- **`duplication` judges exact classes of TS and SQL functions, with a computed home**
+  (#174, accepted 2026-10-23). After L0, unchanged, `tools/check-duplication.mjs` reds every
+  owed exact class: two or more functions with equal bodies once bound names are numbered and
+  literals abstracted, at least 30 tokens, not data-shaped, and a legal home (IMPORT, MODULE
+  or LIFT) by the rules the gates already enforce. So a copied function under L0's 70-token
+  window, or a copied SQL function, which L0 never read, no longer ships green. It reads the
+  extractor #186 shipped, in process, over the whole tree: no merge base and no cache, so
+  every run meets one verdict. The red prints the class's `key12`, each member, the move
+  ("with N literal parameters" when the literals differ) and its `--explain` line. A class
+  with no legal home, such as a web and mobile pair, and one under 30 tokens stay advisory in
+  `--sweep`; a declarative `supabase/schemas` copy is never a second member; an L0 row does
+  not exempt a class (a row naming its members is #175). Without `typescript`, L0 and the SQL
+  half still decide and the TS half is a NOTE locally and a FAIL in CI. **Ramped from
+  baseVersion 2.2.0 until 2.4.0:** every install today, fresh ones included, gets one NOTE
+  and one `ramp-withheld` record per owed class, and exits 0. On a fresh scaffold that is one
+  SQL class, `private.caller_id` and `private.caller_session`, which differ only in the claim
+  they read. In the factory, `scripts/obligations.json` holds 2.2.0 until evals A, B, L and
+  the D arm-2 pilot are recorded (`single-home-exact-golive`) and 2.4.0 for the ramp's
+  expiry. `tools/check-duplication.mjs`, `tools/lib/sweep.mjs` and
+  `docs/harness/gates-catalog.md` are owned and reach an install with `update`.
 
 ## [2.0.3] — 2026-10-17
 

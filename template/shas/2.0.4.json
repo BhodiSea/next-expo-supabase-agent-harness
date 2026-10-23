@@ -792,6 +792,19 @@
     ],
     "docs/harness/gates-catalog.md": [
       {
+        "sha256": "0399f96a8d93ffe38ddabc7867b20a594e250189682da70858f85f3098aea688",
+        "sites": [
+          [
+            27862,
+            "SECURITY_OWNERS"
+          ],
+          [
+            153772,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
         "sha256": "2541d341c765fa0b08cd65ecbfba15831a1d2851fb465660f0a00ab02b73b774",
         "sites": [
           [
@@ -1372,6 +1385,9 @@
       }
     ],
     "tools/check-duplication.mjs": [
+      {
+        "sha256": "80cbce31649a483c50027c6146fd2f9ddd697787da814e407ba05461e5340d5f"
+      },
       {
         "sha256": "cc2ab6ec47fb69dd0b99ec95470607fa4b47916f020903604991975bdcb7d39c"
       }
@@ -2111,6 +2127,9 @@
     "tools/lib/sweep.mjs": [
       {
         "sha256": "a8af5bc3cc88f3da6c4f39822165a9f40e54ada52b6338535df96b6fc098fb75"
+      },
+      {
+        "sha256": "b9a1e7ea79c5168a5ff0987cde7ddf3ae0517516bc40460143cc35f1d9c2c193"
       }
     ],
     "tools/lib/table-grants.mjs": [

@@ -430,6 +430,11 @@
         "note": "a token-clone pasted across apps/*/src or packages/*/src reds naming both sites + a content fingerprint; tools/duplication-allow.json mutes an accepted clone by fingerprint and malformed/absent entries fail closed"
       },
       {
+        "kind": "fixture",
+        "ref": "tests/gates/check-duplication.test.mjs",
+        "note": "THE EXACT LEG (#174): a function with another's body in the same workspace, under L0's 70 tokens, reds naming both members, the MOVE and the key12 its --explain line prints; every local renamed still reds; one string literal changed reds 'with 1 literal parameter'; an SQL function copied under a new schema in a new migration reds MOVE MODULE, and a supabase/schemas copy is never a second member; a web and mobile copy (no legal home), a copy under FLOOR and an L0-allowlisted pair's L0 window stay out of the verdict while the pair's exact class still reds; at baseVersion 2.1.0 the class is a ramp NOTE and a ramp-withheld record with exit 0, at harness 2.4.0 RAMP EXPIRED reds and records it blocking, at baseVersion 2.2.0 it reds at once; with typescript unresolvable L0 still decides, the TS half is a NOTE locally and a FAIL under CI=true, and the missing prerequisite is recorded"
+      },
+      {
         "kind": "selftest",
         "ref": "Canary 14: a pasted token clone across two modules → duplication must FAIL"
       },
