@@ -420,11 +420,27 @@ finding's vintage: the directory keying's findings ramped for pre-0.9.5 installs
 install); the behavior keying's WIDENED findings ramped for pre-1.0.0 installs until
 1.1.0 (`boundaries-anatomy-widening-ramp-expiry`, expired — hard for every install since
 1.1.0). The allow-file shape problems and the zero-files-scanned floor are never ramped.
+**The rule of two (2.1.0, #176; law 6 of the same script).** Every export of a
+`packages/shared/*` package needs at least two importing workspaces, tests excluded. Shared
+code with one consumer is a second home one import hop from it, and knip reds only an export
+with no importer at all. The count is `tools/lib/importers.mjs`, the importer index the
+duplication sweep reads: a named or default import counts for each name it binds (`import
+type` included, so a type two workspaces import is shared), a namespace import or a literal
+`import()`/`require()` uses every export, a pure re-export is followed to the importer behind
+it, and a test file never counts. The importing workspace is the deepest `package.json`
+directory above the file; the shared package's own files are not one. One importing
+workspace reds "`<pkg>` export `<name>` is imported only by `<workspace>`: inline it into its
+one consumer"; none reds "… is imported by no workspace: delete it". There is no exemption
+and no allow file, and the advisory `single-consumer` family leaves `packages/shared/*` to
+this law. With no `packages/shared` the `ok` line says `0 shared package(s)`. Ramped for
+installs below 2.1.0 until 2.2.0 (`boundaries-rule-of-two-ramp-expiry`): an install that
+made its own `packages/shared/*` first meets it as NOTEs.
 **Anti-vacuity:** add a `./client` export to a package with no census entry → FAIL
 naming it; make `@app/api` a runtime mobile dependency → FAIL "import type only"; make one
 vertical depend on another → FAIL "verticals never import each other"; put a `node:fs`
 import in a domain file → FAIL naming file and law; hollow out every vertical's src →
-FAIL "scanned ZERO files".
+FAIL "scanned ZERO files"; add a `packages/shared/fmt` export only `apps/web` imports → FAIL
+"imported only by apps/web".
 
 **A wall the worked example provides (2.0.0).** The `@app/notes` row of
 `tools/exports-walls.json` carries `"demo": true`: the package exists only where

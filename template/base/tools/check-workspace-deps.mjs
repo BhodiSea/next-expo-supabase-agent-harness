@@ -18,10 +18,13 @@
 //   3. shared ↛ verticals — shared code is importable BY verticals, never the reverse.
 //   4. apps/web ↛ the mobile-only design system (@app/design-system-native paints RN
 //      views; a DOM tree renders nothing from it).
+// Law 5 is the vertical anatomy (lib/vertical-anatomy.mjs) and law 6 the rule of two over
+// packages/shared/* exports (2.1.0, #176), each described where it runs below.
 // SOURCE: docs/harness/README.md (boundaries gate) [corpus: harness/doctrine]
 import { existsSync, readFileSync } from 'node:fs'
 import { walkFiles } from './lib/fs-walk.mjs'
 import { fail, failures, ok, rampNote, skipOrFail } from './lib/gate.mjs'
+import { buildImporters } from './lib/importers.mjs'
 import { applyAnatomyAllow, scanVerticalAnatomy } from './lib/vertical-anatomy.mjs'
 import { mayDepend, sanctionedOf, tierOf } from './lib/workspace-tiers.mjs'
 
@@ -198,6 +201,70 @@ if (widenedFindings.length > 0) {
   }
 }
 
+// 6. (2.1.0, #176) The rule of two. Every export of a packages/shared/* package needs at
+// least two importing workspaces, tests excluded: shared code with one consumer is a second
+// home one import hop from that consumer, and an export with none is dead. knip reds only
+// the second, and dependency-cruiser judges edges, not how many workspaces share a module.
+// The count is the one importer index (lib/importers.mjs), which the duplication sweep's
+// homes and single-consumer family read too, so the three agree on what an import is: a
+// named or default import counts for each name it binds (`import type` included, so a
+// type two workspaces import is shared), a namespace import or a literal `import()` or
+// `require()` uses every export, a barrel that only re-exports is followed to the importer
+// behind it, and a test file (`*.test.ts(x)`, `__tests__/`, `e2e/`) never counts. The
+// importing workspace is the deepest package.json directory above the file, and the shared
+// package's own files are not one. The export set is every name each `exports` entry's
+// module exports; a name no module of this tree defines (a re-export of a third-party
+// module) has no importers to count and is not judged. No exemption and no allow file: a
+// shared export one workspace needs belongs in it. The single-consumer family leaves
+// packages/shared/* to this law. Ramped for installs below 2.1.0 until 2.2.0 (the
+// obligations row boundaries-rule-of-two-ramp-expiry): an install that made its own
+// packages/shared/* before the law existed gets one minor of NOTEs.
+const importers = buildImporters()
+const sharedPkgs = importers.workspaces
+  .filter((w) => w.dir.startsWith(`${PACKAGES_DIR}/shared/`))
+  .sort((a, b) => a.dir.localeCompare(b.dir))
+const ruleOfTwo = []
+for (const ws of sharedPkgs) {
+  /** @type {Map<string, Set<string>>} exported name -> importing workspace dirs */
+  const byName = new Map()
+  for (const sub of [...ws.exports.keys()].sort()) {
+    const entry = importers.resolve(ws.dir, sub === '.' ? ws.name : `${ws.name}${sub.slice(1)}`)
+    if (entry === null) continue
+    for (const name of importers.exportNames(entry)) {
+      const defs = importers.definitionsOf(entry, name)
+      if (defs.length === 0) continue
+      const users = byName.get(name) ?? new Set()
+      for (const def of defs) {
+        for (const { file } of importers.importersOf(def.path, def.name)) {
+          const dir = importers.workspaceOf(file)?.dir
+          if (dir !== undefined && dir !== ws.dir) users.add(dir)
+        }
+      }
+      byName.set(name, users)
+    }
+  }
+  for (const [name, users] of [...byName].sort(([a], [b]) => a.localeCompare(b))) {
+    if (users.size === 1) {
+      ruleOfTwo.push(
+        `${ws.name} export ${name} is imported only by ${[...users][0]}: inline it into its one consumer`,
+      )
+    } else if (users.size === 0) {
+      ruleOfTwo.push(`${ws.name} export ${name} is imported by no workspace: delete it`)
+    }
+  }
+}
+if (ruleOfTwo.length > 0) {
+  if (
+    rampNote(GATE, '2.1.0', 'the rule of two over packages/shared/* exports', {
+      until: '2.2.0',
+    })
+  ) {
+    for (const m of ruleOfTwo) console.log(`${GATE}: NOTE — rule of two: ${m}`)
+  } else {
+    errs.push(...ruleOfTwo.map((m) => `rule of two: ${m}`))
+  }
+}
+
 failures(
   GATE,
   errs,
@@ -205,5 +272,5 @@ failures(
 )
 ok(
   GATE,
-  `workspace deps: ${pkgs.size} package(s) tiered clean${mobile ? `; apps/mobile carries ${mobile.deps.length} sanctioned @app dep(s)` : ''}${anatomy.verticals > 0 ? `; ${anatomy.verticals} vertical(s) anatomy-clean (${anatomy.filesScanned} file(s))` : ''}`,
+  `workspace deps: ${pkgs.size} package(s) tiered clean${mobile ? `; apps/mobile carries ${mobile.deps.length} sanctioned @app dep(s)` : ''}${anatomy.verticals > 0 ? `; ${anatomy.verticals} vertical(s) anatomy-clean (${anatomy.filesScanned} file(s))` : ''}; ${sharedPkgs.length} shared package(s)`,
 )

@@ -316,6 +316,19 @@
       "reason": "The reviewer model record (1.1.0, #62) was probed against Claude Code 2.1.285 in print mode (design/CONTROL-PLANE-FACTS.md, Fact 16): no Subagent* payload names a model, each assistant line of the subagent transcript at agent_transcript_path carries the model that produced it at message.model as a full ID, a model error with no chain never reaches SubagentStop while a fallbackModel chain moves the subagent silently, and a green Stop hook's JSON systemMessage surfaces as a notice while its stderr does not. Three answers print mode cannot give are still owed: how the interactive terminal, the VS Code extension and the desktop app render a green Stop's systemMessage (the channel that keeps a fallback from being silent), whether the plugin loader accepts the harnessFallbackModels key, and whether the main agent's Edit tool may write a subagent transcript under ~/.claude/projects/. Discharge = run the three probes Fact 16 names, record each answer in Fact 16 (which moves this anchor), and delete this row in the same diff; if a surface does not show the systemMessage, move the FALLBACK MODEL lines to a channel it does show first.",
       "reviewedOn": "2026-09-30",
       "evidence": "design/CONTROL-PLANE-FACTS.md"
+    },
+    {
+      "id": "boundaries-rule-of-two-ramp-expiry",
+      "kind": "release",
+      "target": "2.2.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-workspace-deps.mjs",
+          "mustContain": "the rule of two over packages/shared/* exports"
+        }
+      ],
+      "reason": "OPENED FOR 2.1.0 (#176, gate proposal SH-GP3, accepted by the maintainer 2026-10-23). boundaries gains law 6: every export of a packages/shared/* package needs at least two importing workspaces, tests excluded, counted by tools/lib/importers.mjs. No packages/shared exists in the template, so a fresh scaffold is green; the population the ramp protects is an install that made its own packages/shared/* before the law existed, which meets the findings as NOTEs while its baseVersion is below 2.1.0. The deadline is one minor, the span the two anatomy ramps of the same step ran, and the one the accepted proposal recommended. Discharge = the 2.2.0 record's rampExpiry naming this site's population (every vintage below 2.1.0), with its sweep in that release's runbook section (inline each single-consumer shared export into its consumer, delete each unimported one), and this row is deleted in the same diff; OR a reviewed rampExtensions entry re-targets it.",
+      "reviewedOn": "2026-10-23"
     }
   ]
 }

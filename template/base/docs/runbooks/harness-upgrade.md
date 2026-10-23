@@ -4402,9 +4402,10 @@ body above, or pull the file the same way.
 
 ## 2.0.4 — a patch: defect fixes
 
-**No ramp here applies to any install.** 2.0.4 opens no ramp and moves no deadline. The
-population 2.0.0 reds is restated in this release's record, and the 1.1.0 and 2.0.0 sections
-above are still the sweep for an install below 1.1.0.
+**Nothing here expires on any install.** 2.0.4 moves no deadline. It opens one ramp, the rule
+of two (#176, below), which only prints NOTEs, and only on an install that has its own
+`packages/shared/*`. The population 2.0.0 reds is restated in this release's record, and the
+1.1.0 and 2.0.0 sections above are still the sweep for an install below 1.1.0.
 
 **What `update` plants.** Owned files, re-planted when your copy still matches a released
 sha: this runbook and the hooks under `.claude/hooks/` (their version stamps). Each fix below
@@ -4436,6 +4437,17 @@ register's `uuid` row (the one production-scope acceptance, with `removalTarget`
 deleted. Your own register keeps it until you act. After your next `pnpm install` resolves
 the new config-plugins, `version-sync` reds the row as matching no deprecated resolution.
 Delete the row, or take the whole register with `update --refresh-seeded tools/eol.json`.
+
+### `boundaries` gains the rule of two over `packages/shared/*` (#176)
+
+Every export of a `packages/shared/*` package now needs at least two importing workspaces,
+tests excluded. An export that one workspace imports should move into that workspace, and an
+export that no workspace imports should be deleted. The template ships no `packages/shared`,
+so a fresh scaffold has nothing to judge, and `boundaries` says `0 shared package(s)`. If you
+made your own shared package, your findings print as NOTEs while your `baseVersion` is below
+2.1.0, and they become reds when you run harness 2.2.0. `update` plants
+`tools/check-workspace-deps.mjs` and `docs/harness/gates-catalog.md`, both owned. There is no
+allow file: to clear a NOTE, inline the export into its one consumer or delete it.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

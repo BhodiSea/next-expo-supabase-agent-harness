@@ -737,6 +737,19 @@
     ],
     "docs/harness/gates-catalog.md": [
       {
+        "sha256": "02f83a639e0a8c4b811bc51f2c0c894a94332d3e2e30736f423cdaabe53d1f81",
+        "sites": [
+          [
+            27862,
+            "SECURITY_OWNERS"
+          ],
+          [
+            153501,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
         "sha256": "2541d341c765fa0b08cd65ecbfba15831a1d2851fb465660f0a00ab02b73b774",
         "sites": [
           [
@@ -926,6 +939,15 @@
       }
     ],
     "docs/runbooks/harness-upgrade.md": [
+      {
+        "sha256": "170466486bf9861fb011f8a306df2380d8583f8e4e5a80e72602f7776f608c69",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
       {
         "sha256": "2dd844ba4c30a1d9b5fe3fd3271b78f9311c88882a462372a7dffb45529d6e8a",
         "sites": [
@@ -1528,6 +1550,9 @@
       }
     ],
     "tools/check-workspace-deps.mjs": [
+      {
+        "sha256": "236fe33a6668e6ad1db2ac6ee6d28ab87d0b92a29b063215a485669414a5c8fd"
+      },
       {
         "sha256": "afbf6678e331cdc7a234590cf2d93199e5077cf772d662bcc8097fb6ca8f08ed"
       }
