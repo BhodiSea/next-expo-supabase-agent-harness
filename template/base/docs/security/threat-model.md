@@ -42,6 +42,8 @@ Rule tables from `.claude/hooks/lib/guard-rules.mjs`, in source order. Each rule
 - `git-force-push` — Blocked: force-push is forbidden;
 - `git-reset-hard` — Blocked: 'git reset --hard' destroys uncommitted work.
 - `git-commit-no-verify` — Blocked: bypassing commit hooks (--no-verify) defeats the gate;
+- `git-push-no-verify` — Blocked: bypassing the pre-push hooks (--no-verify) skips the typecheck, lint and dead-code jobs;
+- `lefthook-skip-env` — Blocked: LEFTHOOK=0, LEFTHOOK_EXCLUDE, LEFTHOOK_BIN and LEFTHOOK_CONFIG each skip or replace the lefthook commit-time layer;
 - `fork-bomb` — Blocked: fork bomb pattern.
 - `read-env-file` — Blocked: reading .env files is forbidden; — bears on 13.3.2 (partial)
 - `source-env-file` — Blocked: sourcing .env files is forbidden;

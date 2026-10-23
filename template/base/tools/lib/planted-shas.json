@@ -104,6 +104,9 @@
         "sha256": "35b3ce2a369ae3d46371e3f4c4816d38e0866678c1997e4a62b5b8df9ba6734b"
       },
       {
+        "sha256": "560f282b1c110b64148ef502b777d4479f3ceddf389f4669edd8c57bc1b6e2c3"
+      },
+      {
         "sha256": "58bbc75fcdfe36c973ececc10b322bb2b6664d3dd601e1d9cba267c0a60e392d"
       },
       {
@@ -117,6 +120,9 @@
       },
       {
         "sha256": "e04b80b1f051316e671c5baa47110dd9907c72f627bd158f2da065c4ade2f0a8"
+      },
+      {
+        "sha256": "ecdc0521a559ea206e298492e217f705e96c11ae3a4ea1efb52660e02b853535"
       }
     ],
     "tools/expo-permissions.json": [

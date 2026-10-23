@@ -4400,6 +4400,43 @@ assertions that prove the shared functions, after the migration is applied:
 `supabase/schemas/40_audit.sql` declares `audit.deny_mutation()`; replace it there with the
 body above, or pull the file the same way.
 
+## 2.0.4 — a patch: defect fixes
+
+**No ramp here applies to any install.** 2.0.4 opens no ramp and moves no deadline. The
+population 2.0.0 reds is restated in this release's record, and the 1.1.0 and 2.0.0 sections
+above are still the sweep for an install below 1.1.0.
+
+**What `update` plants.** Owned files, re-planted when your copy still matches a released
+sha: this runbook and the hooks under `.claude/hooks/` (their version stamps). Each fix below
+says what else it delivers and what it leaves to you.
+
+### The guards deny NotebookEdit, lefthook's skip variables and `git push --no-verify` (#249)
+
+Through 2.0.3 the write guard read only `file_path` and `path`, so a NotebookEdit, which
+names its subject `notebook_path`, was judged on an empty path and passed, on a protected
+path too. The bash guard let `git push --no-verify` skip the pre-push jobs, and let
+`LEFTHOOK=0`, `LEFTHOOK_EXCLUDE`, `LEFTHOOK_BIN` and `LEFTHOOK_CONFIG` skip or replace the
+commit-time layer. The write guard now reads `notebook_path`, and two new bash rules,
+`git-push-no-verify` and `lefthook-skip-env`, deny the rest. `update` plants
+`.claude/hooks/pretool-write-guard.mjs`, `.claude/hooks/lib/guard-rules.mjs` and
+`docs/security/threat-model.md`, all owned. Nothing is left to you. A command that only
+quotes `LEFTHOOK=0`, such as a grep for it, is denied as well; put the text in a file.
+
+### `tools/eol.json` re-reviewed
+
+The template's end-of-life register lapsed on 2026-10-20 and is re-reviewed to 2026-11-20.
+The registry sweep found no new deprecation. Expo's supported set is now SDK 58, 57 and 56,
+and react-native's is 0.88 down to 0.85. The register is seeded, so `update` leaves yours
+alone, and its window lapses in the scheduled `floor-review` job on your own dates. To take
+the review, run `update --refresh-seeded tools/eol.json` on an untouched register, or copy
+the `products` sets and the two dates by hand.
+
+The same day, `@expo/config-plugins` 57.0.11 moved to `xcode` 4, which drops `uuid`, so the
+register's `uuid` row (the one production-scope acceptance, with `removalTarget` 2.1.0) is
+deleted. Your own register keeps it until you act. After your next `pnpm install` resolves
+the new config-plugins, `version-sync` reds the row as matching no deprecated resolution.
+Delete the row, or take the whole register with `update --refresh-seeded tools/eol.json`.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

@@ -27,7 +27,7 @@ function readFileSafe(p) {
   }
 }
 
-export const HARNESS_HOOK_VERSION = '2.0.3'
+export const HARNESS_HOOK_VERSION = '2.0.4'
 
 // Dynamic import AFTER hookio installed its fail-closed handlers: a missing, broken, or
 // mis-shaped rules module must BLOCK (exit 2) — a guard that cannot load its rules approves
@@ -60,7 +60,10 @@ if (
 
 const input = await readHookInput()
 const ti = input?.tool_input ?? {}
-const path = String(ti.file_path ?? ti.path ?? '')
+// NotebookEdit names its subject `notebook_path`, not `file_path` (2.0.4, #249): reading only
+// `file_path ?? path` judged every notebook edit on an empty path, which passes, though the
+// shipped settings.json routes NotebookEdit here. The factory's guard read it from 2.0.3 (#224).
+const path = String(ti.file_path ?? ti.notebook_path ?? ti.path ?? '')
 
 // The telemetry record each deny carries (1.0.4): the rule table's `id` where a table row
 // fired, else a telemetry LABEL naming the inline site. Labels are not rule ids and are not in
