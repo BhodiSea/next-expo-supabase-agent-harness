@@ -57,6 +57,13 @@ each later upstream change to the census for them to merge
 - `apps/mobile ↛ web-only packages` — no `@app/design-system` (DOM), no `react-dom`, no
   `next`; the mobile design system is `@app/design-system-native`.
 - `apps/web ↛ react-native` — and no `@app/design-system-native`.
+- A vertical never value-imports `@app/supabase` or `@supabase/*` anywhere in its `src/**`:
+  the database arrives through a structural port, and `import type` of the port shapes is
+  the sanctioned form. The ONE sanctioned value-import is exactly `@app/supabase/errors`,
+  the pure SQLSTATE-to-`AppError` mapper: wrap `mapPostgresError` to add what the operation
+  knows, never re-derive the SQLSTATE table, because a second copy drifts. It stays
+  sanctioned only while `packages/platform/supabase/src/errors.ts` value-imports nothing but
+  `@app/errors`, so keep that file pure.
 - `@app/errors` and `@app/events` are the BOTTOM of the graph (they import nothing) and
   are universally importable from either surface, census entry or not.
 

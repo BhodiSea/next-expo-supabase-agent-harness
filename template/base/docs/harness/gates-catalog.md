@@ -413,7 +413,11 @@ claim); `src/domain/**` imports only sibling domain files, `@app/contracts` and 
 (no I/O, no clock, no error kernel — domain returns values, data returns outcomes); the
 DAL laws key on BEHAVIOR, not directory names — a value-import of
 `@app/supabase`/`@supabase/*` reds ANYWHERE under src/** (`import type` of the port
-shapes is sanctioned), and any file that speaks PostgREST (`.from(`/`.rpc(`/`.select(`
+shapes is sanctioned, and so is a value-import of EXACTLY `@app/supabase/errors`, the
+pure SQLSTATE-to-`AppError` mapper a vertical wraps instead of copying the table, which
+drifts; #159. That one exemption holds only while
+`packages/platform/supabase/src/errors.ts` value-imports nothing but `@app/errors`;
+otherwise the import reds naming the impurity, so it never admits a client), and any file that speaks PostgREST (`.from(`/`.rpc(`/`.select(`
 in call position) is the DAL wherever it lives and must import a `port.ts` that exists
 (the witness: `src/data/port.ts`; single-hop, stated — the import must be in the
 calling file). Until 1.0.0 both laws read the `src/data/` directory name, which a
@@ -437,8 +441,9 @@ install); the behavior keying's WIDENED findings ramped for pre-1.0.0 installs u
 **Anti-vacuity:** add a `./client` export to a package with no census entry → FAIL
 naming it; make `@app/api` a runtime mobile dependency → FAIL "import type only"; make one
 vertical depend on another → FAIL "verticals never import each other"; put a `node:fs`
-import in a domain file → FAIL naming file and law; hollow out every vertical's src →
-FAIL "scanned ZERO files".
+import in a domain file → FAIL naming file and law; give the supabase mapper an
+`@app/env` import while a vertical imports `@app/supabase/errors` → FAIL naming the
+impurity; hollow out every vertical's src → FAIL "scanned ZERO files".
 
 **A wall the worked example provides (2.0.0).** The `@app/notes` row of
 `tools/exports-walls.json` carries `"demo": true`: the package exists only where

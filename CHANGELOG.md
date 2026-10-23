@@ -57,6 +57,21 @@ this comment. -->
   `version-sync` names it as matching no deprecated resolution, and the remedy is to delete
   it, or `update --refresh-seeded tools/eol.json` on an untouched register. The arrival ramp
   in `tools/check-version-sync.mjs` still runs to 2.1.0 for installs holding the row.
+- **A vertical may value-import exactly `@app/supabase/errors`, the pure SQLSTATE mapper**
+  (#159). `dal-client-value-import` redded every value import of `@app/supabase` and its
+  subpaths in a vertical, including `mapPostgresError`, whose own doc asks verticals to wrap
+  it rather than re-derive the table. So the notes vertical and the push slice each copied the
+  table, and the copies already disagree. `@app/supabase` gains a `./errors` subpath, and
+  `tools/lib/vertical-anatomy.mjs` no longer reports a value import of that exact specifier,
+  but only while `packages/platform/supabase/src/errors.ts` value-imports nothing but
+  `@app/errors`. If it gains another import, or is absent, the vertical's import reds with
+  the old text plus a sentence naming the impurity. The root, `./client` and any other
+  subpath stay red. Nothing green turns red, so no ramp opens.
+  `tests/gates/check-boundaries.test.mjs` proves each case, red before the change. The gate
+  library, `.claude/rules/boundaries.md` and the gates catalog are owned and reach an install
+  with `update`. The subpath is in `@app/supabase`'s `package.json`, which is seeded, so an
+  existing install adds `"./errors": "./src/errors.ts"` itself before a vertical imports it.
+  This unblocks #147's wrap of the mapper in notes.
 - **A project's own verticals are sanctioned without forking the owned census** (#160). Every
   vertical needs a `./client` census entry, and the only census was the owned, hash-pinned
   `tools/exports-walls.json`, so a project sanctioning its own vertical forked it, and every

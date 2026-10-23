@@ -199,7 +199,16 @@
         ]
       },
       {
-        "sha256": "5c441e26e88584da1a2689f456295784c5bce79eeb5d6526cd715891248ecdef",
+        "sha256": "2d65790950194fe5123c8303b27326f63908e6a0fc08350aad0031dbf5d774bf",
+        "sites": [
+          [
+            1250,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "689acdad6c83ac2f4d7a9b1bec57188aa0d7691bcc424049fad4f4d3e512db87",
         "sites": [
           [
             1477,
@@ -796,14 +805,27 @@
         ]
       },
       {
-        "sha256": "6ad7950a9888e4905a89261e5b2fb652ff00891fa52a8a6cd35c7680c96c15f7",
+        "sha256": "3c4c097126200bbcccf361ef08bef6084d24c5f255122f895d1b6646697db097",
         "sites": [
           [
             27862,
             "SECURITY_OWNERS"
           ],
           [
-            153288,
+            153772,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
+        "sha256": "c88e845edae6927765a15282811d2dd48a7429136f4ed3148bf65aeae517b4c6",
+        "sites": [
+          [
+            27862,
+            "SECURITY_OWNERS"
+          ],
+          [
+            152578,
             "SECURITY_TXT_EXPIRES"
           ]
         ]
@@ -2104,6 +2126,9 @@
     "tools/lib/vertical-anatomy.mjs": [
       {
         "sha256": "208e679a5f9787796ee6874f2dbb1a2f1f8ec5b2e9f2b037a6aeaafc86307061"
+      },
+      {
+        "sha256": "e46a5a05c3e180db9f50c877de28aa34c60eb2de2d084c658c7a55044e9f27cb"
       }
     ],
     "tools/lib/web-routes.mjs": [
