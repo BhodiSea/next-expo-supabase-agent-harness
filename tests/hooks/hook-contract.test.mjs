@@ -612,6 +612,13 @@ const RULE_CANARIES = {
     pathDeny('tools/exports-walls.json'),
     pathAllow('tools/exports-walls.json', SELF_EDIT),
   ],
+  // #160. The SEEDED project census beside it: a row sanctions a project vertical's ./client
+  // barrel, a security review, so an agent stages it under harness-proposals/ (the shared
+  // text, pinned below) and a human applies it.
+  'exports-walls-project': [
+    pathDeny('tools/exports-walls.project.json'),
+    pathAllow('tools/exports-walls.project.json', SELF_EDIT),
+  ],
   // The consumer's additive mutation surface — deleting a row un-mutates code a
   // human chose to protect, so either direction is a reviewed human act.
   'mutation-scope-extra': [pathDeny('tools/mutation-scope-extra.json')],
@@ -1269,6 +1276,19 @@ test('an Edit of the ./client census is denied with the human path, not the prop
   assert.ok(!reason.includes('apply-proposal'), reason)
   assert.match(reason, /SOURCE: docs\/harness\/README\.md \(tamper evidence\)$/)
   // The human escape lifts it, as it lifts every protected path.
+  assert.equal(writeGuardReason(edit, SELF_EDIT), null)
+})
+
+test('an Edit of the project census is denied and pointed at harness-proposals/ (#160)', () => {
+  const edit = {
+    file_path: 'tools/exports-walls.project.json',
+    old_string: '"entries": []',
+    new_string: '"entries": [{ "package": "@app/probe", "reason": "r" }]',
+  }
+  const reason = writeGuardReason(edit)
+  assert.equal(reason, SHARED_TAMPER_TEXT)
+  assert.match(reason, /harness-proposals\/<id>\.json/)
+  assert.match(reason, /apply-proposal/)
   assert.equal(writeGuardReason(edit, SELF_EDIT), null)
 })
 

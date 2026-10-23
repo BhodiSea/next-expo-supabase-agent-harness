@@ -59,6 +59,7 @@ export const PROPOSABLE = Object.freeze([
   'tools/store-tunables.json',
   'tools/duplication-allow.json',
   'tools/vertical-anatomy-allow.json',
+  'tools/exports-walls.project.json',
   'tools/i18n-allow.json',
   'tools/expo-permissions.json',
   'tools/expo-plugins.json',

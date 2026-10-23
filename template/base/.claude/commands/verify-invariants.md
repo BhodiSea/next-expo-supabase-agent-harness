@@ -51,7 +51,8 @@ the final call, and a weakened invariant the reviewer under-ranked is still a FA
   reversibility wall); `apps/mobile -/-> ` web-only pkgs; `apps/web -/-> ` react-native. The
   dual barrel holds: `.` is the SERVER barrel (`"use server"`, service-role, Next-coupled),
   `./client` is the Metro-safe barrel (pure domain, zod, direct RLS reads), and the single
-  census of which packages may expose `./client` is `tools/exports-walls.json`. `@app/api`
+  census of which packages may expose `./client` is `tools/exports-walls.json` with the
+  project's own `tools/exports-walls.project.json`. `@app/api`
   is ABSENT from mobile's runtime deps — a devDependency taken `import type` only.
 - **Mobile / web bundle purity.** `apps/mobile` reaches the backend through the tRPC client
   (`apps/mobile/src/lib/trpc/client.ts`, Class-B default) or a vertical's `./client` direct

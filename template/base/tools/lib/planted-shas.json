@@ -135,6 +135,11 @@
         "sha256": "92cda86eee4a2ea33cf6b216b5a6c767915b9c4c33332b7df897935019eda14c"
       }
     ],
+    "tools/exports-walls.project.json": [
+      {
+        "sha256": "fec4b4c915a525312bf8486adc9b93badeed5838727daf9a7f1a55743c5df073"
+      }
+    ],
     "tools/i18n-allow.json": [
       {
         "sha256": "9b3b1268efaf9d927f5dbb88d960b888304e581ac2390191eec72cd65cb014e3"
@@ -239,6 +244,9 @@
     "tools/reviewer-triggers.json": [
       {
         "sha256": "18386b812d5e850d5c9cfa41834b701c5e8073fb0ec4fd063ec76157333c0b46"
+      },
+      {
+        "sha256": "3cf07404f55fcf30fe509415fc1ffa5bb903a7e4c8ebf8db108e6989c80bd290"
       },
       {
         "sha256": "41aa1a7b15d9017388c474c5f250df90720bced50850dde12252d7c8f8412b50"

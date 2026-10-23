@@ -30,7 +30,8 @@ SOURCE: docs/harness/README.md.
   regen-diffs the inventories.
 - **packages/verticals/\*** — feature domains (never import each other), each a
   `.` server barrel + a Metro-safe `./client` barrel (the `exports` census is
-  `tools/exports-walls.json`).
+  `tools/exports-walls.json`, and a project's own verticals are sanctioned in
+  `tools/exports-walls.project.json`).
 - **packages/platform/\*** — `{errors, events}` are the KERNEL (import nothing —
   the bottom of the graph; the single `ActionOutcome` envelope lives here).
   `@app/supabase` owns the five Supabase factories (`service_role` BYPASSES RLS —

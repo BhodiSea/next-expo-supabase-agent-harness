@@ -289,6 +289,9 @@ census entry, and the census is owned and hash-pinned. Its deny tells the agent 
 file's sha256 in `.harness/manifest.json` in the same reviewed commit (the upgrade
 runbook's "Forking an owned file"). `HARNESS_ALLOW_SELF_EDIT=1` lifts the row like every
 other protected path, and a row without a `message` prints the shared text byte for byte.
+Since 2.0.4 (#160) a project's own vertical does not need that path: its entry goes in the
+seeded project census, `tools/exports-walls.project.json`, whose row,
+`exports-walls-project`, prints the shared text, because that file is proposable.
 
 ### What `HARNESS_ALLOW_SELF_EDIT=1` relaxes
 
