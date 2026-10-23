@@ -4437,6 +4437,33 @@ deleted. Your own register keeps it until you act. After your next `pnpm install
 the new config-plugins, `version-sync` reds the row as matching no deprecated resolution.
 Delete the row, or take the whole register with `update --refresh-seeded tools/eol.json`.
 
+### `tools/duplication-allow.json` takes rows that name what they exempt (#175)
+
+Through 2.0.3 a row in the duplication register was a fingerprint and a reason, and it
+exempted every copy of that token run, wherever the copy landed. A row may now name what it
+exempts: an `exact` or `near` row lists the member subjects of one class or pair, a mirror
+row names the two sides of a deliberate dual implementation, and a wire row belongs to one
+wire check. A third copy of an accepted class is never covered by its row. `update` plants
+`tools/check-duplication.mjs`, `tools/lib/duplication-allow.mjs`, `tools/lib/sweep.mjs` and
+`docs/harness/gates-catalog.md`, all owned.
+
+Nothing is left to you now. Your register is seeded, so `update` leaves it as it is, and
+your rows are L0 rows, which keep the check they always had: the Stop run's verdict does not
+move. A fresh scaffold's register replaces the design-system and i18n fingerprint rows with
+two mirror rows. You need them only when the exact rule goes live and meets the `useTheme`
+mirror (#201, ramped for an existing install). To take them, a human adds these two entries
+to the `allow` array (an agent stages the edit as `harness-proposals/<id>.json` for
+`apply-proposal`), then may delete the six design-system rows and the i18n catalog rows
+whose reasons name those files:
+
+```json
+{ "mirror": ["packages/design-system/src", "packages/design-system-native/src"], "reason": "the deliberate web/native design-system mirror: one variant contract, two Tailwind majors" }
+{ "mirror": ["apps/mobile/src/i18n/catalog.ts", "apps/web/lib/i18n/catalog.ts"], "reason": "the two surfaces' message catalogs: one shape, extraction barred by the seeded package roots" }
+```
+
+`node tools/check-duplication.mjs` stays green after the swap; if it reds, the clone it
+names is not between the two sides at one relative path, so keep that clone's row.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

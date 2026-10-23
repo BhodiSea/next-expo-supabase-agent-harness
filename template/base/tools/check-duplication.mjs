@@ -12,11 +12,13 @@
 // blocking CI lane. Ramped — on an install whose baseVersion predates the check it emits a
 // NOTE instead of failing, so a consumer's pre-existing copy-paste never ambushes an
 // `update`; in this lineage it ships in 0.1.0, so it is live from the first install.
-// Reviewed accepted clones live in tools/duplication-allow.json (by content fingerprint,
-// so an accepted clone stays accepted when it moves).
+// Reviewed accepted clones live in tools/duplication-allow.json: an L0 row by content
+// fingerprint (so an accepted clone stays accepted when it moves), or a mirror row naming the
+// two sides of a deliberate dual implementation (#175).
 // SOURCE: docs/harness/README.md (skip-local / fail-closed-CI asymmetry) [corpus: harness/doctrine]
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
+import { ALLOW_PATH, anyMirror, readRegister } from './lib/duplication-allow.mjs'
 import { duplicationScanRoots, isGeneratedPath, isScannedName } from './lib/duplication-scope.mjs'
 import { walkFiles } from './lib/fs-walk.mjs'
 // A NAMESPACE import (2.1.0, #185) for `noteComplete` alone: it is new, and an install may run
@@ -27,14 +29,16 @@ import * as gateLib from './lib/gate.mjs'
 import { fail, failures, ok, skipOrFail } from './lib/gate.mjs'
 
 const GATE = 'duplication'
-const ALLOW = 'tools/duplication-allow.json'
+const ALLOW = ALLOW_PATH
 
 // THE READ MODES (2.1.0, #186). `--sweep --json` prints the Single Home sweep's one document
 // (every family's records and every leg's terminator) and `--explain '<key12>'` prints one
-// record of it, both from lib/sweep.mjs. It is imported only here, so the Stop run, with no
-// flag, is L0 alone: it loads no parser and no extractor, and prints no new line.
+// record of it, both from lib/sweep.mjs. `--prune` (#175) prints the register without its
+// stale rows as a ready-to-stage harness-proposals/<id>.json. It is imported only here, so the
+// Stop run, with no flag, is L0 alone: it loads no parser and no extractor, and prints no new
+// line.
 const argv = process.argv.slice(2)
-if (argv.includes('--sweep') || argv.includes('--explain')) {
+if (argv.includes('--sweep') || argv.includes('--explain') || argv.includes('--prune')) {
   const { sweepMain } = await import('./lib/sweep.mjs')
   process.exit(await sweepMain(argv))
 }
@@ -58,39 +62,14 @@ if (SCAN_ROOTS.length === 0) {
 }
 
 // ---- reviewed exemptions ------------------------------------------------------------
-const allow = new Set()
-if (existsSync(ALLOW)) {
-  let parsed
-  try {
-    parsed = JSON.parse(readFileSync(ALLOW, 'utf8'))
-  } catch (e) {
-    fail(
-      GATE,
-      `${ALLOW} is not valid JSON (${e.message}) — the exemption list must be reviewable data`,
-    )
-  }
-  if (!Array.isArray(parsed.allow)) {
-    fail(
-      GATE,
-      `${ALLOW} must carry an "allow" ARRAY of {"fingerprint": string, "reason": string} entries`,
-    )
-  }
-  for (const entry of parsed.allow) {
-    const okShape =
-      entry !== null &&
-      typeof entry === 'object' &&
-      typeof entry.fingerprint === 'string' &&
-      typeof entry.reason === 'string' &&
-      entry.reason.trim() !== ''
-    if (!okShape) {
-      fail(
-        GATE,
-        `${ALLOW}: every entry must be {"fingerprint": string, "reason": non-empty string} — got ${JSON.stringify(entry)}`,
-      )
-    }
-    allow.add(entry.fingerprint)
-  }
-}
+// lib/duplication-allow.mjs reads the register (#175). This step alone reports its shape
+// errors, every malformed entry at once; L0 applies its L0 rows (by fingerprint) and its
+// mirror rows (a window between the two sides at the same relative path). The members-bound
+// rows bind exact classes and near-miss pairs, which the sweep reads (lib/sweep.mjs).
+const register = readRegister()
+if (register.error !== null) fail(GATE, register.error)
+if (register.problems.length > 0) fail(GATE, register.problems.join('\n'))
+const allow = new Set(register.rows.filter((r) => r.kind === 'l0').map((r) => r.fingerprint))
 
 // ---- tokenizer ----------------------------------------------------------------------
 // One regex, one pass. Whitespace and comments are matched (and skipped); strings /
@@ -230,7 +209,8 @@ for (const file of files) {
         .digest('hex')
         .slice(0, 12)
       const bigEnough = Math.max(aEnd - aStart, bEnd - bStart) + 1 >= MIN_LINES
-      if (bigEnough && !looksLikeData(tokens, i, len) && !allow.has(fp)) {
+      const accepted = allow.has(fp) || anyMirror(register.rows, prev.file.path, file.path)
+      if (bigEnough && !looksLikeData(tokens, i, len) && !accepted) {
         clones.push({
           fp,
           tokens: len,

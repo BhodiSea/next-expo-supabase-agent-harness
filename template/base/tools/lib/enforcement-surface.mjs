@@ -85,7 +85,7 @@ export const ESCAPE_LISTS = [
   // re-shaping the account-deletion surface are store-review decisions — the same
   // reviewed-widening class as every escape above.
   'tools/store-tunables.json',
-  'tools/duplication-allow.json', // accepting a code clone
+  'tools/duplication-allow.json', // accepting a code clone, a mirror or a wire binding
   'tools/vertical-anatomy-allow.json', // accepting a deviation from the vertical anatomy laws
   'tools/i18n-allow.json', // letting a user-facing string bypass the catalog
   'tools/expo-permissions.json', // granting the app a new platform permission

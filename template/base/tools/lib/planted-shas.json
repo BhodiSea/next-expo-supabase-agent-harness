@@ -84,6 +84,9 @@
     ],
     "tools/duplication-allow.json": [
       {
+        "sha256": "2b261de72c52a0be45c4f869085609fe14c61ca337d453fe26d42f62a35f5842"
+      },
+      {
         "sha256": "3430d3d44e6148cf21adced4acc39c614904b7abc1a5b26b2f662faa0fda5cf9"
       },
       {

@@ -748,6 +748,19 @@
             "SECURITY_TXT_EXPIRES"
           ]
         ]
+      },
+      {
+        "sha256": "9e0aad9509847e2876e67e5614051a523112b634eebb3fd6fa506ec3b93bebf4",
+        "sites": [
+          [
+            27862,
+            "SECURITY_OWNERS"
+          ],
+          [
+            152094,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
       }
     ],
     "docs/modules/ci-mobile-release/README.md": [
@@ -937,6 +950,15 @@
       },
       {
         "sha256": "580ea0683d645b1a6d6d870360600c5746930e3e66803fe368cd55d03fb34ef3",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "5e9696cf6a7d4ace0149aa8e052b8260df2d39b086b46b568df4f391f91e8e67",
         "sites": [
           [
             14122,
@@ -1279,6 +1301,9 @@
       }
     ],
     "tools/check-duplication.mjs": [
+      {
+        "sha256": "959e3257dee99ce28c6740ccb41af80fc8f15371f9940a2484fe5bf399d11311"
+      },
       {
         "sha256": "cc2ab6ec47fb69dd0b99ec95470607fa4b47916f020903604991975bdcb7d39c"
       }
@@ -1771,6 +1796,11 @@
         "sha256": "6ef9c7c10a5dc4fbc499490a87da368452050cacb0eaeee92b1d99528002a964"
       }
     ],
+    "tools/lib/duplication-allow.mjs": [
+      {
+        "sha256": "09c7f11344c3f5c56e6d47d093e1d9ba243dcf8ae5c46010c25cd6794d6ffbcc"
+      }
+    ],
     "tools/lib/duplication-scope.mjs": [
       {
         "sha256": "6cc5f27b850655a13c587d0a585f54dd484d9add57e0daf86263b3612cc5733a"
@@ -1779,6 +1809,9 @@
     "tools/lib/enforcement-surface.mjs": [
       {
         "sha256": "656a75ab8fe8fc14473a112e4c3465b44b930b3e6f138a45ff00744115eceb45"
+      },
+      {
+        "sha256": "bd41172f301764a74a790430e16992c54297cabf13170847ec93ab51b643c52d"
       }
     ],
     "tools/lib/eol.mjs": [
@@ -1889,6 +1922,9 @@
         "sha256": "932a7a180765e4be28b4f62be734e7c9564fdf78e2db8722430cfde39482243b"
       },
       {
+        "sha256": "96d42e5a9eac55f6b5371447ac9d56277e6967e5ba1dc4cd6c82781fb9ba37e9"
+      },
+      {
         "sha256": "b0e69835349135e299e2c6ce7a16347b05cdc0f8d643b7ed83ed8c7bd2a3f2d8"
       }
     ],
@@ -1994,6 +2030,9 @@
       }
     ],
     "tools/lib/sweep.mjs": [
+      {
+        "sha256": "46fdfe145919e14bc1d2094437f0eb7c95a043d5edb1d20299e48a21f414af91"
+      },
       {
         "sha256": "a8af5bc3cc88f3da6c4f39822165a9f40e54ada52b6338535df96b6fc098fb75"
       }
@@ -2185,6 +2224,9 @@
       }
     ],
     "tools/duplication-allow.json": [
+      {
+        "sha256": "2b261de72c52a0be45c4f869085609fe14c61ca337d453fe26d42f62a35f5842"
+      },
       {
         "sha256": "58bc5017309a5aa31856b4cc1623bda2515a3a87940bdfdb6a1f9ed3f6bb3ff9"
       }

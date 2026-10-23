@@ -21,6 +21,16 @@
 //     NEAR_MISS.rnr, neither data-shaped nor mostly JSX. Advisory, with "differs at" facts
 //     (lib/differs.mjs).
 //   - the six complexity families (lib/complexity.mjs), advisory and never owed.
+//   - the register leg (#175): what tools/duplication-allow.json's members-bound rows say
+//     about the tree (`stale-row`, `accepted-class-diverged`, `accepted-class-changed`).
+//
+// THE REGISTER (#175, lib/duplication-allow.mjs). An exact class whose members an `exact` row
+// lists, every one, is accepted and gets no record; one with a member the row does not list
+// keeps its record with those members as `facts.unlisted`, the red the exact rule gives once
+// it is live (#201). A mirror row accepts a two-member exact class (any band) whose members
+// share a name and sit at one relative path on its two sides. A near-miss pair a `near` row
+// names gets no record: its advisory closes `not_planned`. Shape errors are the Stop run's to
+// report; the sweep reads only the rows that passed.
 // The constants are PROVISIONAL: the exact rule's gate-proposal freezes them after eval A's
 // development split (#188, #194), and TOKEN_CONVENTION is frozen with FLOOR.
 //
@@ -40,7 +50,9 @@
 // value; paths are repository-relative POSIX; every sort is explicit and compares code
 // units, never a locale.
 // SOURCE: docs/harness/gates-catalog.md (duplication gate) [corpus: harness/doctrine]
+import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import {
   dottedCallee,
   enumOf,
@@ -54,6 +66,15 @@ import {
 } from './closed-text.mjs'
 import { COMPLEXITY_FAMILIES, complexityHits } from './complexity.mjs'
 import { differsAt } from './differs.mjs'
+import {
+  ALLOW_PATH,
+  anyMirror,
+  isStale,
+  judgeClass,
+  nearAccepted,
+  readRegister,
+  rowFindings,
+} from './duplication-allow.mjs'
 import { advisoryKey, advisoryRecordOk, noteMissingPrerequisite } from './gate.mjs'
 import { home, loadForbidden } from './homes.mjs'
 import { loadParser } from './i18n-tree.mjs'
@@ -86,7 +107,8 @@ const EXACT_RULES = ['exact', 'exact-small', 'exact-nohome']
  * @typedef {{ v: number, producer: string, rule: string, status: string, subject: string,
  *   fp: string, counts: Record<string, number>, facts: Record<string, any> }} SweepRecord
  * @typedef {{ ts: any, files: import('./shapes.mjs').TsFile[], callables: Callable[],
- *   importers: any, homes: import('./homes.mjs').HomeContext }} SweepIndex
+ *   importers: any, homes: import('./homes.mjs').HomeContext,
+ *   rows: import('./duplication-allow.mjs').Row[] }} SweepIndex
  * @typedef {{ producer: string, leg: string, rules: readonly string[], parser: boolean,
  *   records: (index: SweepIndex) => any[] }} SweepFamily
  */
@@ -168,16 +190,41 @@ function smallRecord(lang, members) {
   }
 }
 
+/** A two-member class a mirror row covers: one member on each side, at one relative path, one name. */
+const mirrorPair = (index, members) =>
+  members.length === 2 &&
+  members[0].name === members[1].name &&
+  anyMirror(index.rows, members[0].path, members[1].path)
+
+/**
+ * An exact class against the register: null when a row accepts it, else its record, with the
+ * members an `exact` row naming some of them does not list.
+ */
+function judged(index, members, record) {
+  if (mirrorPair(index, members)) return null
+  const j = judgeClass(index.rows, { fp: record.fp, subjects: members.map((c) => c.subject) })
+  if (j.state === 'accepted') return null
+  if (j.state === 'unlisted') {
+    const unlisted = members.filter((c) => j.unlisted.includes(c.subject))
+    record.counts.unlisted = unlisted.length
+    record.facts.unlisted = unlisted.map(member)
+  }
+  return record
+}
+
 /** exact, exact-nohome and exact-small over one language's callables. */
 function exactRecords(index, lang) {
   const pool = index.callables.filter((c) => c.lang === lang && c.tokens >= SMALL_FLOOR)
   const out = []
   for (const members of classesBy(pool, (c) => c.alpha)) {
     if (members[0].tokens < FLOOR) {
-      for (const same of classesBy(members, (c) => c.lit)) out.push(smallRecord(lang, same))
+      for (const same of classesBy(members, (c) => c.lit)) {
+        if (!mirrorPair(index, same)) out.push(smallRecord(lang, same))
+      }
     } else if (!members[0].dataShaped) {
       // One stream, so one verdict: a data-shaped class is never owed, and never listed.
-      out.push(exactRecord(index, lang, members))
+      const record = judged(index, members, exactRecord(index, lang, members))
+      if (record !== null) out.push(record)
     }
   }
   return out
@@ -244,8 +291,8 @@ function nearMissRecord(index, x, y, j) {
   }
 }
 
-/** Verified near-miss pairs over one language's callables. */
-function nearMissRecords(index, lang) {
+/** Verified near-miss pairs over one language's callables, as [a, b, jaccard]. */
+function nearPairs(index, lang) {
   const pool = index.callables.filter((c) => c.lang === lang && eligible(c))
   const out = []
   for (const [i, k] of candidatePairs(pool)) {
@@ -253,9 +300,57 @@ function nearMissRecords(index, lang) {
     const b = pool[k]
     if (a.alpha === b.alpha || a.arity !== b.arity) continue
     const j = jaccard(a.shingles, b.shingles)
-    if (j >= NEAR_MISS.jaccard) out.push(nearMissRecord(index, a, b, j))
+    if (j >= NEAR_MISS.jaccard) out.push([a, b, j])
   }
   return out
+}
+
+/** The near-miss records of one language, less the pairs a `near` row names. */
+const nearMissRecords = (index, lang) =>
+  nearPairs(index, lang)
+    .filter(([a, b]) => !nearAccepted(index.rows, [a.subject, b.subject]))
+    .map(([a, b, j]) => nearMissRecord(index, a, b, j))
+
+// ---- the register ---------------------------------------------------------------------
+
+/** What the members-bound rows are judged against: every subject, every class, every pair. */
+function registerTree(index) {
+  const classes = ['sql', 'ts'].flatMap((lang) =>
+    classesBy(
+      index.callables.filter((c) => c.lang === lang),
+      (c) => c.alpha,
+    ).map((m) => ({ fp: m[0].alpha, subjects: m.map((c) => c.subject) })),
+  )
+  const pairs = ['sql', 'ts'].flatMap((lang) =>
+    nearPairs(index, lang).map(([a, b]) => [a.subject, b.subject].sort()),
+  )
+  return { subjects: new Map(index.callables.map((c) => [c.subject, c.alpha])), classes, pairs }
+}
+
+/** The register leg's records. A finding no closed printer can carry gets none. */
+function registerRecords(index) {
+  const tree = registerTree(index)
+  const bySubject = new Map(index.callables.map((c) => [c.subject, c]))
+  return rowFindings(index.rows, tree)
+    .filter((f) => f.subject.split(' ').every((id) => subjectId.ok(id)))
+    .map((f) => {
+      const evidence = typeof f.row.fingerprint === 'string' && key12.ok(f.row.fingerprint)
+      const edited = f.rule === 'accepted-class-diverged' ? bySubject.get(f.subject) : undefined
+      return {
+        v: 1,
+        producer: PRODUCER,
+        rule: f.rule,
+        status: 'advisory',
+        subject: f.subject,
+        fp: key12.ok(f.subject) ? f.subject : sha(f.subject).slice(0, 12),
+        counts: { members: f.row.members.length },
+        facts: {
+          tier: 'advisory',
+          ...(evidence ? { row: f.row.fingerprint } : {}),
+          ...(edited === undefined ? {} : { member: member(edited) }),
+        },
+      }
+    })
 }
 
 // ---- complexity -----------------------------------------------------------------------
@@ -316,6 +411,13 @@ export const SWEEP_FAMILIES = Object.freeze([
     parser: true,
     records: complexityRecords,
   },
+  {
+    producer: PRODUCER,
+    leg: 'register',
+    rules: ['accepted-class-changed', 'accepted-class-diverged', 'stale-row'],
+    parser: true,
+    records: registerRecords,
+  },
 ])
 
 /**
@@ -344,6 +446,7 @@ function buildIndex(ts) {
     callables,
     importers,
     homes: { importers, census: readCensus(), forbidden: loadForbidden() },
+    rows: readRegister().rows,
   }
 }
 
@@ -445,7 +548,7 @@ function moveText(r) {
   return 'none: no module every member may import exists or may be created, so this stays advisory'
 }
 
-const SHOWN = new Set(['tier', 'home', 'target', 'members', 'member', 'arms', 'lang'])
+const SHOWN = new Set(['tier', 'home', 'target', 'members', 'member', 'arms', 'lang', 'unlisted'])
 
 /**
  * The --explain text of one record.
@@ -463,6 +566,7 @@ export function explainRecord(r) {
   ]
   const members = r.facts.members ?? (r.facts.member === undefined ? [] : [r.facts.member])
   for (const m of members) lines.push(`member     ${memberText(m)}`)
+  for (const m of r.facts.unlisted ?? []) lines.push(`unlisted   ${memberText(m)}`)
   if (r.facts.home !== undefined) {
     lines.push(`home       ${HOME_TEXT[r.facts.home] ?? UNPRINTABLE}`, `move       ${moveText(r)}`)
   }
@@ -494,10 +598,62 @@ function explainMain(ts, arg) {
   return 0
 }
 
+// ---- --prune --------------------------------------------------------------------------
+// The register without its stale rows, as the one JSON document an agent stages as
+// harness-proposals/<id>.json (docs/harness/README.md, "Proposing a register edit"): a human
+// applies it. It reads the tree, so it needs the parser; without it nothing is printed.
+
+const PRUNE_ID = 'duplication-prune'
+
+/** `git rev-parse HEAD:<target>`, or null when the target is not in HEAD (or there is no git). */
+function committedBlob(target) {
+  const r = spawnSync('git', ['rev-parse', `HEAD:${target}`], { encoding: 'utf8' })
+  const out = (r.stdout ?? '').trim()
+  return r.status === 0 && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(out) ? out : null
+}
+
+/** @param {any} ts */
+function pruneMain(ts) {
+  if (ts === null) {
+    console.error(
+      `${PRODUCER}: --prune reads the tree's callables, and typescript could not be loaded, so nothing is proposed`,
+    )
+    return 1
+  }
+  const register = readRegister()
+  if (register.error !== null || register.problems.length > 0) {
+    console.error(
+      `${PRODUCER}: ${ALLOW_PATH} has shape errors; run node tools/check-duplication.mjs and fix them first`,
+    )
+    return 1
+  }
+  const index = buildIndex(ts)
+  const tree = registerTree(index)
+  const stale = new Set(register.rows.filter((r) => isStale(r, tree)).map((r) => r.index))
+  if (stale.size === 0) {
+    console.error(`${PRODUCER}: no row of ${ALLOW_PATH} is stale, so there is nothing to prune`)
+    return 0
+  }
+  const parsed = JSON.parse(readFileSync(ALLOW_PATH, 'utf8'))
+  parsed.allow = parsed.allow.filter((_, i) => !stale.has(i))
+  const proposal = {
+    version: 1,
+    target: ALLOW_PATH,
+    reason: `Drop ${String(stale.size)} stale row(s) of ${ALLOW_PATH}: a member or a side they name no longer exists, or a near pair no longer matches.`,
+    base: committedBlob(ALLOW_PATH),
+    content: `${JSON.stringify(parsed, null, 2)}\n`,
+  }
+  console.error(
+    `${PRODUCER}: stage the document below as harness-proposals/${PRUNE_ID}.json; a human applies it with apply-proposal ${PRUNE_ID}`,
+  )
+  console.log(JSON.stringify(proposal, null, 2))
+  return 0
+}
+
 /**
  * The duplication gate's read modes: `--sweep --json` prints the document and exits 0 only
  * when every leg completed; `--explain '<key12>'` prints one record and exits 0 only when it
- * is found. With no parser the TS legs are incomplete and the missing prerequisite is
+ * is found; `--prune` prints the proposal that drops the register's stale rows. With no parser the TS legs are incomplete and the missing prerequisite is
  * recorded.
  * @param {string[]} argv @param {() => Promise<unknown>} [load] the parser's loader
  * @returns {Promise<number>} the exit code
@@ -510,6 +666,7 @@ export async function sweepMain(argv, load) {
       "typescript could not be loaded, so the sweep's TS legs did not run",
     )
   }
+  if (argv.includes('--prune')) return pruneMain(ts)
   const at = argv.indexOf('--explain')
   if (at !== -1) return explainMain(ts, argv[at + 1])
   if (!argv.includes('--json')) {

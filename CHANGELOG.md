@@ -58,6 +58,36 @@ this comment. -->
   it, or `update --refresh-seeded tools/eol.json` on an untouched register. The arrival ramp
   in `tools/check-version-sync.mjs` still runs to 2.1.0 for installs holding the row.
 
+### Changed
+
+- **`tools/duplication-allow.json` takes rows that name what they exempt** (#175). One
+  reviewed fingerprint row exempted every copy of a token run wherever it landed, so a third
+  copy, or a copy swapped into a file nobody reviewed, rode the row two named files earned.
+  `tools/lib/duplication-allow.mjs` is new and is the register's one reader. Beside today's
+  L0 rows, `{fingerprint, reason}`, an entry may be an exact or near row
+  (`{fingerprint, rule: "exact" | "near", members, reason}`, matched by its member subjects,
+  the fingerprint kept as evidence), a mirror row (`{mirror: [pathA, pathB], reason}`, a
+  deliberate dual implementation, matched file to file at one relative path), or a wire row
+  (`rule` one of the wire checks, read only by the step that owns it, through `rowsFor`).
+  `duplication` alone reports shape errors, every malformed entry at once: a new-kind row
+  without `members`, with a reason under 20 characters, an unknown rule, `rule: "wire-bound"`
+  (whose sites use `tools/dto-bounds-allow.json`), or a member named twice, and a mirror that
+  is not two repository-relative paths. An L0 row keeps its old check, so no row an install
+  holds becomes invalid, and the L0 verdict on every other tree is unchanged. The sweep
+  (`--sweep --json`) applies the rows: a class whose members a row lists is silent, one with
+  an unlisted member keeps its record and names it in `facts.unlisted` (the red the exact
+  rule gives once it is live, #201), and a new `register` leg writes `accepted-class-changed`,
+  `accepted-class-diverged` and `stale-row` records; a near-miss pair a near row names gets no
+  record. `--prune` prints the register without its stale rows as a ready-to-stage
+  `harness-proposals/duplication-prune.json`. The template's register is rewritten: one
+  mirror row for the two design systems replaces their six fingerprint rows, one for the
+  two i18n catalogs replaces their three, and the sign-in and sign-up row stays an L0 row.
+  `tools/check-duplication.mjs`, `tools/lib/sweep.mjs`, `tools/lib/enforcement-surface.mjs`
+  (a comment) and `docs/harness/gates-catalog.md` are owned and reach an install with
+  `update`. The register is seeded, so `update` leaves yours as it is, and its L0 rows stay
+  valid. In the factory, `tests/gates/duplication-allow.test.mjs` is new and the
+  `machinery-shapes` step in `lint.yml` runs it with the parser.
+
 ## [2.0.3] — 2026-10-17
 
 **A patch: the v2.0.x defect fixes, a security floor move, and two additions.** The `next`

@@ -2482,6 +2482,34 @@ after it moves lines.
 **Anti-vacuity:** paste a ≥70-token block across two files → FAIL naming both
 sites + fingerprint.
 
+**The register's row kinds (#175): rows that name what they exempt.** Each entry of
+`tools/duplication-allow.json` is one of four kinds, read by `tools/lib/duplication-allow.mjs`.
+An L0 row, `{fingerprint, reason}`, accepts one token window by fingerprint, as before. An
+exact or near row, `{fingerprint, rule: "exact" | "near", members, reason}`, accepts the exact
+class, or the near-miss pair, whose member subjects (`<package>#<name>`, `<path>#<name>`,
+`<path>#<Class>.<method>`, `sql:<schema>.<fn>`) are exactly `members`; the fingerprint is
+evidence only. A mirror row, `{mirror: [pathA, pathB], reason}`, accepts a match between the
+file at one relative path on each side (two directories, or two files): an L0 window, and an
+exact class of two members of one name. A wire row, `{fingerprint, rule: "<check>", members,
+reason}`, accepts one wire binding for the step that owns the rule (`rowsFor`); `wire-bound`
+takes no row here (its sites use `tools/dto-bounds-allow.json`). The rule set is closed:
+`exact`, `near`, `wire-orphan`, `validation-parity`, `respelled-guard`, `parity-truth`,
+`twin-schema`, `twin-args`, `wire-restate`, `i18n-key-parity`. The Stop run alone reports
+shape errors, every malformed entry at once, red: a new-kind row without `members` or with a
+reason under 20 characters, an unknown rule or `wire-bound`, a member named twice or fewer
+than two, a near row of other than two members, a mirror that is not two distinct
+repository-relative paths. An L0 row keeps its old check, so no row an install holds becomes
+invalid. In the sweep, a class whose members a row lists, every one, gets no record; a member
+the row does not list (a third copy, a swap into another file) stays on the class as
+`facts.unlisted`, which the exact rule reds once live (#201); `accepted-class-changed` says an
+accepted class's fingerprint moved, `accepted-class-diverged` names the side edited out of a
+class, and `stale-row` names a member that no longer exists, never red. `node
+tools/check-duplication.mjs --prune` prints the register without its stale rows as a
+ready-to-stage `harness-proposals/duplication-prune.json`, which only a human applies.
+**Anti-vacuity:** a row with a 10-character reason, `rule: "exakt"`, `rule: "wire-bound"` or
+`members: [A, A]` → FAIL naming the entry; an L0 row with `reason: "x"` → green; a mirror row
+over two design systems → their window is green, and a third copy elsewhere → FAIL naming it.
+
 **The sweep and `--explain` (2.1.0, #186): read modes that decide no verdict.** The Stop run
 is the L0 scan above and nothing else, and it prints no advisory NOTE until the exact rule
 goes live (#201). Two read modes sit beside it. `node tools/check-duplication.mjs --sweep

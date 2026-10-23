@@ -111,7 +111,7 @@ for (const name of /** @type {const} */ (['default', 'demo'])) {
     assert.equal(doc.complete, true)
     assert.deepEqual(
       doc.legs.map((l) => `${l.leg}:${String(l.complete)}`),
-      ['exact-sql:true', 'exact-ts:true', 'near-miss-sql:true', 'near-miss-ts:true', 'complexity:true'],
+      ['exact-sql:true', 'exact-ts:true', 'near-miss-sql:true', 'near-miss-ts:true', 'complexity:true', 'register:true'],
     )
     // The document's legs are the registry's, in its order: a family registers in one place.
     assert.deepEqual(
@@ -164,7 +164,7 @@ test('sweep: with no parser the TS legs are incomplete, the run exits 1 and reco
   assert.equal(doc.complete, false)
   assert.deepEqual(
     doc.legs.map((l) => `${l.leg}:${String(l.complete)}`),
-    ['exact-sql:true', 'exact-ts:false', 'near-miss-sql:true', 'near-miss-ts:false', 'complexity:false'],
+    ['exact-sql:true', 'exact-ts:false', 'near-miss-sql:true', 'near-miss-ts:false', 'complexity:false', 'register:false'],
   )
   assert.ok(doc.records.every((r) => r.facts.lang === 'sql'), 'the SQL legs still ran')
   const noted = readdirSync(report).flatMap((f) =>

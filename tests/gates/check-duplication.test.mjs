@@ -154,6 +154,80 @@ test('duplication: a malformed allowlist FAILS CLOSED', () => {
   assert.match(r.out, /fingerprint/)
 })
 
+// ── the register's row kinds (#175) ─────────────────────────────────────────────
+// The Stop run alone reports the register's shape errors, every one at once; it applies L0
+// rows by fingerprint and mirror rows to a window between the two sides at one relative path.
+// The members-bound rows bind exact classes and near-miss pairs (duplication-allow.test.mjs).
+
+const REASON = 'reviewed: the two halves of one deliberate pattern'
+const SUBJECTS = ['@app/k#alpha', '@app/k#beta']
+const allowOf = (...allow) => JSON.stringify({ allow })
+
+for (const [label, entry, re] of /** @type {[string, any, RegExp][]} */ ([
+  ['a row with a 10-character reason', { fingerprint: 'abcdef012345', rule: 'exact', members: SUBJECTS, reason: '0123456789' }, /at least 20 characters/],
+  ['an unknown rule', { fingerprint: 'abcdef012345', rule: 'exakt', members: SUBJECTS, reason: REASON }, /unknown rule "exakt"/],
+  ['rule wire-bound', { fingerprint: 'abcdef012345', rule: 'wire-bound', members: SUBJECTS, reason: REASON }, /tools\/dto-bounds-allow\.json/],
+  ['members [A, A]', { fingerprint: 'abcdef012345', rule: 'exact', members: [SUBJECTS[0], SUBJECTS[0]], reason: REASON }, /names a subject twice/],
+  ['a mirror of three paths', { mirror: ['a', 'b', 'c'], reason: REASON }, /exactly two repository-relative paths/],
+])) {
+  test(`duplication: ${label} is a shape error, red, naming the entry`, () => {
+    const r = runReal({ 'apps/mobile/src/a.ts': 'export const x = 1\n' }, { allow: allowOf(entry) })
+    assert.equal(r.code, 1, r.out)
+    assert.match(r.out, re)
+    assert.match(r.out, /entry 0/)
+  })
+}
+
+test('duplication: every malformed entry is named in one run, and an L0 row with reason "x" is green as today', () => {
+  const r = runReal(
+    { 'apps/mobile/src/a.ts': 'export const x = 1\n' },
+    {
+      allow: allowOf(
+        { fingerprint: 'abcdef012345', reason: 'x' },
+        { rule: 'exakt', members: SUBJECTS, reason: REASON },
+        { mirror: ['/abs', 'b'], reason: REASON },
+      ),
+    },
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /entry 1: unknown rule/)
+  assert.match(r.out, /entry 2: "mirror" must be/)
+  assert.doesNotMatch(r.out, /entry 0/)
+  const l0 = runReal({ 'apps/mobile/src/a.ts': 'export const x = 1\n' }, { allow: allowOf({ fingerprint: 'abcdef012345', reason: 'x' }) })
+  assert.equal(l0.code, 0, l0.out)
+})
+
+test('duplication: well-formed exact, near and wire rows do not change the L0 verdict', () => {
+  const tree = { 'apps/mobile/src/a.ts': BLOCK('summariseAlpha'), 'apps/mobile/src/b.ts': BLOCK('summariseBeta') }
+  const rows = ['exact', 'near', 'twin-schema'].map((rule) => ({ fingerprint: 'abcdef012345', rule, members: SUBJECTS, reason: REASON }))
+  assert.equal(runReal(tree, { allow: allowOf(...rows) }).code, 1)
+  assert.equal(runReal({ 'apps/mobile/src/a.ts': BLOCK('summariseAlpha') }, { allow: allowOf(...rows) }).code, 0)
+})
+
+test('duplication: a mirror row accepts an L0 window between its two sides at one relative path', () => {
+  const mirror = allowOf({ mirror: ['packages/web-ui/src', 'packages/native-ui/src'], reason: REASON })
+  const pair = { 'packages/web-ui/src/list.ts': BLOCK('summariseAlpha'), 'packages/native-ui/src/list.ts': BLOCK('summariseBeta') }
+  assert.equal(runReal(pair).code, 1)
+  const r = runReal(pair, { allow: mirror })
+  assert.equal(r.code, 0, r.out)
+  // Another relative path is not the mirror: the row names a correspondence, not two trees.
+  const moved = runReal(
+    { 'packages/web-ui/src/list.ts': BLOCK('summariseAlpha'), 'packages/native-ui/src/other.ts': BLOCK('summariseBeta') },
+    { allow: mirror },
+  )
+  assert.equal(moved.code, 1, moved.out)
+  // A copy anywhere else is judged normally, and the red names it.
+  const third = runReal({ ...pair, 'apps/mobile/src/components/list.ts': BLOCK('summariseGamma') }, { allow: mirror })
+  assert.equal(third.code, 1, third.out)
+  assert.match(third.out, /apps\/mobile\/src\/components\/list\.ts/)
+})
+
+test('duplication: a file-pair mirror row accepts the window between the two files', () => {
+  const pair = { 'apps/mobile/src/i18n/catalog.ts': BLOCK('summariseAlpha'), 'apps/web/lib/i18n/catalog.ts': BLOCK('summariseBeta') }
+  const r = runReal(pair, { allow: allowOf({ mirror: ['apps/mobile/src/i18n/catalog.ts', 'apps/web/lib/i18n/catalog.ts'], reason: REASON }) })
+  assert.equal(r.code, 0, r.out)
+})
+
 test('duplication: even a pre-lineage baseVersion is held — the check is unconditional', () => {
   // 0.4.0 DELETED this ramp rather than expiring it: its minVersion sat below v0.1.3,
   // the oldest release this lineage ever tagged, so gate.mjs returned false at
