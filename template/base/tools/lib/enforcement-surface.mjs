@@ -87,6 +87,7 @@ export const ESCAPE_LISTS = [
   'tools/store-tunables.json',
   'tools/duplication-allow.json', // accepting a code clone
   'tools/vertical-anatomy-allow.json', // accepting a deviation from the vertical anatomy laws
+  'tools/exports-walls.project.json', // #160: sanctioning a project vertical's ./client barrel
   'tools/i18n-allow.json', // letting a user-facing string bypass the catalog
   'tools/expo-permissions.json', // granting the app a new platform permission
   'tools/expo-plugins.json', // admitting a config plugin to the native build

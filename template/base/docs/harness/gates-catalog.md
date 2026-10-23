@@ -384,6 +384,20 @@ commit, after which `update` parks each later upstream change to the census for 
 (the upgrade runbook's "Forking an owned file"). The write guard's `exports-walls-census` row
 denies an agent's edit with the same path, and `scaffold-slice` prints it as a `next:` line.
 No verdict changes: `gate-integrity` already redded the edit the row denies.
+**A project's own verticals are sanctioned in the project census (2.0.4, #160).**
+`tools/exports-walls.project.json` is seeded, shaped `{comment, entries: [{package,
+reason}]}`, and read as empty when absent. Both consumers read the union of the two files
+through one reader, `tools/lib/workspace-tiers.mjs`, which the duplication sweep reads too, so
+none can disagree. The project file is closed: an entry must name a package under
+`packages/verticals/`, carry a non-empty reason, appear once, and not repeat a package the
+owned census lists (that red names both files); a file that does not parse or has no `entries`
+array fails loud. It is write-guarded (`exports-walls-project`, the shared deny text) and
+proposable, so an agent stages the whole file under `harness-proposals/` and a human runs
+`apply-proposal`. The red for an unsanctioned vertical, the mobile wall's red for a vertical,
+and `scaffold-slice`'s `next:` line name this file and that flow; the owned census's human
+path remains for every other package. No verdict tightens: the file starts empty, and every
+new red is about its own contents. The dependency-cruiser rules read neither file: no rule
+there keys off the census.
 **check-workspace-deps** (the declared-dependency allow-matrix):
 apps/mobile may take a runtime `@app/*` dependency only if it is sanctioned OR
 universally-importable (the error/event kernel, the wire contracts, the RN-only design
@@ -399,7 +413,11 @@ claim); `src/domain/**` imports only sibling domain files, `@app/contracts` and 
 (no I/O, no clock, no error kernel — domain returns values, data returns outcomes); the
 DAL laws key on BEHAVIOR, not directory names — a value-import of
 `@app/supabase`/`@supabase/*` reds ANYWHERE under src/** (`import type` of the port
-shapes is sanctioned), and any file that speaks PostgREST (`.from(`/`.rpc(`/`.select(`
+shapes is sanctioned, and so is a value-import of EXACTLY `@app/supabase/errors`, the
+pure SQLSTATE-to-`AppError` mapper a vertical wraps instead of copying the table, which
+drifts; #159. That one exemption holds only while
+`packages/platform/supabase/src/errors.ts` value-imports nothing but `@app/errors`;
+otherwise the import reds naming the impurity, so it never admits a client), and any file that speaks PostgREST (`.from(`/`.rpc(`/`.select(`
 in call position) is the DAL wherever it lives and must import a `port.ts` that exists
 (the witness: `src/data/port.ts`; single-hop, stated — the import must be in the
 calling file). Until 1.0.0 both laws read the `src/data/` directory name, which a
@@ -423,8 +441,9 @@ install); the behavior keying's WIDENED findings ramped for pre-1.0.0 installs u
 **Anti-vacuity:** add a `./client` export to a package with no census entry → FAIL
 naming it; make `@app/api` a runtime mobile dependency → FAIL "import type only"; make one
 vertical depend on another → FAIL "verticals never import each other"; put a `node:fs`
-import in a domain file → FAIL naming file and law; hollow out every vertical's src →
-FAIL "scanned ZERO files".
+import in a domain file → FAIL naming file and law; give the supabase mapper an
+`@app/env` import while a vertical imports `@app/supabase/errors` → FAIL naming the
+impurity; hollow out every vertical's src → FAIL "scanned ZERO files".
 
 **A wall the worked example provides (2.0.0).** The `@app/notes` row of
 `tools/exports-walls.json` carries `"demo": true`: the package exists only where

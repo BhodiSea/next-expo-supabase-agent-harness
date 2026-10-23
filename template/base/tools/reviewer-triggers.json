@@ -73,6 +73,7 @@
         "packages/*/*/src/**",
         "packages/verticals/*/package.json",
         "tools/exports-walls.json",
+        "tools/exports-walls.project.json",
         "tools/vertical-anatomy-allow.json"
       ],
       "except": ["**/*.test.ts", "**/*.test.tsx", "**/__tests__/**", "**/testing/**"],

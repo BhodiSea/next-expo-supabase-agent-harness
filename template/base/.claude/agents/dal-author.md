@@ -102,11 +102,11 @@ the first run):
    what the vertical's `./client` barrel carries, so its census reason is a
    `{{SECURITY_OWNERS}}` security-census decision. The census entry itself is not a
    Class-A opt-in: every vertical needs one, Class-B included, because the anatomy law
-   requires the `./client` key. `tools/exports-walls.json` is harness-OWNED and
-   hash-pinned, so you never write it (the write guard denies the edit). List the
-   `{package, reason}` entry in your report as a human step: a human adds it under that
-   review and re-records the file's sha256 in `.harness/manifest.json` in the same
-   reviewed commit.
+   requires the `./client` key. The entry goes in the project census,
+   `tools/exports-walls.project.json`, never the harness-owned `tools/exports-walls.json`,
+   and you never write either (the write guard denies the edit). List the
+   `{package, reason}` entry in your report as a human step: it is staged as a proposal under
+   `harness-proposals/`, and a human applies it under that review with `apply-proposal`.
 9. **Routers are three lines.** A procedure picks a rung of the ladder
    (`publicProcedure` → `authedProcedure` → `orgProcedure`), names an input
    schema, and hands the call to `@app/<x>` (`routers/notes.ts` is the shape).

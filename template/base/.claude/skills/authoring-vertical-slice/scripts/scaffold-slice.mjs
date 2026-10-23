@@ -18,7 +18,8 @@
 // stub that cannot compile until the vertical resolves is comment-only, as the router stub is.
 // What the script must not do itself (a catalog key, a regenerated registry, a spec, the
 // vertical's package.json) is a printed `next:` line. So is the step no agent may take (#154):
-// the `./client` census entry, because tools/exports-walls.json is harness-owned.
+// the `./client` census entry. Since #160 it goes in the seeded project census,
+// tools/exports-walls.project.json, which an agent stages as a proposal and a human applies.
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
@@ -353,11 +354,11 @@ console.log(
 )
 console.log(
   `next: a HUMAN step, not an agent's: the "./client" key needs a {package, reason} entry for @app/${slice} ` +
-    'in tools/exports-walls.json, which is harness-owned and hash-pinned, so hand the entry (the package, ' +
-    'and what its ./client barrel would carry into the native bundle) to a human. They add it under the ' +
-    "security owners' review and re-record the file's sha256 in .harness/manifest.json in the same " +
-    'reviewed commit (docs/runbooks/harness-upgrade.md, "Forking an owned file"); until then boundaries ' +
-    'reds the package as NOT sanctioned',
+    'in tools/exports-walls.project.json, the project census, which the write guard denies to an agent. ' +
+    'Stage the whole proposed file, with the entry (the package, and what its ./client barrel carries ' +
+    'into the native bundle), as harness-proposals/<id>.json, and a human applies it with ' +
+    "`apply-proposal <id>` under the security owners' review; until then boundaries reds the package " +
+    'as NOT sanctioned',
 )
 console.log(
   `next: export the catalog from src/client.ts as EVENT_CATALOG (export { ${camel}Events as EVENT_CATALOG } from './events.js'), or its events are never catalogued`,

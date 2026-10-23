@@ -29,6 +29,13 @@
 // '1.0.0' for what only the behavior keying sees) so the gate can ramp the widening
 // without weakening the armed laws.
 //
+// ONE SANCTIONED SUBPATH (#159). `@app/supabase/errors` is the pure SQLSTATE-to-AppError
+// mapper; a vertical wraps it instead of copying the table, which had already drifted
+// (the notes copy reported a quota failure as the one retryable kind). The exemption is
+// the exact specifier, and holds only while packages/platform/supabase/src/errors.ts
+// value-imports nothing but '@app/errors': otherwise the import reds with today's text
+// plus a sentence naming the impurity, so the law never admits a client reach.
+//
 // Deliberately still convention-keyed, each with its limit stated: domain-purity
 // arms only where src/domain/ exists, and events-purity only on src/events.ts.
 // Mandating those files by name would be the max-lines mistake in directory form
@@ -107,8 +114,8 @@ function importSpecifiers(src) {
 // A from-clause naming `spec` that is NOT statement-level type-only, plus any
 // dynamic import()/require() of it — both are value reaches by construction.
 // Mixed `import { type X, Y }` counts as a value import on purpose: it carries values.
-function valueImportsOf(src, specPrefixes) {
-  const covers = (spec) => specPrefixes.some((p) => spec === p || spec.startsWith(`${p}/`))
+// `covers` decides which specifiers are the subject; `() => true` lists them all.
+function valueImportsOf(src, covers) {
   const hits = []
   for (const m of src.matchAll(/\b(import|export)(\s+type)?\s[^;'"`]*?from\s*(['"])([^'"]+)\3/g)) {
     if (m[2] === undefined && covers(m[4])) hits.push({ spec: m[4], index: m.index ?? 0 })
@@ -210,6 +217,31 @@ const eventsMayImport = (spec) => spec === '@app/events' || spec === '@app/contr
 
 // The client-reach law's subject: a value import of either names a client.
 const CLIENT_SPECS = ['@app/supabase', '@supabase']
+const coversClient = (spec) => CLIENT_SPECS.some((p) => spec === p || spec.startsWith(`${p}/`))
+
+// The one sanctioned subpath (#159): the SQLSTATE-to-AppError mapper, which reaches no
+// client, so a vertical WRAPS it rather than re-deriving the table (a second copy drifts).
+// Exact specifier only, and only while the mapper file value-imports nothing but the error
+// kernel — so the exemption can never admit a client reach, by construction.
+const MAPPER_SPEC = '@app/supabase/errors'
+const MAPPER_FILE = 'platform/supabase/src/errors.ts'
+
+/**
+ * Why the mapper is NOT pure, as one sentence for the finding, or null when it is.
+ * Absent reads as impure: an exemption whose condition cannot be read is not granted.
+ * @param {string} packagesDir @returns {string | null}
+ */
+function mapperImpurity(packagesDir) {
+  const file = join(packagesDir, MAPPER_FILE)
+  const shown = `packages/${MAPPER_FILE}`
+  if (!existsSync(file)) {
+    return `'${MAPPER_SPEC}' is sanctioned only while ${shown} exists and value-imports nothing but '@app/errors' — that file is absent`
+  }
+  const blanked = readBlanked(file)
+  const other = valueImportsOf(blanked, (spec) => spec !== '@app/errors')[0]
+  if (other === undefined) return null
+  return `'${MAPPER_SPEC}' is sanctioned only while ${shown} value-imports nothing but '@app/errors' — line ${lineOf(blanked, other.index)} of it value-imports '${other.spec}'`
+}
 
 /**
  * The anatomy law a NEW value import would break, or null — the question the duplication
@@ -224,9 +256,10 @@ export function anatomyRefuses(rel, spec) {
     return 'domain-purity'
   }
   if (rel === 'events.ts' && !eventsMayImport(spec)) return 'events-purity'
-  if (CLIENT_SPECS.some((p) => spec === p || spec.startsWith(`${p}/`))) {
-    return 'dal-client-value-import'
-  }
+  // Conservative on purpose: the #159 exemption depends on a file this pure question
+  // cannot read, so a proposed move importing the mapper is refused like any client reach.
+  if (coversClient(spec)) return 'dal-client-value-import'
+
   return null
 }
 
@@ -267,14 +300,22 @@ export function importsAPort(srcDir, rel, blanked) {
   return false
 }
 
-function clientReachFindings(name, rel, blanked, findings) {
-  for (const { spec, index } of valueImportsOf(blanked, CLIENT_SPECS)) {
+// `mapper` is the lazily-read purity verdict, shared across the scan: undefined until a
+// vertical first names MAPPER_SPEC, then null (pure) or the impurity sentence.
+function clientReachFindings(name, rel, blanked, findings, mapper) {
+  for (const { spec, index } of valueImportsOf(blanked, coversClient)) {
+    let impurity = ''
+    if (spec === MAPPER_SPEC) {
+      if (mapper.verdict === undefined) mapper.verdict = mapperImpurity(mapper.packagesDir)
+      if (mapper.verdict === null) continue
+      impurity = ` ${mapper.verdict}.`
+    }
     findings.push({
       package: name,
       law: 'dal-client-value-import',
       path: `src/${rel}`,
       vintage: rel.startsWith('data/') ? '0.9.5' : '1.0.0',
-      detail: `line ${lineOf(blanked, index)} value-imports '${spec}' — a vertical never constructs or reaches a client anywhere in its tree, whatever the directory is called; the database arrives through a structural port (\`import type\` of the port shapes is the sanctioned form)`,
+      detail: `line ${lineOf(blanked, index)} value-imports '${spec}' — a vertical never constructs or reaches a client anywhere in its tree, whatever the directory is called; the database arrives through a structural port (\`import type\` of the port shapes is the sanctioned form).${impurity}`,
     })
   }
 }
@@ -315,14 +356,14 @@ function selectStarFinding(name, rel, blanked, findings) {
 // select-star. One walk is also the file COUNT — every non-test source file in
 // the vertical is scanned by these three, so the anti-vacuity floor counts here
 // and nowhere else.
-function scanTree(dir, name, findings, counted) {
+function scanTree(dir, name, findings, counted, mapper) {
   const srcDir = join(dir, 'src')
   if (!existsSync(srcDir)) return
   for (const rel of walkFiles(srcDir, { excludeDirs: SCAN_EXCLUDES })) {
     if (!/\.tsx?$/.test(rel) || isTest(rel)) continue
     counted.n += 1
     const blanked = readBlanked(join(srcDir, rel))
-    clientReachFindings(name, rel, blanked, findings)
+    clientReachFindings(name, rel, blanked, findings, mapper)
     portDisciplineFinding(srcDir, name, rel, blanked, findings)
     selectStarFinding(name, rel, blanked, findings)
   }
@@ -352,6 +393,8 @@ export function scanVerticalAnatomy({ packagesDir = 'packages' } = {}) {
   const root = join(packagesDir, 'verticals')
   const findings = []
   const counted = { n: 0 }
+  /** @type {{ packagesDir: string, verdict: string | null | undefined }} */
+  const mapper = { packagesDir, verdict: undefined }
   let verticals = 0
   if (!existsSync(root)) return { verticals, filesScanned: 0, findings }
   for (const entry of readdirSync(root).sort()) {
@@ -373,7 +416,7 @@ export function scanVerticalAnatomy({ packagesDir = 'packages' } = {}) {
     }
     scanBarrels(dir, name, findings)
     scanDomain(dir, name, findings)
-    scanTree(dir, name, findings, counted)
+    scanTree(dir, name, findings, counted, mapper)
     scanEvents(dir, name, findings)
   }
   return { verticals, filesScanned: counted.n, findings }

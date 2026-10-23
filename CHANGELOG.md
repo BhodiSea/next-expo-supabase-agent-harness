@@ -20,29 +20,6 @@ install holds yet, so on every install it is a NOTE.
 The `template/migrations.json` record restates 2.0.0's twenty-vintage `rampExpiry`
 population, and `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `2.0.3`.
 
-### Added
-
-- **`duplication` judges exact classes of TS and SQL functions, with a computed home**
-  (#174, accepted 2026-10-23). After L0, unchanged, `tools/check-duplication.mjs` reds every
-  owed exact class: two or more functions with equal bodies once bound names are numbered and
-  literals abstracted, at least 30 tokens, not data-shaped, and a legal home (IMPORT, MODULE
-  or LIFT) by the rules the gates already enforce. So a copied function under L0's 70-token
-  window, or a copied SQL function, which L0 never read, no longer ships green. It reads the
-  extractor #186 shipped, in process, over the whole tree: no merge base and no cache, so
-  every run meets one verdict. The red prints the class's `key12`, each member, the move
-  ("with N literal parameters" when the literals differ) and its `--explain` line. A class
-  with no legal home, such as a web and mobile pair, and one under 30 tokens stay advisory in
-  `--sweep`; a declarative `supabase/schemas` copy is never a second member; an L0 row does
-  not exempt a class (a row naming its members is #175). Without `typescript`, L0 and the SQL
-  half still decide and the TS half is a NOTE locally and a FAIL in CI. **Ramped from
-  baseVersion 2.2.0 until 2.4.0:** every install today, fresh ones included, gets one NOTE
-  and one `ramp-withheld` record per owed class, and exits 0. On a fresh scaffold that is one
-  SQL class, `private.caller_id` and `private.caller_session`, which differ only in the claim
-  they read. In the factory, `scripts/obligations.json` holds 2.2.0 until evals A, B, L and
-  the D arm-2 pilot are recorded (`single-home-exact-golive`) and 2.4.0 for the ramp's
-  expiry. `tools/check-duplication.mjs`, `tools/lib/sweep.mjs` and
-  `docs/harness/gates-catalog.md` are owned and reach an install with `update`.
-
 ### Fixed
 
 <!-- Entries from the 2.0.4 items that land after the version bump go here. The cut removes
@@ -82,6 +59,61 @@ this comment. -->
   `version-sync` names it as matching no deprecated resolution, and the remedy is to delete
   it, or `update --refresh-seeded tools/eol.json` on an untouched register. The arrival ramp
   in `tools/check-version-sync.mjs` still runs to 2.1.0 for installs holding the row.
+- **A vertical may value-import exactly `@app/supabase/errors`, the pure SQLSTATE mapper**
+  (#159). `dal-client-value-import` redded every value import of `@app/supabase` and its
+  subpaths in a vertical, including `mapPostgresError`, whose own doc asks verticals to wrap
+  it rather than re-derive the table. So the notes vertical and the push slice each copied the
+  table, and the copies already disagree. `@app/supabase` gains a `./errors` subpath, and
+  `tools/lib/vertical-anatomy.mjs` no longer reports a value import of that exact specifier,
+  but only while `packages/platform/supabase/src/errors.ts` value-imports nothing but
+  `@app/errors`. If it gains another import, or is absent, the vertical's import reds with
+  the old text plus a sentence naming the impurity. The root, `./client` and any other
+  subpath stay red. Nothing green turns red, so no ramp opens.
+  `tests/gates/check-boundaries.test.mjs` proves each case, red before the change. The gate
+  library, `.claude/rules/boundaries.md` and the gates catalog are owned and reach an install
+  with `update`. The subpath is in `@app/supabase`'s `package.json`, which is seeded, so an
+  existing install adds `"./errors": "./src/errors.ts"` itself before a vertical imports it.
+  This unblocks #147's wrap of the mapper in notes.
+- **A project's own verticals are sanctioned without forking the owned census** (#160). Every
+  vertical needs a `./client` census entry, and the only census was the owned, hash-pinned
+  `tools/exports-walls.json`, so a project sanctioning its own vertical forked it, and every
+  later `update` parked each census change and exited 2. The seeded
+  `tools/exports-walls.project.json` is the project's half, `{comment, entries: [{package,
+  reason}]}`, empty when shipped and read as empty when absent. One reader in the owned
+  `tools/lib/workspace-tiers.mjs` unions the two files for `check-exports-walls.mjs`,
+  `check-workspace-deps.mjs` and the duplication sweep. The project file is closed: an entry
+  must name a package under `packages/verticals/`, carry a non-empty reason, appear once, and
+  not repeat a package the owned census lists (that red names both files), and a file that
+  does not parse or carries no `entries` array fails loud. It is write-guarded by a new
+  `exports-walls-project` row with the shared deny text, proposable through
+  `harness-proposals/` and `apply-proposal`, in `ESCAPE_LISTS` and seeded, and
+  `scripts/check-escape-registry.mjs` reconciles the four lists. The red for an unsanctioned
+  vertical, the mobile wall's red for a vertical and `scaffold-slice`'s `next:` line name the
+  project file and that flow; every other package keeps the owned census's human path. The
+  dependency-cruiser rules read neither file, as before: none keys off the census. No verdict
+  tightens on an existing install. `update` plants the empty file, and the upgrade runbook
+  says how a forked install moves its own entries across and un-forks.
+
+- **`duplication` judges exact classes of TS and SQL functions, with a computed home**
+  (#174, accepted 2026-10-23). After L0, unchanged, `tools/check-duplication.mjs` reds every
+  owed exact class: two or more functions with equal bodies once bound names are numbered and
+  literals abstracted, at least 30 tokens, not data-shaped, and a legal home (IMPORT, MODULE
+  or LIFT) by the rules the gates already enforce. So a copied function under L0's 70-token
+  window, or a copied SQL function, which L0 never read, no longer ships green. It reads the
+  extractor #186 shipped, in process, over the whole tree: no merge base and no cache, so
+  every run meets one verdict. The red prints the class's `key12`, each member, the move
+  ("with N literal parameters" when the literals differ) and its `--explain` line. A class
+  with no legal home, such as a web and mobile pair, and one under 30 tokens stay advisory in
+  `--sweep`; a declarative `supabase/schemas` copy is never a second member; an L0 row does
+  not exempt a class (a row naming its members is #175). Without `typescript`, L0 and the SQL
+  half still decide and the TS half is a NOTE locally and a FAIL in CI. **Ramped from
+  baseVersion 2.2.0 until 2.4.0:** every install today, fresh ones included, gets one NOTE
+  and one `ramp-withheld` record per owed class, and exits 0. On a fresh scaffold that is one
+  SQL class, `private.caller_id` and `private.caller_session`, which differ only in the claim
+  they read. In the factory, `scripts/obligations.json` holds 2.2.0 until evals A, B, L and
+  the D arm-2 pilot are recorded (`single-home-exact-golive`) and 2.4.0 for the ramp's
+  expiry. `tools/check-duplication.mjs`, `tools/lib/sweep.mjs` and
+  `docs/harness/gates-catalog.md` are owned and reach an install with `update`.
 
 ## [2.0.3] — 2026-10-17
 

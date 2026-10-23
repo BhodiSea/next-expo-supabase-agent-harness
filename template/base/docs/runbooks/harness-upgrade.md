@@ -4437,6 +4437,36 @@ deleted. Your own register keeps it until you act. After your next `pnpm install
 the new config-plugins, `version-sync` reds the row as matching no deprecated resolution.
 Delete the row, or take the whole register with `update --refresh-seeded tools/eol.json`.
 
+### Your own verticals are sanctioned in a project census (#160)
+
+Every vertical needs a `./client` census entry, and through 2.0.3 the only census was the
+owned `tools/exports-walls.json`, so sanctioning a vertical of your own meant forking that
+file. A fork is kept by every later `update`, which parks each upstream census change under
+`.harness/pending/` and exits 2 while anything is parked. 2.0.4 adds the seeded project
+census, `tools/exports-walls.project.json`, shaped `{ "comment": …, "entries": [ { "package":
+"@app/<name>", "reason": "…" } ] }`. `boundaries` reads the union of the two files. An entry
+must name a package under `packages/verticals/`, carry a non-empty reason, and not repeat a
+package the owned census lists. The file is write-guarded and proposable: an agent stages the
+whole proposed file as `harness-proposals/<id>.json`, and a human applies it with
+`apply-proposal <id>`. `update` plants the empty file when it is absent, and an empty file
+changes no verdict. The gates, the reader (`tools/lib/workspace-tiers.mjs`), the guard rules and the
+`authoring-vertical-slice` skill are owned and re-planted as usual.
+
+If you forked the owned census to add your own verticals, move them and un-fork:
+
+1. Copy each of your vertical entries (`package` and `reason`) into the `entries` of
+   `tools/exports-walls.project.json`.
+2. Take the shipped census back. If `update` parked one at
+   `.harness/pending/tools/exports-walls.json`, copy it over yours and delete the parked
+   copy. Otherwise delete the entries you added from `tools/exports-walls.json`; when they
+   were your only change, its bytes are the ones your release shipped again.
+3. A human re-records the file's sha256 in `.harness/manifest.json`, in the same reviewed
+   commit as steps 1 and 2. The sha now matches a released one, so `update` treats the file
+   as the harness's again and `doctor` stops listing it as a fork.
+
+Between steps 1 and 2, `node tools/check-exports-walls.mjs` reds each entry that is in both
+files and names both, which is how you find one you missed. After step 3 it is green.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

@@ -14,17 +14,25 @@ SOURCE: docs/harness/README.md (boundaries + error-channel doctrine)
 
 ## One census, three consumers
 
-`tools/exports-walls.json` is the SINGLE list of packages permitted a `./client`
-subpath. It exists once because where it was copy-pasted per consumer it drifted and
-the weakest copy silently won. Three consumers derive from it — the `check-exports-walls`
-wall, the `check-workspace-deps` allow-matrix, and the dependency-cruiser barrel rules —
-so a sanction changes in the census, never in a consumer.
+The census is the SINGLE list of packages permitted a `./client` subpath, kept in two
+files: the harness-owned `tools/exports-walls.json` and the project's own
+`tools/exports-walls.project.json` (2.0.4). It exists once because where it was copy-pasted
+per consumer it drifted and the weakest copy silently won. Its consumers — the
+`check-exports-walls` wall and the `check-workspace-deps` allow-matrix of the `boundaries`
+gate, and the duplication sweep's homes — read the union through one reader,
+`tools/lib/workspace-tiers.mjs`, so a sanction changes in the census, never in a consumer.
 
-The census is harness-OWNED and hash-pinned, and every vertical needs an entry, because the
-anatomy law requires its `./client` key. An agent never edits the census: the write guard
-denies the edit, and `gate-integrity` reds one nobody re-recorded. Hand the `{package,
-reason}` entry to a human, naming what the `./client` barrel would carry into the native
-bundle. The human adds it under `{{SECURITY_OWNERS}}` review and re-records the file's
+Every vertical needs an entry, because the anatomy law requires its `./client` key. A
+vertical of this project gets it in `tools/exports-walls.project.json`. The write guard
+denies your edit there too, so stage the whole proposed file as `harness-proposals/<id>.json`
+with the `{package, reason}` entry, naming what the `./client` barrel would carry into the
+native bundle, and a human applies it with `apply-proposal <id>` under
+`{{SECURITY_OWNERS}}` review. Only a package under `packages/verticals/` may be sanctioned
+there, and not one the owned census lists.
+
+Any other package's entry is in the owned census, which is hash-pinned. An agent never edits
+it: the write guard denies the edit, and `gate-integrity` reds one nobody re-recorded. Hand
+the entry to a human, who adds it under `{{SECURITY_OWNERS}}` review and re-records the file's
 sha256 in `.harness/manifest.json` in the same reviewed commit; from then on `update` parks
 each later upstream change to the census for them to merge
 (`docs/runbooks/harness-upgrade.md`, "Forking an owned file").
@@ -49,6 +57,13 @@ each later upstream change to the census for them to merge
 - `apps/mobile ↛ web-only packages` — no `@app/design-system` (DOM), no `react-dom`, no
   `next`; the mobile design system is `@app/design-system-native`.
 - `apps/web ↛ react-native` — and no `@app/design-system-native`.
+- A vertical never value-imports `@app/supabase` or `@supabase/*` anywhere in its `src/**`:
+  the database arrives through a structural port, and `import type` of the port shapes is
+  the sanctioned form. The ONE sanctioned value-import is exactly `@app/supabase/errors`,
+  the pure SQLSTATE-to-`AppError` mapper: wrap `mapPostgresError` to add what the operation
+  knows, never re-derive the SQLSTATE table, because a second copy drifts. It stays
+  sanctioned only while `packages/platform/supabase/src/errors.ts` value-imports nothing but
+  `@app/errors`, so keep that file pure.
 - `@app/errors` and `@app/events` are the BOTTOM of the graph (they import nothing) and
   are universally importable from either surface, census entry or not.
 

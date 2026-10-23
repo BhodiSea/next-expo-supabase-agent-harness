@@ -635,6 +635,11 @@ export const WRITE_PROTECTED = [
     message:
       'harness-owned census: tools/exports-walls.json is hash-pinned by gate-integrity, and an owned file is not a register a proposal can change, so an agent never edits it. Stop and hand the {package, reason} entry to a human, naming the package and what its ./client barrel would carry into the native bundle. The human adds it under the security owners\' review (CODEOWNERS), in an agent session only with HARNESS_ALLOW_SELF_EDIT=1, and re-records the file\'s sha256 in .harness/manifest.json in the same reviewed commit. From then on `update` keeps their census and parks each later upstream change to it under .harness/pending/ for them to merge (docs/runbooks/harness-upgrade.md, "Forking an owned file"). SOURCE: docs/harness/README.md (tamper evidence)',
   },
+  // Its seeded project half (#160). A row sanctions a project vertical's ./client barrel, the
+  // same security review as a row of the owned file, but this one IS a register a proposal can
+  // change, so the shared text's route (harness-proposals/, then a human's apply-proposal) is
+  // the right one and the row carries no message of its own.
+  { id: 'exports-walls-project', re: /^tools\/exports-walls\.project\.json$/ },
   { id: 'bundle-budget', re: /^tools\/bundle-budget\.json$/ },
   // The committed gzip-ratchet baseline: regenerated ONLY by `pnpm perf:baseline`
   // in a reviewed commit — an agent editing it would re-baseline its own regression.

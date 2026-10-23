@@ -8,8 +8,10 @@
 // the gate itself reds, so both callers import this module and the gate's messages and
 // verdicts do not change.
 //
-// The laws, all derived from the ONE census (tools/exports-walls.json) plus the universally
-// importable kernel below:
+// The laws, all derived from the ONE census plus the universally importable kernel below.
+// The census is two files since #160: the owned tools/exports-walls.json and the seeded
+// tools/exports-walls.project.json, where a project sanctions its own verticals. Their union is
+// read here and nowhere else, so no consumer can see a different list:
 //   1. The mobile wall. apps/mobile may take a runtime @app/* dependency only if the census
 //      sanctions it or it is in MOBILE_UNIVERSAL. @app/api is import-type-only, and the web
 //      design system is DOM-only.
@@ -36,8 +38,11 @@ const MOBILE_UNIVERSAL = new Map([
 ])
 const WEB_ONLY = new Set(['@app/design-system']) // DOM/Radix — mobile is walled from it
 
-// The ONE census. When #160 splits it, this is where its project half joins the union.
-const CENSUS = 'tools/exports-walls.json'
+// The ONE census, in two files (#160). The owned half is the harness's; the project half is
+// seeded, starts empty, and may sanction only a package under packages/verticals/ that the owned
+// half does not already list (projectCensusProblems below). Absent reads as empty.
+export const CENSUS = 'tools/exports-walls.json'
+export const PROJECT_CENSUS = 'tools/exports-walls.project.json'
 
 /**
  * The tier of a workspace package, from its directory under packages/:
@@ -76,17 +81,107 @@ export function sanctionedOf(census) {
 }
 
 /**
- * The census as the sweep reads it: absent or unreadable is EMPTY, which can only make a
- * home less legal (the boundaries gate is what reds a broken census, in its own words).
+ * The project census's entries (#160). Absent is EMPTY, as the corpus's project.json is: a
+ * register nobody has written sanctions nothing. A file that does not parse, or carries no
+ * `entries` array, is an `error`, which the boundaries gate prints and reds on: the file can
+ * widen the mobile wall, so it never fails open into a silent empty list.
+ * @returns {{ entries: unknown[], error: string | null }}
+ */
+export function readProjectCensus() {
+  if (!existsSync(PROJECT_CENSUS)) return { entries: [], error: null }
+  let doc
+  try {
+    doc = JSON.parse(readFileSync(PROJECT_CENSUS, 'utf8'))
+  } catch (e) {
+    return {
+      entries: [],
+      error: `${PROJECT_CENSUS} is not valid JSON (${e.message}) — the census must be reviewable data`,
+    }
+  }
+  if (!Array.isArray(doc?.entries)) {
+    return {
+      entries: [],
+      error: `${PROJECT_CENSUS} must carry an "entries" ARRAY of {package, reason} entries`,
+    }
+  }
+  return { entries: doc.entries, error: null }
+}
+
+/** @param {unknown} entry @returns {entry is { package: string, reason: string }} */
+const wellShaped = (entry) =>
+  entry !== null &&
+  typeof entry === 'object' &&
+  typeof (/** @type {any} */ (entry).package) === 'string' &&
+  typeof (/** @type {any} */ (entry).reason) === 'string' &&
+  /** @type {any} */ (entry).reason.trim().length > 0
+
+/**
+ * The package names the project census sanctions: its well-shaped entries only. An entry the
+ * gate reds for its scope (not a vertical, a repeat) still counts here, because the gate reds
+ * it in the same step and a red tree is no tree a home is printed for.
+ * @param {unknown[]} entries readProjectCensus().entries
+ * @returns {Set<string>}
+ */
+export function projectSanctionedOf(entries) {
+  return new Set(entries.filter(wellShaped).map((e) => e.package))
+}
+
+/**
+ * The closed shape of the project census (#160), one finding per violation: every entry is
+ * {package, reason} with a non-empty reason, names a package under packages/verticals/, is
+ * not already in the owned census, and appears once.
+ * @param {unknown[]} entries readProjectCensus().entries
+ * @param {Set<string>} owned the owned census's sanctioned names (sanctionedOf)
+ * @param {Set<string>} verticals the names declared by packages under packages/verticals/
+ * @returns {string[]}
+ */
+export function projectCensusProblems(entries, owned, verticals) {
+  const problems = []
+  const seen = new Set()
+  for (const entry of entries) {
+    if (!wellShaped(entry)) {
+      problems.push(
+        `${PROJECT_CENSUS}: every entry must be {"package": string, "reason": non-empty string} — got ${JSON.stringify(entry)}`,
+      )
+      continue
+    }
+    const name = entry.package
+    if (seen.has(name)) {
+      problems.push(
+        `${PROJECT_CENSUS} lists ${name} more than once — one entry per package, so one reason is the one reviewed`,
+      )
+      continue
+    }
+    seen.add(name)
+    if (owned.has(name)) {
+      problems.push(
+        `${PROJECT_CENSUS} sanctions ${name}, which ${CENSUS} already sanctions — the owned census holds the harness's own packages, so delete the project entry; two entries are two reasons, and only one of them is reviewed with the harness`,
+      )
+    } else if (!verticals.has(name)) {
+      problems.push(
+        `${PROJECT_CENSUS} sanctions ${name}, but no package under packages/verticals/ declares that name — only packages/verticals/* may be sanctioned here; a platform or shared package's ./client is a security review of the harness's own wall, made in ${CENSUS}. Remove the entry, or fix its name`,
+      )
+    }
+  }
+  return problems
+}
+
+/**
+ * The census as the sweep reads it: the owned half unioned with the project half's well-shaped
+ * entries. Absent or unreadable is EMPTY, which can only make a home less legal (the
+ * boundaries gate is what reds a broken census, in its own words).
  * @returns {Set<string>}
  */
 export function readCensus() {
-  if (!existsSync(CENSUS)) return new Set()
-  try {
-    return sanctionedOf(JSON.parse(readFileSync(CENSUS, 'utf8')))
-  } catch {
-    return new Set()
+  let owned = new Set()
+  if (existsSync(CENSUS)) {
+    try {
+      owned = sanctionedOf(JSON.parse(readFileSync(CENSUS, 'utf8')))
+    } catch {
+      // unreadable: empty, as above
+    }
   }
+  return new Set([...owned, ...projectSanctionedOf(readProjectCensus().entries)])
 }
 
 /**

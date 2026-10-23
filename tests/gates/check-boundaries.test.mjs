@@ -74,10 +74,13 @@ const COMPLIANT_BARRELS = (rel) => [
  * make one wall red — so they are typed loosely on purpose. `files` are extra
  * [repoRelPath, content] pairs written verbatim AFTER the default vertical barrels,
  * so a test can overwrite a barrel with a violating body.
- * @param {{ census?: any, packages?: [string, any][], mobile?: any, web?: any, files?: [string, string][], modules?: any }} [opts]
+ * `project` (#160) is the seeded project census, tools/exports-walls.project.json: left out,
+ * the file is absent; a string is written verbatim, anything else as JSON.
+ * @param {{ census?: any, project?: any, packages?: [string, any][], mobile?: any, web?: any, files?: [string, string][], modules?: any }} [opts]
  */
 function fixture({
   census = CENSUS,
+  project = undefined,
   packages = PACKAGES,
   mobile = MOBILE,
   web = WEB,
@@ -88,6 +91,10 @@ function fixture({
   mkdirSync(join(dir, 'tools'), { recursive: true })
   mkdirSync(join(dir, '.harness'), { recursive: true })
   writeFileSync(join(dir, 'tools/exports-walls.json'), JSON.stringify(census, null, 2))
+  if (project !== undefined) {
+    const body = typeof project === 'string' ? project : JSON.stringify(project, null, 2)
+    writeFileSync(join(dir, 'tools/exports-walls.project.json'), body)
+  }
   // The owned module list (1.0.0) — staged by default because a real tree always
   // has it (it ships with the release); `modules: null` simulates the broken tree.
   if (modules !== null) writeFileSync(join(dir, 'tools/modules.json'), JSON.stringify(modules, null, 2))
@@ -153,11 +160,13 @@ test('RED: a package ships ./client without a census entry', () => {
 // "edit tools/exports-walls.json", which sends an agent into an edit gate-integrity reds.
 const OWNED_CENSUS_PATH = [/harness-owned/, /\.harness\/manifest\.json/, /Forking an owned file/]
 
-test('RED (2.0.3, #154): a new vertical with no sanction is told the census is harness-owned, and the human path', () => {
+// Since #160 a vertical's entry goes in the project census instead (tested below), so the probe
+// here is a package outside packages/verticals/, which only the owned census can sanction.
+test('RED (2.0.3, #154): a non-vertical package with no sanction is told the census is harness-owned, and the human path', () => {
   const packages = /** @type {[string, any][]} */ ([
     ...PACKAGES,
     [
-      'verticals/probe',
+      'platform/probe',
       { name: '@app/probe', exports: { '.': './src/index.ts', './client': './src/client.ts' } },
     ],
   ])
@@ -197,6 +206,108 @@ test('RED: a sanction with an empty reason fails LOUD (the census cannot fail op
   const r = run(EXPORTS_WALLS, fixture({ census }))
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('non-empty'), r.out)
+})
+
+// ── the project census (#160) ───────────────────────────────────────────────────
+// tools/exports-walls.project.json is SEEDED: a project's own verticals are sanctioned there,
+// staged by an agent under harness-proposals/ and applied by a human, so a new vertical no
+// longer needs a fork of the owned census. Every consumer reads the union through one reader
+// in tools/lib/workspace-tiers.mjs. Absent reads as empty; every new red is about the file's
+// own contents, so no verdict tightens on an existing install.
+
+const PROBE_VERTICAL = /** @type {[string, any]} */ ([
+  'verticals/probe',
+  { name: '@app/probe', exports: { '.': './src/index.ts', './client': './src/client.ts' } },
+])
+const WITH_PROBE = /** @type {[string, any][]} */ ([...PACKAGES, PROBE_VERTICAL])
+const PROJECT = (...entries) => ({ comment: 'test project census', entries })
+const PROBE_ENTRY = { package: '@app/probe', reason: 'the probe vertical: pure domain on ./client' }
+/** @param {string} out */
+const lineWith = (out, needle) => out.split('\n').find((l) => l.includes(needle)) ?? ''
+
+test('RED (#160): a vertical with ./client and no entry in either census reds, and is pointed at the project census', () => {
+  const r = run(EXPORTS_WALLS, fixture({ packages: WITH_PROBE }))
+  assert.equal(r.code, 1, r.out)
+  const line = lineWith(r.out, '@app/probe')
+  assert.match(line, /NOT sanctioned/)
+  assert.match(line, /tools\/exports-walls\.project\.json/)
+  assert.match(line, /harness-proposals\//)
+  assert.match(line, /apply-proposal/)
+})
+
+test('GREEN (#160): the same vertical with a valid project entry', () => {
+  const dir = fixture({ packages: WITH_PROBE, project: PROJECT(PROBE_ENTRY) })
+  const r = run(EXPORTS_WALLS, dir)
+  assert.equal(r.code, 0, r.out)
+})
+
+test('GREEN (#160): an absent project census reads as empty, and so does a seeded empty one', () => {
+  assert.equal(run(EXPORTS_WALLS, fixture()).code, 0)
+  const r = run(EXPORTS_WALLS, fixture({ project: PROJECT() }))
+  assert.equal(r.code, 0, r.out)
+  assert.equal(run(WORKSPACE_DEPS, fixture({ project: PROJECT() })).code, 0)
+})
+
+test('RED (#160): a project entry naming a package that is not a vertical', () => {
+  const project = PROJECT({ package: '@app/errors', reason: 'not a vertical' })
+  const r = run(EXPORTS_WALLS, fixture({ project }))
+  assert.equal(r.code, 1, r.out)
+  const line = lineWith(r.out, '@app/errors')
+  assert.match(line, /tools\/exports-walls\.project\.json/)
+  assert.match(line, /only packages\/verticals\/\* may be sanctioned here/)
+})
+
+test('RED (#160): a project entry naming no package at all (the stale arm holds here too)', () => {
+  const project = PROJECT({ package: '@app/ghost', reason: 'gone' })
+  const r = run(EXPORTS_WALLS, fixture({ project }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(lineWith(r.out, '@app/ghost'), /only packages\/verticals\/\* may be sanctioned here/)
+})
+
+test('RED (#160): a project entry repeating a package the owned census lists names both files', () => {
+  const project = PROJECT({ package: '@app/notes', reason: 'again' })
+  const r = run(EXPORTS_WALLS, fixture({ project }))
+  assert.equal(r.code, 1, r.out)
+  const line = lineWith(r.out, '@app/notes')
+  assert.match(line, /tools\/exports-walls\.project\.json/)
+  assert.match(line, /tools\/exports-walls\.json/)
+  assert.match(line, /already/)
+})
+
+test('RED (#160): a project entry listed twice', () => {
+  const r = run(EXPORTS_WALLS, fixture({ packages: WITH_PROBE, project: PROJECT(PROBE_ENTRY, PROBE_ENTRY) }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(lineWith(r.out, '@app/probe'), /more than once/)
+})
+
+test('RED (#160): a project entry with an empty reason', () => {
+  const project = PROJECT({ package: '@app/probe', reason: '   ' })
+  const r = run(EXPORTS_WALLS, fixture({ packages: WITH_PROBE, project }))
+  assert.equal(r.code, 1, r.out)
+  const line = lineWith(r.out, 'tools/exports-walls.project.json')
+  assert.match(line, /non-empty/)
+})
+
+test('RED (#160): a project census that does not parse, or has no entries array, fails loud in both consumers', () => {
+  for (const project of ['{ not json', JSON.stringify({ comment: 'x', sanctioned: [] })]) {
+    for (const gate of [EXPORTS_WALLS, WORKSPACE_DEPS]) {
+      const r = run(gate, fixture({ project }))
+      assert.equal(r.code, 1, `${gate} ${project}\n${r.out}`)
+      assert.match(r.out, /tools\/exports-walls\.project\.json/)
+    }
+  }
+})
+
+test('GREEN (#160): apps/mobile may depend on a vertical the project census sanctions; RED without it', () => {
+  const mobile = { ...MOBILE, dependencies: { ...MOBILE.dependencies, '@app/probe': 'workspace:*' } }
+  const sanctioned = run(WORKSPACE_DEPS, fixture({ packages: WITH_PROBE, mobile, project: PROJECT(PROBE_ENTRY) }))
+  assert.equal(sanctioned.code, 0, sanctioned.out)
+  const bare = run(WORKSPACE_DEPS, fixture({ packages: WITH_PROBE, mobile }))
+  assert.equal(bare.code, 1, bare.out)
+  const line = lineWith(bare.out, '@app/probe')
+  assert.match(line, /absent from the census/)
+  assert.match(line, /tools\/exports-walls\.project\.json/)
+  assert.match(line, /harness-proposals\//)
 })
 
 // ── module-provided packages (0.9.5) ────────────────────────────────────────────
@@ -552,6 +663,56 @@ test('RED anatomy: a DAL file value-importing @app/supabase; import type stays c
   })
   const green = run(WORKSPACE_DEPS, typeOnly)
   assert.equal(green.code, 0, green.out)
+})
+
+// #159: the one sanctioned subpath. `@app/supabase/errors` is the pure SQLSTATE mapper, so a
+// vertical may value-import it EXACTLY, and only while that file imports nothing but the error
+// kernel. Every other spelling of the client package stays red, and so does an impure mapper.
+const MAPPER = 'packages/platform/supabase/src/errors.ts'
+const PURE_MAPPER = "import { type AppError, appError } from '@app/errors'\nexport const mapPostgresError = (e: unknown): AppError => appError.unknown(String(e))\n"
+const mapperCaller = (spec) =>
+  /** @type {[string, string]} */ ([
+    `packages/${N}/src/data/errors.ts`,
+    `import { mapPostgresError } from '${spec}'\nexport const wrap = (e: unknown) => mapPostgresError(e)\n`,
+  ])
+
+test('GREEN anatomy (#159): a vertical value-importing exactly @app/supabase/errors while the mapper is pure', () => {
+  const r = run(WORKSPACE_DEPS, fixture({ files: [[MAPPER, PURE_MAPPER], mapperCaller('@app/supabase/errors')] }))
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('anatomy-clean'), r.out)
+})
+
+test('RED anatomy (#159): the root, ./client and a prefix-only subpath stay client reaches beside a pure mapper', () => {
+  for (const spec of ['@app/supabase', '@app/supabase/client', '@app/supabase/errors-extra']) {
+    const r = run(WORKSPACE_DEPS, fixture({ files: [[MAPPER, PURE_MAPPER], mapperCaller(spec)] }))
+    assert.equal(r.code, 1, `${spec}\n${r.out}`)
+    assert.ok(r.out.includes('dal-client-value-import') && r.out.includes(`'${spec}'`), r.out)
+  }
+})
+
+test('RED anatomy (#159): the sanctioned import reds, naming the impurity, once the mapper imports anything else', () => {
+  const impure = `import { parseServerEnv } from '@app/env'\n${PURE_MAPPER}`
+  const r = run(WORKSPACE_DEPS, fixture({ files: [[MAPPER, impure], mapperCaller('@app/supabase/errors')] }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('dal-client-value-import'), r.out)
+  assert.ok(r.out.includes(MAPPER) && r.out.includes("'@app/env'"), r.out)
+
+  // A dynamic import is a value reach too; a statement-level `import type` is not, by the
+  // same rule the law applies to a vertical's own imports.
+  const dynamic = `${PURE_MAPPER}export const late = () => import('./client.js')\n`
+  const d = run(WORKSPACE_DEPS, fixture({ files: [[MAPPER, dynamic], mapperCaller('@app/supabase/errors')] }))
+  assert.equal(d.code, 1, d.out)
+  assert.ok(d.out.includes("'./client.js'"), d.out)
+
+  const typed = `import type { Database } from './types.js'\n${PURE_MAPPER}`
+  const t = run(WORKSPACE_DEPS, fixture({ files: [[MAPPER, typed], mapperCaller('@app/supabase/errors')] }))
+  assert.equal(t.code, 0, t.out)
+})
+
+test('RED anatomy (#159): the sanctioned import reds when the mapper file is absent (purity unproven)', () => {
+  const r = run(WORKSPACE_DEPS, fixture({ files: [mapperCaller('@app/supabase/errors')] }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('dal-client-value-import') && r.out.includes(MAPPER), r.out)
 })
 
 test('RED anatomy: a PostgREST caller with no port import (port discipline); a call-free data file owes nothing', () => {

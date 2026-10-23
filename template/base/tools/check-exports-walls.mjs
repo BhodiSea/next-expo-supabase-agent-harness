@@ -10,6 +10,12 @@
 // (with a non-empty reason) in the census — and, two-way, every census entry must name a
 // package that actually exists, so a stale sanction cannot quietly widen the wall.
 //
+// The census is two files since #160 (tools/lib/workspace-tiers.mjs reads both): the owned
+// tools/exports-walls.json, and the seeded tools/exports-walls.project.json where a project
+// sanctions its OWN verticals without forking the owned file. The project file is closed: an
+// entry must name a package under packages/verticals/, carry a reason, and not repeat a package
+// the owned census lists. Absent, it is empty.
+//
 // `sanctioned` is MAY, not MUST: a listed package that currently ships only `.` is fine
 // (that is the pre-authorised case — @app/observability, @app/design-tokens). The failure
 // runs the other way, and that is the only thing this gate reds on.
@@ -17,9 +23,16 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { walkFiles } from './lib/fs-walk.mjs'
 import { fail, failures, ok, rampNote, skipOrFail } from './lib/gate.mjs'
+import {
+  CENSUS,
+  PROJECT_CENSUS,
+  projectCensusProblems,
+  projectSanctionedOf,
+  readProjectCensus,
+  tierOf,
+} from './lib/workspace-tiers.mjs'
 
 const GATE = 'boundaries'
-const CENSUS = 'tools/exports-walls.json'
 const MODULES_FILE = 'tools/modules.json'
 const PACKAGES_DIR = 'packages'
 // The census is harness-OWNED and hash-pinned (2.0.3, #154), so a finding below whose remedy
@@ -27,6 +40,10 @@ const PACKAGES_DIR = 'packages'
 // exports-walls-census row denies an agent's, and gate-integrity reds one nobody re-recorded.
 // The reds name that path. Until 2.0.3 they said "edit the census", which sent an agent
 // building a new vertical into the one edit the next validate calls tampering.
+// A project's own vertical has a lighter path since #160: its entry goes in the SEEDED project
+// census, which the write guard also denies to an agent but which is a register a proposal can
+// change, so the agent stages the whole file and a human applies it.
+const PROJECT_PATH = `its entry goes in ${PROJECT_CENSUS}, not in ${CENSUS}: stage the whole proposed file, with its {package, reason} entry, as harness-proposals/<id>.json, and a human applies it with \`apply-proposal <id>\` under {{SECURITY_OWNERS}} review (docs/harness/README.md, "Proposing a register edit")`
 const HUMAN_PATH = `${CENSUS} is harness-owned and hash-pinned, so an agent does not edit it: stop and hand a human the {package, reason} entry, or the census change, that a finding above asks for. The human makes it under {{SECURITY_OWNERS}} review and re-records the file's sha256 in .harness/manifest.json in the same reviewed commit; from then on \`update\` keeps their census and parks each later upstream change to it under .harness/pending/ for them to merge (docs/runbooks/harness-upgrade.md, "Forking an owned file").`
 
 if (!existsSync(CENSUS)) skipOrFail(GATE, `${CENSUS} not found (no census surface yet)`)
@@ -128,8 +145,9 @@ for (const entry of census.sanctioned) {
   )
 }
 
-// Every package manifest under packages/, its name and whether it ships a `./client` key.
-const declared = new Map() // package name -> { hasClient: boolean }
+// Every package manifest under packages/, its name, whether it ships a `./client` key, and
+// whether it is a vertical (the only tier the project census may sanction).
+const declared = new Map() // package name -> { hasClient: boolean, vertical: boolean }
 for (const rel of walkFiles(PACKAGES_DIR, { filter: (p) => /(^|\/)package\.json$/.test(p) })) {
   let pkg
   try {
@@ -141,10 +159,17 @@ for (const rel of walkFiles(PACKAGES_DIR, { filter: (p) => /(^|\/)package\.json$
   const hasClient = Boolean(
     pkg.exports !== null && typeof pkg.exports === 'object' && pkg.exports['./client'],
   )
-  declared.set(pkg.name, { hasClient })
+  declared.set(pkg.name, { hasClient, vertical: tierOf(rel) === 'vertical' })
 }
 
-const errs = []
+// The project census (#160). A file that cannot be read as a list fails LOUD, like the owned
+// one: it widens the wall, so it never fails open.
+const project = readProjectCensus()
+if (project.error !== null) fail(GATE, project.error)
+const projectSanctioned = projectSanctionedOf(project.entries)
+const verticalNames = new Set([...declared].filter(([, d]) => d.vertical).map(([name]) => name))
+
+const errs = [...projectCensusProblems(project.entries, new Set(sanctioned.keys()), verticalNames)]
 
 if (moduleNameProblems.length > 0) {
   if (
@@ -158,13 +183,14 @@ if (moduleNameProblems.length > 0) {
   }
 }
 
-// 1. Every package shipping `./client` must be sanctioned.
-for (const [name, { hasClient }] of declared) {
-  if (hasClient && !sanctioned.has(name)) {
-    errs.push(
-      `${name} exports a "./client" barrel but is NOT sanctioned in ${CENSUS} — a Metro-safe barrel on a package that may hold a server graph is how the service-role reaches the native bundle; remove the "./client" key (a vertical keeps it, because the anatomy law requires both barrels), or hand a human the reviewed {package, reason} entry, as below`,
-    )
-  }
+// 1. Every package shipping `./client` must be sanctioned, in either half of the census.
+for (const [name, { hasClient, vertical }] of declared) {
+  if (!hasClient || sanctioned.has(name) || projectSanctioned.has(name)) continue
+  errs.push(
+    vertical
+      ? `${name} exports a "./client" barrel but is NOT sanctioned in ${PROJECT_CENSUS} or ${CENSUS} — a Metro-safe barrel on a package that may hold a server graph is how the service-role reaches the native bundle, and a vertical keeps the key because the anatomy law requires both barrels; ${PROJECT_PATH}, its reason naming what the ./client barrel carries into the native bundle`
+      : `${name} exports a "./client" barrel but is NOT sanctioned in ${CENSUS} — a Metro-safe barrel on a package that may hold a server graph is how the service-role reaches the native bundle; remove the "./client" key, or hand a human the reviewed {package, reason} entry, as below`,
+  )
 }
 
 // 2. Two-way: a sanction naming a package that does not exist is stale — it silently
@@ -218,9 +244,9 @@ function staleSanction(name, providedBy, demo) {
 failures(
   GATE,
   errs,
-  `The census is the single source the boundaries gate and the dependency-cruiser barrel rules derive from, so a sanction changes in ${CENSUS}, never in a per-consumer copy. ${HUMAN_PATH}`,
+  `The census (${CENSUS} with ${PROJECT_CENSUS}) is the single source the boundaries gate's consumers read, through tools/lib/workspace-tiers.mjs, so a sanction changes there, never in a per-consumer copy. For a vertical of this project, ${PROJECT_PATH}. For any other package, ${HUMAN_PATH}`,
 )
 ok(
   GATE,
-  `exports walls: ${declared.size} package(s), ${[...declared.values()].filter((d) => d.hasClient).length} with a sanctioned ./client barrel`,
+  `exports walls: ${declared.size} package(s), ${[...declared.values()].filter((d) => d.hasClient).length} with a sanctioned ./client barrel (${projectSanctioned.size} sanctioned by ${PROJECT_CENSUS})`,
 )
