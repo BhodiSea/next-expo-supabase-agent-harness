@@ -214,6 +214,11 @@ export const SEEDED_FILES = new Set([
   // logic as duplication-allow — the boundaries gate's own failure text points the
   // consumer at a reviewed entry here.
   'tools/vertical-anatomy-allow.json',
+  // #160: the project's half of the ./client census. Seeded for the same reason: the boundaries
+  // gate tells a project to add its vertical's entry here, and the owned census beside it stays
+  // owned, because a project editing the file that sanctions the harness's own packages is the
+  // fork this file exists to make unnecessary.
+  'tools/exports-walls.project.json',
   // 1.1.0 (#61): per-gate field notes, printed under a gate's FIX line when it fails
   // (tools/lib/gate.mjs). Seeded rather than owned for the allow-files' reason: the rows
   // are what THIS project learned about a gate in its own tree, so `update` must plant the

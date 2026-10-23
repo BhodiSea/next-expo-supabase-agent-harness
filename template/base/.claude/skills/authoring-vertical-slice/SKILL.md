@@ -58,8 +58,8 @@ Only when nothing covers the need do you scaffold a new slice.
    `ActionOutcome` envelope from `@app/errors`, never raw rows and never a thrown domain
    failure. Writes stay off `./client` (they set an owner column and emit events — server
    barrel only). Delegate to the `dal-author` subagent. Every vertical's `./client` key needs
-   an entry in the census `tools/exports-walls.json`, Class-B included, and that entry is a
-   human's step (see Scaffold).
+   an entry in the project census `tools/exports-walls.project.json`, Class-B included, and
+   applying that entry is a human's step (see Scaffold).
 4. **tRPC procedure (+ optional web Server Action)** — same reference. Add the procedure to
    `packages/api/src/routers/<slice>.ts` on `orgProcedure` (READS INCLUDED — the acting org
    is WHICH DATA a read is about), name an input schema, hand the call to the vertical. If the
@@ -129,10 +129,11 @@ Each step the script must not take itself is a printed `next:` line (among them 
 key, the registry regen, the browser spec, the query probes and the vertical's
 `package.json`); until they are done, `route-manifest` and `query-shapes` red with the
 findings those lines name. One `next:` line is a human's, not yours: the census entry for the
-new `./client` key. `tools/exports-walls.json` is harness-owned and hash-pinned, so the write
-guard denies your edit. Hand the `{package, reason}` entry to a human, who adds it under
-security-owner review and re-records the file's sha256 in `.harness/manifest.json` in the same
-reviewed commit; until then `boundaries` reds the package as NOT sanctioned. It deliberately
+new `./client` key. It goes in `tools/exports-walls.project.json`, the project census, and the
+write guard denies your edit. Stage the whole proposed file, with the `{package, reason}`
+entry, as `harness-proposals/<id>.json`; a human applies it with `apply-proposal <id>` under
+security-owner review. Until then `boundaries` reds the package as NOT sanctioned. Never put
+the entry in the owned `tools/exports-walls.json`: that is a fork of a harness-owned file. It deliberately
 does NOT create the
 migration file — `supabase/migrations/*` is append-only (timestamped, applied history), so a
 pre-created stub could never be filled in and would only invite a hand-edit of applied

@@ -73,7 +73,7 @@ still gets its line, because the step may not have run on the tree you were give
 | id | The diff introduces | It must also bring | Stated in | Enforced by |
 | --- | --- | --- | --- | --- |
 | `interface-second-consumer` | a new interface, type alias, wrapper function or indirection | its second consumer or its test-double need, named in a comment, the pull request or an ADR | `.claude/agents/architecture-reviewer.md` | `review only` |
-| `client-export-census` | a `./client` subpath export on a package | a sanctioned entry with a reason in `tools/exports-walls.json` | `.claude/rules/boundaries.md` | `boundaries` |
+| `client-export-census` | a `./client` subpath export on a package | a sanctioned entry with a reason in `tools/exports-walls.json`, or for a vertical of this project in `tools/exports-walls.project.json` | `.claude/rules/boundaries.md` | `boundaries` |
 
 Flag ONLY findings that change what a maintainer would do — no style nits, no
 re-running of mechanical gates. Be specific; every finding names the fix.

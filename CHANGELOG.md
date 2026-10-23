@@ -57,6 +57,25 @@ this comment. -->
   `version-sync` names it as matching no deprecated resolution, and the remedy is to delete
   it, or `update --refresh-seeded tools/eol.json` on an untouched register. The arrival ramp
   in `tools/check-version-sync.mjs` still runs to 2.1.0 for installs holding the row.
+- **A project's own verticals are sanctioned without forking the owned census** (#160). Every
+  vertical needs a `./client` census entry, and the only census was the owned, hash-pinned
+  `tools/exports-walls.json`, so a project sanctioning its own vertical forked it, and every
+  later `update` parked each census change and exited 2. The seeded
+  `tools/exports-walls.project.json` is the project's half, `{comment, entries: [{package,
+  reason}]}`, empty when shipped and read as empty when absent. One reader in the owned
+  `tools/lib/workspace-tiers.mjs` unions the two files for `check-exports-walls.mjs`,
+  `check-workspace-deps.mjs` and the duplication sweep. The project file is closed: an entry
+  must name a package under `packages/verticals/`, carry a non-empty reason, appear once, and
+  not repeat a package the owned census lists (that red names both files), and a file that
+  does not parse or carries no `entries` array fails loud. It is write-guarded by a new
+  `exports-walls-project` row with the shared deny text, proposable through
+  `harness-proposals/` and `apply-proposal`, in `ESCAPE_LISTS` and seeded, and
+  `scripts/check-escape-registry.mjs` reconciles the four lists. The red for an unsanctioned
+  vertical, the mobile wall's red for a vertical and `scaffold-slice`'s `next:` line name the
+  project file and that flow; every other package keeps the owned census's human path. The
+  dependency-cruiser rules read neither file, as before: none keys off the census. No verdict
+  tightens on an existing install. `update` plants the empty file, and the upgrade runbook
+  says how a forked install moves its own entries across and un-forks.
 
 ## [2.0.3] — 2026-10-17
 

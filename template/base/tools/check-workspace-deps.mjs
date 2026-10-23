@@ -5,7 +5,8 @@
 // import graph; this one works at the package.json DEPENDENCY level, which catches a
 // mis-tiered dependency BEFORE a single import is written (and a declared-but-unused
 // dependency the import graph never sees). Four laws, all derived from the ONE census
-// (tools/exports-walls.json) plus the universally-importable kernel:
+// (tools/exports-walls.json, unioned since #160 with the project's own
+// tools/exports-walls.project.json) plus the universally-importable kernel:
 //
 //   1. The mobile import wall. apps/mobile may take a runtime @app/* dependency only if
 //      it is sanctioned in the census (a Metro-safe surface) OR is one of the pure
@@ -23,10 +24,17 @@ import { existsSync, readFileSync } from 'node:fs'
 import { walkFiles } from './lib/fs-walk.mjs'
 import { fail, failures, ok, rampNote, skipOrFail } from './lib/gate.mjs'
 import { applyAnatomyAllow, scanVerticalAnatomy } from './lib/vertical-anatomy.mjs'
-import { mayDepend, sanctionedOf, tierOf } from './lib/workspace-tiers.mjs'
+import {
+  CENSUS,
+  mayDepend,
+  PROJECT_CENSUS,
+  projectSanctionedOf,
+  readProjectCensus,
+  sanctionedOf,
+  tierOf,
+} from './lib/workspace-tiers.mjs'
 
 const GATE = 'boundaries'
-const CENSUS = 'tools/exports-walls.json'
 const PACKAGES_DIR = 'packages'
 
 // The tiers, the mobile wall's universally-importable kernel and the law ids live in
@@ -45,7 +53,12 @@ try {
 if (!Array.isArray(census.sanctioned)) {
   fail(GATE, `${CENSUS} must carry a "sanctioned" ARRAY of {package, reason} entries`)
 }
-const sanctioned = sanctionedOf(census)
+// The project half (#160), read through the same reader check-exports-walls uses, so the two
+// consumers cannot disagree. That gate holds the file's closed shape; this one only refuses to
+// read past a file that is not a list.
+const project = readProjectCensus()
+if (project.error !== null) fail(GATE, project.error)
+const sanctioned = new Set([...sanctionedOf(census), ...projectSanctionedOf(project.entries)])
 const appDeps = (pkg, key) => Object.keys(pkg[key] ?? {}).filter((k) => k.startsWith('@app/'))
 
 // Inventory every workspace package: name -> { tier, deps, devDeps }.
@@ -94,7 +107,9 @@ if (mobile !== null) {
       )
     } else if (law === 'mobile-unsanctioned') {
       errs.push(
-        `${dep} is a dependency of apps/mobile but is neither sanctioned in ${CENSUS} nor universally-importable — a package absent from the census is one the mobile bundle may not carry; route the call through the API, or (if it has a Metro-safe ./client) hand a human the reviewed {package, reason} entry: the census is harness-owned and hash-pinned, so an agent does not edit it, and the human adds the entry under the security owners' review (CODEOWNERS) and re-records the file's sha256 in .harness/manifest.json in the same reviewed commit (docs/runbooks/harness-upgrade.md, "Forking an owned file")`,
+        target(dep).tier === 'vertical'
+          ? `${dep} is a dependency of apps/mobile but is sanctioned in neither ${PROJECT_CENSUS} nor ${CENSUS} — a package absent from the census is one the mobile bundle may not carry; route the call through the API, or (its Metro-safe ./client is the anatomy law's) give this vertical its entry in ${PROJECT_CENSUS}: stage the whole proposed file as harness-proposals/<id>.json, and a human applies it with \`apply-proposal <id>\` (docs/harness/README.md, "Proposing a register edit")`
+          : `${dep} is a dependency of apps/mobile but is neither sanctioned in ${CENSUS} nor universally-importable — a package absent from the census is one the mobile bundle may not carry; route the call through the API, or (if it has a Metro-safe ./client) hand a human the reviewed {package, reason} entry: the census is harness-owned and hash-pinned, so an agent does not edit it, and the human adds the entry under the security owners' review (CODEOWNERS) and re-records the file's sha256 in .harness/manifest.json in the same reviewed commit (docs/runbooks/harness-upgrade.md, "Forking an owned file")`,
       )
     }
   }
@@ -201,7 +216,7 @@ if (widenedFindings.length > 0) {
 failures(
   GATE,
   errs,
-  `The allow-matrix derives from ${CENSUS} + the universally-importable kernel; fix the mis-tiered dependency, don't widen the matrix.`,
+  `The allow-matrix derives from ${CENSUS} with ${PROJECT_CENSUS}, plus the universally-importable kernel; fix the mis-tiered dependency, don't widen the matrix.`,
 )
 ok(
   GATE,

@@ -384,6 +384,20 @@ commit, after which `update` parks each later upstream change to the census for 
 (the upgrade runbook's "Forking an owned file"). The write guard's `exports-walls-census` row
 denies an agent's edit with the same path, and `scaffold-slice` prints it as a `next:` line.
 No verdict changes: `gate-integrity` already redded the edit the row denies.
+**A project's own verticals are sanctioned in the project census (2.0.4, #160).**
+`tools/exports-walls.project.json` is seeded, shaped `{comment, entries: [{package,
+reason}]}`, and read as empty when absent. Both consumers read the union of the two files
+through one reader, `tools/lib/workspace-tiers.mjs`, which the duplication sweep reads too, so
+none can disagree. The project file is closed: an entry must name a package under
+`packages/verticals/`, carry a non-empty reason, appear once, and not repeat a package the
+owned census lists (that red names both files); a file that does not parse or has no `entries`
+array fails loud. It is write-guarded (`exports-walls-project`, the shared deny text) and
+proposable, so an agent stages the whole file under `harness-proposals/` and a human runs
+`apply-proposal`. The red for an unsanctioned vertical, the mobile wall's red for a vertical,
+and `scaffold-slice`'s `next:` line name this file and that flow; the owned census's human
+path remains for every other package. No verdict tightens: the file starts empty, and every
+new red is about its own contents. The dependency-cruiser rules read neither file: no rule
+there keys off the census.
 **check-workspace-deps** (the declared-dependency allow-matrix):
 apps/mobile may take a runtime `@app/*` dependency only if it is sanctioned OR
 universally-importable (the error/event kernel, the wire contracts, the RN-only design
