@@ -427,12 +427,17 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/check-duplication.test.mjs",
-        "note": "a token-clone pasted across apps/*/src or packages/*/src reds naming both sites + a content fingerprint; tools/duplication-allow.json mutes an accepted clone by fingerprint and malformed/absent entries fail closed. #175: a new-kind row with a 10-character reason, an unknown rule, rule wire-bound (the red names tools/dto-bounds-allow.json), members [A, A] or a three-path mirror reds naming the entry, every malformed entry in one run, while an L0 row with reason x stays green; a mirror row accepts the window between its two sides at one relative path only, and a third copy elsewhere reds naming it"
+        "note": "a token-clone pasted across apps/*/src or packages/*/src reds naming both sites + a content fingerprint; tools/duplication-allow.json mutes an accepted clone by fingerprint and malformed/absent entries fail closed. #175: a new-kind row with a 10-character reason, an unknown rule, rule wire-bound (the red names tools/dto-bounds-allow.json), members [A, A] or a three-path mirror reds naming the entry, every malformed entry in one run, while an L0 row with reason x stays green; a mirror row accepts the window between its two sides at one relative path only, and a third copy elsewhere reds naming it; on the exact leg (#174) an exact row naming every member exempts the class, while a third copy, or a copy swapped in for a listed member, reds with the copy printed as UNLISTED"
       },
       {
         "kind": "fixture",
         "ref": "tests/gates/duplication-allow.test.mjs",
         "note": "#175, the register's members-bound rows against the sweep: a class whose members an exact row lists is silent; a third copy, or a swap that deletes a member and adds another, keeps the class with the unlisted member named (and a stale-row for the gone one); editing one side gives accepted-class-diverged naming it, editing both the same way accepted-class-changed; a mirror row silences only the same-name pair on its two sides; the rule set is a constant without wire-bound; --prune prints a proposal that drops exactly the stale rows"
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-duplication.test.mjs",
+        "note": "THE EXACT LEG (#174): a function with another's body in the same workspace, under L0's 70 tokens, reds naming both members, the MOVE and the key12 its --explain line prints; every local renamed still reds; one string literal changed reds 'with 1 literal parameter'; an SQL function copied under a new schema in a new migration reds MOVE MODULE, and a supabase/schemas copy is never a second member; a web and mobile copy (no legal home), a copy under FLOOR and an L0-allowlisted pair's L0 window stay out of the verdict while the pair's exact class still reds; at baseVersion 2.1.0 the class is a ramp NOTE and a ramp-withheld record with exit 0, at harness 2.4.0 RAMP EXPIRED reds and records it blocking, at baseVersion 2.2.0 it reds at once; with typescript unresolvable L0 still decides, the TS half is a NOTE locally and a FAIL under CI=true, and the missing prerequisite is recorded"
       },
       {
         "kind": "selftest",

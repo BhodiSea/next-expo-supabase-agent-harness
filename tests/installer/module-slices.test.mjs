@@ -14,7 +14,11 @@
 // date, the fingerprint the duplication gate reports). Then the two gates that judge a
 // vertical's source must pass: boundaries (tools/check-workspace-deps.mjs, which carries
 // the vertical-anatomy laws) and duplication (tools/check-duplication.mjs). Both import
-// only Node built-ins, so the scaffold needs no `pnpm install`.
+// only Node built-ins, so the scaffold needs no `pnpm install`, with one exception:
+// duplication's exact leg (#174) reads TypeScript through the project's `typescript`. The
+// factory's own is linked into the scaffold where it is installed, so the leg judges the
+// slice for real; where it is not (selftest.yml installer-unit), that half is a NOTE, and
+// the spawn runs outside CI's posture so it stays one.
 //
 // Nothing about a module is restated here. The copy list, the manifests and the allow rows
 // are read from APPLY.md, so a step APPLY.md gets wrong is a step this test gets wrong, and
@@ -30,6 +34,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -38,6 +43,7 @@ import { fileURLToPath } from 'node:url'
 import { walkFiles } from '../../template/base/tools/lib/fs-walk.mjs'
 
 const CLI = fileURLToPath(new URL('../../installer/cli.mjs', import.meta.url))
+const TYPESCRIPT = fileURLToPath(new URL('../../node_modules/typescript', import.meta.url))
 const MODULES_ROOT = fileURLToPath(new URL('../../template/modules/', import.meta.url))
 
 const SETS = [
@@ -52,8 +58,8 @@ test.after(() => {
 })
 
 /** @param {string} cwd @param {string} cmd @param {string[]} args */
-function run(cwd, cmd, args) {
-  const res = spawnSync(cmd, args, { cwd, encoding: 'utf8' })
+function run(cwd, cmd, args, env = {}) {
+  const res = spawnSync(cmd, args, { cwd, encoding: 'utf8', env: { ...process.env, ...env } })
   return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
 }
 
@@ -221,7 +227,11 @@ function judge(dir, plan) {
   const boundaries = run(dir, process.execPath, ['tools/check-workspace-deps.mjs'])
   const claims = claimClones(dir, plan.rows.filter((r) => r.file === DUP_ALLOW).map((r) => r.row))
   appendRows(dir, DUP_ALLOW, [...claims].map(([row, fingerprint]) => filled(row, fingerprint)))
-  const duplication = run(dir, process.execPath, ['tools/check-duplication.mjs'])
+  if (existsSync(TYPESCRIPT) && !existsSync(at(dir, 'node_modules/typescript'))) {
+    mkdirSync(at(dir, 'node_modules'), { recursive: true })
+    symlinkSync(TYPESCRIPT, at(dir, 'node_modules/typescript'))
+  }
+  const duplication = run(dir, process.execPath, ['tools/check-duplication.mjs'], { CI: '', HARNESS_REQUIRE_TOOLCHAINS: '' })
   return { boundaries, duplication }
 }
 

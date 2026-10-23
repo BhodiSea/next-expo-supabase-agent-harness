@@ -2381,7 +2381,7 @@ posture as its first line. A runner that predates the flag ignores it silently,
 so a run without that line did not get the posture. Each gate that fails for a
 missing prerequisite records it (`noteMissingPrerequisite` in
 `tools/lib/gate.mjs`: `skipOrFail`, and the CI branches of the partial legs in
-`migrations`, `version-sync` and `styleguide`), and after the summary's total
+`migrations`, `version-sync`, `styleguide` and `duplication`'s exact leg), and after the summary's total
 the runner prints one `validate --ci-parity: <step>: <gate> — <reason>` line per
 record, in step order, or says that none was reported. `VALIDATE_TIMINGS` stays
 the last line. The records live in a temp directory outside the project and
@@ -2482,6 +2482,38 @@ after it moves lines.
 **Anti-vacuity:** paste a ≥70-token block across two files → FAIL naming both
 sites + fingerprint.
 
+**The exact leg (#174): owed exact classes of TS and SQL functions, judged whole-tree.**
+After L0, unchanged, the Stop run reds every owed exact class: two or more functions whose
+bodies are equal once bound names are numbered and literals abstracted (the extractor's
+`alpha`, below), at least 30 tokens, not data-shaped, with a home other than NONE. It
+reads the TS functions in L0's scope and the SQL functions the folded `supabase/migrations`
+history leaves live; a declarative `supabase/schemas` copy is never a second member. The red
+names the class by its `key12`, every member as `path:line` and name in code spans, the
+move (IMPORT, MODULE or LIFT, "with N literal parameters" when the members' literals
+differ, so an IMPORT never silently changes a literal), and the `--explain '<key12>'` line.
+The verdict is a pure function of the tree: no merge base, no novelty and no cache, so a PR,
+a push, a scheduled run and a local Stop meet the same one. A class with no legal home (a
+web and mobile pair) and a class under 30 tokens stay sweep-only advisories, and an L0 row
+in `tools/duplication-allow.json` does not exempt a class (a row that names every member
+does, #175). When `typescript` cannot load, L0 still decides and SQL is still judged; the
+TS half fails closed, a NOTE locally and a FAIL in CI, and records the missing prerequisite.
+Each leg writes its terminator (`exact-sql`, `exact-ts`) when it ran to its verdict.
+**Ramp:** live from baseVersion 2.2.0, until 2.4.0. An install below 2.2.0 gets one NOTE
+naming the ramp and one `ramp-withheld` record per owed class (each printed as a NOTE with
+its `key12`), and exits 0; at harness 2.4.0 it reds as RAMP EXPIRED. The template dev tree
+and an install at 2.2.0 or later red at once, and a red writes each class as `blocking`.
+The 2.2.0 release that turns it live for fresh installs waits on eval A's holdout, B, L and
+the D arm-2 pilot (`single-home-exact-golive` in the factory's obligations). FLOOR (30),
+the `exact-small` band (20) and the token convention are frozen in #174 after eval A's
+development split (#194).
+**Anti-vacuity:** add a function with the body of another in the same package, under L0's
+70 tokens → FAIL naming both members, `MOVE IMPORT` or `MODULE` and the key12; rename every
+local → still FAIL; change one string literal → FAIL, "with 1 literal parameter"; copy an
+SQL function under a new schema in a new migration → FAIL, MOVE MODULE; a web and mobile
+copy, or a 25-token copy → green; the same tree with a manifest at baseVersion 2.1.0 → exit
+0 with the ramp NOTE; with `typescript` unresolvable and `CI=true` → FAIL, and a 70-token
+paste still reds through L0.
+
 **The register's row kinds (#175): rows that name what they exempt.** Each entry of
 `tools/duplication-allow.json` is one of four kinds, read by `tools/lib/duplication-allow.mjs`.
 An L0 row, `{fingerprint, reason}`, accepts one token window by fingerprint, as before. An
@@ -2501,7 +2533,7 @@ than two, a near row of other than two members, a mirror that is not two distinc
 repository-relative paths. An L0 row keeps its old check, so no row an install holds becomes
 invalid. In the sweep, a class whose members a row lists, every one, gets no record; a member
 the row does not list (a third copy, a swap into another file) stays on the class as
-`facts.unlisted`, which the exact rule reds once live (#201); `accepted-class-changed` says an
+`facts.unlisted`, and the exact leg's red names it as UNLISTED; `accepted-class-changed` says an
 accepted class's fingerprint moved, `accepted-class-diverged` names the side edited out of a
 class, and `stale-row` names a member that no longer exists, never red. `node
 tools/check-duplication.mjs --prune` prints the register without its stale rows as a
@@ -2510,9 +2542,8 @@ ready-to-stage `harness-proposals/duplication-prune.json`, which only a human ap
 `members: [A, A]` → FAIL naming the entry; an L0 row with `reason: "x"` → green; a mirror row
 over two design systems → their window is green, and a third copy elsewhere → FAIL naming it.
 
-**The sweep and `--explain` (2.1.0, #186): read modes that decide no verdict.** The Stop run
-is the L0 scan above and nothing else, and it prints no advisory NOTE until the exact rule
-goes live (#201). Two read modes sit beside it. `node tools/check-duplication.mjs --sweep
+**The sweep and `--explain` (2.1.0, #186): read modes that decide no verdict.** The sweep's
+advisory families stay off the Stop run until #201. Two read modes sit beside it. `node tools/check-duplication.mjs --sweep
 --json` prints one JSON document over one index of the tree: every callable in L0's scope
 (the scope list is `tools/lib/duplication-scope.mjs`, one copy for both readers) and every
 SQL function the migration history leaves live (supabase/schemas fills in the rest), read by

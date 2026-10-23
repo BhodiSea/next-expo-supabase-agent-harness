@@ -737,7 +737,7 @@
     ],
     "docs/harness/gates-catalog.md": [
       {
-        "sha256": "2541d341c765fa0b08cd65ecbfba15831a1d2851fb465660f0a00ab02b73b774",
+        "sha256": "1a12a5ca207b2e2c246bb361c22f35150fcbd1970365a9c1aacd561c7c9d2bda",
         "sites": [
           [
             27862,
@@ -750,7 +750,7 @@
         ]
       },
       {
-        "sha256": "9e0aad9509847e2876e67e5614051a523112b634eebb3fd6fa506ec3b93bebf4",
+        "sha256": "2541d341c765fa0b08cd65ecbfba15831a1d2851fb465660f0a00ab02b73b774",
         "sites": [
           [
             27862,
@@ -1302,10 +1302,10 @@
     ],
     "tools/check-duplication.mjs": [
       {
-        "sha256": "959e3257dee99ce28c6740ccb41af80fc8f15371f9940a2484fe5bf399d11311"
+        "sha256": "cc2ab6ec47fb69dd0b99ec95470607fa4b47916f020903604991975bdcb7d39c"
       },
       {
-        "sha256": "cc2ab6ec47fb69dd0b99ec95470607fa4b47916f020903604991975bdcb7d39c"
+        "sha256": "eb4e871776604d2e48caf86775428c3f4ff1d0ade349d0b0af99adab8a498419"
       }
     ],
     "tools/check-e2e-device.mjs": [
@@ -2031,7 +2031,7 @@
     ],
     "tools/lib/sweep.mjs": [
       {
-        "sha256": "46fdfe145919e14bc1d2094437f0eb7c95a043d5edb1d20299e48a21f414af91"
+        "sha256": "8d07218dbbb634ca1cc8e5589a90e4b4528b999d7ee8b6b6e97869175d3bef39"
       },
       {
         "sha256": "a8af5bc3cc88f3da6c4f39822165a9f40e54ada52b6338535df96b6fc098fb75"

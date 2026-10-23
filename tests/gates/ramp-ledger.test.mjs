@@ -781,9 +781,13 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
   // NARROWS the set again: i18n carries no ramp now. 2.0.0's two extensions (version-sync's eol
   // arrival re-opened at minVersion 2.0.0 and reviewer-verdicts' round budget moved to 2.1.0)
   // stay noting here, as they were, and move no count.
+  // FORTY-FIVE since 2.0.4 added duplication's exact-class leg (#174, minVersion 2.2.0, due
+  // 2.4.0), which WIDENS the set: duplication carried no ramp since 0.4.0 deleted L0's. It
+  // is noting for every vintage this lineage has released, at every version below 2.4.0, so
+  // each gate list below gains `duplication` in the same diff.
   const fresh = classifyForInstall('0.6.0', '0.7.0', sites)
   assert.equal(fresh.expired.length, 0)
-  assert.equal(fresh.noting.length, 44)
+  assert.equal(fresh.noting.length, 45)
   assert.deepEqual(
     [...new Set(fresh.noting.map((s) => s.gate))].sort(),
     [
@@ -793,6 +797,7 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
       'db-limits',
       'diff-coverage',
       'docs-sync',
+      'duplication',
       'edge-functions',
       'gate-integrity',
       'migrations',
@@ -878,6 +883,7 @@ test('the SHIPPED 0.8.0 rampExpiry record equals what the shipped call sites com
       'db-limits',
       'diff-coverage',
       'docs-sync',
+      'duplication',
       'edge-functions',
       'gate-integrity',
       'migrations',
@@ -980,6 +986,7 @@ test('the SHIPPED 0.9.0 rampExpiry record equals what the shipped call sites com
       'db-limits',
       'diff-coverage',
       'docs-sync',
+      'duplication',
       'edge-functions',
       'gate-integrity',
       'migrations',
@@ -1136,6 +1143,16 @@ const PLANTED_LIST = 'release provenance of an uncommitted, planted escape list'
  * re-opened at minVersion 2.0.0 at the 2.0.0 cut, and still reads as advisory for every 1.0.x
  * base at every version below its 2.1.0 deadline.
  */
+// #174 (2.0.4) opened the exact-class ramp at minVersion 2.2.0, due 2.4.0, above every
+// released vintage: it is noting for each of them at every version this file pins. The
+// detail-list pins below judge it on its own line, so a site opened at 1.1.0 still has to
+// match OPENED_110 exactly.
+const EXACT_CLASSES = "'exact function and SQL-function classes'"
+/** @param {{ noting: Array<{ minVersion: string|null, detail: string|null }> }} at */
+const notingAt220 = (at) => at.noting.filter((s) => s.minVersion === '2.2.0').map((s) => s.detail)
+/** @param {{ noting: Array<{ minVersion: string|null, detail: string|null }> }} at */
+const notingBelow220 = (at) => at.noting.filter((s) => s.minVersion !== '2.2.0')
+
 const OPENED_110 = [
   `'${SQL_FOLD}'`, // check-data-flow.mjs
   `'${SQL_FOLD}'`, // check-db-limits.mjs
@@ -1263,6 +1280,7 @@ test('the SHIPPED 1.0.0 rampExpiry record equals what the shipped call sites com
         'db-limits',
         'diff-coverage',
         'docs-sync',
+        'duplication',
         'edge-functions',
         'gate-integrity',
         'migrations',
@@ -1322,6 +1340,7 @@ test('the SHIPPED 1.0.1 rampExpiry record equals what the shipped call sites com
         'db-limits',
         'diff-coverage',
         'docs-sync',
+        'duplication',
         'edge-functions',
         'gate-integrity',
         'migrations',
@@ -1355,8 +1374,9 @@ test('the SHIPPED 1.0.1 rampExpiry record equals what the shipped call sites com
   // provenance (#84), below their 1.2.0 deadline; nothing else. The i18n gate's two ramps (#76)
   // read here until 2.0.0 deleted them, and the eol arrival's re-open at minVersion 2.0.0 keeps
   // it advisory for this base.
+  assert.deepEqual(notingAt220(at100), [EXACT_CLASSES])
   assert.deepEqual(
-    at100.noting.map((s) => s.detail),
+    notingBelow220(at100).map((s) => s.detail),
     OPENED_110,
     '1.0.0 meets only the twenty-two sites under the current fleet',
   )
@@ -1434,9 +1454,10 @@ test('the SHIPPED 1.1.0 rampExpiry record equals what the shipped call sites com
     // gate-integrity's planted-list provenance (#84) this release opens (its i18n pair was
     // deleted at 2.0.0).
     assert.deepEqual(
-      at.noting.map((s) => s.detail),
+      notingBelow220(at).map((s) => s.detail),
       OPENED_110,
     )
+    assert.deepEqual(notingAt220(at), [EXACT_CLASSES])
   }
   // Every 1.0.x vintage meets NOTHING expired and exactly the twenty-two NOTEs of OPENED_110,
   // the two re-opened escapes, the reviewer ledger v2, the security-reviewer model check, the
@@ -1451,16 +1472,17 @@ test('the SHIPPED 1.1.0 rampExpiry record equals what the shipped call sites com
     const at = classifyForInstall(base, '1.1.0', sites)
     assert.equal(at.expired.length, 0, `${base} must meet no expiry at 1.1.0`)
     assert.ok(
-      at.noting.every(
+      notingBelow220(at).every(
         (s) => s.minVersion === '1.1.0' || (s.minVersion === '2.0.0' && s.detail === `"${ARRIVAL}"`),
       ),
-      `${base} meets only 1.1.0-opened sites and the re-opened arrival`,
+      `${base} meets only 1.1.0-opened sites and the re-opened arrival, beside the exact-class ramp`,
     )
     assert.deepEqual(
-      at.noting.map((s) => s.detail),
+      notingBelow220(at).map((s) => s.detail),
       OPENED_110,
       `${base} meets only the twenty-two sites of OPENED_110`,
     )
+    assert.deepEqual(notingAt220(at), [EXACT_CLASSES])
   }
   assert.match(record.why, /SWEEPS\['1\.0\.0'\]/)
   assert.match(record.why, /ramp-expectations\.mjs/)
@@ -1548,13 +1570,15 @@ test('the SHIPPED 2.0.0 rampExpiry record equals what the shipped call sites com
     assert.equal(at.expired.length, 18, `${base} must meet the eighteen 1.1.0-opened expiries`)
     assert.ok(at.expired.every((s) => s.minVersion === '1.1.0' && s.until === '1.2.0'))
     assert.deepEqual([...new Set(at.expired.map((s) => s.gate))].sort(), FIFTEEN)
-    assert.deepEqual(at.noting.map((s) => s.detail), STILL_NOTING, base)
+    assert.deepEqual(notingBelow220(at).map((s) => s.detail), STILL_NOTING, base)
+    assert.deepEqual(notingAt220(at), [EXACT_CLASSES], base)
   }
   // A 1.1.0 install meets NOTHING expired and only the re-opened arrival — the inverse proof
   // that the wave is dated, not blanket, and the reason no lane leg on v1.1.0 may red.
   const at110 = classifyForInstall('1.1.0', '2.0.0', sites)
   assert.equal(at110.expired.length, 0)
-  assert.deepEqual(at110.noting.map((s) => s.detail), [`"${ARRIVAL}"`])
+  assert.deepEqual(notingBelow220(at110).map((s) => s.detail), [`"${ARRIVAL}"`])
+  assert.deepEqual(notingAt220(at110), [EXACT_CLASSES])
   assert.match(record.why, /SWEEPS\['1\.1\.0'\]/)
   assert.match(record.why, /ramp-expectations\.mjs/)
 })

@@ -1092,7 +1092,7 @@ test('every gate that records a missing prerequisite still loads over a lib/gate
     .sort()
   assert.deepEqual(
     callers,
-    ['tools/check-migrations.mjs', 'tools/check-styleguide-manifest.mjs', 'tools/check-version-sync.mjs'],
+    ['tools/check-duplication.mjs', 'tools/check-migrations.mjs', 'tools/check-styleguide-manifest.mjs', 'tools/check-version-sync.mjs'],
     'the partial legs that record a missing prerequisite (update this list with the docs)',
   )
   const forked = readFileSync(join(BASE_DIR, 'tools/lib/gate.mjs'), 'utf8').replace(
