@@ -218,18 +218,20 @@ test('each step the script must not take is a printed next: line', () => {
   )
 })
 
-// 2.0.3 (#154). The new package's `./client` key needs a census entry, and the census is
-// harness-owned, so the step is a human's: the line names the file, says so, and gives the path.
-test('the census entry for the new ./client barrel is a next: line naming a human step (#154)', () => {
+// 2.0.3 (#154). The new package's `./client` key needs a census entry, and applying it is a
+// human's step. Since #160 the entry goes in the SEEDED project census, which an agent stages as
+// a proposal and a human applies, so the line names that file and that flow, not a fork of the
+// owned census.
+test('the census entry for the new ./client barrel is a next: line naming a human step (#154, #160)', () => {
   const dir = emptyRoot()
   const next = nextLines(scaffold(dir))
-  const census = next.find((l) => l.includes('tools/exports-walls.json'))
+  const census = next.find((l) => l.includes('tools/exports-walls.project.json'))
   assert.ok(census !== undefined, next.join('\n'))
   assert.match(census, /@app\/release-notes/)
-  assert.match(census, /harness-owned/)
   assert.match(census, /human/)
-  assert.match(census, /\.harness\/manifest\.json/)
-  assert.match(census, /Forking an owned file/)
+  assert.match(census, /harness-proposals\//)
+  assert.match(census, /apply-proposal/)
+  assert.ok(!census.includes('Forking an owned file'), census)
 })
 
 test('a second run writes nothing: every stub already exists', () => {
