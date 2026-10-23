@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Release lockstep: one version everywhere, asserted on every PR (not only at
 // tag time — skew must red the PR that introduces it). Checks:
-//   package.json.version == .claude-plugin/plugin.json.version
+//   package.json.version == plugin/.claude-plugin/plugin.json.version
 //     == every HARNESS_HOOK_VERSION stamp under template/base/.claude/hooks/
 //     == GITHUB_REF_NAME (only when running on a v* tag)
 //     == CITATION.cff, the CHANGELOG heading (and their dates), and — since 1.0.2 — the
@@ -24,11 +24,11 @@ const problems = []
 
 const pkgVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version
 const pluginVersion = JSON.parse(
-  readFileSync(join(root, '.claude-plugin/plugin.json'), 'utf8'),
+  readFileSync(join(root, 'plugin/.claude-plugin/plugin.json'), 'utf8'),
 ).version
 
 if (pluginVersion !== pkgVersion) {
-  problems.push(`.claude-plugin/plugin.json version ${pluginVersion} != package.json ${pkgVersion}`)
+  problems.push(`plugin/.claude-plugin/plugin.json version ${pluginVersion} != package.json ${pkgVersion}`)
 }
 
 const hooksDir = join(root, 'template/base/.claude/hooks')

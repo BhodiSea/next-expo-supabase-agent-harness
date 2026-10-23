@@ -129,6 +129,26 @@ Tiers choose which opt-in modules are installed. `core` installs none.
 `push-notifications`, `eval-live`, `observability` and `e2ee`. The Vercel deploy
 workflow, EAS Build/Submit and release-please come from modules, not the base.
 
+## Claude Code plugin
+
+The agents, slash commands and skills also come as a Claude Code plugin, for a session
+outside a harness-installed project. Install it from this repository's marketplace:
+
+```sh
+claude plugin marketplace add BhodiSea/next-expo-supabase-agent-harness
+claude plugin install next-expo-supabase-agent-harness@next-expo-supabase-agent-harness
+```
+
+or, inside a session on Claude Code 2.1.275 or later:
+
+```
+/plugin install next-expo-supabase-agent-harness --marketplace BhodiSea/next-expo-supabase-agent-harness
+```
+
+The plugin carries no hooks, gates or permissions; those come with `init`. Inside a
+harness-installed project you do not need it, and its reviewers' verdicts do not count
+toward the reviewer ledger. See [plugin/README.md](plugin/README.md).
+
 ## Limitations
 
 - **Linux-only proof.** Every CI lane that runs the scaffold runs on

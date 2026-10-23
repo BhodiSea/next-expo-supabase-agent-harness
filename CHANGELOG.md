@@ -58,6 +58,21 @@ this comment. -->
   it, or `update --refresh-seeded tools/eol.json` on an untouched register. The arrival ramp
   in `tools/check-version-sync.mjs` still runs to 2.1.0 for installs holding the row.
 
+### Changed
+
+- **The Claude Code plugin installs its own folder, not the whole repository** (#163). The
+  marketplace entry's `source` is now `./plugin`, which holds the manifest, a README, the
+  LICENSE and the agents, commands and skills, copied from `template/base/.claude/` as
+  regular files by `scripts/generate-plugin-folder.mjs`. An install used to copy every
+  tracked file, a folder the plugin directory holds for a reviewer at 512 files or with a
+  non-image file over 256 KiB. `scripts/check-plugin-manifest.mjs` now reds when `plugin/`
+  drifts from its sources, holds a link or a stray file, or breaks those limits, and
+  `scripts/check-release-lockstep.mjs` reads the manifest at its new path,
+  `plugin/.claude-plugin/plugin.json`. Its description no longer says hooks cannot ship in a
+  plugin: what a plugin cannot carry is permissions, and the harness's hooks run the
+  project's own tools. The README gains the install commands. Factory only: nothing changes
+  for an install.
+
 ## [2.0.3] — 2026-10-17
 
 **A patch: the v2.0.x defect fixes, a security floor move, and two additions.** The `next`
