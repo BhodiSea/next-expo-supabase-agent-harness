@@ -479,7 +479,7 @@ treeTest('duplication: at baseVersion 2.2.0 an owed class reds at once, with no 
 test('duplication: a clean tree prints no ramp NOTE whatever its baseVersion', () => {
   const r = runReal({ 'apps/mobile/src/a.ts': BLOCK('summariseAlpha') }, { manifest: manifest('2.0.4', '2.0.4') })
   assert.equal(r.code, 0, r.out)
-  assert.doesNotMatch(r.out, /NOTE/)
+  assert.doesNotMatch(r.out, /ramp/i)
 })
 
 // ── no parser ──

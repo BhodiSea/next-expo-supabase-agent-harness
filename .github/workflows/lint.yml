@@ -274,7 +274,8 @@ jobs:
       # TypeScript through the root's own `typescript`, which installer-unit never installs:
       # there their parser cases SKIP loudly by name. This job has the root toolchain, and
       # HARNESS_TEST_REQUIRE_TYPESCRIPT=1 turns a parser that cannot load into a failure. The
-      # floor is these modules' own (measured 99.0/92.1/99.2; floors sit ~6 under).
+      # floor is these modules' own (measured 99.0/92.1/99.2; floors sit ~6 under). The
+      # duplication gate's exact leg (#174) reads the same extractor, so its TS proofs run here.
       - name: machinery-shapes (the Single Home extractor and sweep's proofs, with the parser installed)
         env:
           HARNESS_TEST_REQUIRE_TYPESCRIPT: '1'
@@ -291,6 +292,7 @@ jobs:
           --test-coverage-lines=93 --test-coverage-branches=85 --test-coverage-functions=94
           tests/gates/shapes.test.mjs tests/gates/homes.test.mjs tests/gates/importers.test.mjs
           tests/gates/workspace-tiers.test.mjs tests/gates/complexity.test.mjs tests/gates/sweep.test.mjs
+          tests/gates/check-duplication.test.mjs
       # The Edge Function split's static proofs (1.1.0, #78) read handler.ts, index.ts and the
       # evaluated vitest.config.ts through the root's own `typescript`, which installer-unit
       # never installs: there those cases SKIP loudly by name. This job has the root toolchain,
