@@ -760,3 +760,125 @@ test('NOTE: a pre-0.9.5 install sees anatomy findings as advisory NOTEs (the ram
   assert.equal(r.code, 0, r.out)
   assert.ok(r.out.includes('NOTE') && r.out.includes('domain-purity'), r.out)
 })
+
+// ── the rule of two (2.1.0, #176) ──────────────────────────────────────────────
+// Every export of a packages/shared/* package needs at least two importing workspaces,
+// tests excluded, counted by the one importer index (tools/lib/importers.mjs). A shared
+// export one workspace uses belongs in that workspace; one nobody uses is dead. The tree is
+// the issue's: a hand-made packages/shared/fmt whose `.` export is its barrel, imported by
+// apps/web and packages/verticals/notes, both declaring it `workspace:*`.
+
+const FMT = /** @type {[string, any]} */ ([
+  'shared/fmt',
+  { name: '@app/fmt', exports: { '.': './src/index.ts' } },
+])
+const FMT_FILES = /** @type {[string, string][]} */ ([
+  ['packages/shared/fmt/src/index.ts', "export { formatCents } from './cents.js'\n"],
+  ['packages/shared/fmt/src/cents.ts', 'export const formatCents = (n: number) => `${n / 100}`\n'],
+])
+const WEB_IMPORTS = /** @type {[string, string][]} */ ([
+  ['apps/web/app/page.tsx', "import { formatCents } from '@app/fmt'\nexport const a = formatCents(1)\n"],
+  ['apps/web/lib/price.ts', "import { formatCents } from '@app/fmt'\nexport const b = formatCents(2)\n"],
+])
+const NOTES_IMPORT = /** @type {[string, string][]} */ ([
+  [`packages/verticals/notes/src/format.ts`, "import { formatCents } from '@app/fmt'\nexport const c = formatCents(3)\n"],
+])
+const withFmt = (deps) => ({ ...deps, '@app/fmt': 'workspace:*' })
+const SHARED_PACKAGES = /** @type {[string, any][]} */ ([
+  ...PACKAGES.map(([rel, m]) =>
+    rel === 'verticals/notes' ? [rel, { ...m, dependencies: withFmt(m.dependencies) }] : [rel, m],
+  ),
+  FMT,
+])
+const SHARED_WEB = { ...WEB, dependencies: withFmt(WEB.dependencies) }
+/** @param {[string, string][]} files */
+const sharedTree = (files) =>
+  fixture({ packages: SHARED_PACKAGES, web: SHARED_WEB, files: [...FMT_FILES, ...files] })
+const ONE_WORKSPACE =
+  '@app/fmt export formatCents is imported only by apps/web: inline it into its one consumer'
+
+test('RED rule of two (#176): a shared export only apps/web imports, from two files, is one importing workspace', () => {
+  const r = run(WORKSPACE_DEPS, sharedTree(WEB_IMPORTS))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes(ONE_WORKSPACE), r.out)
+})
+
+test('GREEN rule of two (#176): a second workspace importing the export makes it shared', () => {
+  const r = run(WORKSPACE_DEPS, sharedTree([...WEB_IMPORTS, ...NOTES_IMPORT]))
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('1 shared package(s)'), r.out)
+})
+
+test('RED rule of two (#176): a second importer that is only a test file does not count', () => {
+  const testOnly = /** @type {[string, string][]} */ ([
+    [`packages/verticals/notes/src/notes.test.ts`, NOTES_IMPORT[0][1]],
+  ])
+  const r = run(WORKSPACE_DEPS, sharedTree([...WEB_IMPORTS, ...testOnly]))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes(ONE_WORKSPACE), r.out)
+})
+
+test('RED rule of two (#176): the shared package importing its own export is not a second workspace', () => {
+  const self = /** @type {[string, string][]} */ ([
+    ['packages/shared/fmt/src/use.ts', "import { formatCents } from './cents.js'\nexport const d = formatCents(4)\n"],
+  ])
+  const r = run(WORKSPACE_DEPS, sharedTree([...WEB_IMPORTS, ...self]))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes(ONE_WORKSPACE), r.out)
+})
+
+test('GREEN rule of two (#176): a namespace import uses every export', () => {
+  const ns = /** @type {[string, string][]} */ ([
+    [`packages/verticals/notes/src/format.ts`, "import * as fmt from '@app/fmt'\nexport const c = fmt.formatCents(3)\n"],
+  ])
+  const r = run(WORKSPACE_DEPS, sharedTree([...WEB_IMPORTS, ...ns]))
+  assert.equal(r.code, 0, r.out)
+})
+
+test('GREEN rule of two (#176): a type-only export two workspaces import is shared', () => {
+  const files = /** @type {[string, string][]} */ ([
+    ['packages/shared/fmt/src/index.ts', "export { formatCents } from './cents.js'\nexport type { Cents } from './cents.js'\n"],
+    ['packages/shared/fmt/src/cents.ts', 'export type Cents = number\nexport const formatCents = (n: Cents) => `${n / 100}`\n'],
+    ['apps/web/lib/types.ts', "import type { Cents } from '@app/fmt'\nexport type W = Cents\n"],
+    [`packages/verticals/notes/src/types.ts`, "import { type Cents } from '@app/fmt'\nexport type N = Cents\n"],
+  ])
+  const r = run(WORKSPACE_DEPS, sharedTree([...WEB_IMPORTS, ...NOTES_IMPORT, ...files]))
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED rule of two (#176): a shared export nobody imports says delete it', () => {
+  const files = /** @type {[string, string][]} */ ([
+    ['packages/shared/fmt/src/index.ts', "export { formatCents, parseCents } from './cents.js'\n"],
+    [
+      'packages/shared/fmt/src/cents.ts',
+      'export const formatCents = (n: number) => `${n / 100}`\nexport const parseCents = (s: string) => Number(s) * 100\n',
+    ],
+  ])
+  const r = run(WORKSPACE_DEPS, sharedTree([...WEB_IMPORTS, ...NOTES_IMPORT, ...files]))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('@app/fmt export parseCents is imported by no workspace: delete it'), r.out)
+  assert.ok(!r.out.includes('export formatCents'), r.out)
+})
+
+test('NOTE rule of two (#176): an install whose baseVersion is below 2.1.0 meets it as a ramp NOTE, exit 0', () => {
+  const dir = sharedTree(WEB_IMPORTS)
+  writeFileSync(join(dir, '.harness/manifest.json'), JSON.stringify({ baseVersion: '2.0.4', harnessVersion: '2.0.4' }))
+  const r = run(WORKSPACE_DEPS, dir)
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('NOTE') && r.out.includes('expires in 2.2.0'), r.out)
+  assert.ok(r.out.includes(ONE_WORKSPACE), r.out)
+})
+
+test('RED rule of two (#176): the ramp expires at harness 2.2.0', () => {
+  const dir = sharedTree(WEB_IMPORTS)
+  writeFileSync(join(dir, '.harness/manifest.json'), JSON.stringify({ baseVersion: '2.0.4', harnessVersion: '2.2.0' }))
+  const r = run(WORKSPACE_DEPS, dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('RAMP EXPIRED') && r.out.includes(ONE_WORKSPACE), r.out)
+})
+
+test('GREEN rule of two (#176): with no packages/shared the law is empty-legal and says 0 shared package(s)', () => {
+  const r = run(WORKSPACE_DEPS, fixture())
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('0 shared package(s)'), r.out)
+})

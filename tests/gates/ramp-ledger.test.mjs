@@ -781,9 +781,11 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
   // NARROWS the set again: i18n carries no ramp now. 2.0.0's two extensions (version-sync's eol
   // arrival re-opened at minVersion 2.0.0 and reviewer-verdicts' round budget moved to 2.1.0)
   // stay noting here, as they were, and move no count.
+  // FORTY-FIVE since #176 (for 2.1.0) added the rule of two (boundaries, minVersion 2.1.0, due
+  // 2.2.0), which widens no gate set: boundaries already carries ramps that note here.
   const fresh = classifyForInstall('0.6.0', '0.7.0', sites)
   assert.equal(fresh.expired.length, 0)
-  assert.equal(fresh.noting.length, 44)
+  assert.equal(fresh.noting.length, 45)
   assert.deepEqual(
     [...new Set(fresh.noting.map((s) => s.gate))].sort(),
     [
@@ -1160,6 +1162,13 @@ const OPENED_110 = [
   `'${WORKFLOW_HARDENING}'`,
   EDGE_SCOPE, // mutation-scope.mjs
 ]
+// The rule of two (#176, for 2.1.0): one boundaries site opened at minVersion 2.1.0 and due
+// 2.2.0, so it reads as advisory for every vintage below 2.1.0 at every version below 2.2.0,
+// and every NOTE list below that release carries it. check-workspace-deps.mjs sorts after
+// check-workflow-hardening.mjs and before mutation-scope.mjs.
+const RULE_OF_TWO = 'the rule of two over packages/shared/* exports'
+/** What a 1.0.x base meets as NOTEs: OPENED_110 and the rule of two, in scanner order. */
+const NOTING_10X = [...OPENED_110.slice(0, -1), `'${RULE_OF_TWO}'`, EDGE_SCOPE]
 
 test('0.11.1 → 1.0.0 → 1.1.0 → 2.0.0 — the eol ARRIVAL escape reaches the vintages it used to exclude, one release on each time', () => {
   const sites = shippedRampSites()
@@ -1357,8 +1366,8 @@ test('the SHIPPED 1.0.1 rampExpiry record equals what the shipped call sites com
   // it advisory for this base.
   assert.deepEqual(
     at100.noting.map((s) => s.detail),
-    OPENED_110,
-    '1.0.0 meets only the twenty-two sites under the current fleet',
+    NOTING_10X,
+    '1.0.0 meets only the twenty-two sites under the current fleet and the rule of two',
   )
   assert.match(record.why, /ramp-expectations\.mjs/)
 })
@@ -1435,7 +1444,7 @@ test('the SHIPPED 1.1.0 rampExpiry record equals what the shipped call sites com
     // deleted at 2.0.0).
     assert.deepEqual(
       at.noting.map((s) => s.detail),
-      OPENED_110,
+      NOTING_10X,
     )
   }
   // Every 1.0.x vintage meets NOTHING expired and exactly the twenty-two NOTEs of OPENED_110,
@@ -1452,14 +1461,17 @@ test('the SHIPPED 1.1.0 rampExpiry record equals what the shipped call sites com
     assert.equal(at.expired.length, 0, `${base} must meet no expiry at 1.1.0`)
     assert.ok(
       at.noting.every(
-        (s) => s.minVersion === '1.1.0' || (s.minVersion === '2.0.0' && s.detail === `"${ARRIVAL}"`),
+        (s) =>
+          s.minVersion === '1.1.0' ||
+          (s.minVersion === '2.0.0' && s.detail === `"${ARRIVAL}"`) ||
+          (s.minVersion === '2.1.0' && s.detail === `'${RULE_OF_TWO}'`),
       ),
-      `${base} meets only 1.1.0-opened sites and the re-opened arrival`,
+      `${base} meets only 1.1.0-opened sites, the re-opened arrival and the rule of two`,
     )
     assert.deepEqual(
       at.noting.map((s) => s.detail),
-      OPENED_110,
-      `${base} meets only the twenty-two sites of OPENED_110`,
+      NOTING_10X,
+      `${base} meets only the twenty-two sites of OPENED_110 and the rule of two`,
     )
   }
   assert.match(record.why, /SWEEPS\['1\.0\.0'\]/)
@@ -1522,7 +1534,7 @@ test('the SHIPPED 2.0.0 rampExpiry record equals what the shipped call sites com
   assert.ok(!record.affects.includes('1.1.0'))
 
   // The 1.0.x vintages meet exactly EIGHTEEN 1.1.0-opened sites across FIFTEEN gates, and
-  // nothing older; the four that stay NOTEs are the three reviewer-verdicts sites dated 2.1.0
+  // nothing older; four of the five that stay NOTEs are the three reviewer-verdicts sites dated 2.1.0
   // (the ledger v2, the model check, and the round budget this record extends) and the eol
   // arrival this record re-opens at minVersion 2.0.0.
   const FIFTEEN = [
@@ -1542,7 +1554,14 @@ test('the SHIPPED 2.0.0 rampExpiry record equals what the shipped call sites com
     'web-compile',
     'workflow-hardening',
   ]
-  const STILL_NOTING = [`'${MODEL_CHECK}'`, `'${ROUND_BUDGET}'`, `'${LEDGER_V2}'`, `"${ARRIVAL}"`]
+  // The rule of two (#176) opens at minVersion 2.1.0, so it notes for every base below that too.
+  const STILL_NOTING = [
+    `'${MODEL_CHECK}'`,
+    `'${ROUND_BUDGET}'`,
+    `'${LEDGER_V2}'`,
+    `"${ARRIVAL}"`,
+    `'${RULE_OF_TWO}'`,
+  ]
   for (const base of ['1.0.0', '1.0.1', '1.0.2', '1.0.3', '1.0.4']) {
     const at = classifyForInstall(base, '2.0.0', sites)
     assert.equal(at.expired.length, 18, `${base} must meet the eighteen 1.1.0-opened expiries`)
@@ -1554,7 +1573,7 @@ test('the SHIPPED 2.0.0 rampExpiry record equals what the shipped call sites com
   // that the wave is dated, not blanket, and the reason no lane leg on v1.1.0 may red.
   const at110 = classifyForInstall('1.1.0', '2.0.0', sites)
   assert.equal(at110.expired.length, 0)
-  assert.deepEqual(at110.noting.map((s) => s.detail), [`"${ARRIVAL}"`])
+  assert.deepEqual(at110.noting.map((s) => s.detail), [`"${ARRIVAL}"`, `'${RULE_OF_TWO}'`])
   assert.match(record.why, /SWEEPS\['1\.1\.0'\]/)
   assert.match(record.why, /ramp-expectations\.mjs/)
 })

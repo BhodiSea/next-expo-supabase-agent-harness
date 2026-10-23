@@ -14,7 +14,8 @@ This lineage's own history starts at 0.1.3.
 ## [2.0.4] — 2026-10-21
 
 **A patch: the v2.0.x defect fixes continue.** Each item that lands after this bump adds its
-entry below. No gate is added, the chain length does not change, and no ramp opens or moves.
+entry below. No gate is added, the chain length does not change, and no ramp moves. One ramp
+opens: `boundaries`' rule of two (#176), from baseVersion 2.1.0 until 2.2.0.
 The `template/migrations.json` record restates 2.0.0's twenty-vintage `rampExpiry`
 population, and `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `2.0.3`.
 
@@ -57,6 +58,22 @@ this comment. -->
   `version-sync` names it as matching no deprecated resolution, and the remedy is to delete
   it, or `update --refresh-seeded tools/eol.json` on an untouched register. The arrival ramp
   in `tools/check-version-sync.mjs` still runs to 2.1.0 for installs holding the row.
+
+### Added
+
+- **`boundaries` gains the rule of two over `packages/shared/*` exports** (#176). Law 6 of
+  `tools/check-workspace-deps.mjs`: every export of a `packages/shared/*` package needs at
+  least two importing workspaces, tests excluded. One importing workspace reds "`<pkg>`
+  export `<name>` is imported only by `<workspace>`: inline it into its one consumer", and
+  none reds "… is imported by no workspace: delete it". The count is
+  `tools/lib/importers.mjs`, the index the duplication sweep reads, so a type-only import
+  counts and a namespace import uses every export. There is no exemption. The template has
+  no `packages/shared`, so a fresh scaffold is green and its `ok` line says `0 shared
+  package(s)`. Ramped for installs below 2.1.0 until 2.2.0 (obligations row
+  `boundaries-rule-of-two-ramp-expiry`). The proof is ten cases in
+  `tests/gates/check-boundaries.test.mjs`, eight of them red before the law. The script, the
+  gates catalog and this release's runbook section are owned and reach an install with
+  `update`.
 
 ## [2.0.3] — 2026-10-17
 
