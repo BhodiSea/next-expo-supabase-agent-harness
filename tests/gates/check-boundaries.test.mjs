@@ -554,6 +554,56 @@ test('RED anatomy: a DAL file value-importing @app/supabase; import type stays c
   assert.equal(green.code, 0, green.out)
 })
 
+// #159: the one sanctioned subpath. `@app/supabase/errors` is the pure SQLSTATE mapper, so a
+// vertical may value-import it EXACTLY, and only while that file imports nothing but the error
+// kernel. Every other spelling of the client package stays red, and so does an impure mapper.
+const MAPPER = 'packages/platform/supabase/src/errors.ts'
+const PURE_MAPPER = "import { type AppError, appError } from '@app/errors'\nexport const mapPostgresError = (e: unknown): AppError => appError.unknown(String(e))\n"
+const mapperCaller = (spec) =>
+  /** @type {[string, string]} */ ([
+    `packages/${N}/src/data/errors.ts`,
+    `import { mapPostgresError } from '${spec}'\nexport const wrap = (e: unknown) => mapPostgresError(e)\n`,
+  ])
+
+test('GREEN anatomy (#159): a vertical value-importing exactly @app/supabase/errors while the mapper is pure', () => {
+  const r = run(WORKSPACE_DEPS, fixture({ files: [[MAPPER, PURE_MAPPER], mapperCaller('@app/supabase/errors')] }))
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('anatomy-clean'), r.out)
+})
+
+test('RED anatomy (#159): the root, ./client and a prefix-only subpath stay client reaches beside a pure mapper', () => {
+  for (const spec of ['@app/supabase', '@app/supabase/client', '@app/supabase/errors-extra']) {
+    const r = run(WORKSPACE_DEPS, fixture({ files: [[MAPPER, PURE_MAPPER], mapperCaller(spec)] }))
+    assert.equal(r.code, 1, `${spec}\n${r.out}`)
+    assert.ok(r.out.includes('dal-client-value-import') && r.out.includes(`'${spec}'`), r.out)
+  }
+})
+
+test('RED anatomy (#159): the sanctioned import reds, naming the impurity, once the mapper imports anything else', () => {
+  const impure = `import { parseServerEnv } from '@app/env'\n${PURE_MAPPER}`
+  const r = run(WORKSPACE_DEPS, fixture({ files: [[MAPPER, impure], mapperCaller('@app/supabase/errors')] }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('dal-client-value-import'), r.out)
+  assert.ok(r.out.includes(MAPPER) && r.out.includes("'@app/env'"), r.out)
+
+  // A dynamic import is a value reach too; a statement-level `import type` is not, by the
+  // same rule the law applies to a vertical's own imports.
+  const dynamic = `${PURE_MAPPER}export const late = () => import('./client.js')\n`
+  const d = run(WORKSPACE_DEPS, fixture({ files: [[MAPPER, dynamic], mapperCaller('@app/supabase/errors')] }))
+  assert.equal(d.code, 1, d.out)
+  assert.ok(d.out.includes("'./client.js'"), d.out)
+
+  const typed = `import type { Database } from './types.js'\n${PURE_MAPPER}`
+  const t = run(WORKSPACE_DEPS, fixture({ files: [[MAPPER, typed], mapperCaller('@app/supabase/errors')] }))
+  assert.equal(t.code, 0, t.out)
+})
+
+test('RED anatomy (#159): the sanctioned import reds when the mapper file is absent (purity unproven)', () => {
+  const r = run(WORKSPACE_DEPS, fixture({ files: [mapperCaller('@app/supabase/errors')] }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('dal-client-value-import') && r.out.includes(MAPPER), r.out)
+})
+
 test('RED anatomy: a PostgREST caller with no port import (port discipline); a call-free data file owes nothing', () => {
   const files = /** @type {[string, string][]} */ ([
     [`packages/${N}/src/data/notes.ts`, "export const list = (db) => db.from('notes').select('id')\n"],

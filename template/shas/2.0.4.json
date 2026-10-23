@@ -179,6 +179,15 @@
             "SECURITY_OWNERS"
           ]
         ]
+      },
+      {
+        "sha256": "2d65790950194fe5123c8303b27326f63908e6a0fc08350aad0031dbf5d774bf",
+        "sites": [
+          [
+            1250,
+            "SECURITY_OWNERS"
+          ]
+        ]
       }
     ],
     ".claude/rules/e2ee.md": [
@@ -745,6 +754,19 @@
           ],
           [
             152094,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
+        "sha256": "c88e845edae6927765a15282811d2dd48a7429136f4ed3148bf65aeae517b4c6",
+        "sites": [
+          [
+            27862,
+            "SECURITY_OWNERS"
+          ],
+          [
+            152578,
             "SECURITY_TXT_EXPIRES"
           ]
         ]
@@ -2011,6 +2033,9 @@
     "tools/lib/vertical-anatomy.mjs": [
       {
         "sha256": "208e679a5f9787796ee6874f2dbb1a2f1f8ec5b2e9f2b037a6aeaafc86307061"
+      },
+      {
+        "sha256": "e46a5a05c3e180db9f50c877de28aa34c60eb2de2d084c658c7a55044e9f27cb"
       }
     ],
     "tools/lib/web-routes.mjs": [
