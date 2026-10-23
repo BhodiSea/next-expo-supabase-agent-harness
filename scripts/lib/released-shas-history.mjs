@@ -3,8 +3,8 @@
 // What a HISTORICAL commit shipped (and, since 1.1.0, which escape lists it planted), judged
 // by that commit's own installer. Shared by
 // scripts/generate-released-shas.mjs (which folds every release commit into the tables)
-// and scripts/check-released-shas.mjs --verify-tags (which requires every tag's tree to be
-// inside its version's table), so the two cannot disagree about what a commit ships. The
+// and scripts/check-released-shas.mjs --verify-tags (which requires every tag's tree, and
+// since 2.0.4 every first-parent `main` commit's, to be inside its version's table), so the two cannot disagree about what a commit ships. The
 // pure judgements are in ./released-shas.mjs.
 //
 // `git archive`, not a worktree: it writes nothing under .git, so it cannot race the
@@ -102,13 +102,11 @@ export function releaseTags(root) {
 }
 
 /**
- * First-parent `main` plus every release tag, oldest first, deduplicated. The documented
- * install command carries no tag, so an install can come from any commit `main` ever
- * pointed at — and a tag cut off `main` (a release branch) is a release too.
+ * First-parent `main`, oldest first, or null when neither `main` nor `origin/main` resolves.
  *
- * @param {string} root
+ * @param {string} root @returns {string[] | null}
  */
-export function releaseCommits(root) {
+export function mainCommits(root) {
   const mainRef = ['main', 'origin/main'].find((ref) => {
     try {
       git(root, ['rev-parse', '-q', '--verify', `${ref}^{commit}`])
@@ -117,9 +115,21 @@ export function releaseCommits(root) {
       return false
     }
   })
-  if (mainRef === undefined) {
+  if (mainRef === undefined) return null
+  return git(root, ['rev-list', '--first-parent', '--reverse', mainRef]).split('\n').filter(Boolean)
+}
+
+/**
+ * First-parent `main` plus every release tag, oldest first, deduplicated. The documented
+ * install command carries no tag, so an install can come from any commit `main` ever
+ * pointed at — and a tag cut off `main` (a release branch) is a release too.
+ *
+ * @param {string} root
+ */
+export function releaseCommits(root) {
+  const firstParent = mainCommits(root)
+  if (firstParent === null) {
     throw new Error('neither main nor origin/main resolves — the full history is needed (fetch-depth: 0)')
   }
-  const firstParent = git(root, ['rev-list', '--first-parent', '--reverse', mainRef]).split('\n').filter(Boolean)
   return [...new Set([...firstParent, ...releaseTags(root).map((t) => t.commit)])]
 }
