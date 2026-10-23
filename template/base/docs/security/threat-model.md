@@ -130,6 +130,7 @@ Rule tables from `.claude/hooks/lib/guard-rules.mjs`, in source order. Each rule
 - `test-quality-allow` — protected path `^tools\/test-quality-allow\.json$`
 - `rls-runner` — protected path `^tests\/rls\/run-rls\.mjs$`
 - `lefthook` — protected path `^lefthook\.yml$`
+- `lefthook-local` — protected path `^(?:\.config\/|\.)?lefthook-local\.(?:ya?ml|jsonc?|toml)$`
 - `git-hooks-dir` — protected path `^\.git\/hooks\/`
 - `git-config` — protected path `^\.git\/config$`
 - `github-workflows` — protected path `^\.github\/workflows\/`

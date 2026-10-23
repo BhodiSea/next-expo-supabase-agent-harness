@@ -111,6 +111,9 @@
     ],
     ".claude/hooks/lib/guard-rules.mjs": [
       {
+        "sha256": "1f8a490f5c93661336cdd31a6c22d36b58befb14ac9744eb14e706bdf4ff0a8e"
+      },
+      {
         "sha256": "2711e56fadbe16d44c253941d1bc8daada643ddb1db2a00d044a18e9e4999e91"
       },
       {
@@ -927,6 +930,15 @@
     ],
     "docs/runbooks/harness-upgrade.md": [
       {
+        "sha256": "043703a0fbbcc806710280f55c4a9ac94e2c288f36b087f2dae3eca4bb1ab89f",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "2dd844ba4c30a1d9b5fe3fd3271b78f9311c88882a462372a7dffb45529d6e8a",
         "sites": [
           [
@@ -1001,6 +1013,9 @@
     "docs/security/threat-model.md": [
       {
         "sha256": "32a7e757b1440f817fca54b6188ba495017f115eba3f82b2b8e10a28dcbb7cb8"
+      },
+      {
+        "sha256": "7136d05fe71a39cf88c2ff3718ff3c6987ac6df95aa32db02d49afc3db166c78"
       },
       {
         "sha256": "fe298c9544d9178507ff2651e9174be7d9b5d117c78ccbaf77e556bf9350ad1d"

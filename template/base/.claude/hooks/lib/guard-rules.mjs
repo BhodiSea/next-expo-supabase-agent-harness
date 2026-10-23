@@ -27,7 +27,9 @@ const PROT_DIRS = String.raw`(?:\.[\\/])?(?:tools|\.claude|\.harness|\.git[\\/]h
 // the max-strict compiler surface every other type gate rests on, and while the Edit/Write
 // path was guarded, `sed -i 's/"strict": true/"strict": false/' tsconfig.base.json` was
 // caught by NOTHING — not this guard, not gate-integrity, not `tsc -b`, not CI.
-const PROT_FILES = String.raw`(?:\.[\\/])?(?:pnpm-lock\.yaml|lefthook\.yml|biome\.jsonc|knip\.json|eslint\.config\.mjs|vitest\.config\.ts|apps[\\/]mobile[\\/]jest\.config\.js|stryker\.config\.mjs|commitlint\.config\.mjs|\.dependency-cruiser\.cjs|pnpm-workspace\.yaml|tsconfig(?:\.base)?\.json|\.gitleaks\.toml|\.mcp\.json|\.git[\\/]config)\b`
+// lefthook-local.* rides with lefthook.yml (2.0.4, #260): lefthook merges it over the
+// committed config, so writing one is a lefthook.yml edit with a different file name.
+const PROT_FILES = String.raw`(?:\.[\\/])?(?:pnpm-lock\.yaml|lefthook\.yml|(?:\.config[\\/]|\.)?lefthook-local\.(?:ya?ml|jsonc?|toml)|biome\.jsonc|knip\.json|eslint\.config\.mjs|vitest\.config\.ts|apps[\\/]mobile[\\/]jest\.config\.js|stryker\.config\.mjs|commitlint\.config\.mjs|\.dependency-cruiser\.cjs|pnpm-workspace\.yaml|tsconfig(?:\.base)?\.json|\.gitleaks\.toml|\.mcp\.json|\.git[\\/]config)\b`
 const PROT = `(?:${PROT_DIRS}|${PROT_FILES})`
 
 const SHELL_WRITE_MSG =
@@ -674,6 +676,12 @@ export const WRITE_PROTECTED = [
   // eliminate: coverage counted it, the canary registry counted it, and it guarded nothing.
   // Migrations are covered by tools/check-migrations.mjs and replayed by `supabase db reset`.
   { id: 'lefthook', re: /^lefthook\.yml$/ },
+  // The LOCAL config lefthook merges over lefthook.yml (2.0.4, #260). A `skip: true` for a job
+  // in it skips that job at `git commit`, with no flag, no LEFTHOOK variable and no edit to
+  // the row above. These are the spellings lefthook 2.1.10 reads, each checked with
+  // `lefthook dump`. The main-config alternatives (.lefthook.yml, lefthook.yaml, …) are not
+  // read while lefthook.yml exists, so they need no row. A nested file is not read either.
+  { id: 'lefthook-local', re: /^(?:\.config\/|\.)?lefthook-local\.(?:ya?ml|jsonc?|toml)$/ },
   // THE INSTALLED FORM of the commit-time layer (0.9.0). lefthook.yml above is the
   // committed CONFIG; what actually runs at `git commit` is .git/hooks/pre-commit, and
   // until 0.9.0 a direct overwrite of it was caught by NOTHING — the bash guard denies
