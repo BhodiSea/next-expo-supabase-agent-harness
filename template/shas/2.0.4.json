@@ -748,6 +748,19 @@
             "SECURITY_TXT_EXPIRES"
           ]
         ]
+      },
+      {
+        "sha256": "f5f2cd2208724b18429866b5e2c7fa3845f537e8e8dfcac77c7015bbe26fcd46",
+        "sites": [
+          [
+            27862,
+            "SECURITY_OWNERS"
+          ],
+          [
+            152094,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
       }
     ],
     "docs/modules/ci-mobile-release/README.md": [
@@ -1279,6 +1292,9 @@
       }
     ],
     "tools/check-duplication.mjs": [
+      {
+        "sha256": "80cbce31649a483c50027c6146fd2f9ddd697787da814e407ba05461e5340d5f"
+      },
       {
         "sha256": "cc2ab6ec47fb69dd0b99ec95470607fa4b47916f020903604991975bdcb7d39c"
       }
@@ -1996,6 +2012,9 @@
     "tools/lib/sweep.mjs": [
       {
         "sha256": "a8af5bc3cc88f3da6c4f39822165a9f40e54ada52b6338535df96b6fc098fb75"
+      },
+      {
+        "sha256": "b9a1e7ea79c5168a5ff0987cde7ddf3ae0517516bc40460143cc35f1d9c2c193"
       }
     ],
     "tools/lib/table-grants.mjs": [

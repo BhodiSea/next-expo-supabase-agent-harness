@@ -316,6 +316,32 @@
       "reason": "The reviewer model record (1.1.0, #62) was probed against Claude Code 2.1.285 in print mode (design/CONTROL-PLANE-FACTS.md, Fact 16): no Subagent* payload names a model, each assistant line of the subagent transcript at agent_transcript_path carries the model that produced it at message.model as a full ID, a model error with no chain never reaches SubagentStop while a fallbackModel chain moves the subagent silently, and a green Stop hook's JSON systemMessage surfaces as a notice while its stderr does not. Three answers print mode cannot give are still owed: how the interactive terminal, the VS Code extension and the desktop app render a green Stop's systemMessage (the channel that keeps a fallback from being silent), whether the plugin loader accepts the harnessFallbackModels key, and whether the main agent's Edit tool may write a subagent transcript under ~/.claude/projects/. Discharge = run the three probes Fact 16 names, record each answer in Fact 16 (which moves this anchor), and delete this row in the same diff; if a surface does not show the systemMessage, move the FALLBACK MODEL lines to a channel it does show first.",
       "reviewedOn": "2026-09-30",
       "evidence": "design/CONTROL-PLANE-FACTS.md"
+    },
+    {
+      "id": "single-home-exact-golive",
+      "kind": "release",
+      "target": "2.2.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-duplication.mjs",
+          "mustContain": "scripts/obligations.json `single-home-exact-golive` holds that release"
+        }
+      ],
+      "reason": "OPENED AT 2.0.4 by #174 (SH-GP1, decision 1: the D arm-2 pilot gates the go-live). The exact-class leg of `duplication` is built and ramped from baseVersion 2.2.0, so 2.2.0 is the release that turns it live for every fresh install. That release is cut only when four committed records under tests/evals/<eval>/<date>.json are current under #182's record check: A's holdout with 0 false owed hits and byte-identical output on two machines (#194), B with owed precision 1.0 on the frozen fixture (#195), L's bars (#199), and the D arm-2 pilot at GO or GO at full power (#200). The template's own owed set must be empty on a fresh default and --with-demo scaffold too (#201). Discharge: delete this row in the 2.2.0 release commit once those records are committed. On any NO-GO the rule does not ship in 2.2.0: the ramp's minVersion and until move to the next minor through a reviewed rampExtensions entry, and this row's target moves with them.",
+      "reviewedOn": "2026-10-23"
+    },
+    {
+      "id": "duplication-exact-ramp-expiry",
+      "kind": "release",
+      "target": "2.4.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-duplication.mjs",
+          "mustContain": "exact function and SQL-function classes"
+        }
+      ],
+      "reason": "OPENED AT 2.0.4 by #174. The exact-class leg of `duplication` reds owed exact classes of TS and SQL functions; an install whose baseVersion is below 2.2.0 gets a NOTE and a ramp-withheld record per owed class until harness 2.4.0, when the ramp expires and the same keys red with status blocking. Discharge: the 2.4.0 record's rampExpiry names the affected population (baseVersion below 2.2.0), or a reviewed rampExtensions entry under 2.4.0 in template/migrations.json moves the deadline if the evidence no longer holds (v2 §4: a rule never goes blocking by default on an old install).",
+      "reviewedOn": "2026-10-23"
     }
   ]
 }

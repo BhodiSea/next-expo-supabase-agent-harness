@@ -81,18 +81,20 @@ test('the ratchet list holds: every converted producer writes its terminator, ev
   assert.ok(Object.hasOwn(ratchet.converted, 'duplication'), 'duplication is the first converted producer (#185)')
 })
 
-test('the ratchet reds when the noteComplete call is removed from check-duplication.mjs', () => {
+test('the ratchet reds when the noteComplete calls are removed from check-duplication.mjs', () => {
   const src = readTemplate('tools/check-duplication.mjs')
   const call = "gateLib.noteComplete?.({ producer: 'duplication', leg: 'l0' })\n"
-  assert.ok(src.includes(call), 'precondition: the call is there to remove')
+  // The exact legs (#174) write theirs from a second call; removing L0's alone leaves one.
+  const exactCall = "gateLib.noteComplete?.({ producer: 'duplication', leg })"
+  assert.ok(src.includes(call) && src.includes(exactCall), 'precondition: the calls are there to remove')
   const without = (/** @type {string} */ script) =>
-    script === 'tools/check-duplication.mjs' ? src.replace(call, '') : readTemplate(script)
+    script === 'tools/check-duplication.mjs' ? src.replace(call, '').replace(exactCall, '') : readTemplate(script)
   assert.deepEqual(ratchetProblems(ratchet, without), [
     "duplication is listed as converted, but tools/check-duplication.mjs never calls noteComplete({ producer: 'duplication', … })",
   ])
   // A call that survives only in a comment does not count.
   const commented = (/** @type {string} */ script) =>
-    script === 'tools/check-duplication.mjs' ? src.replace(call, `// ${call}`) : readTemplate(script)
+    script === 'tools/check-duplication.mjs' ? src.replace(call, `// ${call}`).replace(exactCall, '') : readTemplate(script)
   assert.equal(ratchetProblems(ratchet, commented).length, 1)
 })
 
