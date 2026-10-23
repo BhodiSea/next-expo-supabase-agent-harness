@@ -4437,6 +4437,17 @@ deleted. Your own register keeps it until you act. After your next `pnpm install
 the new config-plugins, `version-sync` reds the row as matching no deprecated resolution.
 Delete the row, or take the whole register with `update --refresh-seeded tools/eol.json`.
 
+### The guards deny a write of `lefthook-local.yml` (#260)
+
+lefthook merges a local config over the committed `lefthook.yml`, so through 2.0.3 an agent
+could Write a `lefthook-local.yml` that skips any commit-time job, and neither guard knew the
+file. A new write-guard row, `lefthook-local`, denies every spelling lefthook reads
+(`lefthook-local`, `.lefthook-local` and `.config/lefthook-local`, with `.yml`, `.yaml`,
+`.json`, `.jsonc` or `.toml`), and the bash guard denies shell writes to them. `update`
+plants `.claude/hooks/lib/guard-rules.mjs` and `docs/security/threat-model.md`, both owned.
+A local config you already keep is left alone and lefthook still reads it. To change it
+later, edit it yourself, or set `HARNESS_ALLOW_SELF_EDIT=1` for the agent's session.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

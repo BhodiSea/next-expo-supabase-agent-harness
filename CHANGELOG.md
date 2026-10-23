@@ -57,6 +57,17 @@ this comment. -->
   `version-sync` names it as matching no deprecated resolution, and the remedy is to delete
   it, or `update --refresh-seeded tools/eol.json` on an untouched register. The arrival ramp
   in `tools/check-version-sync.mjs` still runs to 2.1.0 for installs holding the row.
+- **The shipped guards deny a write of `lefthook-local.yml`** (#260). lefthook merges a local
+  config over the committed `lefthook.yml`, so a `skip: true` for a job in it skipped that job
+  at `git commit` with no flag and no `LEFTHOOK` variable, and neither guard knew the file. A
+  new `WRITE_PROTECTED` row, `lefthook-local`, in `.claude/hooks/lib/guard-rules.mjs` denies
+  an Edit or Write of every spelling lefthook 2.1.10 reads (`lefthook-local`,
+  `.lefthook-local` and `.config/lefthook-local`, each with `.yml`, `.yaml`, `.json`,
+  `.jsonc` or `.toml`), and the bash guard's shell-write rule denies the same paths.
+  `tests/hooks/hook-contract.test.mjs` denies twelve spellings, red on 2.0.3, and
+  `docs/security/threat-model.md` lists the row. A developer who wants a personal local
+  config writes it themselves, as for `lefthook.yml`. Every file this changes is owned and
+  reaches an install with `update`.
 
 ## [2.0.3] — 2026-10-17
 
