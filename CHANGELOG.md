@@ -79,6 +79,18 @@ this comment. -->
   demo-eject-older-release.test.mjs` runs v2.0.2's own `init`, this `update` and this `eject`,
   red before the fix. The CLI carries the change; `update` plants this release's runbook
   section and nothing else.
+- **`update` knows the bytes untagged `main` commits shipped** (#259). The install command
+  has no tag, so each table under `template/shas/` is meant to list what every first-parent
+  `main` commit of its version shipped, and the 1.0.4 and 1.1.0 tables missed some: an
+  untouched install made from `main` at 8de6d2349 (the merge of #95) had six owned files,
+  `tools/lib/gate.mjs` among them, parked as forks on `update`, and four escape lists read as
+  widenings. A merge commit can carry bytes no pull request's CI checked, so
+  `check-released-shas.mjs --verify-tags` now also verifies every first-parent `main` commit
+  against its own version's table, judged by its own installer, and the tables are
+  backfilled by `generate-released-shas.mjs --all`. `tests/gates/
+  released-shas-history.test.mjs` reds a table missing that commit's `tools/lib/gate.mjs`,
+  red before the fix. `update` plants the regenerated `tools/lib/planted-shas.json` and this
+  release's runbook section.
 
 ### Added
 

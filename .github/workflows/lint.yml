@@ -255,6 +255,8 @@ jobs:
       # this lives in the one job with fetch-depth: 0) every tag's tree, judged by that tag's
       # OWN installer, inside its version's table. This workflow also runs at the tag ref and
       # publish blocks on it, so the tag being cut is verified against the table it ships.
+      # Since 2.0.4 (#259) the same flag walks every first-parent main commit too: the install
+      # command has no tag, and a merge on main can carry bytes no pull request's CI checked.
       - name: machinery-released-shas (template/shas covers the live tree, every vintage and every tag)
         run: node scripts/check-released-shas.mjs --verify-tags
       - name: machinery-types (tsc --noEmit, allowJs+checkJs over the same globs)

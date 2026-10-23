@@ -4448,6 +4448,18 @@ such shared file. From a v2.0.2 install that was eight files, five parked defaul
 is planted and nothing is left to you; if an earlier `eject` already kept such files, delete
 them by hand, or take each parked default from `.harness/pending/`.
 
+### `update` knows what untagged `main` commits shipped (#259)
+
+The install command has no tag, so an install can come from any commit `main` pointed at.
+`update` overwrites an owned file only when a release shipped the bytes it finds, and the
+harness's lists of shipped bytes missed some untagged 1.0.4 and 1.1.0 commits. An untouched
+install made from one of them had owned files such as `tools/lib/gate.mjs` kept as local
+forks, with the new version parked under `.harness/pending/`, and `gate-integrity` called
+some of its planted escape lists widenings. The lists are complete now, and the harness's own
+CI checks every `main` commit against them. `update` plants `tools/lib/planted-shas.json`
+(owned). If an earlier `update` parked a file you never edited, take the parked copy from
+`.harness/pending/`, or run `update` again: it now overwrites the untouched file.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it
