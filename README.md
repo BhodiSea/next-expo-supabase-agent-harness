@@ -116,7 +116,7 @@ see [docs/cli.md](docs/cli.md).
 
 Postgres row-level security keyed on `auth.uid()` is the one authorization
 boundary for both apps. Versions are pinned in a single pnpm catalog
-(`pnpm-workspace.yaml`): Next 16.4, Expo 57, React 19.2, TypeScript 6, Biome 2.5,
+(`pnpm-workspace.yaml`): Next 16.4, Expo 57, React 19.2, TypeScript 6, Biome 2.6,
 supabase-js 2, tRPC 11, zod 4.
 
 ## How it works

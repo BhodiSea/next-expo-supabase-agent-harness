@@ -23,8 +23,9 @@ const OG_IMAGE_ALT =
   'next-expo-supabase-agent-harness: a CLI that scaffolds a pnpm monorepo with a Next.js web app and an Expo (React Native) mobile app on one Supabase backend, plus Claude Code hooks and CI gates.'
 
 /**
- * og.png is the repository's social preview image, copied into the build output so the
- * site and the GitHub repository page share one image. The build fails without it.
+ * og.png is docs/media/social-preview.png, the image made for the repository's social preview
+ * (uploaded by hand: GitHub has no API for it), copied into the build output so the site and
+ * the repository page can share one image. The build fails without it.
  */
 function socialPreview() {
   const source = join(REPO_ROOT, 'docs', 'media', 'social-preview.png')

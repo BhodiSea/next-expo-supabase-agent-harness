@@ -1,7 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
   <!--
-    Source of docs/media/social-preview.png, the repository's social preview image
-    (Settings, General, Social preview). After an edit, render the PNG again from the
+    Source of docs/media/social-preview.png, the image for the repository's social preview,
+    uploaded by hand under Settings, General, Social preview (GitHub has no API for it).
+    After an edit, render the PNG again from the
     repository root with headless Chrome, look at it, and upload it again. Chrome takes
     its switches with one dash as well as two, and an XML comment cannot hold two:
 

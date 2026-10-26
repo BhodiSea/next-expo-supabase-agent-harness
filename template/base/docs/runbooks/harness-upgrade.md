@@ -4477,6 +4477,19 @@ The catalog also moves `next` to 16.4.2 and pnpm to 11.28.6, and neither is need
 release. If you raise pnpm, raise `build.base.pnpm` in `apps/mobile/eas.json` with
 `packageManager`, or `version-sync` reds.
 
+### The agent-facing docs teach the org-scoped RLS shape (#255)
+
+Through 2.0.3 the vertical-slice skill's first step, `/new-feature`, `/verify-invariants`,
+`.claude/rules/security-invariants.md` and the `migration-rls-author` and `security-reviewer`
+agents taught policies keyed on `owner_id = (SELECT auth.uid())` with a leading owner index,
+the per-user shape the `tenancy` gate reds. They now teach the org-scoped shape: a NOT NULL
+`org_id` frozen by a trigger, the `member_org_ids()` scope to read and the `member_ranks()`
+rank floor to write, a leading `org_id` index, and `owner_id` as nullable attribution. No
+gate changes. `update` plants the skill, the rule, the two commands and the two agents, all
+owned. `AGENTS.md` and `supabase/AGENTS.md` are seeded, so `update` leaves your copies: if
+their RLS paragraphs still teach `owner_id = (SELECT auth.uid())`, rewrite them to the shape
+above by hand.
+
 ### `eject` removes the demo files an earlier release wrote (#256)
 
 Most of the worked example is seeded, so `update` leaves an untouched demo file at the bytes
@@ -4499,6 +4512,15 @@ some of its planted escape lists widenings. The lists are complete now, and the 
 CI checks every `main` commit against them. `update` plants `tools/lib/planted-shas.json`
 (owned). If an earlier `update` parked a file you never edited, take the parked copy from
 `.harness/pending/`, or run `update` again: it now overwrites the untouched file.
+
+### The slice scaffolder creates each stub exclusively (#163)
+
+`.claude/skills/authoring-vertical-slice/scripts/scaffold-slice.mjs` checked whether a
+stub's path existed and then wrote it by name, so a file created between the two calls was
+overwritten, and a dangling symbolic link at the path was written through to its target. It
+now creates each stub with an exclusive write and prints `exists, skipped:` for any path that
+already exists, a link included. `update` plants the script (owned). It runs only when
+someone runs it, so no slice you already have changes, and nothing is left to you.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

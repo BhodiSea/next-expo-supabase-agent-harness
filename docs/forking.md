@@ -28,14 +28,23 @@ Clone without tags. `check-ramp-ledger`, `check-dependency-channel`,
 history does not contain. The `upstream` remote keeps the `--no-tags` setting,
 so a later `git fetch upstream` for upstream fixes brings no tags either.
 
-Expect `lint.yml`'s `machinery-lint` job to be red at first.
-`check-ramp-ledger`, `check-dependency-channel`, `check-sbom-drift` and
-`check-eol-target` compare a release with the one before it, and in CI they
-fail rather than skip until a `vX.Y.Z` tag below the version in `package.json`
-is reachable. `check-ramp-ledger` also fails while `VINTAGES` in
-`scripts/lib/ramp-sites.mjs` names a release your history has no tag for.
+Expect CI to be red at first, and your first release to wait for it. In
+`lint.yml`, `machinery-lint` runs `check-ramp-ledger`, `check-dependency-channel`,
+`check-sbom-drift` and `check-eol-target`. They compare a release with the one
+before it, and in CI they fail rather than skip until a `vX.Y.Z` tag below the
+version in `package.json` is reachable. `check-ramp-ledger` also fails while
+`VINTAGES` in `scripts/lib/ramp-sites.mjs` names a release your history has no
+tag for. In the same workflow, `syntax-and-plugin` runs `check-seeded-migrations`,
+which skips while the clone has no tags and fails once it has a tag but none
+below that version. In `selftest.yml`, each `upgrade-linux` leg installs an
+earlier release and updates it: the first leg needs a tag below the version in
+`package.json`, and the others name upstream release tags a fresh history does
+not have, so they stay red until you remove them or point them at your own
+releases. `release.yml` waits for green `selftest.yml` and `lint.yml` runs on
+the tagged commit, so a release tag fails while any of these is red.
 
-The selftest, hygiene and lint workflows do not depend on the upstream owner.
+Apart from that, the selftest, hygiene and lint workflows do not depend on the
+upstream owner.
 
 ## What to rewrite
 
@@ -57,6 +66,9 @@ is the set of repo-root sites that hardcode the upstream owner:
 - `CHANGELOG.md`: the lineage note at the top (it names this repo as the
   ancestor of yours) and the version line you continue from
 - `CONTRIBUTING.md`: rule 2 names the vocabulary your lineage owns
+- `.github/workflows/selftest.yml`: the `upgrade-linux` matrix names upstream
+  release tags; remove those legs or point them at your own releases
+- `scripts/lib/ramp-sites.mjs`: `VINTAGES` names upstream releases; list your own
 - `SECURITY.md`: the advisories URL, the `update` command and the release
   verification command
 - `.github/CODEOWNERS`: every owner handle
