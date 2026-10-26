@@ -85,6 +85,90 @@ this comment. -->
   with `update`, where Biome 2.5 prints one information line about the newer schema.
   `pnpm-workspace.yaml` is seeded, so an install keeps its own pins. The `vitest` floor stays
   4.1.11, and the runbook's 2.0.4 section names the pins to raise by hand.
+- **The agent-facing docs teach the org-scoped RLS shape** (#255). The vertical-slice skill's
+  step 1, `/new-feature`, `/verify-invariants`, `.claude/rules/security-invariants.md`, the
+  `migration-rls-author` and `security-reviewer` agents and `AGENTS.md` still taught policies
+  keyed on `owner_id = (SELECT auth.uid())` with a leading owner index, the per-user shape
+  every scaffold left at 0.2.0 and the `tenancy` gate reds. They now teach what
+  `references/migration-rls.md`, `supabase/schemas/20_notes.sql` and `tools/tenancy.json`
+  already do: a NOT NULL, trigger-frozen `org_id`, the `member_org_ids()` scope and
+  `member_ranks()` rank-floor forms, a leading `org_id` index, and `owner_id` as nullable
+  attribution. No gate changes. The skill, rule, commands and agents are owned and reach an
+  install with `update`; `AGENTS.md` is seeded, so an install keeps its copy.
+- **`eject` removes the demo files an earlier release wrote** (#256). Most of the worked
+  example is seeded, so `update` leaves an untouched demo file at the bytes the install's own
+  release wrote, and `eject` compared a seeded demo file only with its own release's demo. An
+  untouched v2.0.2 `--with-demo` install, updated and ejected, kept eight demo files as
+  "re-recorded forks", parked the default copy of five shared files and kept two `PARITY.md`
+  rows. Each table under `template/shas/` now carries a `demo` map, every byte-variant of
+  every path `template/demo` shipped, backfilled from 2.0.0 by `generate-released-shas.mjs
+  --all`; `check-released-shas.mjs` holds it closed over the live tree and every tag, and
+  `eject` accepts any release's demo bytes up to its own. `tests/installer/
+  demo-eject-older-release.test.mjs` runs v2.0.2's own `init`, this `update` and this `eject`,
+  red before the fix. The CLI carries the change; `update` plants this release's runbook
+  section and nothing else.
+- **`update` knows the bytes untagged `main` commits shipped** (#259). The install command
+  has no tag, so each table under `template/shas/` is meant to list what every first-parent
+  `main` commit of its version shipped, and the 1.0.4 and 1.1.0 tables missed some: an
+  untouched install made from `main` at 8de6d2349 (the merge of #95) had six owned files,
+  `tools/lib/gate.mjs` among them, parked as forks on `update`, and four escape lists read as
+  widenings. A merge commit can carry bytes no pull request's CI checked, so
+  `check-released-shas.mjs --verify-tags` now also verifies every first-parent `main` commit
+  against its own version's table, judged by its own installer, and the tables are
+  backfilled by `generate-released-shas.mjs --all`. `tests/gates/
+  released-shas-history.test.mjs` reds a table missing that commit's `tools/lib/gate.mjs`,
+  red before the fix. `update` plants the regenerated `tools/lib/planted-shas.json` and this
+  release's runbook section.
+
+### Added
+
+- **The README shows the harness running, and says which projects it fits** (#165). A
+  recording near the top of the README is rendered by vhs from
+  `docs/media/harness-demo.tape`, with no model in it: `init` writes a project, the Bash guard
+  gets a force-push payload the way `.claude/settings.json` invokes it and prints its deny,
+  and the secrets gate goes red on its own Canary 26 key in a tracked file, then green once
+  the file is removed. `tests/installer/readme-recording.test.mjs` runs every command the
+  tape types, in plain bash against the checkout, and holds each to the `# expect:` and
+  `# exit:` lines written above it, so a guard or gate message that changes reds until the
+  tape is updated and the GIF regenerated; it also holds the GIF to 2 MB and the README to
+  embedding it. A new "Who this is for" section names the shape the harness assumes and,
+  for a web-only app, an existing monorepo with its own CI, and an agent that is not Claude
+  Code, which layers still apply. Factory only: nothing changes for an install.
+
+- **macOS in CI** (#168). `installer-unit` runs on `macos-latest` beside Linux and Windows. A
+  new `macos-scaffold` lane runs `init`, `pnpm install` and `pnpm validate --min-floor
+  --report-all` on `macos-latest` with `CI` unset, which is what a developer's Mac without
+  Docker gets: a gate whose prerequisite is missing skips instead of failing closed. The lane
+  then reds on any skip except `types-drift`, the one validate step that needs the database
+  (`scripts/lib/skip-verdict.mjs`, proven red by `tests/gates/skip-verdict.test.mjs`). The
+  database gates are still proven on Linux only. Factory only: nothing changes for an install.
+- **Evals A and B, the Single Home detector's model-free harnesses** (#188), work for 2.1.0.
+  `node scripts/eval-a.mjs --split dev` mutates about 40 helpers from the template with seven
+  scripted mutators (locals renamed, a literal swapped, statements edited or reordered, a
+  sibling-vertical copy, a SQL copy across schemas, a move, an edit into resemblance), adds
+  the decoys and v3's plantings, sweeps each case with `--sweep`'s library and prints recall
+  per mutator, precision per rule and tier and the ±3-token audit around FLOOR. `--split
+  holdout` refuses to run until `tests/evals/a/frozen.json` exists. `node scripts/eval-b.mjs`
+  sweeps a frozen copy of the 2.0.0 stack head (core with the demo and the push slice
+  applied), scores it against its labels and prints the dogfood coverage table. Both fail on
+  an unlabelled key, and `tests/evals/sweep-digest.test.mjs` holds the sweep's output
+  byte-identical on ubuntu and on Windows (a new `eval-digest-windows` job in `lint.yml`).
+  Most labels are the maintainer's to give. Factory only: nothing changes for an install.
+
+### Changed
+
+- **The Claude Code plugin installs its own folder, not the whole repository** (#163). The
+  marketplace entry's `source` is now `./plugin`, which holds the manifest, a README, the
+  LICENSE and the agents, commands and skills, copied from `template/base/.claude/` as
+  regular files by `scripts/generate-plugin-folder.mjs`. An install used to copy every
+  tracked file, a folder the plugin directory holds for a reviewer at 512 files or with a
+  non-image file over 256 KiB. `scripts/check-plugin-manifest.mjs` now reds when `plugin/`
+  drifts from its sources, holds a link or a stray file, or breaks those limits, and
+  `scripts/check-release-lockstep.mjs` reads the manifest at its new path,
+  `plugin/.claude-plugin/plugin.json`. Its description no longer says hooks cannot ship in a
+  plugin: what a plugin cannot carry is permissions, and the harness's hooks run the
+  project's own tools. The README gains the install commands. Factory only: nothing changes
+  for an install.
 
 ## [2.0.3] — 2026-10-17
 

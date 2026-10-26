@@ -146,8 +146,11 @@ Remove the worked example from an install made with `init --with-demo`
 
 1. A file only the demo ships is deleted while it is still the demo's: its
    bytes match its record in `.harness/manifest.json`, and that record is the
-   demo's bytes. A file you changed, or forked and re-recorded, is kept, its
-   record is dropped, and `eject` lists it.
+   demo's bytes, as this release or any earlier one shipped them (`update`
+   leaves an untouched seeded demo file at the bytes your release wrote, and
+   `template/shas/<version>.json` lists every release's under `demo`). A file
+   you changed, or forked and re-recorded, is kept, its record is dropped, and
+   `eject` lists it.
 2. A shared file the demo replaced (the API router, the mobile home tab, the
    command palette, the seeded registers) gets the default install's bytes back
    while it is still the demo's. One you changed is kept, and the default copy

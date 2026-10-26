@@ -1,0 +1,36 @@
+{
+  // @app/notes — the seeded vertical. Consumed from BOTH sides: apps/web and
+  // packages/api take the "." barrel, apps/mobile takes "./client". Plain ESM,
+  // no bundler.
+  // Extends the repo-wide max-strict base; NodeNext module semantics are
+  // restated here so this package typechecks identically regardless of what
+  // resolution the base picks for the app workspaces (packages are node16-style,
+  // apps/mobile is bundler-style).
+  //
+  // Nested one level deeper than a top-level package, so the base is three hops
+  // up rather than two — packages/verticals/<slice>/ is the shape every future
+  // slice is copied into.
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "src",
+    "outDir": "dist",
+    // Deliberately empty: nothing in a vertical may reach a node built-in. The
+    // ./client barrel is bundled into the native app, where `Buffer`,
+    // `process` and `node:crypto` do not exist — an empty ambient list turns
+    // that from a runtime red screen into a compile error.
+    "types": []
+  },
+  "include": ["src"],
+  // Only what this package actually imports. @app/supabase is a manifest
+  // dependency (it is the sanctioned source of the client the DAL consumes) but
+  // is not referenced here: the DAL is typed against a structural port, so no
+  // declaration from that project is loaded. See src/data/port.ts.
+  "references": [
+    { "path": "../../contracts" },
+    { "path": "../../platform/errors" },
+    { "path": "../../platform/events" }
+  ]
+}

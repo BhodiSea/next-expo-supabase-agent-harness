@@ -32,8 +32,9 @@ is the set of repo-root sites that hardcode the upstream owner:
   and the `npx` line in `bug-report.yml`
 - `.claude/settings.json`: you inherit the upstream maintainer's permissions.
   Review the default mode before your first agent turn.
-- `.claude-plugin/plugin.json`: the `npx` command in `description`, plus
+- `plugin/.claude-plugin/plugin.json`: the `npx` command in `description`, plus
   `author`, `homepage`, `repository`
+- `plugin/README.md`: the marketplace in both install commands
 - `.claude-plugin/marketplace.json`: `owner`
 - `REUSE.toml` and `LICENSES/`: keep the upstream copyright and append yours
 - `tests/gates/check-reuse.test.mjs`: it asserts the upstream copyright string

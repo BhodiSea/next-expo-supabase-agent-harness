@@ -321,7 +321,7 @@ export async function init(opts) {
   }
 
   if (opts.consume) {
-    for (const d of ['installer', 'template', 'scripts', 'tests', '.claude-plugin']) {
+    for (const d of ['installer', 'template', 'scripts', 'tests', '.claude-plugin', 'plugin']) {
       rmSync(join(targetDir, d), { recursive: true, force: true })
     }
     report.notes.push('consumed template checkout in place — installer/template trees removed')

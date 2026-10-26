@@ -221,6 +221,41 @@ export function readReleasedShas(dir = join(templateRoot(), 'shas')) {
   return tables
 }
 
+/**
+ * Every shipped table's `demo` map (2.0.4), keyed by version: per path the worked example
+ * shipped, every byte-variant. `eject` reads it, because most of the demo is seeded and
+ * `update` leaves an untouched one at the bytes the install's own release wrote. A table
+ * written before 2.0.4 that was never regenerated has none, and vouches for nothing.
+ *
+ * @param {string} [dir]
+ * @returns {Tables}
+ */
+export function readReleasedDemo(dir = join(templateRoot(), 'shas')) {
+  /** @type {Tables} */
+  const tables = {}
+  let names
+  try {
+    names = readdirSync(dir).sort()
+  } catch {
+    return tables
+  }
+  for (const name of names.filter((n) => n.endsWith('.json'))) {
+    const table = JSON.parse(readFileSync(join(dir, name), 'utf8'))
+    if (table.demo !== undefined) tables[table.version] = table.demo
+  }
+  return tables
+}
+
+/**
+ * Did any release up to `toVersion` ship these bytes as the worked example's `installPath`?
+ * The caller has already established that the file matches its manifest record.
+ *
+ * @param {{ tables: Tables, installPath: string, toVersion?: string } & Evidence} spec
+ */
+export function demoReleased({ tables, installPath, toVersion = installerVersion(), ...evidence }) {
+  return vouchingVersions({ tables, installPath, toVersion }, evidence).vouching.length > 0
+}
+
 // The park sentence for a file kept because of LOCAL CHANGES (or, under --refresh-seeded,
 // because no install record proves it untouched). One wording, shared by the sweep and
 // --refresh-seeded, pushed where the park is decided.

@@ -8,6 +8,15 @@ A CLI that scaffolds a pnpm monorepo with a Next.js 16 web app and an Expo 57
 mobile app on one Supabase backend, plus Claude Code hooks and CI gates that
 block an agent turn or a merge until validation passes.
 
+![A terminal recording: init writes a project, the Bash guard denies a force-push, the secrets gate goes red on a service-role key in a tracked file and green once it is removed](docs/media/harness-demo.gif)
+
+No model runs in the recording. The hooks are programs that read the JSON payload Claude
+Code hands them, and the gates are programs that exit 1, so what they print is what the
+agent is shown. It is generated from
+[docs/media/harness-demo.tape](docs/media/harness-demo.tape), and a test runs that script's
+commands against each change, so a message that changes reds until the recording is
+regenerated.
+
 The npm package is this CLI. `npx` downloads it and runs it in one step, from an empty
 folder for the new project:
 
@@ -49,9 +58,34 @@ git add -A && git commit -m "chore: scaffold"   # the first commit must include 
 pnpm validate
 ```
 
-**Status: stable (2.0.x).** CI proves the scaffold on Linux only. The installer's
-unit tests also run on Windows. `pnpm validate` has never run in CI on macOS or
-Windows. See [Limitations](#limitations).
+**Status: stable (2.0.x).** CI proves the scaffold on Linux, and on macOS without
+the database gates. The installer's unit tests run on Linux, Windows and macOS.
+`pnpm validate` has never run in CI on Windows. See [Limitations](#limitations).
+
+## Who this is for
+
+The harness assumes one shape: a pnpm monorepo with a Next.js web app and an Expo mobile
+app on one Supabase backend, Node 22 or newer, Docker for the local database the database
+gates run against, and Claude Code as the agent, because Claude Code is what runs the
+hooks that block a turn. Enforcement comes in layers: the Claude Code hooks, the lefthook
+commit hooks, `pnpm validate`, and CI. Outside that shape, some layers still apply:
+
+- **A web-only app.** Not a fit today. `init` writes both apps, and the mobile gates
+  judge `apps/mobile`. Without it, `expo-policy` and `native-deps` skip on a laptop but
+  fail closed in CI, and `parity` goes red on the mobile paths its register names. CI
+  runs the frozen step list, so a project cannot drop those gates.
+- **An existing monorepo with its own CI.** `init` retrofits a pnpm workspace that has
+  `apps/web` or `apps/mobile`. It keeps your configs and parks the harness's beside them
+  as `<name>.harness.<ext>` files, and `gate-integrity` stays red until each one is merged
+  or accepted after review. It keeps a workflow file you already have, so your own
+  `ci.yml` runs no harness gate until you add the chain to it, and an existing
+  `lefthook.yml` is one of the parked configs. The Claude Code hooks are merged into your
+  `.claude/settings.json`. A repository on npm, yarn or bun, or without
+  `pnpm-workspace.yaml`, is refused.
+- **An agent that is not Claude Code.** The commit hooks, `pnpm validate` and CI apply as
+  they do for a person. The `.claude/` hooks never run, so nothing denies a command before
+  it runs or keeps a turn from ending on a red tree: a violation is caught at the commit
+  or at the pull request instead.
 
 ## Requirements
 
@@ -129,10 +163,33 @@ Tiers choose which opt-in modules are installed. `core` installs none.
 `push-notifications`, `eval-live`, `observability` and `e2ee`. The Vercel deploy
 workflow, EAS Build/Submit and release-please come from modules, not the base.
 
+## Claude Code plugin
+
+The agents, slash commands and skills also come as a Claude Code plugin, for a session
+outside a harness-installed project. Install it from this repository's marketplace:
+
+```sh
+claude plugin marketplace add BhodiSea/next-expo-supabase-agent-harness
+claude plugin install next-expo-supabase-agent-harness@next-expo-supabase-agent-harness
+```
+
+or, inside a session on Claude Code 2.1.275 or later:
+
+```
+/plugin install next-expo-supabase-agent-harness --marketplace BhodiSea/next-expo-supabase-agent-harness
+```
+
+The plugin carries no hooks, gates or permissions; those come with `init`. Inside a
+harness-installed project you do not need it, and its reviewers' verdicts do not count
+toward the reviewer ledger. See [plugin/README.md](plugin/README.md).
+
 ## Limitations
 
-- **Linux-only proof.** Every CI lane that runs the scaffold runs on
-  `ubuntu-latest`. There is no macOS lane.
+- **The database gates are proven on Linux only.** Every CI lane with a
+  Supabase stack runs on `ubuntu-latest`. The `macos-scaffold` lane runs
+  `init` and `pnpm validate` on a Mac without Docker, the way a laptop runs
+  them, and fails if any gate skips except `types-drift`, which needs the
+  database. No lane runs a scaffold on Windows.
 - **Rate limiting covers the application layer only.** It binds the tRPC router
   and Next.js Server Actions. It does not bound direct PostgREST calls made
   with a user's JWT, or sign-in and sign-up, which go to Supabase Auth. If the

@@ -40,14 +40,17 @@ sections.
   test noticing. FORCE does NOT constrain a `BYPASSRLS` role; the REVOKE below is the
   only lever over that one. SOURCE: PostgreSQL row security — FORCE applies to the table
   owner too [corpus: postgres/rls-force]
-- **Per-operation policies, keyed on `auth.uid()`, `TO authenticated`.** Four policies —
+- **Per-operation policies, scoped by `org_id`, `TO authenticated`.** Four policies —
   SELECT / INSERT / UPDATE / DELETE — never a single `FOR ALL` (read and write intent
   must be able to diverge without rewriting the boundary under pressure). Each predicate
   is REAL (a `USING (true)` / `WITH CHECK (true)` is a vacuous policy that permits every
-  row) and resolves identity through the initPlan sub-select `(select auth.uid())`, not a
-  bare `auth.uid()` — the sub-select is hoisted once per statement instead of run once
-  per candidate row, a per-row identity call being a correctness-shaped perf failure the
-  two-row test DB can never reveal. `TO authenticated`, never `TO public`/`FOR ALL`: an
+  row) and scopes by org through the uncorrelated helper sub-selects
+  `org_id = ANY((SELECT private.member_org_ids())::uuid[])` and the
+  `(SELECT private.member_ranks())` rank floor (the forms `tools/tenancy.json` allows) —
+  hoisted once per statement instead of run once per candidate row, a per-row call being
+  a correctness-shaped perf failure the two-row test DB can never reveal. Flag a
+  per-user `owner_id = (select auth.uid())` scope on a tenant table: it hides rows from
+  the org's other members while every cross-tenant test passes. `TO authenticated`, never `TO public`/`FOR ALL`: an
   anonymous request must match NO policy rather than a policy that evaluates false.
   SOURCE: RLS performance — the initPlan sub-select pattern [corpus: postgres/rls-initplan]
 - **WITH CHECK on every INSERT and UPDATE.** INSERT has no existing row, so `WITH CHECK`

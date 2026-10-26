@@ -1,0 +1,13 @@
+{
+  "name": "@app/observability",
+  "version": "0.1.0",
+  "description": "The logging and span seam both surfaces call — structured records, redaction before any sink sees them, no vendor SDK",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "devDependencies": {
+    "vitest": "catalog:"
+  }
+}

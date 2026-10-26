@@ -55,6 +55,14 @@ jobs:
           # security-and-quality = every security-extended query plus the reliability
           # and maintainability ones (1.0.3; was security-extended).
           queries: security-and-quality
+          # plugin/ holds byte copies of template/base/.claude/ (#163), analyzed at their
+          # source; scanned twice, every finding there would be reported twice.
+          # tests/evals/b/fixture/ (#188) is eval B's frozen copy of the 2.0.0 template: data
+          # the sweep reads, never run, and analyzed at its source when it shipped.
+          config: |
+            paths-ignore:
+              - plugin/**
+              - tests/evals/b/fixture/**
       - name: Analyze
         uses: github/codeql-action/analyze@c35d1b164463ee62a100735382aaaa525c5d3496 # codeql-bundle-v2.25.6
         with:

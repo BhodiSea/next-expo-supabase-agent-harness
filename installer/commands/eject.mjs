@@ -2,8 +2,9 @@
 // (2.0.0, #85). Three parts, each conservative in the direction `disable` is:
 //
 //   1. A demo-only file is DELETED while it is still the demo's: its bytes match its manifest
-//      record AND that record is the demo's bytes (this release's demo for a seeded file; any
-//      release, through lib/provenance.mjs, for an owned one). A drifted file or a re-recorded
+//      record AND that record is the demo's bytes (any release, through lib/provenance.mjs:
+//      the released tables' `files` map for an owned file, their `demo` map for a seeded one,
+//      which `update` leaves at the bytes the install's own release wrote). A drifted file or a re-recorded
 //      fork is kept, and its record dropped: it is the project's now, as `disable` leaves it.
 //   2. A shared file the demo REPLACED (the API router, the home tab, the command palette,
 //      the seeded registers) gets the default install's bytes back while it is still the
@@ -29,7 +30,7 @@ import { renderEntry, walkDemo, walkStack, walkTemplate } from '../lib/copy.mjs'
 import { readDemoIndex, trimDemoRows } from '../lib/demo-rows.mjs'
 import { readManifest, sha256, writeManifest } from '../lib/manifest.mjs'
 import { refuseOlderCli } from '../lib/migrations.mjs'
-import { createProvenance, readReleasedShas } from '../lib/provenance.mjs'
+import { createProvenance, demoReleased, readReleasedDemo, readReleasedShas } from '../lib/provenance.mjs'
 import { printReport } from '../lib/report.mjs'
 import { dropProjectReferences } from '../lib/tsconfig-references.mjs'
 import { writeInstallFile } from '../lib/write-file.mjs'
@@ -49,6 +50,7 @@ const KEPT = {
  *             drift: Array<{ path: string, pending: string }>, notes: string[], removed: string[] }} EjectReport
  * @typedef {{ targetDir: string, answers: Record<string, unknown>, dryRun: boolean, report: EjectReport,
  *             files: Record<string, FileRecord>, defaults: Map<string, { sourcePath: string }>,
+ *             releasedDemo: Record<string, Record<string, Array<{ sha256: string, sites?: Array<[number, string]> }>>>,
  *             provenance: { isFork: (ip: string, recordedSha: string, current: Buffer) => boolean, close: () => void },
  *             rows: Array<{ file: string, jsonPointer?: string, rowKey?: string, restore?: boolean }>,
  *             ejected: Record<string, string> }} Ctx
@@ -82,7 +84,10 @@ function demoVerdict(ctx, ip, current, shipped) {
   if (recorded === undefined) return 'unrecorded'
   if (sha256(current) !== recorded.sha256) return 'drift'
   if (recorded.mode === 'owned') return ctx.provenance.isFork(ip, recorded.sha256, current) ? 'fork' : 'demo'
-  return current.equals(shipped) ? 'demo' : 'fork'
+  if (current.equals(shipped)) return 'demo'
+  // An earlier release's demo bytes, which `update` never rewrote: still the demo's (2.0.4).
+  const evidence = { tables: ctx.releasedDemo, installPath: ip, recordedSha: recorded.sha256, current, answers: ctx.answers }
+  return demoReleased(evidence) ? 'demo' : 'fork'
 }
 
 /** @param {Ctx} ctx @param {string} ip @param {Buffer} current */
@@ -221,9 +226,10 @@ function rederiveSolution(ctx) {
 /**
  * @param {{ dir: string, dryRun?: boolean, report?: string }} opts
  * @param {{ releasedShas?: Record<string, Record<string, Array<{ sha256: string, sites?: Array<[number, string]> }>>>,
+ *           releasedDemo?: Record<string, Record<string, Array<{ sha256: string, sites?: Array<[number, string]> }>>>,
  *           index?: { rows: Array<{ file: string, jsonPointer?: string, rowKey?: string, restore?: boolean }> } }} [deps]
  */
-export async function eject(opts, { releasedShas = readReleasedShas(), index = readDemoIndex() } = {}) {
+export async function eject(opts, { releasedShas = readReleasedShas(), releasedDemo = readReleasedDemo(), index = readDemoIndex() } = {}) {
   const targetDir = opts.dir
   const manifest = readManifest(targetDir)
   if (!manifest) throw new Error('no .harness/manifest.json — run `init` first')
@@ -244,6 +250,7 @@ export async function eject(opts, { releasedShas = readReleasedShas(), index = r
     report,
     files: { ...manifest.files },
     defaults: new Map([...walkTemplate('base'), ...walkStack(answers)].map((e) => [e.installPath, e])),
+    releasedDemo,
     provenance: createProvenance({ tables: releasedShas, manifest, report }),
     rows: index.rows,
     ejected: {},
