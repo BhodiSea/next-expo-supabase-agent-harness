@@ -58,6 +58,25 @@ this comment. -->
   it, or `update --refresh-seeded tools/eol.json` on an untouched register. The arrival ramp
   in `tools/check-version-sync.mjs` still runs to 2.1.0 for installs holding the row.
 
+### Added
+
+- **A documentation site** (#171). `docs-site/` builds a Starlight site from the pages `init`
+  writes under `docs/`, read in place from `template/base/docs/` and `template/modules/*/docs/`
+  rather than copied, so each page matches its file on `main`. The ADR skeleton and the App
+  Review notes template stay off it, because they are templates for a project's own files. Each
+  page takes its title from its first heading, has an edit link to its file (the two generated
+  pages link to the register they are generated from) and shows the date of its last commit.
+  Each gate heading and each CI-only lane in the gates catalog gets an anchor named after the
+  gate, `#gate-<name>`, which does not move when the chain is renumbered; GitHub's own anchor
+  stays on the page as an alias. A search for a gate's name lists the catalog among its first
+  results, and `llms.txt` lists every page. `.github/workflows/pages.yml` builds the site on
+  pull requests that touch those pages or `docs-site/`, and the build fails on a broken
+  internal link or `#anchor`. Pushes to `main` deploy it to GitHub Pages, in this repository
+  only. `docs-site/` is a pnpm project of its own with its own lockfile, so none of its
+  packages are in the root lockfile or the SBOM release diff, and `init --consume` removes it
+  with the other factory trees. The npm package's homepage link points at the site. Factory
+  only: nothing changes for an install.
+
 ## [2.0.3] — 2026-10-17
 
 **A patch: the v2.0.x defect fixes, a security floor move, and two additions.** The `next`

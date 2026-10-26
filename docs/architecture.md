@@ -26,7 +26,14 @@ template/
 scripts/            factory-only gates (check-*.mjs), release and CI helpers
 tests/              gates/, hooks/, installer/, canary/ (the can-fail registry)
 design/             dated, sourced facts that the template and gates are written against
+docs-site/          the documentation site: Starlight over the template's docs, read in place
 ```
+
+`docs-site/` renders the pages `init` installs under `docs/`, reading them in place
+from `template/base/docs/` and `template/modules/*/docs/`. It is a pnpm project of its
+own, with its own lockfile, so none of its packages enter the root lockfile or the npm
+package. `.github/workflows/pages.yml` builds it on pull requests that touch those pages
+and deploys it to GitHub Pages from `main`.
 
 Template workflows live under `template/base/github/`, without the leading
 dot, so that they can never run in this repository's own Actions context. The

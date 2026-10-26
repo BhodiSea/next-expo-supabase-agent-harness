@@ -30,6 +30,15 @@ is the set of repo-root sites that hardcode the upstream owner:
 - `.github/CODEOWNERS`: every owner handle
 - `.github/ISSUE_TEMPLATE/config.yml`: the advisory, discussions and repro URLs,
   and the `npx` line in `bug-report.yml`
+- `.github/workflows/pages.yml`: the artifact upload and the deploy job run only in
+  this repository (`github.repository == 'BhodiSea/next-expo-supabase-agent-harness'`).
+  Point both `if:` conditions at yours once Pages is enabled with the source "GitHub
+  Actions", or delete the workflow. The build itself runs anywhere
+- `docs-site/astro.config.mjs`: `site` (`https://bhodisea.github.io`) and `base`
+  (`/next-expo-supabase-agent-harness`), the address the documentation site is
+  published at; the links on `docs-site/src/content/docs/index.md`, which carry the
+  same `base`; and the repository URL in `docs-site/src/harness-docs/corpus.mjs`,
+  which the edit links use
 - `.claude/settings.json`: you inherit the upstream maintainer's permissions.
   Review the default mode before your first agent turn.
 - `.claude-plugin/plugin.json`: the `npx` command in `description`, plus
@@ -60,8 +69,8 @@ carrier had been retargeted.
 ## Check that nothing was missed
 
 ```sh
-grep -rn "BhodiSea\|Cogvera" --exclude-dir=node_modules .
+grep -rn "BhodiSea\|bhodisea\|Cogvera" --exclude-dir=node_modules .
 ```
 
 This should return only the attribution you deliberately kept and the hygiene
-deny pattern.
+deny pattern. The lowercase spelling is the documentation site's address.
