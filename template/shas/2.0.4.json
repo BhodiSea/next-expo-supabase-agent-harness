@@ -252,6 +252,9 @@
     ".claude/skills/authoring-vertical-slice/scripts/scaffold-slice.mjs": [
       {
         "sha256": "54f1967ec6e797ad31a96838b5aebe84da727cc9117bd0527f68f9c20e4d6706"
+      },
+      {
+        "sha256": "71b048f9593b8dcad15b193c95b753256a9eae6098c5e0f2b6b62773d56d3b5d"
       }
     ],
     ".claude/skills/designing-mobile-ui/SKILL.md": [

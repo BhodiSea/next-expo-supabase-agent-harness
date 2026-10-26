@@ -12,14 +12,26 @@
 //   - the Server Action stub teaches the org-gated write;
 //   - each step the script must not take itself is a printed `next:` line, and on a web tree
 //     shaped like a default scaffold every route-manifest finding the stubs cause is one a
-//     `next:` line names, and the gate is green after the three route steps.
+//     `next:` line names, and the gate is green after the three route steps;
+//   - each stub is an exclusive create (#163): a path that already exists, a link included,
+//     is reported as skipped and left as it was, and the other stubs are still written.
 //
 // Every fixture is a mkdtemp directory removed after the file. No bash and no git: the
 // installer-unit job runs tests/gates on windows-latest too.
 // SOURCE: template/demo/apps/web/app/(protected)/o/[orgSlug]/notes (the segment the stubs model)
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  cpSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import process from 'node:process'
@@ -90,12 +102,14 @@ function tool(script, dir) {
 
 const read = (dir, rel) => readFileSync(join(dir, rel), 'utf8')
 
-/** Every path the run reports as scaffolded, relative to `dir`, with forward slashes. */
-const scaffolded = (dir, stdout) =>
+/** Every path a run's stdout lists under `label`, relative to `dir`, with forward slashes. */
+const listed = (label) => (dir, stdout) =>
   stdout
     .split('\n')
-    .filter((l) => l.startsWith('scaffolded: '))
-    .map((l) => relative(dir, l.slice('scaffolded: '.length)).split('\\').join('/'))
+    .filter((l) => l.startsWith(`${label}: `))
+    .map((l) => relative(dir, l.slice(`${label}: `.length)).split('\\').join('/'))
+const scaffolded = listed('scaffolded')
+const skipped = listed('exists, skipped')
 
 const nextLines = (stdout) => stdout.split('\n').filter((l) => l.startsWith('next: '))
 
@@ -239,6 +253,37 @@ test('a second run writes nothing: every stub already exists', () => {
   assert.deepEqual(scaffolded(dir, again), [])
   assert.ok(again.includes('exists, skipped:'), again)
 })
+
+// #163 (CodeQL js/file-system-race): the write is an exclusive create, never a check and then
+// a write, so what decides "exists" is the create itself.
+test('a stub path that already holds a file keeps its bytes, is reported as skipped, and the rest are scaffolded', () => {
+  const fresh = emptyRoot()
+  const every = scaffolded(fresh, scaffold(fresh))
+  const dir = emptyRoot()
+  const kept = `${VERTICAL}/schemas.ts`
+  mkdirSync(join(dir, VERTICAL), { recursive: true })
+  writeFileSync(join(dir, kept), '// filled in by hand\n')
+  const out = scaffold(dir)
+  assert.deepEqual(skipped(dir, out), [kept], out)
+  assert.deepEqual(scaffolded(dir, out), every.filter((f) => f !== kept), out)
+  assert.equal(read(dir, kept), '// filled in by hand\n')
+})
+
+test(
+  'a link at a stub path is skipped, and nothing is written through it',
+  { skip: process.platform === 'win32' && 'symlinks need privilege on Windows runners' },
+  () => {
+    const dir = emptyRoot()
+    const link = `${VERTICAL}/events.ts`
+    mkdirSync(join(dir, VERTICAL), { recursive: true })
+    // A dangling link: a check that follows it finds nothing, and a plain write follows it too.
+    symlinkSync(join(dir, 'outside.ts'), join(dir, link))
+    const out = scaffold(dir)
+    assert.deepEqual(skipped(dir, out), [link], out)
+    assert.equal(existsSync(join(dir, 'outside.ts')), false, `the link's target was written:\n${out}`)
+    assert.ok(lstatSync(join(dir, link)).isSymbolicLink())
+  },
+)
 
 test('route-manifest on a default-shaped web tree: every finding is a next: line, and the three route steps turn it green', () => {
   const dir = webRoot()

@@ -55,11 +55,6 @@ jobs:
           # security-and-quality = every security-extended query plus the reliability
           # and maintainability ones (1.0.3; was security-extended).
           queries: security-and-quality
-          # plugin/ holds byte copies of template/base/.claude/ (#163), analyzed at their
-          # source; scanned twice, every finding there would be reported twice.
-          config: |
-            paths-ignore:
-              - plugin/**
       - name: Analyze
         uses: github/codeql-action/analyze@c35d1b164463ee62a100735382aaaa525c5d3496 # codeql-bundle-v2.25.6
         with:
