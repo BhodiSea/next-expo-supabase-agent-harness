@@ -1,0 +1,10 @@
+# Settings only. This file makes docs-site/ its own pnpm root with its own lockfile
+# (docs-site/pnpm-lock.yaml). Without it, pnpm walks up to the repository's
+# pnpm-workspace.yaml, and the site's packages would land in the root lockfile, the
+# root install and the release SBOM diff. No `packages:` field: one project, not a
+# workspace.
+#
+# The same determinism pin as the root file: dependency aging is Renovate's job
+# (renovate.json, 5 days), so pnpm's own release-age check stays off here and a
+# frozen install in CI cannot turn red on the clock.
+minimumReleaseAge: 0
