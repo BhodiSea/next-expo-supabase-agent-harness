@@ -1,10 +1,10 @@
 {
   "name": "next-expo-supabase-agent-harness",
   "version": "2.0.4",
-  "description": "Deterministic agent harness for pnpm monorepos that ship a Next.js 16 web app AND an Expo (React Native) mobile app over one shared Supabase backend: Claude Code hooks, security-invariant lint gates, RLS isolation tests, cross-surface parity and design-token gates, provenance pipeline, and supply-chain-hardened CI — installable into any new or existing project.",
+  "description": "A CLI that scaffolds a Next.js and Expo (React Native) monorepo on Supabase, with Claude Code hooks and CI gates that block an agent turn or a merge until validation passes.",
   "license": "Apache-2.0",
   "author": "Cogvera Labs",
-  "homepage": "https://github.com/BhodiSea/next-expo-supabase-agent-harness#readme",
+  "homepage": "https://bhodisea.github.io/next-expo-supabase-agent-harness/",
   "bugs": {
     "url": "https://github.com/BhodiSea/next-expo-supabase-agent-harness/issues"
   },
@@ -16,7 +16,7 @@
     "next-expo-supabase-agent-harness": "installer/cli.mjs"
   },
   "type": "module",
-  "packageManager": "pnpm@11.28.5",
+  "packageManager": "pnpm@11.28.6",
   "engines": {
     "node": ">=22"
   },
@@ -34,20 +34,31 @@
   },
   "keywords": [
     "claude-code",
+    "claude-code-hooks",
+    "claude-code-plugin",
+    "coding-agent",
     "agent-harness",
     "nextjs",
     "expo",
+    "expo-router",
     "react-native",
     "supabase",
-    "vercel",
-    "eas",
-    "trpc",
     "postgres",
     "rls",
+    "row-level-security",
+    "pgtap",
+    "trpc",
     "monorepo",
+    "pnpm",
+    "typescript",
+    "cli",
+    "scaffold",
+    "starter",
     "quality-gates",
+    "supply-chain-security",
     "provenance",
-    "supply-chain"
+    "vercel",
+    "eas"
   ],
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
@@ -56,7 +67,7 @@
     "eslint": "9.39.5",
     "eslint-plugin-sonarjs": "4.2.2",
     "globals": "17.13.0",
-    "knip": "6.41.0",
+    "knip": "6.42.1",
     "typescript": "6.0.3"
   }
 }

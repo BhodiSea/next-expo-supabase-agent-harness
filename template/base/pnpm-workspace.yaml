@@ -37,7 +37,7 @@ catalog:
   # ---- toolchain --------------------------------------------------------------
   typescript: ~6.0.3 # typescript-eslint 8.63.x supports >=4.8.4 <6.1.0
   tsx: ^4.23.0
-  '@biomejs/biome': 2.5.15 # exact: formatter drift would churn the format gate
+  '@biomejs/biome': 2.6.2 # exact: formatter drift would churn the format gate
   eslint: ^9.39.4 # 9.x line: typescript-eslint 8.x peers eslint ^9
   typescript-eslint: ^8.63.0
   eslint-plugin-jsx-a11y: ^6.10.2 # the WEB half of the a11y floor (0.4.0); react-native-a11y is the native half
@@ -52,8 +52,8 @@ catalog:
   '@commitlint/config-conventional': ^21.2.0
   cspell: ^10.0.1
   # ---- test -------------------------------------------------------------------
-  vitest: 4.1.11 # exact: @vitest/coverage-v8 peer-pins the identical version
-  '@vitest/coverage-v8': 4.1.11
+  vitest: 4.1.12 # exact: @vitest/coverage-v8 peer-pins the identical version
+  '@vitest/coverage-v8': 4.1.12
   fast-check: ^4.9.0
   # Mutation testing (CI-only lane; the behavioural net over the critical surface).
   # Exact pins: the runner peer-pins core, and the SET-based ratchet compares mutant
@@ -131,7 +131,7 @@ catalog:
   # 16.3 release, so this pin crosses a MINOR again, as it did in 1.0.2; 16.4.1 is the
   # release that fixes all three, and it requires sharp >= 0.35.5, upstream's workaround.
   # SOURCE: https://github.com/vercel/next.js/security/advisories/GHSA-2464-fhr4-w9xw
-  next: 16.4.1
+  next: 16.4.2
   next-safe-action: ^8.5.3
   tailwindcss: ^4.3.0 # v4 CSS-first, WEB ONLY — mobile pins v3 in apps/mobile (see below)
   '@tailwindcss/postcss': ^4.3.0

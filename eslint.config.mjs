@@ -24,7 +24,15 @@ export default [
     // template's own code, already linted at its source. Without it, running the lane makes
     // `eslint .` — and so the complexity ratchet — report the SCAFFOLD's functions as new
     // factory findings, which is a red that depends on whether you happened to run a lane.
-    ignores: ['node_modules/**', 'template/stack/**', 'template/presets/**', '.fixtures/**', '.selftest/**', 'coverage/**'],
+    // 'plugin/**' is the same class (#163): byte copies of template/base/.claude/, linted at
+    // their source and held to it by check-plugin-manifest.
+    ignores: ['node_modules/**', 'template/stack/**', 'template/presets/**', '.fixtures/**', '.selftest/**', 'coverage/**', 'plugin/**'],
+  },
+  {
+    // The documentation site's build output and Astro's cache (#171): bundled code no one
+    // wrote here. Linted, a local build adds hundreds of findings and new over-budget functions
+    // to the ratchet. The site's own .mjs sources stay linted.
+    ignores: ['docs-site/dist/**', 'docs-site/.astro/**'],
   },
   {
     files: ['**/*.mjs', '**/*.js', '**/*.cjs'],

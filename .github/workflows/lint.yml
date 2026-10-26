@@ -128,6 +128,10 @@ jobs:
       - name: Validate Claude Code plugin manifests (advisory)
         continue-on-error: true
         run: npx --yes @anthropic-ai/claude-code@latest plugin validate .
+      # The folder the marketplace installs (#163); --strict fails on its warnings too.
+      - name: Validate the installable plugin folder (advisory)
+        continue-on-error: true
+        run: npx --yes @anthropic-ai/claude-code@latest plugin validate --strict ./plugin
 
   # The machinery under its own bar: the installer/scripts/tests/gate scripts +
   # hooks that enforce strictTypeChecked, cognitive-complexity <= 15 and knip on
@@ -251,6 +255,8 @@ jobs:
       # this lives in the one job with fetch-depth: 0) every tag's tree, judged by that tag's
       # OWN installer, inside its version's table. This workflow also runs at the tag ref and
       # publish blocks on it, so the tag being cut is verified against the table it ships.
+      # Since 2.0.4 (#259) the same flag walks every first-parent main commit too: the install
+      # command has no tag, and a merge on main can carry bytes no pull request's CI checked.
       - name: machinery-released-shas (template/shas covers the live tree, every vintage and every tag)
         run: node scripts/check-released-shas.mjs --verify-tags
       - name: machinery-types (tsc --noEmit, allowJs+checkJs over the same globs)
@@ -299,5 +305,45 @@ jobs:
         env:
           HARNESS_TEST_REQUIRE_TYPESCRIPT: '1'
         run: node --test tests/gates/edge-function-split.test.mjs
+      # Evals A and B (2.1.0, #188): the model-free harnesses for the Single Home detector.
+      # Eval A's development split and eval B's frozen pre-dogfood fixture run through #186's
+      # sweep, which reads TypeScript through the root's own `typescript`: installer-unit skips
+      # these cases by name, and HARNESS_TEST_REQUIRE_TYPESCRIPT=1 turns a parser that cannot
+      # load into a failure here. sweep-digest.test.mjs is the ubuntu half of the two-machine
+      # check; the eval-digest-windows job below runs the same file on Windows.
+      - name: machinery-evals (eval A's dev split, eval B's fixture and labels, the sweep digests)
+        env:
+          HARNESS_TEST_REQUIRE_TYPESCRIPT: '1'
+        run: node --test tests/evals/*.test.mjs
       - name: machinery-knip (dead exports/files/deps across installer, scripts, tools)
         run: pnpm exec knip
+
+  # The Windows half of eval A and B's two-machine check (2.1.0, #188; SINGLE-HOME §12 row 4:
+  # "byte-identical on two machines"). installer-unit's Windows leg installs nothing, and the
+  # sweep needs the root's `typescript`, so this small job installs the root toolchain and runs
+  # the one digest test: the sha256 of the sweep over eval B's frozen fixture and of eval A's
+  # development record must equal the committed digests that machinery-lint checks on ubuntu.
+  eval-digest-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        # harden-runner egress blocking is unsupported on Windows (audit-only).
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - name: corepack pnpm (pinned via root packageManager)
+        run: |
+          corepack enable
+          corepack prepare --activate
+      - name: Install root dev toolchain (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      - name: eval-digest (the sweep and eval A's record, byte-identical to the ubuntu leg)
+        env:
+          HARNESS_TEST_REQUIRE_TYPESCRIPT: '1'
+        run: node --test tests/evals/sweep-digest.test.mjs

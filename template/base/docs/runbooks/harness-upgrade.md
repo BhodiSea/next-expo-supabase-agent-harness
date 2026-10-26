@@ -4448,6 +4448,80 @@ plants `.claude/hooks/lib/guard-rules.mjs` and `docs/security/threat-model.md`, 
 A local config you already keep is left alone and lefthook still reads it. To change it
 later, edit it yourself, or set `HARNESS_ALLOW_SELF_EDIT=1` for the agent's session.
 
+### The template catalog moves Biome to 2.6.2 and `vitest` to 4.1.12 (#269)
+
+Biome 2.6.0 added a Markdown and a YAML formatter, both on by default. `update` plants
+`biome.jsonc`, which is owned: it names the 2.6.2 schema and excludes `*.md`, `*.markdown`,
+`*.yml`, `*.yaml` and `*.cff`, so Biome 2.5 and 2.6 check the same files and neither rewrites
+your docs, your workflows or `pnpm-lock.yaml`. Your catalog is seeded, so your Biome pin
+stays where it is, and Biome 2.5 prints one information line saying that the configuration
+schema version does not match the CLI version. It does not fail `format`. Raising
+`@biomejs/biome` to 2.6.2 clears it; 2.6.0 and 2.6.1 were published with no platform binary
+and do not run. If you keep a fork of `biome.jsonc`, copy the Markdown and YAML exclusions
+into it before you raise the pin.
+
+**Raise `vitest` by hand.** The catalog pins `vitest` and `@vitest/coverage-v8` at
+**4.1.12**, for GHSA-qxg6-89mg-rqv8 and GHSA-xp26-3454-mjgp (both moderate). Both are in
+`@vitest/mocker`'s mock registration over a dev server's WebSocket, and the second bypasses
+the 4.1.11 fix on Windows. `update` does not touch your pins, and `doctor` does not ask for
+this one: the floor it checks stays at 4.1.11. Move both pins together, because the coverage
+package peer-pins the identical `vitest`:
+
+```
+# in the pnpm-workspace.yaml catalog: vitest: 4.1.12 and '@vitest/coverage-v8': 4.1.12
+pnpm install && git add pnpm-lock.yaml pnpm-workspace.yaml
+pnpm validate
+```
+
+The catalog also moves `next` to 16.4.2 and pnpm to 11.28.6, and neither is needed for this
+release. If you raise pnpm, raise `build.base.pnpm` in `apps/mobile/eas.json` with
+`packageManager`, or `version-sync` reds.
+
+### The agent-facing docs teach the org-scoped RLS shape (#255)
+
+Through 2.0.3 the vertical-slice skill's first step, `/new-feature`, `/verify-invariants`,
+`.claude/rules/security-invariants.md` and the `migration-rls-author` and `security-reviewer`
+agents taught policies keyed on `owner_id = (SELECT auth.uid())` with a leading owner index,
+the per-user shape the `tenancy` gate reds. They now teach the org-scoped shape: a NOT NULL
+`org_id` frozen by a trigger, the `member_org_ids()` scope to read and the `member_ranks()`
+rank floor to write, a leading `org_id` index, and `owner_id` as nullable attribution. No
+gate changes. `update` plants the skill, the rule, the two commands and the two agents, all
+owned. `AGENTS.md` and `supabase/AGENTS.md` are seeded, so `update` leaves your copies: if
+their RLS paragraphs still teach `owner_id = (SELECT auth.uid())`, rewrite them to the shape
+above by hand.
+
+### `eject` removes the demo files an earlier release wrote (#256)
+
+Most of the worked example is seeded, so `update` leaves an untouched demo file at the bytes
+your release wrote. Through 2.0.3, `eject` compared a seeded demo file only with its own
+release's demo, so on an install made with `--with-demo` by an earlier release it kept every
+demo file a later release changed as a "re-recorded fork" and parked the default copy of each
+such shared file. From a v2.0.2 install that was eight files, five parked defaults and two
+`PARITY.md` rows. It now also accepts the bytes any earlier release shipped as the demo. Nothing
+is planted and nothing is left to you; if an earlier `eject` already kept such files, delete
+them by hand, or take each parked default from `.harness/pending/`.
+
+### `update` knows what untagged `main` commits shipped (#259)
+
+The install command has no tag, so an install can come from any commit `main` pointed at.
+`update` overwrites an owned file only when a release shipped the bytes it finds, and the
+harness's lists of shipped bytes missed some untagged 1.0.4 and 1.1.0 commits. An untouched
+install made from one of them had owned files such as `tools/lib/gate.mjs` kept as local
+forks, with the new version parked under `.harness/pending/`, and `gate-integrity` called
+some of its planted escape lists widenings. The lists are complete now, and the harness's own
+CI checks every `main` commit against them. `update` plants `tools/lib/planted-shas.json`
+(owned). If an earlier `update` parked a file you never edited, take the parked copy from
+`.harness/pending/`, or run `update` again: it now overwrites the untouched file.
+
+### The slice scaffolder creates each stub exclusively (#163)
+
+`.claude/skills/authoring-vertical-slice/scripts/scaffold-slice.mjs` checked whether a
+stub's path existed and then wrote it by name, so a file created between the two calls was
+overwritten, and a dangling symbolic link at the path was written through to its target. It
+now creates each stub with an exclusive write and prints `exists, skipped:` for any path that
+already exists, a link included. `update` plants the script (owned). It runs only when
+someone runs it, so no slice you already have changes, and nothing is left to you.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

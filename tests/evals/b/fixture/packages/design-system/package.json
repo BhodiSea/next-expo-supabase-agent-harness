@@ -1,0 +1,26 @@
+{
+  "name": "@app/design-system",
+  "version": "0.1.0",
+  "description": "Web component vocabulary — Tailwind v4 + Radix over @app/design-tokens; never imports react-native",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -b ."
+  },
+  "dependencies": {
+    "@app/design-tokens": "workspace:*",
+    "@radix-ui/react-label": "catalog:",
+    "class-variance-authority": "catalog:",
+    "clsx": "catalog:",
+    "react": "catalog:",
+    "tailwind-merge": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

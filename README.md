@@ -2,11 +2,20 @@
 
 [![OpenSSF Baseline](https://www.bestpractices.dev/projects/14727/baseline)](https://www.bestpractices.dev/projects/14727)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/BhodiSea/next-expo-supabase-agent-harness/badge)](https://scorecard.dev/viewer/?uri=github.com/BhodiSea/next-expo-supabase-agent-harness)
-[![npm](https://img.shields.io/npm/v/next-expo-supabase-agent-harness)](https://www.npmjs.com/package/next-expo-supabase-agent-harness)
+[![npm version](https://img.shields.io/npm/v/next-expo-supabase-agent-harness)](https://www.npmjs.com/package/next-expo-supabase-agent-harness)
 
 A CLI that scaffolds a pnpm monorepo with a Next.js 16 web app and an Expo 57
-mobile app on one Supabase backend, plus Claude Code hooks and CI gates that
-block an agent turn or a merge until validation passes.
+(React Native) mobile app on one Supabase backend, plus Claude Code hooks and CI
+gates that block an agent turn or a merge until validation passes.
+
+![A terminal recording: init writes a project, the Bash guard denies a force-push, the secrets gate goes red on a service-role key in a tracked file and green once it is removed](docs/media/harness-demo.gif)
+
+No model runs in the recording. The hooks are programs that read the JSON payload Claude
+Code hands them, and the gates are programs that exit 1, so what they print is what the
+agent is shown. It is generated from
+[docs/media/harness-demo.tape](docs/media/harness-demo.tape), and a test runs that script's
+commands against each change, so a message that changes reds until the recording is
+regenerated.
 
 The npm package is this CLI. `npx` downloads it and runs it in one step, from an empty
 folder for the new project:
@@ -49,9 +58,34 @@ git add -A && git commit -m "chore: scaffold"   # the first commit must include 
 pnpm validate
 ```
 
-**Status: stable (2.0.x).** CI proves the scaffold on Linux only. The installer's
-unit tests also run on Windows. `pnpm validate` has never run in CI on macOS or
-Windows. See [Limitations](#limitations).
+**Status: stable (2.0.x).** CI proves the scaffold on Linux, and on macOS without
+the database gates. The installer's unit tests run on Linux, Windows and macOS.
+`pnpm validate` has never run in CI on Windows. See [Limitations](#limitations).
+
+## Who this is for
+
+The harness assumes one shape: a pnpm monorepo with a Next.js web app and an Expo mobile
+app on one Supabase backend, Node 22 or newer, Docker for the local database the database
+gates run against, and Claude Code as the agent, because Claude Code is what runs the
+hooks that block a turn. Enforcement comes in layers: the Claude Code hooks, the lefthook
+commit hooks, `pnpm validate`, and CI. Outside that shape, some layers still apply:
+
+- **A web-only app.** Not a fit today. `init` writes both apps, and the mobile gates
+  judge `apps/mobile`. Without it, `expo-policy` and `native-deps` skip on a laptop but
+  fail closed in CI, and `parity` goes red on the mobile paths its register names. CI
+  runs the frozen step list, so a project cannot drop those gates.
+- **An existing monorepo with its own CI.** `init` retrofits a pnpm workspace that has
+  `apps/web` or `apps/mobile`. It keeps your configs and parks the harness's beside them
+  as `<name>.harness.<ext>` files, and `gate-integrity` stays red until each one is merged
+  or accepted after review. It keeps a workflow file you already have, so your own
+  `ci.yml` runs no harness gate until you add the chain to it, and an existing
+  `lefthook.yml` is one of the parked configs. The Claude Code hooks are merged into your
+  `.claude/settings.json`. A repository on npm, yarn or bun, or without
+  `pnpm-workspace.yaml`, is refused.
+- **An agent that is not Claude Code.** The commit hooks, `pnpm validate` and CI apply as
+  they do for a person. The `.claude/` hooks never run, so nothing denies a command before
+  it runs or keeps a turn from ending on a red tree: a violation is caught at the commit
+  or at the pull request instead.
 
 ## Requirements
 
@@ -82,7 +116,7 @@ see [docs/cli.md](docs/cli.md).
 
 Postgres row-level security keyed on `auth.uid()` is the one authorization
 boundary for both apps. Versions are pinned in a single pnpm catalog
-(`pnpm-workspace.yaml`): Next 16.3, Expo 57, React 19.2, TypeScript 6, Biome 2.5,
+(`pnpm-workspace.yaml`): Next 16.4, Expo 57, React 19.2, TypeScript 6, Biome 2.6,
 supabase-js 2, tRPC 11, zod 4.
 
 ## How it works
@@ -102,12 +136,45 @@ supabase-js 2, tRPC 11, zod 4.
   (`tools/validate.floor.json`), so a project can add gates but cannot quietly
   remove one. Gates that need a database or a toolchain skip loudly on a
   laptop and fail closed in CI.
+- **Supply chain.** Every workflow the harness ships pins its actions by commit
+  SHA, and zizmor audits them. OSV-Scanner checks the lockfile for known
+  vulnerabilities, gitleaks scans for secrets, and the Renovate config lets a
+  new npm release age (`minimumReleaseAge`) before proposing it. The
+  `ci-provenance` module adds an SBOM and build provenance attestations.
 - **Commit hooks.** lefthook runs Biome and gitleaks before a commit and
   commitlint on the message.
 
 The design is described in the
 [harness doctrine](template/base/docs/harness/README.md), which ships into every
-scaffold.
+scaffold. Its
+[hook map](template/base/docs/harness/README.md#the-hook-map-deterministic-enforcement)
+lists each hook, the event it runs on and what it enforces.
+
+## Compared with other starters
+
+Other projects also put a Next.js app and an Expo app in one repository:
+
+- [create-t3-turbo](https://github.com/t3-oss/create-t3-turbo) is a Turborepo
+  starter with an Expo app, Next.js and TanStack Start web apps (you pick one),
+  tRPC, Better Auth, and Drizzle preconfigured for a Supabase Postgres
+  database. You start from a copy of it, made with GitHub's "Use this template"
+  button or with
+  `npx create-turbo@latest -e https://github.com/t3-oss/create-t3-turbo`.
+- [Solito](https://github.com/nandorojo/solito) is a library that unifies
+  navigation between React Native and Next.js. `npx create-solito-app@latest`
+  writes one of its example monorepos; in the default one, both apps render the
+  same screens from a shared package.
+
+In this harness:
+
+- Authorization is Postgres row-level security keyed on `auth.uid()`. Both apps
+  meet the same policies, and pgTAP and supabase-js suites test them against a
+  real database.
+- Claude Code hooks and CI gates block an agent turn or a merge until
+  validation passes.
+- `update` applies a later harness release to a project that already exists.
+- The two apps share the API, the contracts and the design tokens, not their
+  screens.
 
 ## Commands
 
@@ -129,10 +196,33 @@ Tiers choose which opt-in modules are installed. `core` installs none.
 `push-notifications`, `eval-live`, `observability` and `e2ee`. The Vercel deploy
 workflow, EAS Build/Submit and release-please come from modules, not the base.
 
+## Claude Code plugin
+
+The agents, slash commands and skills also come as a Claude Code plugin, for a session
+outside a harness-installed project. Install it from this repository's marketplace:
+
+```sh
+claude plugin marketplace add BhodiSea/next-expo-supabase-agent-harness
+claude plugin install next-expo-supabase-agent-harness@next-expo-supabase-agent-harness
+```
+
+or, inside a session on Claude Code 2.1.275 or later:
+
+```
+/plugin install next-expo-supabase-agent-harness --marketplace BhodiSea/next-expo-supabase-agent-harness
+```
+
+The plugin carries no hooks, gates or permissions; those come with `init`. Inside a
+harness-installed project you do not need it, and its reviewers' verdicts do not count
+toward the reviewer ledger. See [plugin/README.md](plugin/README.md).
+
 ## Limitations
 
-- **Linux-only proof.** Every CI lane that runs the scaffold runs on
-  `ubuntu-latest`. There is no macOS lane.
+- **The database gates are proven on Linux only.** Every CI lane with a
+  Supabase stack runs on `ubuntu-latest`. The `macos-scaffold` lane runs
+  `init` and `pnpm validate` on a Mac without Docker, the way a laptop runs
+  them, and fails if any gate skips except `types-drift`, which needs the
+  database. No lane runs a scaffold on Windows.
 - **Rate limiting covers the application layer only.** It binds the tRPC router
   and Next.js Server Actions. It does not bound direct PostgREST calls made
   with a user's JWT, or sign-in and sign-up, which go to Supabase Auth. If the
@@ -178,6 +268,19 @@ The first line counts the requirements of ASD's Essential Eight
 counts the requirements of three further standards
 ([crosswalk](template/base/docs/compliance/controls-crosswalk.md)).
 
+## Documentation
+
+- [Documentation site](https://bhodisea.github.io/next-expo-supabase-agent-harness/): the
+  doctrine, the gates catalog, the runbooks and the module guides, searchable, built from
+  the same files every scaffold receives
+- [CLI reference](docs/cli.md): every command, flag and placeholder
+- [Harness doctrine](template/base/docs/harness/README.md) and
+  [gates catalog](template/base/docs/harness/gates-catalog.md), which ship into
+  every scaffold
+- [Architecture](docs/architecture.md) and
+  [security assurance case](docs/security/assurance-case.md)
+- [Governance](GOVERNANCE.md), [roadmap](ROADMAP.md) and [changelog](CHANGELOG.md)
+
 ## Contributing and feedback
 
 - Bugs and gate proposals: [open an issue](https://github.com/BhodiSea/next-expo-supabase-agent-harness/issues/new/choose)
@@ -186,13 +289,9 @@ counts the requirements of three further standards
 - Vulnerabilities: report privately, as described in [SECURITY.md](SECURITY.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 
-Project documents: [governance](GOVERNANCE.md), [roadmap](ROADMAP.md),
-[architecture](docs/architecture.md),
-[security assurance case](docs/security/assurance-case.md).
-
-This repository is also a GitHub template repository. To fork the harness
-itself into a sibling for a different stack, follow
-[docs/forking.md](docs/forking.md). It is descended from
+To fork the harness itself into a sibling for a different stack, start from a
+clone with a fresh history, as [docs/forking.md](docs/forking.md) describes.
+This repository is descended from
 [expo-postgres-agent-harness](https://github.com/BhodiSea/expo-postgres-agent-harness)
 and
 [tauri-postgres-agent-harness](https://github.com/BhodiSea/tauri-postgres-agent-harness).

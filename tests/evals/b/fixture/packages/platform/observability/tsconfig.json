@@ -1,0 +1,27 @@
+{
+  // @app/observability — a platform LEAF. The layering law permits it the kernel
+  // ({errors, events}); it takes neither, so there is no `references` array and
+  // no runtime dependency block. Both surfaces bundle this package, and every
+  // edge added here is an edge added to both bundles — see the module header for
+  // why each of the two permitted imports is still refused.
+  // Extends the repo-wide max-strict base; NodeNext module semantics are
+  // restated here so this package typechecks identically no matter which
+  // resolution a consuming workspace picks (packages are node16-style,
+  // apps/mobile is bundler-style).
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "src",
+    "outDir": "dist",
+    // EMPTY (TypeScript 6 no longer auto-includes node_modules/@types), and that
+    // is what keeps this seam callable from a native binary. With @types/node in
+    // scope, `process.stdout.write`, `node:console` and a Node-only transport all
+    // typecheck here — and the first one to land would break Metro's resolution
+    // for every screen that logs. The default sink reaches the console through
+    // `globalThis` with its own local shape for exactly this reason.
+    "types": []
+  },
+  "include": ["src"]
+}

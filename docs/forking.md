@@ -1,12 +1,50 @@
 # Forking the harness itself
 
-This repository is a GitHub template repository. "Use this template" produces
-your own copy of the harness (installer, `template/`, selftest machinery) to
-rebrand and extend into a sibling for a different stack. It does not produce an
-app. To scaffold an app, use the `npx` command in the [README](../README.md).
+A fork of the harness is your own copy of the installer, `template/` and the
+selftest machinery, to rebrand and extend into a sibling for a different stack.
+It does not produce an app. To scaffold an app, use the `npx` command in the
+[README](../README.md).
 
-A template copy starts from a single commit with no upstream history or tags.
-The selftest, hygiene and lint workflows do not depend on the upstream owner.
+This repository is not a GitHub template repository. Its template flag is off
+(#166), because "Use this template" gave a visitor who wanted an app a copy of
+the harness instead. A fork starts from a clone with a fresh history: one
+commit, with no upstream history or tags.
+
+```sh
+git clone --no-tags --single-branch https://github.com/BhodiSea/next-expo-supabase-agent-harness.git <your-harness>
+cd <your-harness>
+upstream_sha="$(git rev-parse --short HEAD)"
+git checkout --orphan fresh
+git commit -m "chore: start from next-expo-supabase-agent-harness at ${upstream_sha}"
+git branch -M main
+git remote rename origin upstream
+git remote add origin <your repository URL>
+git push -u origin main
+```
+
+Clone without tags. `check-ramp-ledger`, `check-dependency-channel`,
+`check-sbom-drift`, `check-eol-target`, `check-seeded-migrations` and
+`check-released-shas` read `git tag`, and the upstream tags name commits your
+history does not contain. The `upstream` remote keeps the `--no-tags` setting,
+so a later `git fetch upstream` for upstream fixes brings no tags either.
+
+Expect CI to be red at first, and your first release to wait for it. In
+`lint.yml`, `machinery-lint` runs `check-ramp-ledger`, `check-dependency-channel`,
+`check-sbom-drift` and `check-eol-target`. They compare a release with the one
+before it, and in CI they fail rather than skip until a `vX.Y.Z` tag below the
+version in `package.json` is reachable. `check-ramp-ledger` also fails while
+`VINTAGES` in `scripts/lib/ramp-sites.mjs` names a release your history has no
+tag for. In the same workflow, `syntax-and-plugin` runs `check-seeded-migrations`,
+which skips while the clone has no tags and fails once it has a tag but none
+below that version. In `selftest.yml`, each `upgrade-linux` leg installs an
+earlier release and updates it: the first leg needs a tag below the version in
+`package.json`, and the others name upstream release tags a fresh history does
+not have, so they stay red until you remove them or point them at your own
+releases. `release.yml` waits for green `selftest.yml` and `lint.yml` runs on
+the tagged commit, so a release tag fails while any of these is red.
+
+Apart from that, the selftest, hygiene and lint workflows do not depend on the
+upstream owner.
 
 ## What to rewrite
 
@@ -18,22 +56,38 @@ is the set of repo-root sites that hardcode the upstream owner:
   `repository.url`, `homepage`, `bugs.url`, `author`
 - `.github/workflows/release.yml`: the `publish-npm` job runs only in this
   repository. Point its `if:` at yours once the package is renamed and has its own
-  first publish and trusted publisher, or delete the job
+  first publish and trusted publisher, or delete the job. The `release` job also
+  opens a discussion for each release in the `Announcements` category; in a
+  repository without Discussions or without that category, that step prints a
+  warning and the job still succeeds
 - `README.md`: the `npx` command and the lineage links
 - `docs/forking.md`: this checklist
 - `CITATION.cff`: `title`, `authors`, `repository-code`
 - `CHANGELOG.md`: the lineage note at the top (it names this repo as the
   ancestor of yours) and the version line you continue from
 - `CONTRIBUTING.md`: rule 2 names the vocabulary your lineage owns
+- `.github/workflows/selftest.yml`: the `upgrade-linux` matrix names upstream
+  release tags; remove those legs or point them at your own releases
+- `scripts/lib/ramp-sites.mjs`: `VINTAGES` names upstream releases; list your own
 - `SECURITY.md`: the advisories URL, the `update` command and the release
   verification command
 - `.github/CODEOWNERS`: every owner handle
 - `.github/ISSUE_TEMPLATE/config.yml`: the advisory, discussions and repro URLs,
   and the `npx` line in `bug-report.yml`
+- `.github/workflows/pages.yml`: the artifact upload and the deploy job run only in
+  this repository (`github.repository == 'BhodiSea/next-expo-supabase-agent-harness'`).
+  Point both `if:` conditions at yours once Pages is enabled with the source "GitHub
+  Actions", or delete the workflow. The build itself runs anywhere
+- `docs-site/astro.config.mjs`: `site` (`https://bhodisea.github.io`) and `base`
+  (`/next-expo-supabase-agent-harness`), the address the documentation site is
+  published at; the links on `docs-site/src/content/docs/index.md`, which carry the
+  same `base`; and the repository URL in `docs-site/src/harness-docs/corpus.mjs`,
+  which the edit links use
 - `.claude/settings.json`: you inherit the upstream maintainer's permissions.
   Review the default mode before your first agent turn.
-- `.claude-plugin/plugin.json`: the `npx` command in `description`, plus
+- `plugin/.claude-plugin/plugin.json`: the `npx` command in `description`, plus
   `author`, `homepage`, `repository`
+- `plugin/README.md`: the marketplace in both install commands
 - `.claude-plugin/marketplace.json`: `owner`
 - `REUSE.toml` and `LICENSES/`: keep the upstream copyright and append yours
 - `tests/gates/check-reuse.test.mjs`: it asserts the upstream copyright string
@@ -60,8 +114,8 @@ carrier had been retargeted.
 ## Check that nothing was missed
 
 ```sh
-grep -rn "BhodiSea\|Cogvera" --exclude-dir=node_modules .
+grep -rn "BhodiSea\|bhodisea\|Cogvera" --exclude-dir=node_modules .
 ```
 
 This should return only the attribution you deliberately kept and the hygiene
-deny pattern.
+deny pattern. The lowercase spelling is the documentation site's address.

@@ -104,126 +104,6 @@
       "reviewedOn": "2026-10-20"
     },
     {
-      "purl": "pkg:npm/%40oxc-parser/binding-android-arm-eabi@0.153.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-parser 0.153.0, which knip now uses to parse sources; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
-      "purl": "pkg:npm/%40oxc-parser/binding-android-arm64@0.153.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-parser 0.153.0, which knip now uses to parse sources; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
-      "purl": "pkg:npm/%40oxc-parser/binding-darwin-arm64@0.153.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-parser 0.153.0, which knip now uses to parse sources; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
-      "purl": "pkg:npm/%40oxc-parser/binding-darwin-x64@0.153.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-parser 0.153.0, which knip now uses to parse sources; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
-      "purl": "pkg:npm/%40oxc-parser/binding-freebsd-x64@0.153.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-parser 0.153.0, which knip now uses to parse sources; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
-      "purl": "pkg:npm/%40oxc-parser/binding-linux-arm-gnueabihf@0.153.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-parser 0.153.0, which knip now uses to parse sources; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
-      "purl": "pkg:npm/%40oxc-parser/binding-linux-arm-musleabihf@0.153.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-parser 0.153.0, which knip now uses to parse sources; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
-      "purl": "pkg:npm/%40oxc-parser/binding-linux-arm64-gnu@0.153.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-parser 0.153.0, which knip now uses to parse sources; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
-      "purl": "pkg:npm/%40oxc-parser/binding-linux-arm64-musl@0.153.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-parser 0.153.0, which knip now uses to parse sources; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
-      "purl": "pkg:npm/%40oxc-parser/binding-linux-ppc64-gnu@0.153.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-parser 0.153.0, which knip now uses to parse sources; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
-      "purl": "pkg:npm/%40oxc-parser/binding-linux-riscv64-gnu@0.153.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-parser 0.153.0, which knip now uses to parse sources; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
-      "purl": "pkg:npm/%40oxc-parser/binding-linux-riscv64-musl@0.153.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-parser 0.153.0, which knip now uses to parse sources; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
-      "purl": "pkg:npm/%40oxc-parser/binding-linux-s390x-gnu@0.153.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-parser 0.153.0, which knip now uses to parse sources; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
-      "purl": "pkg:npm/%40oxc-parser/binding-linux-x64-gnu@0.153.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-parser 0.153.0, which knip now uses to parse sources; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
-      "purl": "pkg:npm/%40oxc-parser/binding-linux-x64-musl@0.153.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-parser 0.153.0, which knip now uses to parse sources; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
-      "purl": "pkg:npm/%40oxc-parser/binding-openharmony-arm64@0.153.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-parser 0.153.0, which knip now uses to parse sources; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
-      "purl": "pkg:npm/%40oxc-parser/binding-win32-arm64-msvc@0.153.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-parser 0.153.0, which knip now uses to parse sources; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
-      "purl": "pkg:npm/%40oxc-parser/binding-win32-ia32-msvc@0.153.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-parser 0.153.0, which knip now uses to parse sources; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
-      "purl": "pkg:npm/%40oxc-parser/binding-win32-x64-msvc@0.153.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-parser 0.153.0, which knip now uses to parse sources; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
-      "purl": "pkg:npm/%40oxc-project/types@0.153.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-parser 0.153.0, which knip now uses to parse sources; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
       "purl": "pkg:npm/%40oxc-resolver/binding-android-arm-eabi@11.24.2",
       "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-resolver 11.24.2, its module resolver; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
       "release": "2.0.3",
@@ -374,20 +254,8 @@
       "reviewedOn": "2026-10-20"
     },
     {
-      "purl": "pkg:npm/knip@6.41.0",
-      "reason": "Direct bump of the root devDependency from 6.26.0 to 6.41.0 (Renovate dev-dependencies group), a minor inside the 6.x line. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
       "purl": "pkg:npm/minimatch@10.2.6",
       "reason": "Transitive of eslint-plugin-sonarjs 4.2.2 (the direct bump from 4.1.0), resolved inside its declared range; eslint itself still resolves minimatch 3.1.5. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
-      "purl": "pkg:npm/oxc-parser@0.153.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0) via oxc-parser 0.153.0, which knip now uses to parse sources; per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
       "release": "2.0.3",
       "reviewedOn": "2026-10-20"
     },
@@ -410,12 +278,6 @@
       "reviewedOn": "2026-10-20"
     },
     {
-      "purl": "pkg:npm/unbash@5.1.0",
-      "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0), resolved inside its declared range. No advisory is recorded against it in OSV on the review date.",
-      "release": "2.0.3",
-      "reviewedOn": "2026-10-20"
-    },
-    {
       "purl": "pkg:npm/undici-types@8.9.0",
       "reason": "Transitive of @types/node 26.6.5 (the direct bump from 26.1.1); type declarations only, nothing executes. No advisory is recorded against it in OSV on the review date.",
       "release": "2.0.3",
@@ -432,6 +294,144 @@
       "reason": "Transitive of knip 6.41.0 (the direct bump from 6.26.0), resolved inside its declared range. No advisory is recorded against it in OSV on the review date.",
       "release": "2.0.3",
       "reviewedOn": "2026-10-20"
+    },
+    {
+      "purl": "pkg:npm/%40oxc-parser/binding-android-arm-eabi@0.154.0",
+      "reason": "Platform binding of oxc-parser 0.154.0, moving in lockstep with it under knip 6.42.1 (the direct bump from 6.41.0); per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/%40oxc-parser/binding-android-arm64@0.154.0",
+      "reason": "Platform binding of oxc-parser 0.154.0, moving in lockstep with it under knip 6.42.1 (the direct bump from 6.41.0); per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/%40oxc-parser/binding-darwin-arm64@0.154.0",
+      "reason": "Platform binding of oxc-parser 0.154.0, moving in lockstep with it under knip 6.42.1 (the direct bump from 6.41.0); per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/%40oxc-parser/binding-darwin-x64@0.154.0",
+      "reason": "Platform binding of oxc-parser 0.154.0, moving in lockstep with it under knip 6.42.1 (the direct bump from 6.41.0); per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/%40oxc-parser/binding-freebsd-x64@0.154.0",
+      "reason": "Platform binding of oxc-parser 0.154.0, moving in lockstep with it under knip 6.42.1 (the direct bump from 6.41.0); per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/%40oxc-parser/binding-linux-arm-gnueabihf@0.154.0",
+      "reason": "Platform binding of oxc-parser 0.154.0, moving in lockstep with it under knip 6.42.1 (the direct bump from 6.41.0); per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/%40oxc-parser/binding-linux-arm-musleabihf@0.154.0",
+      "reason": "Platform binding of oxc-parser 0.154.0, moving in lockstep with it under knip 6.42.1 (the direct bump from 6.41.0); per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/%40oxc-parser/binding-linux-arm64-gnu@0.154.0",
+      "reason": "Platform binding of oxc-parser 0.154.0, moving in lockstep with it under knip 6.42.1 (the direct bump from 6.41.0); per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/%40oxc-parser/binding-linux-arm64-musl@0.154.0",
+      "reason": "Platform binding of oxc-parser 0.154.0, moving in lockstep with it under knip 6.42.1 (the direct bump from 6.41.0); per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/%40oxc-parser/binding-linux-ppc64-gnu@0.154.0",
+      "reason": "Platform binding of oxc-parser 0.154.0, moving in lockstep with it under knip 6.42.1 (the direct bump from 6.41.0); per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/%40oxc-parser/binding-linux-riscv64-gnu@0.154.0",
+      "reason": "Platform binding of oxc-parser 0.154.0, moving in lockstep with it under knip 6.42.1 (the direct bump from 6.41.0); per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/%40oxc-parser/binding-linux-riscv64-musl@0.154.0",
+      "reason": "Platform binding of oxc-parser 0.154.0, moving in lockstep with it under knip 6.42.1 (the direct bump from 6.41.0); per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/%40oxc-parser/binding-linux-s390x-gnu@0.154.0",
+      "reason": "Platform binding of oxc-parser 0.154.0, moving in lockstep with it under knip 6.42.1 (the direct bump from 6.41.0); per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/%40oxc-parser/binding-linux-x64-gnu@0.154.0",
+      "reason": "Platform binding of oxc-parser 0.154.0, moving in lockstep with it under knip 6.42.1 (the direct bump from 6.41.0); per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/%40oxc-parser/binding-linux-x64-musl@0.154.0",
+      "reason": "Platform binding of oxc-parser 0.154.0, moving in lockstep with it under knip 6.42.1 (the direct bump from 6.41.0); per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/%40oxc-parser/binding-openharmony-arm64@0.154.0",
+      "reason": "Platform binding of oxc-parser 0.154.0, moving in lockstep with it under knip 6.42.1 (the direct bump from 6.41.0); per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/%40oxc-parser/binding-win32-arm64-msvc@0.154.0",
+      "reason": "Platform binding of oxc-parser 0.154.0, moving in lockstep with it under knip 6.42.1 (the direct bump from 6.41.0); per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/%40oxc-parser/binding-win32-ia32-msvc@0.154.0",
+      "reason": "Platform binding of oxc-parser 0.154.0, moving in lockstep with it under knip 6.42.1 (the direct bump from 6.41.0); per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/%40oxc-parser/binding-win32-x64-msvc@0.154.0",
+      "reason": "Platform binding of oxc-parser 0.154.0, moving in lockstep with it under knip 6.42.1 (the direct bump from 6.41.0); per-platform bindings are optional and only the host one installs. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/%40oxc-project/types@0.154.0",
+      "reason": "Transitive of knip 6.42.1 (the direct bump from 6.41.0) via oxc-parser 0.154.0, which depends on @oxc-project/types ^0.154.0 and moves in lockstep with it. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/knip@6.42.1",
+      "reason": "Direct bump of the root devDependency from 6.41.0 to 6.42.1 (Renovate dev-dependencies group), a minor inside the 6.x line. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/oxc-parser@0.154.0",
+      "reason": "Transitive of knip 6.42.1 (the direct bump from 6.41.0), which raises its oxc-parser range from ^0.153.0 to ^0.154.0; knip uses it to parse sources. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/unbash@6.0.1",
+      "reason": "Transitive of knip 6.42.1 (the direct bump from 6.41.0). knip 6.42.0 migrated its shell-script parsing to unbash v6 and raised the range from ^5.0.0 to ^6.0.0; a major of a package published by knip's own maintainer, resolved inside the new range. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.4",
+      "reviewedOn": "2026-10-26"
     }
   ]
 }

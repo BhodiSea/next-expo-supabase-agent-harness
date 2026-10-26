@@ -36,13 +36,16 @@ Per-layer non-negotiables the gates enforce (the skill references carry the work
 patterns; `@app/notes` is the seeded reference vertical every layer copies — a slice
 missing any of these arrives pre-red):
 
-- **migration + RLS** — in the SAME migration: `ENABLE` + `FORCE ROW LEVEL SECURITY`,
-  four per-operation policies `TO authenticated` (never `FOR ALL`) keyed on the initPlan
-  sub-select `(select auth.uid())` with `WITH CHECK` on INSERT/UPDATE, `REVOKE ALL ...
+- **migration + RLS** — in the SAME migration: a NOT NULL `org_id` tenant key with its
+  `freeze_org_id` trigger, `ENABLE` + `FORCE ROW LEVEL SECURITY`, four per-operation
+  policies `TO authenticated` (never `FOR ALL`) scoped by org through the initPlan helpers
+  — `org_id = ANY((SELECT private.member_org_ids())::uuid[])` to read, the
+  `private.member_ranks()` rank floor to write, never a per-user `owner_id = (select
+  auth.uid())` scope — with `WITH CHECK` on INSERT/UPDATE, `REVOKE ALL ...
   FROM anon` + `FROM service_role` + `FROM authenticated` (the platform default grants
   all three, and a GRANT removes nothing — the last one needs the slice's `-- adr:`
   marker), then a `GRANT` of exactly the operations the policies admit to
-  `authenticated`, and a LEADING-column owner index that also carries
+  `authenticated`, and a LEADING `org_id` index that also carries
   the list's `ORDER BY` columns so one index serves the policy, the sort and the keyset
   cursor (`supabase/schemas/20_notes.sql` is the pattern). `service_role` BYPASSES RLS by
   role attribute — the REVOKE is the only lever over it, and it stays revoked until an

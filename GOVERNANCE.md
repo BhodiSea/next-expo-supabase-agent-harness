@@ -58,9 +58,9 @@ anyone depending on this project should weigh it.
 What does not depend on the maintainer:
 
 - **Anyone can continue the work in a fork.** The repository is licensed
-  Apache-2.0, with `template/**` additionally under 0BSD, and it is a GitHub
-  template repository. [docs/forking.md](docs/forking.md) lists every place a
-  fork has to rename.
+  Apache-2.0, with `template/**` additionally under 0BSD.
+  [docs/forking.md](docs/forking.md) says how to start one with a fresh history
+  and lists every place a fork has to rename.
 - **No credential needs handing over to publish a release.** Release signing
   uses the workflow's own short-lived identity, so a successor with write access
   could cut a release on their first day.

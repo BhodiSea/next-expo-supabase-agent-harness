@@ -321,7 +321,8 @@ export async function init(opts) {
   }
 
   if (opts.consume) {
-    for (const d of ['installer', 'template', 'scripts', 'tests', '.claude-plugin']) {
+    // docs-site/ builds the factory's documentation site (#171); a project has no use for it.
+    for (const d of ['installer', 'template', 'scripts', 'tests', '.claude-plugin', 'plugin', 'docs-site']) {
       rmSync(join(targetDir, d), { recursive: true, force: true })
     }
     report.notes.push('consumed template checkout in place — installer/template trees removed')

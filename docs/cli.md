@@ -38,7 +38,7 @@ Scaffold the harness and reference app into a directory.
 | `--yes` | Do not prompt. |
 | `--dry-run` | Report what would be written and write nothing. |
 | `--report json` | Print the install report as JSON instead of text. |
-| `--consume` | For a copy made with GitHub's "Use this template": turn the checkout itself into a project, removing the installer and template trees. |
+| `--consume` | For a clone of this repository: turn the checkout itself into a project, removing the installer and template trees. |
 | `--with-demo` | Also plant the worked example (2.0.0): the notes vertical, its web route, Server Action and read seam, the mobile notes and matrix screens, its router, its migrations, and the example's rows in the seeded registers. A default `init` plans none of it. Recorded as `demo: true` in `.harness/manifest.json`, carried by `init --force`, and refused for a retrofit. `eject` removes it again. |
 
 ### `update`
@@ -146,8 +146,11 @@ Remove the worked example from an install made with `init --with-demo`
 
 1. A file only the demo ships is deleted while it is still the demo's: its
    bytes match its record in `.harness/manifest.json`, and that record is the
-   demo's bytes. A file you changed, or forked and re-recorded, is kept, its
-   record is dropped, and `eject` lists it.
+   demo's bytes, as this release or any earlier one shipped them (`update`
+   leaves an untouched seeded demo file at the bytes your release wrote, and
+   `template/shas/<version>.json` lists every release's under `demo`). A file
+   you changed, or forked and re-recorded, is kept, its record is dropped, and
+   `eject` lists it.
 2. A shared file the demo replaced (the API router, the mobile home tab, the
    command palette, the seeded registers) gets the default install's bytes back
    while it is still the demo's. One you changed is kept, and the default copy

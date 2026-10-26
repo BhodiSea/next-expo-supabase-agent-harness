@@ -131,6 +131,29 @@
       "groupName": "dev dependencies"
     },
     {
+      "description": "FACTORY docs site: docs-site/ is its own pnpm project with its own lockfile (#171). Never ships, and its packages stay out of the root lockfile and the release SBOM diff.",
+      "matchFileNames": ["docs-site/**"],
+      "addLabels": ["deps:factory"],
+      "semanticCommitType": "chore",
+      "semanticCommitScope": "deps",
+      "prBodyNotes": [
+        "**Docs site.** The `pages` workflow's build job proves this update: it installs `docs-site/` from its lockfile, builds the site and checks every internal link and anchor. To run it locally: `pnpm --dir docs-site install --frozen-lockfile && pnpm --dir docs-site run build`."
+      ]
+    },
+    {
+      "description": "The docs site's non-major updates in one PR. Its 0.x minors (Starlight and its plugins) still go to the pre-1.0 group below and wait for a click.",
+      "matchFileNames": ["docs-site/**"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "docs site"
+    },
+    {
+      "description": "One pnpm for the factory: the docs site's packageManager pin moves in the same PR as the root's.",
+      "matchFileNames": ["package.json", "docs-site/package.json"],
+      "matchDepNames": ["pnpm"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "dev dependencies"
+    },
+    {
       "description": "FACTORY workflows.",
       "matchFileNames": [".github/workflows/**"],
       "addLabels": ["deps:factory"],

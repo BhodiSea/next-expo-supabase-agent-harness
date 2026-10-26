@@ -1047,6 +1047,11 @@
         "kind": "fixture",
         "ref": "tests/gates/check-released-shas.test.mjs",
         "note": "1.0.2. The released-sha tables are what lets `update` tell a file a release shipped from a fork whose sha was re-recorded, and a table that drifts from the template fails in the QUIET direction — untouched files parked on every install at the next update — so each closure is spawned red against doctored tables through the script's --tables-dir seam: a live owned file whose sha the current version's table does not list (the message must name the one-command remedy), a released vintage with no table, unsorted paths, and a token written in its braced form (hygiene's placeholder closure scans template/shas/ too). The pure halves (unionInto only ever grows; missingFrom/missingVersions/lintTable name exactly what is wrong) are asserted beside them, and the walk is held non-vacuous (hundreds of owned paths, the stack-tree one among them). STATED LIMIT: this proof uses no git, tar or tags because the closure executes it on the Windows leg; the tag half (--verify-tags: every tag's tree, judged by that tag's OWN installer, inside its version's table) is exercised by lint.yml#machinery-lint on every pull request and at the tag ref, and the policy the tables feed is proved end to end in tests/installer/update-provenance.test.mjs. 1.1.0 (#84) adds THE PLANTED MAP: every table carries `planted` (per path in ESCAPE_LISTS, every variant the commit's own template shipped), and template/base/tools/lib/planted-shas.json must be byte-identical to the generated union of those maps, because gate-integrity trusts it in an install. Proven red through a second seam, --planted-file: a doctored copy with a widened variant, and one with a dropped path, each name the file and the remedy; through --tables-dir, a current table whose planted map no longer lists a live escape-list variant, a table with no planted map, and an unsorted one. The pure halves (plantedMap, the planted fold in unionInto, plantedUnion, the formatter-shaped plantedFileText) are asserted beside them, and the planted walk is held non-vacuous (thirty or more lists, the two SECURITY_OWNERS-bearing ones with sites)."
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/released-shas-history.test.mjs",
+        "note": "2.0.4 (#259). The history half: --verify-tags also verifies every first-parent `main` commit, judged by its own installer, against the table of its own version, because the install command has no tag and a merge commit can carry bytes no pull request's CI checked (an untouched install from main at 8de6d2349 had six owned files parked as forks). Spawned red through --tables-dir and the --only-version 1.0.4 seam: a 1.0.4 table missing the tools/lib/gate.mjs variant only that untagged commit shipped must exit 1 naming the commit, the path and the --all remedy; the shipped tables run green. Red before the fix (the check looked at tags only). STATED LIMIT: it needs full history, so a shallow or tagless clone skips both tests by name, and lint.yml#machinery-lint (fetch-depth: 0) runs the whole history check on every pull request and at the tag ref."
       }
     ],
     "check-residue.mjs": [
@@ -1228,7 +1233,25 @@
     "lint.yml#machinery-lint": [
       {
         "kind": "steps",
-        "note": "eslint/tsc/knip (the #factoryGates lane declarations for eslint/types/dead-code point HERE) plus eight machinery gates — complexity-ratchet, rule-integrity, ramp-ledger, tier-coverage, escape-registry, dependency-channel, obligations (the clockless half; --clockful is hygiene.yml#obligations-clockful's), ci-preconditions — every one proven in #factoryGates. 1.1.0 (#76): plus machinery-i18n-tree, which runs tests/gates/i18n-tree.test.mjs and tests/gates/check-i18n.test.mjs (both registered #steps i18n fixture proofs) with the root toolchain, so `typescript` loads, under HARNESS_TEST_REQUIRE_TYPESCRIPT=1 (a parser that cannot load fails there, never skips) and a coverage floor on template/base/tools/lib/i18n-tree.mjs. 1.1.0 (#78): plus machinery-edge-function-split, which runs tests/gates/edge-function-split.test.mjs with the root toolchain under the same variable, so its cases that read TypeScript source (handler.ts names no Deno global and no runtime import; index.ts is a one-call shell; the evaluated vitest.config.ts collects vitest suites only and measures only suited directories, as edgeSuiteDirs reads them) run there, where installer-unit skips them by name. 2.1.0 (#186): plus machinery-shapes, which runs tests/gates/shapes.test.mjs, homes.test.mjs, importers.test.mjs, workspace-tiers.test.mjs, complexity.test.mjs and sweep.test.mjs with the root toolchain under the same variable, so the Single Home extractor, home(), the importer index, the complexity recipes and the duplication gate's --sweep --json and --explain modes run with the parser (installer-unit skips those cases by name), under a coverage floor on the eight modules they prove"
+        "note": "eslint/tsc/knip (the #factoryGates lane declarations for eslint/types/dead-code point HERE) plus eight machinery gates — complexity-ratchet, rule-integrity, ramp-ledger, tier-coverage, escape-registry, dependency-channel, obligations (the clockless half; --clockful is hygiene.yml#obligations-clockful's), ci-preconditions — every one proven in #factoryGates. 1.1.0 (#76): plus machinery-i18n-tree, which runs tests/gates/i18n-tree.test.mjs and tests/gates/check-i18n.test.mjs (both registered #steps i18n fixture proofs) with the root toolchain, so `typescript` loads, under HARNESS_TEST_REQUIRE_TYPESCRIPT=1 (a parser that cannot load fails there, never skips) and a coverage floor on template/base/tools/lib/i18n-tree.mjs. 1.1.0 (#78): plus machinery-edge-function-split, which runs tests/gates/edge-function-split.test.mjs with the root toolchain under the same variable, so its cases that read TypeScript source (handler.ts names no Deno global and no runtime import; index.ts is a one-call shell; the evaluated vitest.config.ts collects vitest suites only and measures only suited directories, as edgeSuiteDirs reads them) run there, where installer-unit skips them by name. 2.1.0 (#186): plus machinery-shapes, which runs tests/gates/shapes.test.mjs, homes.test.mjs, importers.test.mjs, workspace-tiers.test.mjs, complexity.test.mjs and sweep.test.mjs with the root toolchain under the same variable, so the Single Home extractor, home(), the importer index, the complexity recipes and the duplication gate's --sweep --json and --explain modes run with the parser (installer-unit skips those cases by name), under a coverage floor on the eight modules they prove 2.1.0 (#188): plus machinery-evals, which runs tests/evals/*.test.mjs with the root toolchain under the same variable: eval A's development split (every key labelled and an unlabelled key failing, the holdout guard, owed recall 1.0 on renames and literal swaps), the mutators' unit tests, the blind-vertical freeze script's --check, eval B over its frozen fixture (its manifest, the dogfood rows, an unlabelled key failing) and sweep-digest.test.mjs, whose committed digests red on any change to the sweep's output"
+      }
+    ],
+    "lint.yml#eval-digest-windows": [
+      {
+        "kind": "steps",
+        "note": "2.1.0 (#188): the Windows half of evals A and B's two-machine check. It installs the root toolchain and runs tests/evals/sweep-digest.test.mjs, the file machinery-lint's machinery-evals step also runs on ubuntu, under HARNESS_TEST_REQUIRE_TYPESCRIPT=1. That test reds on any byte of difference from the committed tests/evals/b/sweep.sha256 and tests/evals/a/dev.sha256, so what proves this job can fail is the test's own assertion, exercised on ubuntu on every run"
+      }
+    ],
+    "pages.yml#docs-build": [
+      {
+        "kind": "steps",
+        "note": "2.0.4 (#171): the Starlight build over template/base/docs and the module docs, read in place; its own exit is the red. starlight-links-validator fails it on a broken internal link or #anchor, the content schema on a page it cannot title, and the site's own plugins (docs-site/src/harness-docs/) on a relative link to a missing file, a duplicate gate anchor or a catalog that yields no gate anchors"
+      }
+    ],
+    "pages.yml#docs-deploy": [
+      {
+        "kind": "steps",
+        "note": "2.0.4 (#171): the vendor action actions/deploy-pages publishing the artifact docs-build uploaded, on main in this repository only; its non-zero exit is the red, and what it publishes is what docs-build proved"
       }
     ],
     "release.yml#release": [
@@ -1259,7 +1282,7 @@
     "selftest.yml#installer-unit": [
       {
         "kind": "steps",
-        "note": "runs five factory gates (syntax, hygiene, release-lockstep, plugin-manifest — proven in #factoryGates), THIS CHECKER in full spawn mode, and the whole suite under coverage floors on ubuntu AND windows — the job is the execution vehicle for every fixture proof in this registry; it installs nothing, so the i18n tests that need `typescript` skip there by name and run in lint.yml#machinery-lint (#76)"
+        "note": "runs five factory gates (syntax, hygiene, release-lockstep, plugin-manifest — proven in #factoryGates), THIS CHECKER in full spawn mode, and the whole suite under coverage floors on ubuntu, windows AND macos (macos since 2.0.4, #168) — the job is the execution vehicle for every fixture proof in this registry; it installs nothing, so the i18n tests that need `typescript` skip there by name and run in lint.yml#machinery-lint (#76)"
       }
     ],
     "selftest.yml#render-smoke": [
@@ -1267,6 +1290,13 @@
         "kind": "fixture",
         "ref": "tests/installer/lifecycle.test.mjs",
         "note": "init on real scratch dirs (core + metal) then check-residue and check-syntax on each; the lifecycle suite is where the render/residue logic is proven red-able, and the lane proves it on a REAL rendered scaffold"
+      }
+    ],
+    "selftest.yml#macos-scaffold": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/skip-verdict.test.mjs",
+        "note": "2.0.4 (#168): init, pnpm install and validate --min-floor --report-all on macos-latest with CI unset, the posture of a developer's Mac without Docker, where a gate with a missing prerequisite skips instead of failing closed. The lane's verdict is scripts/lib/skip-verdict.mjs: any skip outside DATABASE_STEPS (types-drift) reds, as does a red validate or a log with no summary. Its CANARY test makes the format gate skip on an otherwise green log and requires the verdict, and the runner's exit, to red."
       }
     ],
     "selftest.yml#canary": [

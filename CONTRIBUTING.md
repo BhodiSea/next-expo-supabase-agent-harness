@@ -16,7 +16,9 @@ and vulnerabilities through the private channel in [SECURITY.md](SECURITY.md).
    `init --with-demo` scaffold, before and after `eject`) — must still produce a
    project where `pnpm validate` passes out of the box. Both run on **ubuntu only**:
    the one Windows runner in the matrix is `installer-unit`, which exists for
-   the path-separator/CRLF bug class and does not build a scaffold. (This
+   the path-separator/CRLF bug class and does not build a scaffold. On macOS,
+   `installer-unit` runs too, and `macos-scaffold` runs `pnpm validate` on a
+   scaffold without Docker; it reds on any skip but the database gate's. (This
    sentence claimed a Windows `bootstrap` job through 0.5.0. There has never
    been one — so "green on Windows" has never meant "a Windows scaffold is
    green", and nobody should read it that way.)
@@ -73,6 +75,10 @@ node scripts/check-claims.mjs    # recomputes the numbers the docs state (under 
 node scripts/hygiene.mjs         # leaked strings, unearned maturity and standards claims (under 1 s)
 GITHUB_BASE_REF=main CI=true node --test "tests/gates/**/*.test.mjs"   # many of these read the docs (about 2 min)
 
+# A page under template/base/docs/ or template/modules/*/docs/, or a change in docs-site/
+pnpm --dir docs-site install --frozen-lockfile   # the documentation site has its own lockfile
+pnpm --dir docs-site run build                   # renders every page; a broken link or #anchor fails it
+
 # An installer change: installer/
 GITHUB_BASE_REF=main CI=true node --test "tests/installer/**/*.test.mjs"   # about 60 s
 node scripts/check-syntax.mjs    # about 13 s
@@ -113,7 +119,7 @@ node scripts/hygiene.mjs                # leaked-string + placeholder closure + 
 node scripts/check-reuse.mjs            # REUSE dual-license structure (offline mirror of `reuse lint`)
 node scripts/check-claims.mjs           # README/CHANGELOG numbers recomputed from the sources of truth
 node scripts/check-release-lockstep.mjs # one version across package.json, plugin, hooks, CITATION, CHANGELOG
-node scripts/check-plugin-manifest.mjs  # plugin/marketplace fields + every referenced path exists
+node scripts/check-plugin-manifest.mjs  # plugin/marketplace fields, and plugin/ in sync with its sources (regenerate: node scripts/generate-plugin-folder.mjs --write)
 node scripts/check-canary-coverage.mjs  # every gate AND every job in every shipped workflow, base and modules, has a registered, RUNNING red-proof
 node scripts/generate-floor.mjs --check    # BOTH frozen snapshots (validate.floor.json, stop.floor.json) mirror the config
 node scripts/generate-skill-references.mjs --check  # the slice skill's code blocks match the example's marked spans
@@ -154,6 +160,12 @@ node scripts/check-seeded-migrations.mjs   # seedOnInitOnly completeness: an unr
 node scripts/check-eol-target.mjs          # no shipped production-scope removalTarget has ARRIVED in the release being cut, and a moved one carries a seededSourceFixes probe
 node scripts/check-sbom-drift.mjs          # the SBOM as a RELEASE DIFF: no component added since the previous tag without a reviewed row
 node scripts/check-released-shas.mjs --verify-tags  # template/shas lists every owned file this tree ships, covers every vintage, and contains every tag's own bytes — touched an owned template file? run `node scripts/generate-released-shas.mjs --current` first
+
+# pages.yml, on a pull request that touches template/base/docs/, template/modules/*/docs/,
+# docs-site/, docs/media/social-preview.png or the workflow itself: the documentation site
+# builds, and every internal link and #anchor in it resolves. docs-site/ is its own pnpm
+# project, so it installs separately.
+pnpm --dir docs-site install --frozen-lockfile && pnpm --dir docs-site run build
 
 # The one that matters most — the scaffold must be green with ZERO edits.
 # git init FIRST, as init's closing note says: the prepare script (lefthook install)
@@ -229,7 +241,7 @@ review. The last two are conventions the maintainer will ask for.
 
 1. Add a `## [x.y.z] — YYYY-MM-DD` section to `CHANGELOG.md`.
 2. Bump the version everywhere the lockstep gate looks: `package.json`,
-   `.claude-plugin/plugin.json`, `CITATION.cff`, and the **nine**
+   `plugin/.claude-plugin/plugin.json`, `CITATION.cff`, and the **nine**
    `HARNESS_HOOK_VERSION` stamps under `template/base/.claude/hooks/`
    (`subagent-verdict.mjs` joined them in 0.6.0, `launch.mjs` in 1.0.0 and
    `session-brief.mjs` in 1.1.0 — the

@@ -65,6 +65,11 @@ function catalog(vitest, coverage = vitest, extra = '') {
 const unmetNames = (yaml, version = '1.1.0') =>
   lib.unmetCatalogPinFloors(MIGRATIONS, version, { workspaceYaml: yaml }).map((f) => f.name)
 
+// The template's two floored catalog lines at whatever plain x.y.z it SHIPS, so the cases
+// below lower the real pins to 4.1.10 (Renovate moves both on every vitest patch; a 4.1.11
+// literal here stops matching at the first bump, and then nothing is lowered at all).
+const SHIPPED_PINS = /^( {2}'?(?:vitest|@vitest\/coverage-v8)'?: )\d+\.\d+\.\d+/gm
+
 // A fresh, private directory per call: mkdtemp never reuses a path, so a leftover from an
 // earlier run can never stand in for a fixture. Each one is removed once the file is done.
 const made = []
@@ -269,9 +274,10 @@ test('the SHIPPED 1.1.0 record floors vitest and @vitest/coverage-v8 at 4.1.11, 
   const workspaceYaml = readFileSync(join(ROOT, 'template/base/pnpm-workspace.yaml'), 'utf8')
   assert.deepEqual(lib.unmetCatalogPinFloors(migrations, '99.0.0', { workspaceYaml }), [])
   // …and the pins every release through 1.0.2 shipped are below it.
+  assert.equal(workspaceYaml.match(SHIPPED_PINS)?.length, 2, 'fixture precondition: the template pins both packages at a plain x.y.z')
   assert.deepEqual(
     lib.unmetCatalogPinFloors(migrations, '99.0.0', {
-      workspaceYaml: workspaceYaml.replaceAll(/^( {2}'?(?:vitest|@vitest\/coverage-v8)'?: )4\.1\.11/gm, '$14.1.10'),
+      workspaceYaml: workspaceYaml.replaceAll(SHIPPED_PINS, '$14.1.10'),
     }).map((f) => f.name),
     ['vitest', '@vitest/coverage-v8'],
   )
@@ -313,7 +319,7 @@ test('on a real scaffold: a pin below the floor → doctor warns (exit 2), updat
     '--set', 'SECURITY_OWNERS=@fixture-owner/security'])
   assert.equal(init.code, 0, init.out)
 
-  // 1. A fresh scaffold ships at the floor: doctor is clean and nothing is parked.
+  // 1. A fresh scaffold meets the floor: doctor is clean and nothing is parked.
   const clean = run(['doctor', '--dir', dir])
   assert.equal(clean.code, 0, clean.out)
   assert.equal(existsSync(join(dir, PARKED)), false)
@@ -323,8 +329,8 @@ test('on a real scaffold: a pin below the floor → doctor warns (exit 2), updat
   //    TREE, with nothing parked yet, and the finding is a WARNING, never an error.
   const yamlPath = join(dir, 'pnpm-workspace.yaml')
   const shipped = readFileSync(yamlPath, 'utf8')
-  const lowered = shipped.replaceAll(/^( {2}'?(?:vitest|@vitest\/coverage-v8)'?: )4\.1\.11/gm, '$14.1.10')
-  assert.notEqual(lowered, shipped, 'fixture precondition: the scaffold pins both packages at 4.1.11')
+  assert.equal(shipped.match(SHIPPED_PINS)?.length, 2, 'fixture precondition: the scaffold pins both packages at a plain x.y.z')
+  const lowered = shipped.replaceAll(SHIPPED_PINS, '$14.1.10')
   writeFileSync(yamlPath, lowered)
   const warned = run(['doctor', '--dir', dir])
   assert.equal(warned.code, 2, warned.out)

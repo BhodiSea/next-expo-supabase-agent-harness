@@ -1,0 +1,273 @@
+{
+  "v": 1,
+  "comment": "The dogfood rows eval B should find on the frozen fixture: SINGLE-HOME-2026-10.md §11.6 and its Dogfood table (rows 1 to 25; plan v2's rows 1 to 22). Each row names the members that identify it; a row of several classes or pairs is split (6a to 6c, 10a to 10c). A row with no members is a second home no sweep family is meant to reach (a reviewer, a gate-proposal or a hand fix), listed so the coverage table counts it. Rows 11, 12, 20 to 22, 24 and 25 are not second homes of a callable and are not listed.",
+  "rows": [
+    {
+      "row": "1",
+      "secondHome": true,
+      "expect": "exact owed",
+      "members": [
+        {
+          "path": "packages/platform/supabase/src/public-env.ts",
+          "name": "publicCredentials"
+        },
+        {
+          "path": "packages/platform/supabase/src/server-env.ts",
+          "name": "serverPublicCredentials"
+        }
+      ]
+    },
+    {
+      "row": "2",
+      "secondHome": true,
+      "expect": "exact owed",
+      "members": [
+        {
+          "path": "apps/mobile/src/i18n/index.ts",
+          "name": "subscribe"
+        },
+        {
+          "path": "apps/mobile/src/theme/theme.ts",
+          "name": "subscribe"
+        }
+      ]
+    },
+    {
+      "row": "3",
+      "secondHome": true,
+      "expect": "exact owed",
+      "members": [
+        {
+          "path": "supabase/migrations/20260202000000_audit.sql",
+          "name": "audit.deny_mutation"
+        },
+        {
+          "path": "supabase/migrations/20260816000000_auth_event_trail.sql",
+          "name": "auth_trail.deny_mutation"
+        }
+      ]
+    },
+    {
+      "row": "4",
+      "secondHome": true,
+      "expect": "exact owed",
+      "members": [
+        {
+          "path": "supabase/migrations/20260202000000_audit.sql",
+          "name": "audit.ensure_partitions"
+        },
+        {
+          "path": "supabase/migrations/20260816000000_auth_event_trail.sql",
+          "name": "auth_trail.ensure_partitions"
+        }
+      ]
+    },
+    {
+      "row": "5",
+      "secondHome": true,
+      "expect": "exact owed",
+      "members": [
+        {
+          "path": "supabase/migrations/20260202000000_audit.sql",
+          "name": "audit.drop_partitions_older_than"
+        },
+        {
+          "path": "supabase/migrations/20260816000000_auth_event_trail.sql",
+          "name": "auth_trail.drop_partitions_older_than"
+        }
+      ]
+    },
+    {
+      "row": "6a",
+      "secondHome": true,
+      "expect": "exact owed (LIFT)",
+      "members": [
+        {
+          "path": "packages/verticals/notes/src/domain/cursor.ts",
+          "name": "toBase64Url"
+        },
+        {
+          "path": "packages/verticals/push/src/domain/cursor.ts",
+          "name": "toBase64Url"
+        }
+      ]
+    },
+    {
+      "row": "6b",
+      "secondHome": true,
+      "expect": "exact owed (LIFT)",
+      "members": [
+        {
+          "path": "packages/verticals/notes/src/domain/cursor.ts",
+          "name": "fromBase64Url"
+        },
+        {
+          "path": "packages/verticals/push/src/domain/cursor.ts",
+          "name": "fromBase64Url"
+        }
+      ]
+    },
+    {
+      "row": "6c",
+      "secondHome": true,
+      "expect": "exact owed (LIFT)",
+      "members": [
+        {
+          "path": "packages/verticals/notes/src/domain/cursor.ts",
+          "name": "isRealTimestamp"
+        },
+        {
+          "path": "packages/verticals/push/src/domain/cursor.ts",
+          "name": "isRealTimestamp"
+        }
+      ]
+    },
+    {
+      "row": "7",
+      "secondHome": true,
+      "expect": "exact-small advisory",
+      "members": [
+        {
+          "path": "packages/verticals/notes/src/data/rows.ts",
+          "name": "asRowArray"
+        },
+        {
+          "path": "packages/verticals/push/src/data/push-tokens.ts",
+          "name": "asRowArray"
+        }
+      ]
+    },
+    {
+      "row": "8",
+      "secondHome": false,
+      "expect": "exact-small (decoy)",
+      "members": [
+        {
+          "path": "packages/api/src/export.ts",
+          "name": "invalidExportCursor"
+        },
+        {
+          "path": "packages/verticals/notes/src/data/errors.ts",
+          "name": "invalidCursor"
+        }
+      ]
+    },
+    {
+      "row": "9",
+      "secondHome": false,
+      "expect": "silent (mirror)",
+      "members": [
+        {
+          "path": "packages/design-system/src/ThemeProvider.tsx",
+          "name": "useTheme"
+        },
+        {
+          "path": "packages/design-system-native/src/ThemeProvider.tsx",
+          "name": "useTheme"
+        }
+      ]
+    },
+    {
+      "row": "10a",
+      "secondHome": true,
+      "expect": "near-miss advisory",
+      "members": [
+        {
+          "path": "packages/verticals/notes/src/data/errors.ts",
+          "name": "mapPostgrestFailure"
+        },
+        {
+          "path": "packages/verticals/push/src/data/push-tokens.ts",
+          "name": "mapFailure"
+        }
+      ]
+    },
+    {
+      "row": "10b",
+      "secondHome": true,
+      "expect": "near-miss advisory",
+      "members": [
+        {
+          "path": "packages/verticals/notes/src/data/errors.ts",
+          "name": "mapPostgrestFailure"
+        },
+        {
+          "path": "packages/platform/supabase/src/errors.ts",
+          "name": "mapPostgresError"
+        }
+      ]
+    },
+    {
+      "row": "10c",
+      "secondHome": true,
+      "expect": "near-miss advisory",
+      "members": [
+        {
+          "path": "packages/verticals/push/src/data/push-tokens.ts",
+          "name": "mapFailure"
+        },
+        {
+          "path": "packages/platform/supabase/src/errors.ts",
+          "name": "mapPostgresError"
+        }
+      ]
+    },
+    {
+      "row": "13",
+      "secondHome": true,
+      "expect": "none (reviewer or gate-proposal)",
+      "members": []
+    },
+    {
+      "row": "14",
+      "secondHome": true,
+      "expect": "none (reviewer or gate-proposal)",
+      "members": []
+    },
+    {
+      "row": "15",
+      "secondHome": true,
+      "expect": "none (reviewer or gate-proposal)",
+      "members": []
+    },
+    {
+      "row": "16",
+      "secondHome": true,
+      "expect": "none (reviewer or gate-proposal)",
+      "members": []
+    },
+    {
+      "row": "17",
+      "secondHome": true,
+      "expect": "none (reviewer or gate-proposal)",
+      "members": []
+    },
+    {
+      "row": "18",
+      "secondHome": true,
+      "expect": "none (reviewer or gate-proposal)",
+      "members": []
+    },
+    {
+      "row": "19",
+      "secondHome": true,
+      "expect": "none (reviewer or gate-proposal)",
+      "members": []
+    },
+    {
+      "row": "23",
+      "secondHome": true,
+      "expect": "exact owed",
+      "members": [
+        {
+          "path": "packages/verticals/notes/src/events.ts",
+          "name": "noteCreated"
+        },
+        {
+          "path": "packages/verticals/notes/src/events.ts",
+          "name": "noteDeleted"
+        }
+      ]
+    }
+  ]
+}

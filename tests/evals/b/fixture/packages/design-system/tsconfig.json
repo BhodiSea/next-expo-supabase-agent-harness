@@ -1,0 +1,32 @@
+{
+  // @app/design-system — the WEB component vocabulary. Compiled into the Next bundle,
+  // never into a Metro one, so the DOM lib is available and react-native is not (the
+  // boundary rules enforce the second half; there is nothing in this file that could).
+  //
+  // Bundler resolution + Preserve, matching the app that consumes it: the package
+  // ships raw TSX through its `exports` map with no build step, so Next's compiler is
+  // the only thing that ever transforms these files and tsc's job here is types only.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    // The repo base narrows lib to ES2023; DOM types are the entire point of this
+    // package (HTMLInputElement, the change event, aria-* attributes).
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    // Next owns JS emit. Declarations only — but NOT noEmit, which is incompatible
+    // with the composite project references the solution build walks.
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
+    // TypeScript 6 no longer auto-includes node_modules/@types, and this package needs
+    // none: @types/react arrives through the react import, not through the ambient
+    // types list, and nothing here touches a node built-in.
+    "types": []
+  },
+  "include": ["src"],
+  "references": [{ "path": "../design-tokens" }]
+}

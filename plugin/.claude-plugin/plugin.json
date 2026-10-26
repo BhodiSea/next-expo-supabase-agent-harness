@@ -1,0 +1,11 @@
+{
+  "name": "next-expo-supabase-agent-harness",
+  "description": "Subagents, commands, and the cross-surface vertical-slice + UI-design skills from the next-expo-supabase-agent-harness. The hooks, gates, permissions and CI belong to an installed project, not to this plugin: a plugin cannot carry permissions, and the harness hooks run the project's own tools/ and validate chain. Install them with: npx --yes next-expo-supabase-agent-harness@latest init",
+  "version": "2.0.4",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/BhodiSea/next-expo-supabase-agent-harness#readme",
+  "repository": "https://github.com/BhodiSea/next-expo-supabase-agent-harness",
+  "author": {
+    "name": "Cogvera Labs"
+  }
+}

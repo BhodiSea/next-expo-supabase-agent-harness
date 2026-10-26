@@ -49,3 +49,8 @@ template/**/.expo/
 # CNG purity: generated native projects must never be committed, anywhere.
 template/**/android/
 template/**/ios/
+# The documentation site's build output and Astro's cache (docs-site/, #171). Unignored, a
+# local build puts its generated files in front of hygiene's NUL sweep (Pagefind's index is
+# binary), check-reuse and `eslint .`, all of which read untracked files too.
+docs-site/dist/
+docs-site/.astro/
