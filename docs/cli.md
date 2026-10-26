@@ -38,7 +38,7 @@ Scaffold the harness and reference app into a directory.
 | `--yes` | Do not prompt. |
 | `--dry-run` | Report what would be written and write nothing. |
 | `--report json` | Print the install report as JSON instead of text. |
-| `--consume` | For a copy made with GitHub's "Use this template": turn the checkout itself into a project, removing the installer and template trees. |
+| `--consume` | For a clone of this repository: turn the checkout itself into a project, removing the installer and template trees. |
 | `--with-demo` | Also plant the worked example (2.0.0): the notes vertical, its web route, Server Action and read seam, the mobile notes and matrix screens, its router, its migrations, and the example's rows in the seeded registers. A default `init` plans none of it. Recorded as `demo: true` in `.harness/manifest.json`, carried by `init --force`, and refused for a retrofit. `eject` removes it again. |
 
 ### `update`
