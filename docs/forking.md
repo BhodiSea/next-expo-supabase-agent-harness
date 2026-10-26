@@ -1,11 +1,40 @@
 # Forking the harness itself
 
-This repository is a GitHub template repository. "Use this template" produces
-your own copy of the harness (installer, `template/`, selftest machinery) to
-rebrand and extend into a sibling for a different stack. It does not produce an
-app. To scaffold an app, use the `npx` command in the [README](../README.md).
+A fork of the harness is your own copy of the installer, `template/` and the
+selftest machinery, to rebrand and extend into a sibling for a different stack.
+It does not produce an app. To scaffold an app, use the `npx` command in the
+[README](../README.md).
 
-A template copy starts from a single commit with no upstream history or tags.
+This repository is not a GitHub template repository. Its template flag is off
+(#166), because "Use this template" gave a visitor who wanted an app a copy of
+the harness instead. A fork starts from a clone with a fresh history: one
+commit, with no upstream history or tags.
+
+```sh
+git clone --no-tags --single-branch https://github.com/BhodiSea/next-expo-supabase-agent-harness.git <your-harness>
+cd <your-harness>
+upstream_sha="$(git rev-parse --short HEAD)"
+git checkout --orphan fresh
+git commit -m "chore: start from next-expo-supabase-agent-harness at ${upstream_sha}"
+git branch -M main
+git remote rename origin upstream
+git remote add origin <your repository URL>
+git push -u origin main
+```
+
+Clone without tags. `check-ramp-ledger`, `check-dependency-channel`,
+`check-sbom-drift`, `check-eol-target`, `check-seeded-migrations` and
+`check-released-shas` read `git tag`, and the upstream tags name commits your
+history does not contain. The `upstream` remote keeps the `--no-tags` setting,
+so a later `git fetch upstream` for upstream fixes brings no tags either.
+
+Expect `lint.yml`'s `machinery-lint` job to be red at first.
+`check-ramp-ledger`, `check-dependency-channel`, `check-sbom-drift` and
+`check-eol-target` compare a release with the one before it, and in CI they
+fail rather than skip until a `vX.Y.Z` tag below the version in `package.json`
+is reachable. `check-ramp-ledger` also fails while `VINTAGES` in
+`scripts/lib/ramp-sites.mjs` names a release your history has no tag for.
+
 The selftest, hygiene and lint workflows do not depend on the upstream owner.
 
 ## What to rewrite
@@ -18,7 +47,10 @@ is the set of repo-root sites that hardcode the upstream owner:
   `repository.url`, `homepage`, `bugs.url`, `author`
 - `.github/workflows/release.yml`: the `publish-npm` job runs only in this
   repository. Point its `if:` at yours once the package is renamed and has its own
-  first publish and trusted publisher, or delete the job
+  first publish and trusted publisher, or delete the job. The `release` job also
+  opens a discussion for each release in the `Announcements` category; in a
+  repository without Discussions or without that category, that step prints a
+  warning and the job still succeeds
 - `README.md`: the `npx` command and the lineage links
 - `docs/forking.md`: this checklist
 - `CITATION.cff`: `title`, `authors`, `repository-code`

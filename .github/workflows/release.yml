@@ -24,6 +24,7 @@ jobs:
       contents: write
       id-token: write
       attestations: write
+      discussions: write # the last step opens the release's discussion in Announcements (#166)
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
@@ -104,6 +105,44 @@ jobs:
           gh release create "$GITHUB_REF_NAME" ./*.tgz ./*.tgz.intoto.jsonl \
             --title "$GITHUB_REF_NAME" \
             --notes-file "$RUNNER_TEMP/notes.md"
+      # A thread for questions about the release (#166). The published release is edited to
+      # start a discussion in Announcements (immutable releases are off in this repository,
+      # so a published release can still be edited), and the link is read back. It is a step
+      # of its own rather than gh's --discussion-category flag on the step above: with assets
+      # attached, gh creates a draft, uploads, then publishes it with the category in one
+      # last PATCH, and deletes the draft when that PATCH fails, so the job would go red
+      # after packing and attesting and publish-npm would never run. Linking can fail for
+      # reasons this tree cannot see (Discussions off, no such category in a fork), and a
+      # release without a thread is still a whole release, so this step only warns: every
+      # failure prints a ::warning:: and exits 0, and continue-on-error with its own timeout
+      # covers a hang or a crash.
+      - name: Open the release's discussion in Announcements (warns, never fails)
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISCUSSION_CATEGORY: Announcements
+        run: |
+          warn() {
+            echo "::warning title=Release discussion::$1 Start one from the release page if it is wanted."
+            exit 0
+          }
+          release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME" --jq '.id')" \
+            || warn "Could not read the release for $GITHUB_REF_NAME."
+          [[ "$release_id" =~ ^[0-9]+$ ]] || warn "The release for $GITHUB_REF_NAME has no numeric id."
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" \
+            -f discussion_category_name="$DISCUSSION_CATEGORY" --silent \
+            || warn "GitHub did not start a discussion in $DISCUSSION_CATEGORY for $GITHUB_REF_NAME."
+          for attempt in 1 2 3; do
+            [ "$attempt" = 1 ] || sleep 10
+            discussion_url="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" --jq '.discussion_url // ""')" \
+              || warn "Could not read the release for $GITHUB_REF_NAME back (attempt $attempt)."
+            if [ -n "$discussion_url" ]; then
+              echo "Release discussion: $discussion_url"
+              exit 0
+            fi
+          done
+          warn "The release for $GITHUB_REF_NAME has no linked discussion."
 
   # npm (1.1.0, #161). The registry gets the SAME FILE the GitHub Release carries: the
   # tarball `release` packed and attested, fetched back from the release, checked against

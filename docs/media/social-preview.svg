@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+  <!--
+    Source of docs/media/social-preview.png, the repository's social preview image
+    (Settings, General, Social preview). After an edit, render the PNG again from the
+    repository root with headless Chrome, look at it, and upload it again. Chrome takes
+    its switches with one dash as well as two, and an XML comment cannot hold two:
+
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" -headless=new \
+      -disable-gpu -hide-scrollbars -force-device-scale-factor=1 -window-size=1280,640 \
+      -user-data-dir="$(mktemp -d)" -screenshot="$PWD/docs/media/social-preview.png" \
+      "file://$PWD/docs/media/social-preview.svg"
+
+    Text only, at least 64 px from every edge, and no version numbers, so it does not
+    go stale with a release.
+  -->
+  <title>next-expo-supabase-agent-harness</title>
+  <rect width="1280" height="640" fill="#0d1117"/>
+  <rect x="0" y="0" width="12" height="640" fill="#3ecf8e"/>
+  <text id="name" x="96" y="168" fill="#f0f6fc" font-family="Menlo, 'DejaVu Sans Mono', Consolas, monospace" font-size="50" font-weight="700">next-expo-supabase-agent-harness</text>
+  <g id="sentence" fill="#c9d1d9" font-family="'Helvetica Neue', Helvetica, Arial, 'DejaVu Sans', sans-serif" font-size="34">
+    <text x="96" y="264">A CLI that scaffolds a pnpm monorepo with a Next.js web app</text>
+    <text x="96" y="312">and an Expo (React Native) mobile app on one Supabase backend,</text>
+    <text x="96" y="360">plus Claude Code hooks and CI gates that block an agent turn</text>
+    <text x="96" y="408">or a merge until validation passes.</text>
+  </g>
+  <text id="stack" x="96" y="552" fill="#8b949e" font-family="'Helvetica Neue', Helvetica, Arial, 'DejaVu Sans', sans-serif" font-size="28">Next.js · Expo · React Native · Supabase · tRPC · pnpm · Claude Code hooks · pgTAP</text>
+</svg>

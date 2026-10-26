@@ -183,6 +183,24 @@ this comment. -->
   project's own tools. The README gains the install commands. The folder is factory only:
   of #163's changes, only the scaffolder fix under Fixed reaches an install.
 
+- **One short description for the npm package, a social preview image, a fork recipe that
+  does not need the template flag, and a discussion for each release** (#166).
+  `package.json`'s description was longer than the part npm keeps, and the registry holds the
+  current release's description cut off mid-word. It is now one sentence, and the new
+  `tests/gates/package-metadata.test.mjs` reds a description npm would cut. The npm keywords
+  add terms such as `claude-code-hooks`, `pgtap` and `row-level-security`, and `CITATION.cff`
+  gains a keyword list. The README says "(React Native)" in its opening sentence and names the
+  Next.js minor the catalog pins, and it gains a supply-chain bullet, a link to the hook map,
+  a comparison with create-t3-turbo and Solito, and a Documentation section.
+  `docs/media/social-preview.svg` is the source of the repository's social preview image, and
+  its comment holds the Chrome command that renders `docs/media/social-preview.png`. The
+  repository is no longer a GitHub template repository, so `docs/forking.md` starts a sibling
+  harness from a clone with a fresh history and says which `machinery-lint` checks stay red
+  until the fork has release tags of its own; `GOVERNANCE.md` and `docs/cli.md` follow. The
+  `release` job in `release.yml` gains `discussions: write` and a last step that opens the
+  release's discussion in Announcements. When that fails, the step prints a warning and the
+  job stays green, so `publish-npm` still runs. Factory only: nothing changes for an install.
+
 ## [2.0.3] — 2026-10-17
 
 **A patch: the v2.0.x defect fixes, a security floor move, and two additions.** The `next`
