@@ -2,7 +2,7 @@
   // Biome = formatter + import organizer ONLY. The linter is OFF: ESLint
   // (typescript-eslint strictTypeChecked et al.) is the single lint owner, so
   // the two tools can never disagree about the same rule.
-  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.6.2/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -34,7 +34,17 @@
       "!**/styles/metal/**",
       // Harness-owned hook/tool internals are not project code.
       "!**/.claude",
-      "!**/.claude/**"
+      "!**/.claude/**",
+      // Biome does NOT own Markdown or YAML here. 2.6.0 added a formatter for both, on by
+      // default, which would reflow the docs' tables, requote the owned workflows and fight
+      // pnpm over pnpm-lock.yaml (it reads CITATION.cff as YAML too). Excluded by extension
+      // rather than with `markdown`/`yaml` keys: Biome 2.5 rejects those as unknown, and an
+      // install keeps its own Biome pin when `update` re-plants this file.
+      "!**/*.md",
+      "!**/*.markdown",
+      "!**/*.yml",
+      "!**/*.yaml",
+      "!**/*.cff"
     ]
   },
   "formatter": {

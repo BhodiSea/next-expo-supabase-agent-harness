@@ -68,6 +68,23 @@ this comment. -->
   `docs/security/threat-model.md` lists the row. A developer who wants a personal local
   config writes it themselves, as for `lefthook.yml`. Every file this changes is owned and
   reaches an install with `update`.
+- **The template catalog moves Biome to 2.6.2 and `vitest` to 4.1.12, and Biome checks the
+  same files it did on 2.5** (#269). Biome 2.6.0 added a Markdown and a YAML formatter, both
+  on by default, and the scaffold's `biome.jsonc` includes every file, so `biome ci` would
+  red a fresh scaffold on its docs, its workflows and `pnpm-lock.yaml`. `biome.jsonc` now
+  names the 2.6.2 schema and excludes `*.md`, `*.markdown`, `*.yml`, `*.yaml` and `*.cff` by
+  extension, which Biome 2.5 accepts; it rejects the `markdown` and `yaml` keys as unknown.
+  Biome published 2.6.0 and 2.6.1 with no platform binary, so the pin skips them: on 2.6.1
+  every scaffold `validate` in CI failed `format` with `Cannot find module
+  '@biomejs/cli-linux-x64/biome'`. `vitest` and `@vitest/coverage-v8` 4.1.12 fix
+  GHSA-qxg6-89mg-rqv8 and GHSA-xp26-3454-mjgp (both moderate), in `@vitest/mocker`'s mock
+  registration over a dev server's WebSocket; the second bypasses the 4.1.11 fix on
+  Windows. The catalog also moves `next` to 16.4.2 and pnpm to 11.28.6, and
+  `tests/installer/catalog-pin-floors.test.mjs` now lowers whatever plain `vitest` pin the
+  template ships instead of the literal 4.1.11. `biome.jsonc` is owned and reaches an install
+  with `update`, where Biome 2.5 prints one information line about the newer schema.
+  `pnpm-workspace.yaml` is seeded, so an install keeps its own pins. The `vitest` floor stays
+  4.1.11, and the runbook's 2.0.4 section names the pins to raise by hand.
 
 ## [2.0.3] — 2026-10-17
 

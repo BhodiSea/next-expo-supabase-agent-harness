@@ -4448,6 +4448,35 @@ plants `.claude/hooks/lib/guard-rules.mjs` and `docs/security/threat-model.md`, 
 A local config you already keep is left alone and lefthook still reads it. To change it
 later, edit it yourself, or set `HARNESS_ALLOW_SELF_EDIT=1` for the agent's session.
 
+### The template catalog moves Biome to 2.6.2 and `vitest` to 4.1.12 (#269)
+
+Biome 2.6.0 added a Markdown and a YAML formatter, both on by default. `update` plants
+`biome.jsonc`, which is owned: it names the 2.6.2 schema and excludes `*.md`, `*.markdown`,
+`*.yml`, `*.yaml` and `*.cff`, so Biome 2.5 and 2.6 check the same files and neither rewrites
+your docs, your workflows or `pnpm-lock.yaml`. Your catalog is seeded, so your Biome pin
+stays where it is, and Biome 2.5 prints one information line saying that the configuration
+schema version does not match the CLI version. It does not fail `format`. Raising
+`@biomejs/biome` to 2.6.2 clears it; 2.6.0 and 2.6.1 were published with no platform binary
+and do not run. If you keep a fork of `biome.jsonc`, copy the Markdown and YAML exclusions
+into it before you raise the pin.
+
+**Raise `vitest` by hand.** The catalog pins `vitest` and `@vitest/coverage-v8` at
+**4.1.12**, for GHSA-qxg6-89mg-rqv8 and GHSA-xp26-3454-mjgp (both moderate). Both are in
+`@vitest/mocker`'s mock registration over a dev server's WebSocket, and the second bypasses
+the 4.1.11 fix on Windows. `update` does not touch your pins, and `doctor` does not ask for
+this one: the floor it checks stays at 4.1.11. Move both pins together, because the coverage
+package peer-pins the identical `vitest`:
+
+```
+# in the pnpm-workspace.yaml catalog: vitest: 4.1.12 and '@vitest/coverage-v8': 4.1.12
+pnpm install && git add pnpm-lock.yaml pnpm-workspace.yaml
+pnpm validate
+```
+
+The catalog also moves `next` to 16.4.2 and pnpm to 11.28.6, and neither is needed for this
+release. If you raise pnpm, raise `build.base.pnpm` in `apps/mobile/eas.json` with
+`packageManager`, or `version-sync` reds.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it
