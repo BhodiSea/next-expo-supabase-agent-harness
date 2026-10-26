@@ -625,6 +625,9 @@
     "biome.jsonc": [
       {
         "sha256": "6a63429ed5f320a17574dfc2f307cd977ca05a6d04a6a97f253d9b7797589c4a"
+      },
+      {
+        "sha256": "bb5cb287b58e497a292013444a08bb085ddb0094f31a388d2968195dbc52c786"
       }
     ],
     "commitlint.config.mjs": [
@@ -967,6 +970,15 @@
       },
       {
         "sha256": "c9becbad1543ca740e90dc01d1a430cc9945cc1387268eff8c73bbe1253036b2",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "fffc8b18a1129afded6a02f7115c3a6d172a792c96fa8da5a2631bec6f14cdf9",
         "sites": [
           [
             14122,
