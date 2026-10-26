@@ -120,6 +120,19 @@ this comment. -->
   red before the fix. `update` plants the regenerated `tools/lib/planted-shas.json` and this
   release's runbook section.
 
+- **The vertical-slice scaffolder never writes over or through a path that exists** (#163).
+  `.claude/skills/authoring-vertical-slice/scripts/scaffold-slice.mjs` asked whether a
+  stub's path existed and then wrote it by name (CodeQL `js/file-system-race`), so a file
+  created between the two calls was overwritten, and a dangling symbolic link at the path
+  was written through to its target. It now writes each stub with an exclusive create
+  (`writeFileSync` with the `wx` flag) and prints `exists, skipped:` for any path that
+  already exists, a link included, as it did for an existing file; nothing else it prints
+  or writes changes. `tests/gates/scaffold-slice.test.mjs` covers an existing file and a
+  dangling link, and the link case is red on 2.0.3. CodeQL's JavaScript extractor skips
+  hidden directories other than `.github`, so neither an install's CodeQL lane nor this
+  repository's analyses `.claude/`; this repository's lane found the race in the new
+  `plugin/` copy. The script is owned and reaches an install with `update`. It runs only
+  when someone runs it, so no slice an install already has changes.
 ### Added
 
 - **The README shows the harness running, and says which projects it fits** (#165). A
@@ -161,14 +174,14 @@ this comment. -->
   marketplace entry's `source` is now `./plugin`, which holds the manifest, a README, the
   LICENSE and the agents, commands and skills, copied from `template/base/.claude/` as
   regular files by `scripts/generate-plugin-folder.mjs`. An install used to copy every
-  tracked file, a folder the plugin directory holds for a reviewer at 512 files or with a
-  non-image file over 256 KiB. `scripts/check-plugin-manifest.mjs` now reds when `plugin/`
-  drifts from its sources, holds a link or a stray file, or breaks those limits, and
-  `scripts/check-release-lockstep.mjs` reads the manifest at its new path,
+  tracked file, a folder the plugin directory holds for a reviewer when it has more than 512
+  files or a non-image file over 256 KiB. `scripts/check-plugin-manifest.mjs` now reds when
+  `plugin/` drifts from its sources, holds a link or a stray file, or breaks those limits,
+  and `scripts/check-release-lockstep.mjs` reads the manifest at its new path,
   `plugin/.claude-plugin/plugin.json`. Its description no longer says hooks cannot ship in a
   plugin: what a plugin cannot carry is permissions, and the harness's hooks run the
-  project's own tools. The README gains the install commands. Factory only: nothing changes
-  for an install.
+  project's own tools. The README gains the install commands. The folder is factory only:
+  of #163's changes, only the scaffolder fix under Fixed reaches an install.
 
 ## [2.0.3] — 2026-10-17
 

@@ -19,7 +19,7 @@
 // What the script must not do itself (a catalog key, a regenerated registry, a spec, the
 // vertical's package.json) is a printed `next:` line. So is the step no agent may take (#154):
 // the `./client` census entry, because tools/exports-walls.json is harness-owned.
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
 
@@ -324,14 +324,18 @@ const files = [
   ],
 ]
 
+// An exclusive create ('wx'), not a check and then a write: no existence test runs ahead of
+// the write, and a path that already exists, a link included, is skipped, never written over
+// or through.
 for (const [path, body] of files) {
   mkdirSync(dirname(path), { recursive: true })
-  if (existsSync(path)) {
+  try {
+    writeFileSync(path, body, { flag: 'wx' })
+    console.log('scaffolded:', path)
+  } catch (err) {
+    if (err?.code !== 'EEXIST') throw err
     console.log('exists, skipped:', path)
-    continue
   }
-  writeFileSync(path, body)
-  console.log('scaffolded:', path)
 }
 
 console.log(
