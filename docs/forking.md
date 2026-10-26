@@ -47,7 +47,10 @@ is the set of repo-root sites that hardcode the upstream owner:
   `repository.url`, `homepage`, `bugs.url`, `author`
 - `.github/workflows/release.yml`: the `publish-npm` job runs only in this
   repository. Point its `if:` at yours once the package is renamed and has its own
-  first publish and trusted publisher, or delete the job
+  first publish and trusted publisher, or delete the job. The `release` job also
+  opens a discussion for each release in the `Announcements` category; in a
+  repository without Discussions or without that category, that step prints a
+  warning and the job still succeeds
 - `README.md`: the `npx` command and the lineage links
 - `docs/forking.md`: this checklist
 - `CITATION.cff`: `title`, `authors`, `repository-code`
