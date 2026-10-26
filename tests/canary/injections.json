@@ -1242,6 +1242,18 @@
         "note": "2.1.0 (#188): the Windows half of evals A and B's two-machine check. It installs the root toolchain and runs tests/evals/sweep-digest.test.mjs, the file machinery-lint's machinery-evals step also runs on ubuntu, under HARNESS_TEST_REQUIRE_TYPESCRIPT=1. That test reds on any byte of difference from the committed tests/evals/b/sweep.sha256 and tests/evals/a/dev.sha256, so what proves this job can fail is the test's own assertion, exercised on ubuntu on every run"
       }
     ],
+    "pages.yml#docs-build": [
+      {
+        "kind": "steps",
+        "note": "2.0.4 (#171): the Starlight build over template/base/docs and the module docs, read in place; its own exit is the red. starlight-links-validator fails it on a broken internal link or #anchor, the content schema on a page it cannot title, and the site's own plugins (docs-site/src/harness-docs/) on a relative link to a missing file, a duplicate gate anchor or a catalog that yields no gate anchors"
+      }
+    ],
+    "pages.yml#docs-deploy": [
+      {
+        "kind": "steps",
+        "note": "2.0.4 (#171): the vendor action actions/deploy-pages publishing the artifact docs-build uploaded, on main in this repository only; its non-zero exit is the red, and what it publishes is what docs-build proved"
+      }
+    ],
     "release.yml#release": [
       {
         "kind": "fixture",

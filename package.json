@@ -4,7 +4,7 @@
   "description": "A CLI that scaffolds a Next.js and Expo (React Native) monorepo on Supabase, with Claude Code hooks and CI gates that block an agent turn or a merge until validation passes.",
   "license": "Apache-2.0",
   "author": "Cogvera Labs",
-  "homepage": "https://github.com/BhodiSea/next-expo-supabase-agent-harness#readme",
+  "homepage": "https://bhodisea.github.io/next-expo-supabase-agent-harness/",
   "bugs": {
     "url": "https://github.com/BhodiSea/next-expo-supabase-agent-harness/issues"
   },

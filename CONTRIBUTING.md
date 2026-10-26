@@ -75,6 +75,10 @@ node scripts/check-claims.mjs    # recomputes the numbers the docs state (under 
 node scripts/hygiene.mjs         # leaked strings, unearned maturity and standards claims (under 1 s)
 GITHUB_BASE_REF=main CI=true node --test "tests/gates/**/*.test.mjs"   # many of these read the docs (about 2 min)
 
+# A page under template/base/docs/ or template/modules/*/docs/, or a change in docs-site/
+pnpm --dir docs-site install --frozen-lockfile   # the documentation site has its own lockfile
+pnpm --dir docs-site run build                   # renders every page; a broken link or #anchor fails it
+
 # An installer change: installer/
 GITHUB_BASE_REF=main CI=true node --test "tests/installer/**/*.test.mjs"   # about 60 s
 node scripts/check-syntax.mjs    # about 13 s
@@ -156,6 +160,12 @@ node scripts/check-seeded-migrations.mjs   # seedOnInitOnly completeness: an unr
 node scripts/check-eol-target.mjs          # no shipped production-scope removalTarget has ARRIVED in the release being cut, and a moved one carries a seededSourceFixes probe
 node scripts/check-sbom-drift.mjs          # the SBOM as a RELEASE DIFF: no component added since the previous tag without a reviewed row
 node scripts/check-released-shas.mjs --verify-tags  # template/shas lists every owned file this tree ships, covers every vintage, and contains every tag's own bytes — touched an owned template file? run `node scripts/generate-released-shas.mjs --current` first
+
+# pages.yml, on a pull request that touches template/base/docs/, template/modules/*/docs/,
+# docs-site/, docs/media/social-preview.png or the workflow itself: the documentation site
+# builds, and every internal link and #anchor in it resolves. docs-site/ is its own pnpm
+# project, so it installs separately.
+pnpm --dir docs-site install --frozen-lockfile && pnpm --dir docs-site run build
 
 # The one that matters most — the scaffold must be green with ZERO edits.
 # git init FIRST, as init's closing note says: the prepare script (lefthook install)

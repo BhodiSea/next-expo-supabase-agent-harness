@@ -29,6 +29,12 @@ export default [
     ignores: ['node_modules/**', 'template/stack/**', 'template/presets/**', '.fixtures/**', '.selftest/**', 'coverage/**', 'plugin/**'],
   },
   {
+    // The documentation site's build output and Astro's cache (#171): bundled code no one
+    // wrote here. Linted, a local build adds hundreds of findings and new over-budget functions
+    // to the ratchet. The site's own .mjs sources stay linted.
+    ignores: ['docs-site/dist/**', 'docs-site/.astro/**'],
+  },
+  {
     files: ['**/*.mjs', '**/*.js', '**/*.cjs'],
     ...js.configs.recommended,
     languageOptions: {

@@ -1,0 +1,101 @@
+# The documentation site (#171): build the Starlight site in docs-site/ from
+# template/base/docs/ and template/modules/*/docs/, read in place, and deploy it to GitHub
+# Pages from main. A pull request only builds; the build is the check, because
+# starlight-links-validator fails it on a broken internal link or #anchor and the content
+# schema fails it on a page it cannot title. External links are never fetched.
+name: pages
+
+on:
+  # Only pull requests that can change the site. This filter is why docs-build cannot be a
+  # required check: on every other pull request it never runs, and a required check that
+  # never runs leaves the pull request waiting.
+  pull_request:
+    paths:
+      - 'template/base/docs/**'
+      - 'template/modules/*/docs/**'
+      - 'docs-site/**'
+      - 'docs/media/social-preview.png'
+      - '.github/workflows/pages.yml'
+  # Every push to main builds and deploys, so the site always matches main.
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One run per ref. A newer push to a pull request cancels its older build; runs on main
+# queue instead, so a deployment is never cancelled halfway.
+concurrency:
+  group: pages-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Every `run:` step under bash -eo pipefail (tests/gates/workflow-hardening.test.mjs).
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  docs-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history: each page's "last updated" date comes from `git log`, and a shallow
+          # clone would stamp every page with the checkout commit's date.
+          fetch-depth: 0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          # astro refuses a Node 22 older than its own floor, and the runner image's cached
+          # Node 22 can be older than that floor; Node 24 passes the check.
+          node-version: 24
+          # A clean install from the lockfile, never a restored cache: this job's output is
+          # what gets published.
+          package-manager-cache: false
+      - name: corepack pnpm (pinned by docs-site/package.json packageManager)
+        working-directory: docs-site
+        run: |
+          corepack enable
+          corepack prepare --activate
+      - name: Install the site toolchain (frozen lockfile)
+        working-directory: docs-site
+        run: pnpm install --frozen-lockfile
+      - name: Build the site (links and anchors validated, search index and llms.txt written)
+        working-directory: docs-site
+        env:
+          ASTRO_TELEMETRY_DISABLED: '1'
+        run: pnpm run build
+      - name: Upload the Pages artifact
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.repository == 'BhodiSea/next-expo-supabase-agent-harness'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: docs-site/dist
+
+  # Main only, and only in this repository: a copy of it has no Pages site until its owner
+  # enables one, and without this guard its deploy would fail on every push (docs/forking.md).
+  docs-deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.repository == 'BhodiSea/next-expo-supabase-agent-harness'
+    needs: docs-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The workflow's only write scopes, on the one job that needs them. No checkout here.
+    permissions:
+      pages: write # deploy-pages creates the Pages deployment from the uploaded artifact
+      id-token: write # deploy-pages proves this run's identity to Pages with an OIDC token
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
