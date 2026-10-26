@@ -18,6 +18,17 @@ abstract: >-
 authors:
   - name: Cogvera Labs
 repository-code: 'https://github.com/BhodiSea/next-expo-supabase-agent-harness'
+keywords:
+  - nextjs
+  - expo
+  - react-native
+  - supabase
+  - row-level-security
+  - claude-code
+  - coding-agent
+  - quality-gates
+  - provenance
+  - supply-chain
 license: Apache-2.0
 version: 2.0.4
 date-released: '2026-10-21'
