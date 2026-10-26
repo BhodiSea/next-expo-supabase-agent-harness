@@ -291,6 +291,13 @@ const RULE_CANARIES = {
     bashDeny('echo "[core]" > .git/config'),
     bashDeny('Set-Content -Path .git/config -Value "[core]"'),
     bashDeny('echo x > .git\\hooks\\pre-commit'),
+    // 2.0.4 (#260): lefthook merges a local config over lefthook.yml, so writing one
+    // skips any job with no flag on the commit. Every spelling lefthook 2.1.10 reads.
+    bashDeny("printf 'pre-commit:\\n  skip: true\\n' > lefthook-local.yml"),
+    bashDeny('echo x >> .lefthook-local.yaml'),
+    bashDeny('echo {} | tee .config/lefthook-local.json'),
+    bashDeny('cp /tmp/skip.toml lefthook-local.toml'),
+    bashDeny('Set-Content -Path lefthook-local.jsonc -Value "{}"'),
     // Honors the HARNESS_ALLOW_SELF_EDIT=1 human escape hatch (canary CI uses it).
     bashAllow('echo x > tools/canary-probe.mjs', SELF_EDIT),
   ],
@@ -732,6 +739,23 @@ const RULE_CANARIES = {
   'test-quality-allow': [pathDeny('tools/test-quality-allow.json')],
   'rls-runner': [pathDeny('tests/rls/run-rls.mjs')],
   lefthook: [pathDeny('lefthook.yml')],
+  // 2.0.4 (#260): the local config lefthook merges over lefthook.yml. A `skip: true` in it
+  // skipped any commit-time job, and no guard knew the file. Each spelling below shows up
+  // merged in `lefthook dump` under lefthook 2.1.10, the version the template pins.
+  'lefthook-local': [
+    pathDeny('lefthook-local.yml'),
+    pathDeny('lefthook-local.yaml'),
+    pathDeny('lefthook-local.json'),
+    pathDeny('lefthook-local.jsonc'),
+    pathDeny('lefthook-local.toml'),
+    pathDeny('.lefthook-local.yml'),
+    pathDeny('.config/lefthook-local.yml'),
+    // The script directory lefthook-local can name only adds jobs, and a nested file is not
+    // read at all: both stay ordinary work.
+    pathAllow('.lefthook-local/pre-commit/check.sh'),
+    pathAllow('apps/web/lefthook-local.yml'),
+    pathAllow('lefthook-local.yml', SELF_EDIT),
+  ],
   // 0.9.0: the INSTALLED commit-time layer. Overwriting .git/hooks/pre-commit disarmed
   // layer 2 with a green chain — the hookspath rule only ever saw the REPOINT spelling.
   'git-hooks-dir': [
@@ -1413,6 +1437,7 @@ test('write-guard does NOT false-positive on ordinary nested project files', () 
     'apps/mobile/src/features/knip.json',
     'node_modules/pkg/tools/validate.mjs',
     'apps/server/src/lefthook.yml',
+    'apps/server/src/lefthook-local.yml',
     // Contains "ios" in a segment without BEING the generated native dir.
     'apps/mobile/src/ios-utils.ts',
   ]) {
