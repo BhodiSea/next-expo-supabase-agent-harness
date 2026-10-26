@@ -15,5 +15,5 @@ export const onRequest = defineRouteMiddleware((context) => {
     url: new URL(context.url.pathname, context.site).href,
     isPartOf: { '@type': 'WebSite', name: route.siteTitle, url: new URL(import.meta.env.BASE_URL, context.site).href },
   }
-  route.head.push({ tag: 'script', attrs: { type: 'application/ld+json' }, content: JSON.stringify(jsonLd) })
+  route.head.push({ tag: 'script', attrs: { type: 'application/ld+json' }, content: JSON.stringify(jsonLd).replace(/</g, '\\u003c') })
 })

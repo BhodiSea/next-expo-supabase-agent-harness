@@ -18,6 +18,9 @@ const base = '/next-expo-supabase-agent-harness'
 const title = 'next-expo-supabase-agent-harness'
 const description =
   'The doctrine, gates catalog, runbooks, decision records and module guides that the next-expo-supabase-agent-harness CLI writes into every project it scaffolds.'
+// The og.png card (docs/media/social-preview.png) is text only; this is its text.
+const OG_IMAGE_ALT =
+  'next-expo-supabase-agent-harness: a CLI that scaffolds a pnpm monorepo with a Next.js web app and an Expo (React Native) mobile app on one Supabase backend, plus Claude Code hooks and CI gates.'
 
 /**
  * og.png is the repository's social preview image, copied into the build output so the
@@ -70,10 +73,14 @@ export default defineConfig({
       head: [
         { tag: 'meta', attrs: { property: 'og:image', content: `${site}${base}/og.png` } },
         { tag: 'meta', attrs: { name: 'twitter:image', content: `${site}${base}/og.png` } },
+        { tag: 'meta', attrs: { property: 'og:image:alt', content: OG_IMAGE_ALT } },
+        { tag: 'meta', attrs: { name: 'twitter:image:alt', content: OG_IMAGE_ALT } },
+        { tag: 'meta', attrs: { property: 'og:image:width', content: '1280' } },
+        { tag: 'meta', attrs: { property: 'og:image:height', content: '640' } },
         {
           tag: 'script',
           attrs: { type: 'application/ld+json' },
-          content: JSON.stringify({ '@context': 'https://schema.org', '@type': 'WebSite', name: title, url: `${site}${base}/` }),
+          content: JSON.stringify({ '@context': 'https://schema.org', '@type': 'WebSite', name: title, url: `${site}${base}/` }).replace(/</g, '\\u003c'),
         },
       ],
       plugins: [
@@ -88,7 +95,7 @@ export default defineConfig({
           projectName: title,
           description,
           // llms.txt lists no pages by itself; this puts every page in it.
-          details: `Every page, with the repository file it is rendered from:\n\n${llmsPageIndex(`${site}${base}/`)}`,
+          details: `Every documentation page, with the repository file it is rendered from (the site's landing page, ${site}${base}/, links into them):\n\n${llmsPageIndex(`${site}${base}/`)}`,
           customSets: [
             { label: 'Harness doctrine and gates', paths: ['harness/**'], description: 'the doctrine, enforcement tiers and the gates catalog' },
             { label: 'Architecture decisions', paths: ['adr/**'] },

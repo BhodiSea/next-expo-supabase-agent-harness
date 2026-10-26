@@ -24,8 +24,9 @@ on:
 permissions:
   contents: read
 
-# One run per ref. A newer push to a pull request cancels its older build; runs on main
-# queue instead, so a deployment is never cancelled halfway.
+# One run per ref. A newer push to a pull request cancels its older build. On main a started
+# run is never cancelled; a newer push replaces a run that is still waiting, so the newest
+# main is what deploys.
 concurrency:
   group: pages-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

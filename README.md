@@ -270,6 +270,9 @@ counts the requirements of three further standards
 
 ## Documentation
 
+- [Documentation site](https://bhodisea.github.io/next-expo-supabase-agent-harness/): the
+  doctrine, the gates catalog, the runbooks and the module guides, searchable, built from
+  the same files every scaffold receives
 - [CLI reference](docs/cli.md): every command, flag and placeholder
 - [Harness doctrine](template/base/docs/harness/README.md) and
   [gates catalog](template/base/docs/harness/gates-catalog.md), which ship into

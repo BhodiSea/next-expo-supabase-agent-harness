@@ -35,8 +35,9 @@ function rawHtmlAsText() {
 
 /**
  * Title from the first top-level `# ` heading, which is then removed so that Starlight's own
- * <h1>, rendered from `title`, is the only one. The meta description is the first top-level
- * paragraph as plain text, cut at a word boundary.
+ * <h1>, rendered from `title`, is the only one. The meta description is the first paragraph,
+ * top-level or the opening of a top-level blockquote (the generated pages lead with a quoted
+ * note), that says what the page is about, as plain text cut at a word boundary.
  */
 function titleFromFirstH1() {
   let taken = false
@@ -53,11 +54,22 @@ function titleFromFirstH1() {
     },
     paragraph(node, ctx) {
       const fm = ctx.data.astro?.frontmatter
-      if (described || !fm || fm.description !== undefined || ctx.parent(node)?.type !== 'root') return
+      if (described || !fm || fm.description !== undefined) return
+      const parent = ctx.parent(node)
+      const inTopQuote = parent?.type === 'blockquote' && ctx.parent(parent)?.type === 'root'
+      if (parent?.type !== 'root' && !inTopQuote) return
+      const text = ctx
+        .textContent(node)
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/^Generated document\.\s*/, '')
+        .replace(/^SOURCE: \S+ \([^)]*\)\.\s*/, '')
+      // A status line, a citation alone or a lead-in to a list does not describe the page.
+      if (text === '' || text.startsWith('Status:') || text.endsWith(':')) return
       described = true
-      const text = ctx.textContent(node).replace(/\s+/g, ' ').trim()
       const cut = text.lastIndexOf(' ', 157)
-      fm.description = text.length <= 160 ? text : `${text.slice(0, cut > 0 ? cut : 157)}…`
+      const head = text.slice(0, cut > 0 ? cut : 157).replace(/[\s,;:.–—-]+$/, '')
+      fm.description = text.length <= 160 ? text : `${head}…`
     },
   }
 }

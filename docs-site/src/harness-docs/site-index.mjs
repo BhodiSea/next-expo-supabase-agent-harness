@@ -42,15 +42,23 @@ export function harnessSidebar() {
     .map((dir) => {
       const pages = groups.get(dir)
       if (dir !== 'modules') return { label: labelFor(dir), items: pages.sort(byRoute(dir)).map((p) => ({ slug: p.route })) }
-      // modules/<name>/... becomes one collapsed group per module.
-      const perModule = groupBy(pages, (p) => p.route.split('/')[1])
+      // A page at `modules` itself comes first, as other folders' READMEs do; modules/<name>/...
+      // becomes one collapsed group per module.
+      const index = pages.filter((p) => p.route === dir).map((p) => ({ slug: p.route }))
+      const perModule = groupBy(
+        pages.filter((p) => p.route !== dir),
+        (p) => p.route.split('/')[1],
+      )
       return {
         label: labelFor(dir),
         collapsed: true,
-        items: [...perModule.keys()].sort().map((name) => ({
-          label: name,
-          items: perModule.get(name).sort(byRoute(`modules/${name}`)).map((p) => ({ slug: p.route })),
-        })),
+        items: [
+          ...index,
+          ...[...perModule.keys()].sort().map((name) => ({
+            label: name,
+            items: perModule.get(name).sort(byRoute(`modules/${name}`)).map((p) => ({ slug: p.route })),
+          })),
+        ],
       }
     })
 }

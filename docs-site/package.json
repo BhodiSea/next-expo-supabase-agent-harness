@@ -2,7 +2,7 @@
   "name": "harness-docs-site",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@11.28.5",
+  "packageManager": "pnpm@11.28.6",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
