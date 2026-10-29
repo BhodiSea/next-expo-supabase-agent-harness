@@ -2,7 +2,7 @@
   // Biome = formatter + import organizer ONLY. The linter is OFF: ESLint
   // (typescript-eslint strictTypeChecked et al.) is the single lint owner, so
   // the two tools can never disagree about the same rule.
-  "$schema": "https://biomejs.dev/schemas/2.6.2/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.6.3/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
