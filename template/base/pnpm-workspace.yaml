@@ -37,7 +37,7 @@ catalog:
   # ---- toolchain --------------------------------------------------------------
   typescript: ~6.0.3 # typescript-eslint 8.63.x supports >=4.8.4 <6.1.0
   tsx: ^4.23.0
-  '@biomejs/biome': 2.6.2 # exact: formatter drift would churn the format gate
+  '@biomejs/biome': 2.6.3 # exact: formatter drift would churn the format gate
   eslint: ^9.39.4 # 9.x line: typescript-eslint 8.x peers eslint ^9
   typescript-eslint: ^8.63.0
   eslint-plugin-jsx-a11y: ^6.10.2 # the WEB half of the a11y floor (0.4.0); react-native-a11y is the native half
@@ -131,7 +131,7 @@ catalog:
   # 16.3 release, so this pin crosses a MINOR again, as it did in 1.0.2; 16.4.1 is the
   # release that fixes all three, and it requires sharp >= 0.35.5, upstream's workaround.
   # SOURCE: https://github.com/vercel/next.js/security/advisories/GHSA-2464-fhr4-w9xw
-  next: 16.4.2
+  next: 16.4.3
   next-safe-action: ^8.5.3
   tailwindcss: ^4.3.0 # v4 CSS-first, WEB ONLY — mobile pins v3 in apps/mobile (see below)
   '@tailwindcss/postcss': ^4.3.0
