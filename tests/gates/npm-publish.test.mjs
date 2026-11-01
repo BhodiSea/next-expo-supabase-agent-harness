@@ -124,12 +124,17 @@ async function cli(routes, args) {
   writeFileSync(pkg, JSON.stringify({ name: 'fixture-pkg', version: '1.2.3' }))
   const tarball = join(dir, 'fixture-pkg-1.2.3.tgz')
   writeFileSync(tarball, 'attested tarball bytes')
-  /** @type {Record<string, number>} */ const hits = {}
+  // Maps, not plain objects: on a plain object a request path used as a key can name an
+  // Object.prototype member such as `toString` (CodeQL js/remote-property-injection and
+  // js/unvalidated-dynamic-method-call).
+  const table = new Map(Object.entries(routes))
+  /** @type {Map<string, number>} */ const hits = new Map()
   const server = createServer((req, res) => {
     const path = req.url ?? ''
-    hits[path] = (hits[path] ?? 0) + 1
-    const route = routes[path]
-    const body = typeof route === 'function' ? route(hits[path]) : route
+    const count = (hits.get(path) ?? 0) + 1
+    hits.set(path, count)
+    const route = table.get(path)
+    const body = typeof route === 'function' ? route(count) : route
     if (body === undefined || body === null) {
       res.writeHead(404, { 'content-type': 'application/json' }).end('"Not Found"')
     } else {
@@ -187,13 +192,13 @@ test('CLI verify waits out a version that is not visible yet', async () => {
     '0',
   ])
   assert.equal(r.code, 0, r.stderr)
-  assert.equal(r.hits['/fixture-pkg/1.2.3'], 3)
+  assert.equal(r.hits.get('/fixture-pkg/1.2.3'), 3)
 })
 
 test('CLI verify fails after the budget when the version never appears', async () => {
   const r = await cli({}, ['verify', '<tarball>', '1.2.3', '--attempts', '3', '--poll-seconds', '0'])
   assert.equal(r.code, 1)
-  assert.equal(r.hits['/fixture-pkg/1.2.3'], 3)
+  assert.equal(r.hits.get('/fixture-pkg/1.2.3'), 3)
   assert.match(r.stderr, /no record of this version/)
 })
 
@@ -212,6 +217,6 @@ test('CLI verify fails at once on a record that exists and is wrong', async () =
   token._npmUser = { name: 'someone' }
   const r = await cli({ '/fixture-pkg/1.2.3': token }, ['verify', '<tarball>', '1.2.3', '--attempts', '5', '--poll-seconds', '0'])
   assert.equal(r.code, 1)
-  assert.equal(r.hits['/fixture-pkg/1.2.3'], 1)
+  assert.equal(r.hits.get('/fixture-pkg/1.2.3'), 1)
   assert.match(r.stderr, /not through a GitHub trusted publisher/)
 })

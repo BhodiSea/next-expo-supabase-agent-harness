@@ -133,6 +133,13 @@ this comment. -->
   repository's analyses `.claude/`; this repository's lane found the race in the new
   `plugin/` copy. The script is owned and reaches an install with `update`. It runs only
   when someone runs it, so no slice an install already has changes.
+- **The stand-in npm registry in `tests/gates/npm-publish.test.mjs` keeps its routes and
+  request counts in `Map`s** (CodeQL `js/remote-property-injection` and
+  `js/unvalidated-dynamic-method-call`, both high). They were plain objects indexed by the
+  request path, so CodeQL traced a request to a write to, and a call of, a key that could
+  name an `Object.prototype` member. The server lives for one test on 127.0.0.1 and its only
+  client is the CLI under test, so no request could; with `Map`s the question does not
+  arise, and every test keeps its meaning. Factory only: nothing changes for an install.
 ### Added
 
 - **The README shows the harness running, and says which projects it fits** (#165). A
