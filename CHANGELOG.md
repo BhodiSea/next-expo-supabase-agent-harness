@@ -267,8 +267,8 @@ this comment. -->
   stdout and a stderr that says a file is missing. Each now reads "Claude Code hooks that send
   the agent back to work when a check fails, and CI gates that block a merge until validation
   passes", and the README's other mentions, `CITATION.cff` and `docs/architecture.md` follow.
-  The doctrine's Stop hook section names all three cases, where it called the cap the one way
-  a turn could end red. `docs/media/social-preview.png` is rendered again from its SVG with
+  The doctrine's Stop hook section no longer calls the hook unbreakable, and names all three
+  cases where it called the cap the one way a turn could end red. `docs/media/social-preview.png` is rendered again from its SVG with
   the command in its comment; the repository's social preview is uploaded by hand.
   `.claude-plugin/marketplace.json` names Cogvera Labs as its owner, and its plugin
   description lists every reviewer and skill in plain words. The doctrine is owned and

@@ -104,7 +104,7 @@ exits 1 would be treated as a *non-blocking* hook error and wave the action thro
 Malformed, non-empty stdin throws → blocked. A broken harness blocks; it never silently
 passes.
 
-### stop-validate-gate (the unbreakable core)
+### stop-validate-gate
 
 While the gate is red, the hook **sends the agent back to work**. Details that matter: it imports
 `STOP_HOOK_STEPS` from the config UNIONED with the frozen `tools/stop.floor.json`, so
