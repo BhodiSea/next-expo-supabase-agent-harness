@@ -781,6 +781,19 @@
             "SECURITY_TXT_EXPIRES"
           ]
         ]
+      },
+      {
+        "sha256": "c68ae99bbdacf6f04a580fd2f5ab3946bd8d926b7ba72c04aaf0252f22a3e6e8",
+        "sites": [
+          [
+            27862,
+            "SECURITY_OWNERS"
+          ],
+          [
+            152094,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
       }
     ],
     "docs/modules/ci-mobile-release/README.md": [
@@ -997,6 +1010,15 @@
       },
       {
         "sha256": "894c537f658845f356d8b2879c5261a45c78dab3da953db7b8e231793324bd32",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "a79735696a727651a1e776d5a0de450ccd0d915a04bf3bbd295b6502abf6ea91",
         "sites": [
           [
             14122,
@@ -1383,6 +1405,9 @@
       }
     ],
     "tools/check-e2e-device.mjs": [
+      {
+        "sha256": "104beea2843d5e31812f4a8301a1fe23647a56e2c133f6c8a84a2e05b88421b7"
+      },
       {
         "sha256": "d3545b031dbf43e0d867a8a25c858322e15b46c660a3de6fe31ca7b7e9d4e905"
       }
@@ -2636,6 +2661,9 @@
       }
     ],
     "apps/mobile/src/i18n/catalog.ts": [
+      {
+        "sha256": "b4043e90231810e2eced9d85b1e8a6f3a664cdbc41d531b1838f65b7eb93cde4"
+      },
       {
         "sha256": "fb11c6b4a01a38e7f8d1d1f73c2e495e888214e9b1bfde21aede195ce191b0d5"
       }

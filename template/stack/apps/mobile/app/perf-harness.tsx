@@ -7,7 +7,12 @@ import { Spinner } from '../src/components/Spinner'
 import { rankCommands } from '../src/features/actions/fuzzyScore'
 import { ACTION_COMMANDS } from '../src/features/actions/registry'
 import { useI18n } from '../src/i18n'
-import { type ProbeControls, parseProbeBudgets, usePerfProbes } from '../src/lib/perf-probes'
+import {
+  type ProbeControls,
+  type ProbeMeasurements,
+  parseProbeBudgets,
+  usePerfProbes,
+} from '../src/lib/perf-probes'
 import { type Palette, space, useThemedStyles } from '../src/theme/theme'
 
 // The dev perf-harness screen — the on-device consumer of tools/interaction-budget.json.
@@ -39,6 +44,13 @@ const perfStyles = (_palette: Palette) => ({
   },
 })
 
+/** The three values a pass shows, in the order the probes take them; each id is a {metric}. */
+const MEASURED: readonly (keyof ProbeMeasurements)[] = [
+  'tabSwitchMs',
+  'actionsOpenMs',
+  'droppedFrames',
+]
+
 /** The probe workload: the REAL modal ranking over catalog-resolved titles. */
 function Workload({ step, titles }: { readonly step: number; readonly titles: readonly string[] }) {
   const styles = useThemedStyles(perfStyles)
@@ -66,7 +78,8 @@ function Workload({ step, titles }: { readonly step: number; readonly titles: re
 function Verdict({ controls }: { readonly controls: ProbeControls }) {
   const { t } = useI18n()
   const styles = useThemedStyles(perfStyles)
-  if (controls.report === null) {
+  const { report } = controls
+  if (report === null) {
     // An in-place wait too small for a Skeleton block: the Spinner primitive's job.
     return (
       <View style={styles.running}>
@@ -77,11 +90,20 @@ function Verdict({ controls }: { readonly controls: ProbeControls }) {
       </View>
     )
   }
-  if (controls.report.pass) {
+  if (report.pass) {
+    // A pass shows what it measured too: the device runner prints these lines after a green
+    // run, so tools/interaction-budget.json has medians to re-baseline from, not only reds.
     return (
-      <AppText variant="muted" testID="perf-pass">
-        {t('perf.pass')}
-      </AppText>
+      <View>
+        <AppText variant="muted" testID="perf-pass">
+          {t('perf.pass')}
+        </AppText>
+        {MEASURED.map((metric) => (
+          <AppText key={metric} variant="muted">
+            {t('perf.measured', { metric, measured: Math.round(report.measured[metric]) })}
+          </AppText>
+        ))}
+      </View>
     )
   }
   return (
@@ -89,7 +111,7 @@ function Verdict({ controls }: { readonly controls: ProbeControls }) {
       <AppText variant="danger" role="alert" testID="perf-fail">
         {t('perf.fail')}
       </AppText>
-      {controls.report.failures.map((failure) => (
+      {report.failures.map((failure) => (
         <AppText key={failure.metric} variant="muted">
           {t('perf.over', {
             metric: failure.metric,

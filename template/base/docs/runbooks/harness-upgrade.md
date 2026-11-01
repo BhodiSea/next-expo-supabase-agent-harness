@@ -4522,6 +4522,23 @@ now creates each stub with an exclusive write and prints `exists, skipped:` for 
 already exists, a link included. `update` plants the script (owned). It runs only when
 someone runs it, so no slice you already have changes, and nothing is left to you.
 
+### The device lane prints the perf-harness values after a pass
+
+Through 2.0.3, `tools/check-e2e-device.mjs --phase perf-harness` printed the screen's
+measured values only when a budget failed, so the lane's log never held the medians that
+`tools/interaction-budget.json` says a re-baseline starts from. After a passing flow it now
+reads the screen and prints them in one line that starts `e2e-device: on screen after
+perf-harness.yaml passed`. No cap, verdict or exit code changes. `update` plants the runner
+(owned).
+
+The values come from `apps/mobile/app/perf-harness.tsx`, which from this release shows them
+on a pass through the catalog key `perf.measured`. Both files are seeded, so `update` leaves
+yours, and until your screen renders the values the line says `no measured values`. To take
+them, run `update --refresh-seeded` on `apps/mobile/app/perf-harness.tsx` and
+`apps/mobile/src/i18n/catalog.ts`, which parks the new copy under `.harness/pending/` where you
+changed yours, and bring in the pass branch and the key. Take both or neither: the `i18n` step
+reds a catalog key that nothing renders.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

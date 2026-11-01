@@ -2898,7 +2898,9 @@ tests/gates/severity-contract.test.mjs.
   red. On every failure the runner prints the ids and text on screen to the log,
   and the evidence uploads: screenshot, logcat tail, hierarchy, and Maestro's
   debug output, which sits under a hidden `.maestro/` directory and so needs the
-  upload's `include-hidden-files: true`.
+  upload's `include-hidden-files: true`. After a perf-harness pass it prints the
+  values the screen measured, which a re-baseline of the interaction budget
+  starts from.
 - **Startup measurement lane** (`perf-lane`) — `tools/measure-startup.mjs`
   cold-starts every ROUTES entry ×3 on its own quiet emulator (`am force-stop`
   + `am start -W` per deep link; `totalTimeMs` is the MEDIAN, every roll
