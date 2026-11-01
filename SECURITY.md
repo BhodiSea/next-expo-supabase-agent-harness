@@ -78,12 +78,13 @@ Exit status 0 means the tarball's digest matches an attestation signed by
 Any other tarball, repository or workflow fails. `--format json` prints the
 signer identity.
 
-Where a release carries the `.intoto.jsonl` asset, `--bundle` reads the
-attestation from that file instead of querying the store, so the two assets
-verify together without a call to this repository:
+The block above also downloads the `.intoto.jsonl` asset. `--bundle` reads the
+attestation from it instead of querying the store, so the two assets verify
+together without a call to this repository:
 
 ```sh
-gh attestation verify <tarball> --bundle <tarball>.intoto.jsonl \
+gh attestation verify "next-expo-supabase-agent-harness-${tag#v}.tgz" \
+  --bundle "next-expo-supabase-agent-harness-${tag#v}.tgz.intoto.jsonl" \
   --repo "$signer" \
   --signer-workflow "$signer/.github/workflows/release.yml"
 ```
@@ -102,8 +103,13 @@ install from the registry can be checked both ways:
 npm audit signatures
 
 # the GitHub attestation, against the exact tarball the registry serves
-npm pack next-expo-supabase-agent-harness@<version>
-gh attestation verify next-expo-supabase-agent-harness-<version>.tgz \
+version=<version>
+case "v$version" in
+  v0.* | v1.* | v2.0.[0-3]) signer=BhodiSea/next-expo-supabase-agent-harness ;;
+  *) signer=cogvera-labs/next-expo-supabase-agent-harness ;;
+esac
+npm pack "next-expo-supabase-agent-harness@$version"
+gh attestation verify "next-expo-supabase-agent-harness-$version.tgz" \
   --repo "$signer" \
   --signer-workflow "$signer/.github/workflows/release.yml"
 ```

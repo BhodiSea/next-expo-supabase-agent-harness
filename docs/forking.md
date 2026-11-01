@@ -116,9 +116,10 @@ carrier had been retargeted.
 ## Check that nothing was missed
 
 ```sh
-grep -rni "bhodisea\|cogvera" --exclude-dir=node_modules .
+grep -rni "bhodisea\|cogvera\|1308800605" --exclude-dir=node_modules .
 ```
 
 This should return only the attribution you deliberately kept and the hygiene
 deny patterns. It ignores case because the upstream organisation, `cogvera-labs`, is
-lowercase in the repository and site addresses.
+lowercase in the repository and site addresses. `1308800605` is this repository's
+id, which the `release.yml` and `pages.yml` guards hold instead of a name.
