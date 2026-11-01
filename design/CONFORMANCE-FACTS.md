@@ -52,7 +52,7 @@ step, because the gate already parsed the grants and used only the function half
 
 - Supabase's announcement,
   ["Breaking Change: Tables not exposed to Data and GraphQL API automatically"](https://github.com/orgs/supabase/discussions/45329),
-  the same text as supabase.com/changelog/45329, last edited 2026-10-15.
+  also published as supabase.com/changelog/45329; last edited 2026-10-15.
 - [supabase/cli#6337](https://github.com/supabase/cli/pull/6337), merged 2026-08-26 and
   released in Supabase CLI v2.116.0.
 - The default privileges of a hosted Supabase project created on 2026-06-22, read with
@@ -61,7 +61,7 @@ step, because the gate already parsed the grants and used only the function half
 
 What they say:
 
-- **The announcement is unchanged.** New tables in `public` stop getting Data API grants
+- **The announcement still gives both dates.** New tables in `public` stop getting Data API grants
   automatically: by default on new projects from 2026-05-30, in a rollout over a few weeks,
   and on all existing projects from 2026-10-30. Existing tables keep their grants.
 - **The CLI says the cloud change never landed.** #6337 makes an unset
@@ -78,7 +78,7 @@ What they say:
   tables and sequences this section names.
 
 **Verdict: neither announced date has landed, and the shipped closure is right either way.**
-Every table the scaffold's migrations create revokes ALL from the three roles and then grants
+Every table the scaffold's migrations create in `public` revokes ALL from the three roles and then grants
 exactly what each keeps, so it ends with the same privileges whether or not the platform's
 defaults apply. The shipped prose that dates the change to projects created on or after
 2026-10-30 matches neither the announcement nor the platform. It is left as it is until the
