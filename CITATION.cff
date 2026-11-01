@@ -10,7 +10,7 @@ abstract: >-
   app and an Expo (React Native) mobile app over one shared Supabase backend
   (Postgres, row-level security, Auth), deployed to Vercel and to the Apple
   App Store and Google Play via EAS Build and Submit: Claude Code hooks that
-  gate turn completion on a green validation chain, security-invariant lint
+  send the agent back to work when a check fails, security-invariant lint
   rules and pre-write guards, row-level-security isolation tests against a
   real database, cross-surface contract/parity and design-token gates, Expo
   config policy gates (ATS, permissions, plugins, CNG purity), an

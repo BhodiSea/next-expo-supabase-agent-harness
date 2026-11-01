@@ -21,8 +21,9 @@
   <g id="sentence" fill="#c9d1d9" font-family="'Helvetica Neue', Helvetica, Arial, 'DejaVu Sans', sans-serif" font-size="34">
     <text x="96" y="264">A CLI that scaffolds a pnpm monorepo with a Next.js web app</text>
     <text x="96" y="312">and an Expo (React Native) mobile app on one Supabase backend,</text>
-    <text x="96" y="360">plus Claude Code hooks and CI gates that block an agent turn</text>
-    <text x="96" y="408">or a merge until validation passes.</text>
+    <text x="96" y="360">plus Claude Code hooks that send the agent back to work</text>
+    <text x="96" y="408">when a check fails, and CI gates that block a merge</text>
+    <text x="96" y="456">until validation passes.</text>
   </g>
   <text id="stack" x="96" y="552" fill="#8b949e" font-family="'Helvetica Neue', Helvetica, Arial, 'DejaVu Sans', sans-serif" font-size="28">Next.js · Expo · React Native · Supabase · tRPC · pnpm · Claude Code hooks · pgTAP</text>
 </svg>

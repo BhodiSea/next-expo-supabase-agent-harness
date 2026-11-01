@@ -761,6 +761,15 @@
             "SECURITY_OWNERS"
           ]
         ]
+      },
+      {
+        "sha256": "deed6092ad50e56857b1054fbd8bfba203a00bc6c0f6939994b5a21676480d0f",
+        "sites": [
+          [
+            20732,
+            "SECURITY_OWNERS"
+          ]
+        ]
       }
     ],
     "docs/harness/enforcement-tiers.md": [
@@ -1064,6 +1073,15 @@
       },
       {
         "sha256": "e22337ed4e5169985fbee19cd8ea94d691df457261bd2f864c1fdef6eb4e8517",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "faa54d76fd4035fc3aeac8879dc555afe8115cfd37888a2cb191080e2f70a229",
         "sites": [
           [
             14122,
