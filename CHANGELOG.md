@@ -227,6 +227,18 @@ this comment. -->
   gives each release's signer. `publish-npm` and the Pages deploy check the repository's id
   instead of its name, so they run after the move and a fork still skips them. Factory only:
   nothing changes for an install.
+- **The Supabase grants row is re-checked and re-dated to 2026-12-01.**
+  `conformance-supabase-grants-arrival` fell due on 2026-10-30, and the nightly
+  `obligations-clockful` job has been red on it since. The re-check on 2026-11-01 found that
+  neither date Supabase announced has landed. Its announcement still says new projects stop
+  getting Data API grants automatically from 2026-05-30 and every project from 2026-10-30.
+  Supabase CLI 2.116.0 made an unset `auto_expose_new_tables` mean `true` again, because the
+  cloud change "never landed", and dropped the flag's planned removal on 2026-10-30. A hosted
+  project created after 2026-05-30 still granted `anon`, `authenticated` and `service_role`
+  every privilege by default. The scaffold's migrations revoke and grant explicitly, so they
+  are right either way. The maintainer re-dated the row rather than deleting it.
+  `design/CONFORMANCE-FACTS.md` §1 records the re-check and its sources, and the row's reason
+  and `ROADMAP.md` follow it. Factory docs: nothing reaches an install.
 
 ## [2.0.3] — 2026-10-17
 

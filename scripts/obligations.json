@@ -152,15 +152,19 @@
     {
       "id": "conformance-supabase-grants-arrival",
       "kind": "calendar",
-      "target": "2026-10-30",
+      "target": "2026-12-01",
       "sites": [
         {
           "file": "design/CONFORMANCE-FACTS.md",
-          "mustContain": "2026-10-30"
+          "mustContain": "Supabase grants row re-verified 2026-11-01"
+        },
+        {
+          "file": "design/CONFORMANCE-FACTS.md",
+          "mustContain": "2026-12-01"
         }
       ],
-      "reason": "Supabase Data API grants stop being automatic for projects created on or after this date (three roles including service_role, SEQUENCES revoked too, failure is SQLSTATE 42501 not a silent 404, and the auto_expose_new_tables restore flag is removed the SAME day). The closure SHIPPED in 0.6.0 inside schema-rls; this row is the dated re-verification that the shipped closure and its prose still describe the regime as it actually lands.",
-      "reviewedOn": "2026-08-10"
+      "reason": "Supabase announced (discussion 45329, the same text as supabase.com/changelog/45329) that new tables in public stop getting Data API grants automatically: by default on NEW projects from 2026-05-30, in a rollout over a few weeks, and on ALL existing projects from 2026-10-30. Existing tables keep their grants, the roles are anon, authenticated and service_role, sequences are included, and a missing grant fails with SQLSTATE 42501, not a silent 404. The closure SHIPPED in 0.6.0 inside schema-rls; this row is the dated re-verification that the shipped closure and its prose still describe the regime as it actually lands. RE-VERIFIED 2026-11-01, two days after the 2026-10-30 date the row carried until then (the scheduled obligations-clockful job had been red on it since that date): NEITHER announced date has landed. The announcement, last edited 2026-10-15, still gives both dates. supabase/cli#6337 (merged 2026-08-26, Supabase CLI v2.116.0) made an unset auto_expose_new_tables mean true again and dropped the flag's planned removal on 2026-10-30, because the cloud default change 'never landed — platform projects still auto-expose new entities'. And on 2026-11-01 a hosted project created on 2026-06-22 still had default privileges in public granting the three roles every privilege on tables, sequences and functions. The shipped closure is right either way: every table the scaffold's migrations create revokes ALL from the three roles and then grants exactly what each keeps. The shipped prose that dates the change to projects created on or after 2026-10-30 matches neither the announcement nor the platform, and the next re-check corrects it to what has landed by then. RE-DATED to 2026-12-01 rather than deleted, by the maintainer's decision on 2026-11-01, because the change this row watches has not arrived. The first sites[] anchor pins the re-verification date, so the next re-read has to move this row in the same diff; design/CONFORMANCE-FACTS.md §1 carries the full record and its sources.",
+      "reviewedOn": "2026-11-01"
     },
     {
       "id": "conformance-play-target-api-window",
