@@ -17,7 +17,7 @@ abstract: >-
   inline-citation provenance pipeline, and supply-chain-hardened CI.
 authors:
   - name: Cogvera Labs
-repository-code: 'https://github.com/BhodiSea/next-expo-supabase-agent-harness'
+repository-code: 'https://github.com/cogvera-labs/next-expo-supabase-agent-harness'
 keywords:
   - nextjs
   - expo

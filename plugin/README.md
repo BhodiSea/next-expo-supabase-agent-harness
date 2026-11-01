@@ -1,6 +1,6 @@
 # next-expo-supabase-agent-harness (Claude Code plugin)
 
-The agent half of [next-expo-supabase-agent-harness](https://github.com/BhodiSea/next-expo-supabase-agent-harness),
+The agent half of [next-expo-supabase-agent-harness](https://github.com/cogvera-labs/next-expo-supabase-agent-harness),
 a scaffold for pnpm monorepos that ship a Next.js web app and an Expo mobile app over one
 Supabase backend. This plugin carries the harness's subagents, slash commands and skills, so
 you can use them in a Claude Code session without installing the harness.
@@ -8,14 +8,14 @@ you can use them in a Claude Code session without installing the harness.
 ## Install
 
 ```sh
-claude plugin marketplace add BhodiSea/next-expo-supabase-agent-harness
+claude plugin marketplace add cogvera-labs/next-expo-supabase-agent-harness
 claude plugin install next-expo-supabase-agent-harness@next-expo-supabase-agent-harness
 ```
 
 Or, inside a session on Claude Code 2.1.275 or later:
 
 ```
-/plugin install next-expo-supabase-agent-harness --marketplace BhodiSea/next-expo-supabase-agent-harness
+/plugin install next-expo-supabase-agent-harness --marketplace cogvera-labs/next-expo-supabase-agent-harness
 ```
 
 ## What it holds

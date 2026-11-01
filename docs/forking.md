@@ -11,7 +11,7 @@ the harness instead. A fork starts from a clone with a fresh history: one
 commit, with no upstream history or tags.
 
 ```sh
-git clone --no-tags --single-branch https://github.com/BhodiSea/next-expo-supabase-agent-harness.git <your-harness>
+git clone --no-tags --single-branch https://github.com/cogvera-labs/next-expo-supabase-agent-harness.git <your-harness>
 cd <your-harness>
 upstream_sha="$(git rev-parse --short HEAD)"
 git checkout --orphan fresh
@@ -55,8 +55,10 @@ is the set of repo-root sites that hardcode the upstream owner:
 - `package.json`: `name` and `bin` (the npm name is this repository's),
   `repository.url`, `homepage`, `bugs.url`, `author`
 - `.github/workflows/release.yml`: the `publish-npm` job runs only in this
-  repository. Point its `if:` at yours once the package is renamed and has its own
-  first publish and trusted publisher, or delete the job. The `release` job also
+  repository. Its `if:` compares `github.repository_id` with this repository's id,
+  which no fork has. Put your repository's id there
+  (`gh api repos/<owner>/<repo> --jq .id`) once the package is renamed and has its
+  own first publish and trusted publisher, or delete the job. The `release` job also
   opens a discussion for each release in the `Announcements` category; in a
   repository without Discussions or without that category, that step prints a
   warning and the job still succeeds
@@ -75,10 +77,10 @@ is the set of repo-root sites that hardcode the upstream owner:
 - `.github/ISSUE_TEMPLATE/config.yml`: the advisory, discussions and repro URLs,
   and the `npx` line in `bug-report.yml`
 - `.github/workflows/pages.yml`: the artifact upload and the deploy job run only in
-  this repository (`github.repository == 'BhodiSea/next-expo-supabase-agent-harness'`).
-  Point both `if:` conditions at yours once Pages is enabled with the source "GitHub
-  Actions", or delete the workflow. The build itself runs anywhere
-- `docs-site/astro.config.mjs`: `site` (`https://bhodisea.github.io`) and `base`
+  this repository (`github.repository_id == '1308800605'`). Put your repository's id
+  in both `if:` conditions once Pages is enabled with the source "GitHub Actions", or
+  delete the workflow. The build itself runs anywhere
+- `docs-site/astro.config.mjs`: `site` (`https://cogvera-labs.github.io`) and `base`
   (`/next-expo-supabase-agent-harness`), the address the documentation site is
   published at; the links on `docs-site/src/content/docs/index.md`, which carry the
   same `base`; and the repository URL in `docs-site/src/harness-docs/corpus.mjs`,
@@ -114,8 +116,9 @@ carrier had been retargeted.
 ## Check that nothing was missed
 
 ```sh
-grep -rn "BhodiSea\|bhodisea\|Cogvera" --exclude-dir=node_modules .
+grep -rni "bhodisea\|cogvera" --exclude-dir=node_modules .
 ```
 
 This should return only the attribution you deliberately kept and the hygiene
-deny pattern. The lowercase spelling is the documentation site's address.
+deny patterns. It ignores case because the upstream organisation, `cogvera-labs`, is
+lowercase in the repository and site addresses.

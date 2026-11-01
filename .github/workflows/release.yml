@@ -170,10 +170,12 @@ jobs:
   # tests/gates/npm-publish.test.mjs).
   #
   # A copy of this repository made for another stack skips the job until it renames the
-  # package and sets up its own trusted publisher (docs/forking.md).
+  # package and sets up its own trusted publisher (docs/forking.md). The guard is the
+  # repository's id, not its name: the id survives a transfer or rename, and no copy has it.
+  # The github context gives the id as a string, so it is compared as one.
   publish-npm:
     needs: release
-    if: github.repository == 'BhodiSea/next-expo-supabase-agent-harness'
+    if: github.repository_id == '1308800605'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: npm

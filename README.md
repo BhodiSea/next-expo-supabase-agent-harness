@@ -1,7 +1,7 @@
 # next-expo-supabase-agent-harness
 
 [![OpenSSF Baseline](https://www.bestpractices.dev/projects/14727/baseline)](https://www.bestpractices.dev/projects/14727)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/BhodiSea/next-expo-supabase-agent-harness/badge)](https://scorecard.dev/viewer/?uri=github.com/BhodiSea/next-expo-supabase-agent-harness)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/cogvera-labs/next-expo-supabase-agent-harness/badge)](https://scorecard.dev/viewer/?uri=github.com/cogvera-labs/next-expo-supabase-agent-harness)
 [![npm version](https://img.shields.io/npm/v/next-expo-supabase-agent-harness)](https://www.npmjs.com/package/next-expo-supabase-agent-harness)
 
 A CLI that scaffolds a pnpm monorepo with a Next.js 16 web app and an Expo 57
@@ -47,7 +47,7 @@ stops when it finds one. A global install stays at the version you installed, so
 release; `update` refuses to run from a CLI older than the project.
 
 To pin a release, take a version number from the
-[Releases](https://github.com/BhodiSea/next-expo-supabase-agent-harness/releases)
+[Releases](https://github.com/cogvera-labs/next-expo-supabase-agent-harness/releases)
 page (the tag without its `v`) and use it in place of `latest`, or install
 `next-expo-supabase-agent-harness@<version>`. Once `init` has finished, in the same folder:
 
@@ -202,14 +202,14 @@ The agents, slash commands and skills also come as a Claude Code plugin, for a s
 outside a harness-installed project. Install it from this repository's marketplace:
 
 ```sh
-claude plugin marketplace add BhodiSea/next-expo-supabase-agent-harness
+claude plugin marketplace add cogvera-labs/next-expo-supabase-agent-harness
 claude plugin install next-expo-supabase-agent-harness@next-expo-supabase-agent-harness
 ```
 
 or, inside a session on Claude Code 2.1.275 or later:
 
 ```
-/plugin install next-expo-supabase-agent-harness --marketplace BhodiSea/next-expo-supabase-agent-harness
+/plugin install next-expo-supabase-agent-harness --marketplace cogvera-labs/next-expo-supabase-agent-harness
 ```
 
 The plugin carries no hooks, gates or permissions; those come with `init`. Inside a
@@ -270,7 +270,7 @@ counts the requirements of three further standards
 
 ## Documentation
 
-- [Documentation site](https://bhodisea.github.io/next-expo-supabase-agent-harness/): the
+- [Documentation site](https://cogvera-labs.github.io/next-expo-supabase-agent-harness/): the
   doctrine, the gates catalog, the runbooks and the module guides, searchable, built from
   the same files every scaffold receives
 - [CLI reference](docs/cli.md): every command, flag and placeholder
@@ -283,8 +283,8 @@ counts the requirements of three further standards
 
 ## Contributing and feedback
 
-- Bugs and gate proposals: [open an issue](https://github.com/BhodiSea/next-expo-supabase-agent-harness/issues/new/choose)
-- Questions: [Discussions](https://github.com/BhodiSea/next-expo-supabase-agent-harness/discussions)
+- Bugs and gate proposals: [open an issue](https://github.com/cogvera-labs/next-expo-supabase-agent-harness/issues/new/choose)
+- Questions: [Discussions](https://github.com/cogvera-labs/next-expo-supabase-agent-harness/discussions)
 - Pull requests: read [CONTRIBUTING.md](CONTRIBUTING.md) first. It lists every check CI blocks on.
 - Vulnerabilities: report privately, as described in [SECURITY.md](SECURITY.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)

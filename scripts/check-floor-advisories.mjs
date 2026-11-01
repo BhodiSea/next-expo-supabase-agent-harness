@@ -52,7 +52,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 const TIMEOUT_MS = 15_000
 const USER_AGENT =
-  'Mozilla/5.0 (compatible; next-expo-supabase-agent-harness/floor-advisories; +https://github.com/BhodiSea/next-expo-supabase-agent-harness)'
+  'Mozilla/5.0 (compatible; next-expo-supabase-agent-harness/floor-advisories; +https://github.com/cogvera-labs/next-expo-supabase-agent-harness)'
 // Whole-string shapes for everything that reaches a request, checked immediately before it
 // is sent: the upstream listing's first page and every next-page link GitHub hands back
 // (which may name the repository by id), the package name and version in an OSV body, and
