@@ -238,6 +238,15 @@ this comment. -->
   release's discussion in Announcements. When that fails, the step prints a warning and the
   job stays green, so `publish-npm` still runs. Factory only: nothing changes for an install.
 
+- **The repository moved to the cogvera-labs organisation.** Its address is
+  https://github.com/cogvera-labs/next-expo-supabase-agent-harness, and the old one
+  redirects. The documentation site moved to
+  https://cogvera-labs.github.io/next-expo-supabase-agent-harness/; GitHub does not redirect
+  the old one. Releases from 2.0.4 carry provenance that names cogvera-labs, so `SECURITY.md`
+  gives each release's signer. `publish-npm` and the Pages deploy check the repository's id
+  instead of its name, so they run after the move and a fork still skips them. Factory only:
+  nothing changes for an install.
+
 ## [2.0.3] — 2026-10-17
 
 **A patch: the v2.0.x defect fixes, a security floor move, and two additions.** The `next`

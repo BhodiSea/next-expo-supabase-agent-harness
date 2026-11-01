@@ -13,7 +13,7 @@ import { DEFAULT_BRANCH, GITHUB_REPO, REPO_ROOT, SITE_DIR } from './src/harness-
 import { harnessHastPlugins, harnessMdastPlugins } from './src/harness-docs/markdown-plugins.mjs'
 import { harnessSidebar, llmsPageIndex } from './src/harness-docs/site-index.mjs'
 
-const site = 'https://bhodisea.github.io'
+const site = 'https://cogvera-labs.github.io'
 const base = '/next-expo-supabase-agent-harness'
 const title = 'next-expo-supabase-agent-harness'
 const description =

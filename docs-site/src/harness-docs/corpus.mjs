@@ -8,7 +8,7 @@ import { existsSync, readdirSync, statSync } from 'node:fs'
 import { join, posix, relative, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-export const GITHUB_REPO = 'https://github.com/BhodiSea/next-expo-supabase-agent-harness'
+export const GITHUB_REPO = 'https://github.com/cogvera-labs/next-expo-supabase-agent-harness'
 export const DEFAULT_BRANCH = 'main'
 
 /** The repository root: docs-site/src/harness-docs/ is three levels below it. */

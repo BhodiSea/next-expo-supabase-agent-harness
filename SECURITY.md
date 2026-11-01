@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Report vulnerabilities privately via
-[GitHub Security Advisories](https://github.com/BhodiSea/next-expo-supabase-agent-harness/security/advisories/new).
+[GitHub Security Advisories](https://github.com/cogvera-labs/next-expo-supabase-agent-harness/security/advisories/new).
 Do not open public issues for security reports, and never include live
 credentials (database DSNs, Supabase service-role keys or JWT secrets, Expo
 access tokens, App Store Connect API keys, Play service-account JSON, Android
@@ -51,15 +51,25 @@ store where their release builds had filed it. The attestation inside is the
 original one signed at release time — an old artifact re-signed today would prove
 nothing about how it was built.
 
+Each release's certificate names the repository it was built in. Releases up to
+v2.0.3 were built before the repository moved from `BhodiSea` to the `cogvera-labs`
+organisation, so they name `BhodiSea/next-expo-supabase-agent-harness`; later
+releases name `cogvera-labs/next-expo-supabase-agent-harness`. The commands below
+verify against that name, `signer`.
+
 To verify a release's tarball with the GitHub CLI, set `tag` to the release you
 want to check. As written, the first line picks the latest release:
 
 ```sh
-tag=$(gh release view -R BhodiSea/next-expo-supabase-agent-harness --json tagName --jq .tagName)
-gh release download "$tag" -R BhodiSea/next-expo-supabase-agent-harness
+tag=$(gh release view -R cogvera-labs/next-expo-supabase-agent-harness --json tagName --jq .tagName)
+case "$tag" in
+  v0.* | v1.* | v2.0.[0-3]) signer=BhodiSea/next-expo-supabase-agent-harness ;;
+  *) signer=cogvera-labs/next-expo-supabase-agent-harness ;;
+esac
+gh release download "$tag" -R cogvera-labs/next-expo-supabase-agent-harness
 gh attestation verify "next-expo-supabase-agent-harness-${tag#v}.tgz" \
-  --repo BhodiSea/next-expo-supabase-agent-harness \
-  --signer-workflow BhodiSea/next-expo-supabase-agent-harness/.github/workflows/release.yml
+  --repo "$signer" \
+  --signer-workflow "$signer/.github/workflows/release.yml"
 ```
 
 
@@ -68,14 +78,15 @@ Exit status 0 means the tarball's digest matches an attestation signed by
 Any other tarball, repository or workflow fails. `--format json` prints the
 signer identity.
 
-Where a release carries the `.intoto.jsonl` asset, `--bundle` reads the
-attestation from that file instead of querying the store, so the two assets
-verify together without a call to this repository:
+The block above also downloads the `.intoto.jsonl` asset. `--bundle` reads the
+attestation from it instead of querying the store, so the two assets verify
+together without a call to this repository:
 
 ```sh
-gh attestation verify <tarball> --bundle <tarball>.intoto.jsonl \
-  --repo BhodiSea/next-expo-supabase-agent-harness \
-  --signer-workflow BhodiSea/next-expo-supabase-agent-harness/.github/workflows/release.yml
+gh attestation verify "next-expo-supabase-agent-harness-${tag#v}.tgz" \
+  --bundle "next-expo-supabase-agent-harness-${tag#v}.tgz.intoto.jsonl" \
+  --repo "$signer" \
+  --signer-workflow "$signer/.github/workflows/release.yml"
 ```
 
 ### Verifying the npm package
@@ -92,10 +103,15 @@ install from the registry can be checked both ways:
 npm audit signatures
 
 # the GitHub attestation, against the exact tarball the registry serves
-npm pack next-expo-supabase-agent-harness@<version>
-gh attestation verify next-expo-supabase-agent-harness-<version>.tgz \
-  --repo BhodiSea/next-expo-supabase-agent-harness \
-  --signer-workflow BhodiSea/next-expo-supabase-agent-harness/.github/workflows/release.yml
+version=<version>
+case "v$version" in
+  v0.* | v1.* | v2.0.[0-3]) signer=BhodiSea/next-expo-supabase-agent-harness ;;
+  *) signer=cogvera-labs/next-expo-supabase-agent-harness ;;
+esac
+npm pack "next-expo-supabase-agent-harness@$version"
+gh attestation verify "next-expo-supabase-agent-harness-$version.tgz" \
+  --repo "$signer" \
+  --signer-workflow "$signer/.github/workflows/release.yml"
 ```
 
 The package page on npmjs.com links each version the workflow published to its
