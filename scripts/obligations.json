@@ -316,6 +316,20 @@
       "reason": "The reviewer model record (1.1.0, #62) was probed against Claude Code 2.1.285 in print mode (design/CONTROL-PLANE-FACTS.md, Fact 16): no Subagent* payload names a model, each assistant line of the subagent transcript at agent_transcript_path carries the model that produced it at message.model as a full ID, a model error with no chain never reaches SubagentStop while a fallbackModel chain moves the subagent silently, and a green Stop hook's JSON systemMessage surfaces as a notice while its stderr does not. Three answers print mode cannot give are still owed: how the interactive terminal, the VS Code extension and the desktop app render a green Stop's systemMessage (the channel that keeps a fallback from being silent), whether the plugin loader accepts the harnessFallbackModels key, and whether the main agent's Edit tool may write a subagent transcript under ~/.claude/projects/. Discharge = run the three probes Fact 16 names, record each answer in Fact 16 (which moves this anchor), and delete this row in the same diff; if a surface does not show the systemMessage, move the FALLBACK MODEL lines to a channel it does show first.",
       "reviewedOn": "2026-09-30",
       "evidence": "design/CONTROL-PLANE-FACTS.md"
+    },
+    {
+      "id": "minimatch-11-override",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        {
+          "file": "pnpm-workspace.yaml",
+          "mustContain": "'minimatch@<11.0.1': 11.0.3"
+        }
+      ],
+      "reason": "GHSA-g3hv-75wg-m249 (CVE-2026-118764, published 2026-10-30) covers every minimatch below 11.0.1. The machinery's eslint 9.39.5, @eslint/config-array 0.21.2 and @eslint/eslintrc 3.3.6 ask for ^3.1.5 and eslint-plugin-sonarjs 4.2.2 for ^10.2.6, and on 2026-11-01 neither line had a fixed release, nor did any newer eslint, @eslint/config-array, @eslint/eslintrc or eslint-plugin-sonarjs accept 11.x, so pnpm-workspace.yaml overrides every minimatch below 11.0.1 to 11.0.3. ESLint loads those packages' CommonJS builds, which only construct Minimatch, and 11.x still exports it. Their ES-module builds default-import minimatch, which 11.x does not provide, so importing @eslint/eslintrc or @eslint/config-array from an ES module fails while the override stands. Discharge = once every package that resolves minimatch here accepts a fixed release (a fixed 3.x or 10.x, or a range that admits 11.0.1 or later), delete the override, re-resolve, confirm that OSV reports no minimatch advisory against pnpm-lock.yaml, and delete this row in the same diff.",
+      "reviewedOn": "2026-11-01",
+      "evidence": "https://github.com/advisories/GHSA-g3hv-75wg-m249"
     }
   ]
 }

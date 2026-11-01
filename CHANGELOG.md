@@ -133,6 +133,18 @@ this comment. -->
   repository's analyses `.claude/`; this repository's lane found the race in the new
   `plugin/` copy. The script is owned and reaches an install with `update`. It runs only
   when someone runs it, so no slice an install already has changes.
+- **The machinery's minimatch moves to 11.0.3** (GHSA-g3hv-75wg-m249, medium). The advisory,
+  published on 2026-10-30, covers every minimatch below 11.0.1, and the scheduled OSV scan in
+  `hygiene` has been red on it since. eslint 9 and its `@eslint` packages ask for `^3.1.5`
+  and `eslint-plugin-sonarjs` for `^10.2.6`, and neither line has a fixed release, so an
+  override in `pnpm-workspace.yaml` gives the root tree 11.0.3 alone. ESLint loads those
+  packages' CommonJS builds, which only construct `Minimatch`, and it lints the same files
+  with the same resolved configuration on 11.0.3. Their ES-module builds default-import
+  minimatch, which 11.x does not provide, so nothing here may import `@eslint/eslintrc` or
+  `@eslint/config-array` from an ES module while the override stands. The two components
+  it adds have reviewed rows in `scripts/sbom-additions.json`, and the
+  `minimatch-11-override` row in `scripts/obligations.json` says when the override goes.
+  Factory only: nothing changes for an install.
 ### Added
 
 - **The README shows the harness running, and says which projects it fits** (#165). A
