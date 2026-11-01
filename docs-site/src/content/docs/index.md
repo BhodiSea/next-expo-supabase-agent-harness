@@ -15,7 +15,7 @@ hero:
       link: /next-expo-supabase-agent-harness/harness/gates-catalog/
       variant: secondary
     - text: GitHub
-      link: https://github.com/BhodiSea/next-expo-supabase-agent-harness
+      link: https://github.com/cogvera-labs/next-expo-supabase-agent-harness
       variant: minimal
 ---
 
@@ -46,5 +46,5 @@ it can describe changes that are not released yet. Where a page shows a placehol
 - [Architecture decisions](/next-expo-supabase-agent-harness/adr/): the decision records a
   new project starts with, and how to add one.
 
-The source is on [GitHub](https://github.com/BhodiSea/next-expo-supabase-agent-harness), and
+The source is on [GitHub](https://github.com/cogvera-labs/next-expo-supabase-agent-harness), and
 the CLI is published on [npm](https://www.npmjs.com/package/next-expo-supabase-agent-harness).

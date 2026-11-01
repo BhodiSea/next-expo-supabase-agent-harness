@@ -5,7 +5,7 @@ npx --yes next-expo-supabase-agent-harness@<latest|version> <command> [flags]
 ```
 
 `@latest` runs the newest release and `@<version>` an exact one. The older
-`github:BhodiSea/next-expo-supabase-agent-harness#<tag>` spelling fetches the
+`github:cogvera-labs/next-expo-supabase-agent-harness#<tag>` spelling fetches the
 repository at a git ref instead; npm 12 refuses it unless run with `--allow-git=root`.
 
 With a global install (`npm i -g next-expo-supabase-agent-harness`) the command is

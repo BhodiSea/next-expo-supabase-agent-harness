@@ -2,9 +2,9 @@
 
 Participation in this project is covered by the
 [Code of Conduct](CODE_OF_CONDUCT.md). Bugs and gate proposals go through the
-[issue chooser](https://github.com/BhodiSea/next-expo-supabase-agent-harness/issues/new/choose),
+[issue chooser](https://github.com/cogvera-labs/next-expo-supabase-agent-harness/issues/new/choose),
 questions through
-[Discussions](https://github.com/BhodiSea/next-expo-supabase-agent-harness/discussions),
+[Discussions](https://github.com/cogvera-labs/next-expo-supabase-agent-harness/discussions),
 and vulnerabilities through the private channel in [SECURITY.md](SECURITY.md).
 
 ## Ground rules

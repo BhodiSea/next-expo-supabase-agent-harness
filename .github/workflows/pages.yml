@@ -72,15 +72,17 @@ jobs:
           ASTRO_TELEMETRY_DISABLED: '1'
         run: pnpm run build
       - name: Upload the Pages artifact
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.repository == 'BhodiSea/next-expo-supabase-agent-harness'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.repository_id == '1308800605'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: docs-site/dist
 
   # Main only, and only in this repository: a copy of it has no Pages site until its owner
   # enables one, and without this guard its deploy would fail on every push (docs/forking.md).
+  # This guard and the upload step's use the repository's id, which survives a transfer or
+  # rename and which no copy has.
   docs-deploy:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.repository == 'BhodiSea/next-expo-supabase-agent-harness'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.repository_id == '1308800605'
     needs: docs-build
     runs-on: ubuntu-latest
     timeout-minutes: 10

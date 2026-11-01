@@ -41,7 +41,7 @@ const TIMEOUT_MS = 15_000
 // Some doc hosts reject HEAD or bot-ish agents; a browser-shaped UA avoids false 403s.
 const HEADERS = {
   'user-agent':
-    'Mozilla/5.0 (compatible; next-expo-supabase-agent-harness/corpus-fidelity; +https://github.com/BhodiSea/next-expo-supabase-agent-harness)',
+    'Mozilla/5.0 (compatible; next-expo-supabase-agent-harness/corpus-fidelity; +https://github.com/cogvera-labs/next-expo-supabase-agent-harness)',
 }
 
 async function resolves(url) {
