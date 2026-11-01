@@ -52,6 +52,26 @@ describe('perf-harness screen (dev chrome)', () => {
     expect(mockedProbes).toHaveBeenCalled()
   })
 
+  it('shows the three measured values beside perf-pass, so the lane can print them', async () => {
+    mockedProbes.mockReturnValue({
+      phase: 'done',
+      step: 0,
+      report: {
+        pass: true,
+        failures: [],
+        measured: { tabSwitchMs: 37.4, actionsOpenMs: 41.6, droppedFrames: 9 },
+      },
+    })
+    renderRouter('./app', { initialUrl: '/perf-harness' })
+    await screen.findByTestId('perf-harness-screen')
+    expect(await screen.findByTestId('perf-pass')).toBeTruthy()
+    // One catalog line per value, the machine metric id intact, the latencies rounded.
+    expect(screen.getByText('tabSwitchMs: measured 37')).toBeTruthy()
+    expect(screen.getByText('actionsOpenMs: measured 42')).toBeTruthy()
+    expect(screen.getByText('droppedFrames: measured 9')).toBeTruthy()
+    expect(screen.queryByTestId('perf-fail')).toBeNull()
+  })
+
   it('surfaces perf-fail + the per-metric catalog line when the report breaches', async () => {
     mockedProbes.mockReturnValue({
       phase: 'done',

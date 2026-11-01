@@ -319,6 +319,50 @@ test('--phase perf-harness: assert-only journey; the FULL query-string link is d
   assert.ok(stopAt < startAt, `force-stop must precede am start:\n${invocations}`)
 })
 
+test('GREEN --phase perf-harness: the values the passing screen measured reach the log', () => {
+  // 2.0.4. A red printed its over-budget lines (see the on-screen test above), but a green
+  // printed nothing, and tools/interaction-budget.json re-baselines only from the lane's
+  // printed medians. The screen now shows its three values on a pass too, and the runner
+  // prints them after the flow passes. The verdict is still the flow's alone.
+  const node = (attributes) => ({ attributes, children: [] })
+  const hierarchy = JSON.stringify({
+    attributes: { 'resource-id': 'perf-harness-screen' },
+    children: [
+      node({ text: 'Performance harness' }),
+      node({ 'resource-id': 'perf-pass', text: 'All interaction budgets pass' }),
+      node({ text: 'tabSwitchMs: measured 37' }),
+      node({ text: 'actionsOpenMs: measured 41' }),
+      node({ text: 'droppedFrames: measured 9' }),
+    ],
+  })
+  const dir = fixture({ behavior: { hierarchy } })
+  const r = run(dir, ['--phase', 'perf-harness', '--out-dir', 'artifacts/maestro/perf'])
+  assert.equal(r.code, 0, r.out)
+  const line = r.out.split('\n').find((l) => l.startsWith('e2e-device: on screen after')) ?? ''
+  assert.equal(
+    line,
+    'e2e-device: on screen after perf-harness.yaml passed — "tabSwitchMs: measured 37" · "actionsOpenMs: measured 41" · "droppedFrames: measured 9"',
+    r.out,
+  )
+  assert.ok(r.out.indexOf(line) < r.out.indexOf("phase 'perf-harness' — 1 flow(s) green"), r.out)
+  // A screen with no value lines (one from 2.0.3 or earlier), or none readable: the line says
+  // which, and the run stays green.
+  const older = fixture({ behavior: { hierarchy: JSON.stringify(node({ 'resource-id': 'perf-pass' })) } })
+  const o = run(older, ['--phase', 'perf-harness'])
+  assert.equal(o.code, 0, o.out)
+  assert.ok(o.out.includes('perf-harness.yaml passed — no measured values'), o.out)
+  const blind = run(fixture(), ['--phase', 'perf-harness'])
+  assert.equal(blind.code, 0, blind.out)
+  assert.ok(blind.out.includes('perf-harness.yaml passed — nothing readable'), blind.out)
+  // A red never prints it: its lines go through the failure path, as before.
+  const red = run(fixture({ behavior: { failFlows: ['perf-harness.yaml'], hierarchy } }), [
+    '--phase',
+    'perf-harness',
+  ])
+  assert.equal(red.code, 1, red.out)
+  assert.ok(!red.out.includes('on screen after'), red.out)
+})
+
 test('RED --phase perf-harness: a malformed budget file fails closed, never relaxes', () => {
   const dir = fixture()
   writeFileSync(join(dir, 'tools/interaction-budget.json'), '{ "tabSwitchMs": { "median": 0 } }')

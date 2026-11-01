@@ -46,6 +46,46 @@ next person can check the reading rather than repeat the research.
 step, because the gate already parsed the grants and used only the function half. See
 `tools/lib/table-grants.mjs`.
 
+**Supabase grants row re-verified 2026-11-01**, on the scheduled re-check that the
+`conformance-supabase-grants-arrival` row owed on 2026-10-30. Three sources were read on
+2026-11-01:
+
+- Supabase's announcement,
+  ["Breaking Change: Tables not exposed to Data and GraphQL API automatically"](https://github.com/orgs/supabase/discussions/45329),
+  also published as supabase.com/changelog/45329; last edited 2026-10-15.
+- [supabase/cli#6337](https://github.com/supabase/cli/pull/6337), merged 2026-08-26 and
+  released in Supabase CLI v2.116.0.
+- The default privileges of a hosted Supabase project created on 2026-06-22, read with
+  `select pg_get_userbyid(defaclrole), defaclobjtype, defaclacl from pg_default_acl where
+  defaclnamespace = 'public'::regnamespace`. The project is not named here.
+
+What they say:
+
+- **The announcement still gives both dates.** New tables in `public` stop getting Data API grants
+  automatically: by default on new projects from 2026-05-30, in a rollout over a few weeks,
+  and on all existing projects from 2026-10-30. Existing tables keep their grants.
+- **The CLI says the cloud change never landed.** #6337 makes an unset
+  `[api].auto_expose_new_tables` mean `true` again, so a local stack grants on new `public`
+  entities as it did before, and drops the flag's planned removal on 2026-10-30. Its reason:
+  the cloud default change "never landed — platform projects still auto-expose new
+  entities". So the bullet above that says the flag is removed on the same date no longer
+  holds. The scaffold pins the CLI at 2.118.0 and does not set the flag, so its local stack
+  grants by default too.
+- **The hosted project still grants by default.** Created after 2026-05-30 and read two days
+  after 2026-10-30, its default privileges in `public` grant `anon`, `authenticated` and
+  `service_role` `arwdDxtm` on tables, `rwU` on sequences and `X` on functions, for both
+  owners, `postgres` and `supabase_admin`. Functions are in the defaults as well as the
+  tables and sequences this section names.
+
+**Verdict: neither announced date has landed, and the shipped closure is right either way.**
+Every table the scaffold's migrations create in `public` revokes ALL from the three roles and then grants
+exactly what each keeps, so it ends with the same privileges whether or not the platform's
+defaults apply. The shipped prose that dates the change to projects created on or after
+2026-10-30 matches neither the announcement nor the platform. It is left as it is until the
+next re-check, which corrects it to what has landed by then. The maintainer decided on
+2026-11-01 to re-date the row rather than delete it, because the change it watches has not
+arrived: its next re-check is **2026-12-01**.
+
 ---
 
 ## 2. Google Play target API level — **CUT (already satisfied, and not derivable)**

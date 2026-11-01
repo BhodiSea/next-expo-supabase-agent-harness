@@ -440,7 +440,7 @@ proposed again.
 
 | Date | What changes | Row |
 |---|---|---|
-| 2026-10-30 | Supabase stops granting Data API privileges automatically on new projects. The scaffold's migrations already grant explicitly; this is the date to re-verify that against a project created after it. | `conformance-supabase-grants-arrival` |
+| 2026-12-01 | Supabase announced that new tables stop getting Data API privileges automatically, on new projects from 2026-05-30 and on every project from 2026-10-30. On 2026-11-01 neither had landed: a hosted project created after 2026-05-30 still granted them by default. The scaffold's migrations grant explicitly, so they are right either way; this is the date to check again. | `conformance-supabase-grants-arrival` |
 | 2026-12-02 | EU AI Act Article 50 transitional period ends. The recorded disposition is a confirmed negative, to be re-read. | `conformance-ai-act-transitional` |
 | 2026-12-31 | Re-check whether a harmonised standard for the Cyber Resilience Act has been cited. The CRA rows of the conformance map have a shelf life tied to this. | `conformance-cra-hens-citation` |
 | 2027-05-31 | Google Play has raised the target API level it requires on 31 August in each of the last two years, and no 2027 level is published yet. This date is three months before the next 31 August. A level above 36 would raise the scaffold's floor, which needs a ramp in a minor release, so the question is asked early. | `conformance-play-target-api-window` |

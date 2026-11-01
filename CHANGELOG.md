@@ -234,6 +234,31 @@ this comment. -->
   gives each release's signer. `publish-npm` and the Pages deploy check the repository's id
   instead of its name, so they run after the move and a fork still skips them. Factory only:
   nothing changes for an install.
+- **The Supabase grants row is re-checked and re-dated to 2026-12-01.**
+  `conformance-supabase-grants-arrival` fell due on 2026-10-30, and the nightly
+  `obligations-clockful` job has been red on it since. The re-check on 2026-11-01 found that
+  neither date Supabase announced has landed. Its announcement still says new projects stop
+  getting Data API grants automatically from 2026-05-30 and every project from 2026-10-30.
+  Supabase CLI 2.116.0 made an unset `auto_expose_new_tables` mean `true` again, because the
+  cloud change "never landed", and dropped the flag's planned removal on 2026-10-30. A hosted
+  project created after 2026-05-30 still granted `anon`, `authenticated` and `service_role`
+  every privilege by default. The scaffold's migrations revoke and grant explicitly, so they
+  are right either way. The maintainer re-dated the row rather than deleting it.
+  `design/CONFORMANCE-FACTS.md` §1 records the re-check and its sources, and the row's reason
+  and `ROADMAP.md` follow it. Factory docs: nothing reaches an install.
+- **The perf-harness screen shows its three measured values on a pass, and the device runner
+  prints them.** `maestro-smoke`, the selftest's nightly device lane, is red on about two
+  nights in three, nearly always on `droppedFrames` over its cap of 12, and the same commit is
+  green on other nights. `tools/interaction-budget.json` says to re-baseline its caps only
+  from the lane's printed medians, but a green run printed no values. On a pass,
+  `apps/mobile/app/perf-harness.tsx` now shows one line per value beside `perf-pass`, through
+  a new catalog key, `perf.measured`, and after the flow passes `tools/check-e2e-device.mjs
+  --phase perf-harness` reads the screen and prints the values in one `e2e-device: on screen
+  after perf-harness.yaml passed` line. No cap, verdict or failure line changes, so Canary
+  20's 300 ms stall fails the phase on `droppedFrames` as before. A re-baseline from these
+  numbers is the maintainer's decision, for later. The runner is owned and reaches an install
+  with `update`. The screen and the catalog are seeded, so an install's own screen shows the
+  values only once it renders them, and until then the runner prints that it found none.
 
 ## [2.0.3] — 2026-10-17
 
