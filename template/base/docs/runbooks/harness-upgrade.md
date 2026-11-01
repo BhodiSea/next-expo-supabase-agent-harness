@@ -4539,6 +4539,15 @@ them, run `update --refresh-seeded` on `apps/mobile/app/perf-harness.tsx` and
 changed yours, and bring in the pass branch and the key. Take both or neither: the `i18n` step
 reds a catalog key that nothing renders.
 
+### The doctrine says the Stop hook sends the agent back to work
+
+Through 2.0.3, `docs/harness/README.md` said a turn cannot end while the gate is red and
+called the block cap the one documented exception. It now says the Stop hook sends the agent
+back to work while the gate is red, and names the two other cases in which Claude Code ends
+the turn anyway: the hook reaching its `timeout`, and an exit 2 with nothing on stdout and a
+stderr that says a file is missing. No hook, gate or setting changes. `update` plants the
+doctrine (owned), and nothing is left to you.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

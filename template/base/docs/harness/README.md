@@ -104,9 +104,9 @@ exits 1 would be treated as a *non-blocking* hook error and wave the action thro
 Malformed, non-empty stdin throws → blocked. A broken harness blocks; it never silently
 passes.
 
-### stop-validate-gate (the unbreakable core)
+### stop-validate-gate
 
-A turn **cannot end** while the gate is red. Details that matter: it imports
+While the gate is red, the hook **sends the agent back to work**. Details that matter: it imports
 `STOP_HOOK_STEPS` from the config UNIONED with the frozen `tools/stop.floor.json`, so
 projects may APPEND a step and may never subtract one (the config is manifest mode
 `config`, which gate-integrity's owned-file loop skips — so until 0.3.0 nothing hashed the
@@ -133,9 +133,13 @@ a red gate into a crashed one.
 **The block cap leaves a mark (0.6.0).** `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` in
 `.claude/settings.json` is the safety valve so a genuinely stuck session terminates: after 8
 CONSECUTIVE blocks Claude Code ends the turn anyway. The valve is right and it stays — a hook
-that can block forever is a bricked machine. But it is also the ONE documented way the
-headline claim ("a turn cannot end on a red build") is false, and through 0.5.0 a turn that
-ran out of blocks left exactly the trace a green turn leaves: none. So every outcome now
+that can block forever is a bricked machine. It is not the only documented way a turn ends
+without a green gate: Claude Code also ends it when the hook reaches its `timeout` in
+`.claude/settings.json`, and it treats an exit 2 with nothing on stdout and a stderr that says
+a file is missing, such as `No such file or directory`, as a non-blocking error. This hook's
+red path prints nothing on stdout, so a failing step whose output says a file is missing may
+let the turn end at once. Through 0.5.0 a turn that ran out of blocks left exactly the trace a
+green turn leaves: none. So every outcome now
 appends to `.harness/turn-outcomes.jsonl`; the last block a turn is allowed says
 `LAST CHANCE` while the transcript can still act on it; and the **next** turn reports a
 predecessor that ended at the cap **even when the tree is green again by then** — which is

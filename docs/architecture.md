@@ -81,7 +81,7 @@ All three read the same definition of the gate chain,
 2. **Before a turn ends.** The `Stop` hook runs the validate chain and the
    Stop-only steps (RLS isolation, both unit suites with coverage, diff
    coverage, duplication, i18n, test quality, the mobile perf closure, reviewer
-   verdicts) and refuses to end the turn until they pass.
+   verdicts) and sends the agent back to work when one fails.
 3. **Before a merge.** The consumer's workflows run the same chain with
    `--min-floor`, against `tools/validate.floor.json`, a frozen copy of the
    step list. A project can add steps to its chain. It cannot remove one
