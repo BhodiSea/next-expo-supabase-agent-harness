@@ -183,22 +183,42 @@ function withTools(dir, rel, tools) {
   return out
 }
 
-test('pluginCopy: a command keeps the commands its `!` lines run and runs the plugin\'s own script; other files are byte copies', () => {
+// Claude Code 2.1.292 ends an entry at a comma or a space outside parentheses, and the first
+// `)` closes a rule's parentheses. A file runs both a `!` code span and a fenced `!` block.
+test('toolEntries and inlineCommands read a list and a body as Claude Code does', () => {
+  assert.deepEqual(toolEntries(' Read,Grep Glob, Bash(git diff --name-only HEAD) Bash(a (b) c)'), [
+    'Read',
+    'Grep',
+    'Glob',
+    'Bash(git diff --name-only HEAD)',
+    'Bash(a (b)',
+    'c)',
+  ])
+  const fence = '`'.repeat(3)
+  assert.deepEqual(inlineCommands(`Tree: !\`git status --short\`\n\n${fence}!\ndate +%Y\n${fence}\n`), ['date +%Y', 'git status --short'])
+})
+
+test('pluginCopy: a command keeps the commands its `!` lines and blocks run and runs the plugin\'s own script; other files are byte copies', () => {
+  const fence = '`'.repeat(3)
   const source = Buffer.from(
     [
       '---',
       'description: d',
-      'allowed-tools: Read, Bash(git status --short), Bash(node .claude/skills/s/scripts/x.mjs:*), Bash(pnpm gen), Bash(node tools/t.mjs), Bash',
+      'allowed-tools: Read, Bash(git status --short), Bash(date +%Y), Bash(node .claude/skills/s/scripts/x.mjs:*), Bash(pnpm gen), Bash(node tools/t.mjs), Bash',
       '---',
       '',
       'Run `node .claude/skills/s/scripts/x.mjs $1`, then `pnpm gen`.',
       '',
       'Tree: !`git status --short`',
       '',
+      `${fence}!`,
+      'date +%Y',
+      fence,
+      '',
     ].join('\n'),
   )
   const copy = pluginCopy('commands/c.md', source).toString('utf8')
-  assert.match(copy, /^allowed-tools: Read, Bash\(git status --short\), Bash\(node \$\{CLAUDE_PLUGIN_ROOT\}\/skills\/s\/scripts\/x\.mjs:\*\)$/m)
+  assert.match(copy, /^allowed-tools: Read, Bash\(git status --short\), Bash\(date \+%Y\), Bash\(node \$\{CLAUDE_PLUGIN_ROOT\}\/skills\/s\/scripts\/x\.mjs:\*\)$/m)
   assert.ok(copy.includes('Run `node ${CLAUDE_PLUGIN_ROOT}/skills/s/scripts/x.mjs $1`, then `pnpm gen`.'), copy)
   for (const rel of ['agents/a.md', 'skills/s/scripts/x.mjs', 'LICENSE']) {
     assert.ok(pluginCopy(rel, source).equals(source), rel)
@@ -215,7 +235,7 @@ test('the shipped plugin pre-approves only the commands its `!` lines run and it
     const text = readFileSync(join(pluginDir, rel), 'utf8')
     const own = inlineCommands(text)
     for (const entry of toolEntries(/^allowed-tools:(.*)$/m.exec(text)?.[1] ?? '')) {
-      assert.ok(!['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(entry), `${rel}: ${entry}`)
+      assert.ok(!['Bash', 'PowerShell', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(entry), `${rel}: ${entry}`)
       const command = /^Bash\((.*)\)$/.exec(entry)?.[1]
       if (command === undefined || own.includes(command)) continue
       assert.ok(command.startsWith(PLUGIN_SCRIPT) && command.endsWith(':*'), `${rel}: ${entry} is neither a \`!\` command nor the plugin's script`)
@@ -229,6 +249,7 @@ test('the shipped plugin pre-approves only the commands its `!` lines run and it
 test('RED: a command that grants every call of a tool, or a rule nearly as wide', () => {
   for (const [extra, want] of /** @type {Array<[string, RegExp]>} */ ([
     ['Bash', /commands\/rls-check\.md: allowed-tools grants every Bash call/],
+    ['PowerShell', /commands\/rls-check\.md: allowed-tools grants every PowerShell call/],
     ['Edit', /commands\/rls-check\.md: allowed-tools grants every Edit call/],
     ['Write', /commands\/rls-check\.md: allowed-tools grants every Write call/],
     ['Bash(node:*)', /Bash\(node:\*\) pre-approves more than one command/],
@@ -241,10 +262,36 @@ test('RED: a command that grants every call of a tool, or a rule nearly as wide'
   }
 })
 
+// Claude Code splits the list at spaces too, so a missing comma, or a list written with
+// spaces, grants what it names.
+test('RED: a bare Bash in a list with a missing comma, or in a list written with spaces', () => {
+  for (const [rel, tools, want] of /** @type {Array<[string, string, RegExp]>} */ ([
+    [
+      'commands/rls-check.md',
+      'Read, Grep, Glob Bash, Bash(git diff --name-only HEAD), Bash(pnpm db:test)',
+      /commands\/rls-check\.md: allowed-tools grants every Bash call/,
+    ],
+    ['skills/designing-mobile-ui/SKILL.md', 'Read Grep Glob Bash', /designing-mobile-ui\/SKILL\.md: allowed-tools grants every Bash call/],
+  ])) {
+    const dir = surfaceCopy()
+    setPrompt(dir, rel, withTools(dir, rel, tools))
+    redOnce(dir, want)
+  }
+})
+
 test('RED: a `!` line whose command allowed-tools does not name', () => {
   const dir = surfaceCopy()
   setPrompt(dir, 'commands/verify-citations.md', withTools(dir, 'commands/verify-citations.md', 'Read, Grep, Glob'))
-  redOnce(dir, /a `!` line runs `git diff --name-only HEAD`, and allowed-tools has no Bash\(git diff --name-only HEAD\) rule/)
+  redOnce(dir, /a `!` command runs `git diff --name-only HEAD`, and allowed-tools has no Bash\(git diff --name-only HEAD\) rule/)
+})
+
+test('RED: a fenced `!` block whose command allowed-tools does not name', () => {
+  const dir = surfaceCopy()
+  const rel = 'commands/verify-citations.md'
+  const fence = '`'.repeat(3)
+  const text = readFileSync(join(dir, 'template/base/.claude', rel), 'utf8')
+  setPrompt(dir, rel, `${text}\n${fence}!\ngit log -1 --format=%cd\n${fence}\n`)
+  redOnce(dir, /a `!` command runs `git log -1 --format=%cd`, and allowed-tools has no Bash\(git log -1 --format=%cd\) rule/)
 })
 
 test('RED: a script rule naming a file the skills do not ship', () => {

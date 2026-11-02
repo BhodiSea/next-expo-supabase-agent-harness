@@ -37,11 +37,13 @@ This lineage's own history starts at 0.1.3.
   source's `node .claude/skills/` path exists only in an installed project, so the plugin's
   `/new-feature` and `authoring-vertical-slice` could not run it, and the project commands
   run that project's code, which a plugin cannot vouch for. `plugin/README.md` says what runs
-  without asking. `scripts/check-plugin-manifest.mjs` reds a source command or skill that
-  grants a bare `Bash`, `Edit` or `Write`, a prefix rule on one word or a `*` wildcard, a `!`
-  line with no rule, or a script rule naming a file the skills do not ship, each watched red
-  in `tests/gates/check-plugin-manifest.test.mjs`. Every template file this changes is owned
-  and reaches an install with `update`, which re-records its `tools/agents.lock.json` entry.
+  without asking. `scripts/check-plugin-manifest.mjs` reads a source command's or skill's
+  list as Claude Code does, split at commas and at spaces outside parentheses. It reds a bare
+  `Bash`, `PowerShell`, `Edit` or `Write`, a prefix rule on one word or a `*` wildcard, a `!`
+  line or fenced `!` block with no rule, or a script rule naming a file the skills do not
+  ship, each watched red in `tests/gates/check-plugin-manifest.test.mjs`. Every template
+  file this changes is owned and reaches an install with `update`, which re-records its
+  `tools/agents.lock.json` entry.
 
 ## [2.0.4] — 2026-10-21
 

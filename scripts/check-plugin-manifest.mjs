@@ -137,13 +137,15 @@ if (existsSync(readmeAbs)) {
 
 // ── what the shipped commands and skills pre-approve, judged at their source ──
 // allowed-tools lets a command or skill run what it names without asking, so each names
-// exactly the commands it runs. A bare Bash, Edit or Write pre-approves every call of that
-// tool while it runs, and a prefix rule on one word (Bash(node:*)) or a * wildcard is
-// nearly as wide. Each command a `!` line runs needs its exact rule: Claude Code runs the
-// line as the file loads and refuses to load a file whose line it may not run. A script
-// rule names a file the skills ship. plugin/'s copies keep a subset of these rules.
+// exactly the commands it runs. The list is read as Claude Code reads it (toolEntries), so
+// a missing comma still grants what it names. A bare Bash, PowerShell, Edit or Write
+// pre-approves every call of that tool while it runs, and a prefix rule on one word
+// (Bash(node:*)) or a * wildcard is nearly as wide. Each command a `!` line or fenced `!`
+// block runs needs its exact rule: Claude Code runs it as the file loads and refuses to
+// load a file whose command it may not run. A script rule names a file the skills ship.
+// plugin/'s copies keep a subset of these rules.
 const PROMPTS_DIR = 'template/base/.claude'
-const BARE_GRANTS = new Set(['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
+const BARE_GRANTS = new Set(['Bash', 'PowerShell', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 
 /**
  * What one Bash rule pre-approves beyond the command it names.
@@ -182,7 +184,7 @@ function grantProblems(rel) {
   }
   for (const command of inlineCommands(text)) {
     if (!entries.includes(`Bash(${command})`)) {
-      out.push(`${PROMPTS_DIR}/${rel}: a \`!\` line runs \`${command}\`, and allowed-tools has no Bash(${command}) rule for it`)
+      out.push(`${PROMPTS_DIR}/${rel}: a \`!\` command runs \`${command}\`, and allowed-tools has no Bash(${command}) rule for it`)
     }
   }
   return out

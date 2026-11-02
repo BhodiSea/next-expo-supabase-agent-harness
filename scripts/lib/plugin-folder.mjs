@@ -15,8 +15,8 @@
 // runs the slice scaffolder as `node .claude/skills/...`, a path only an installed project
 // has, so the copy names the plugin's own file from ${CLAUDE_PLUGIN_ROOT}, which Claude Code
 // replaces with the plugin's folder in the text and in allowed-tools. And the copy's
-// allowed-tools keep a Bash rule only for a command its own `!` lines run, or for that
-// script. The source's other rules pre-approve a project's own commands (pnpm scripts,
+// allowed-tools keep a Bash rule only for a command its own `!` lines and blocks run, or for
+// that script. The source's other rules pre-approve a project's own commands (pnpm scripts,
 // node tools/*.mjs, the supabase CLI), which run that project's code: an installed project
 // vouches for them, a plugin cannot. Kept by hand: the manifest (.claude-plugin/plugin.json,
 // whose version the release bump sets), its icon and README.md. Anything else under plugin/
@@ -66,33 +66,37 @@ const PROJECT_SCRIPT = 'node .claude/skills/'
 export const PLUGIN_SCRIPT = 'node ${CLAUDE_PLUGIN_ROOT}/skills/'
 
 /**
- * A tool list split at the commas outside parentheses, as Claude Code reads allowed-tools.
+ * A tool list split as Claude Code 2.1.292 splits allowed-tools: at each comma or space
+ * outside parentheses. The first `)` closes a rule's parentheses; they do not nest.
  * @param {string} list
  * @returns {string[]}
  */
 export function toolEntries(list) {
   const out = ['']
-  let depth = 0
+  let inRule = false
   for (const ch of list) {
-    if (ch === ',' && depth === 0) {
+    if (!inRule && (ch === ',' || ch === ' ')) {
       out.push('')
       continue
     }
-    if (ch === '(') depth += 1
-    if (ch === ')') depth -= 1
+    if (ch === '(') inRule = true
+    if (ch === ')') inRule = false
     out[out.length - 1] += ch
   }
   return out.map((entry) => entry.trim()).filter((entry) => entry !== '')
 }
 
 /**
- * The commands a command's or skill's `!` lines run as it loads, matched as Claude Code
- * 2.1.292 matches them: an inline `!` code span at a line start or after a space.
+ * The commands a command or skill runs as it loads, matched as Claude Code 2.1.292 matches
+ * them: the body of a fenced block opened with three backticks and `!`, and an inline `!`
+ * code span at a line start or after whitespace.
  * @param {string} text
  * @returns {string[]}
  */
 export function inlineCommands(text) {
-  return [...text.matchAll(/(?<=^|\s)!`([^`]+)`/gm)].map((m) => String(m[1]).trim())
+  const fenced = text.matchAll(/```!\s*\n?([\s\S]*?)\n?```/g)
+  const inline = text.matchAll(/(?<=^|\s)!`([^`]+)`/gm)
+  return [...fenced, ...inline].map((m) => String(m[1]).trim()).filter((command) => command !== '')
 }
 
 /**
