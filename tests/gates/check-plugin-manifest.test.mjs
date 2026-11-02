@@ -266,6 +266,15 @@ test('/new-migration pre-approves pnpm test:rls, which its migration-rls-author 
   assert.match(command, /^allowed-tools: .*Bash\(pnpm test:rls\)/m)
 })
 
+// dal-author has no shell: it hands back the commands to run, and /new-action runs them.
+test('/new-action pre-approves pnpm test:rls, which its dal-author subagent hands back', () => {
+  const read = (/** @type {string} */ rel) => readFileSync(join(REPO, 'template/base/.claude', rel), 'utf8')
+  const command = read('commands/new-action.md')
+  assert.ok(command.includes('to the `dal-author` subagent'), 'new-action.md delegates to the subagent')
+  assert.ok(read('agents/dal-author.md').includes('`pnpm test`, and `pnpm test:rls`'), 'the subagent hands back pnpm test:rls')
+  assert.match(command, /^allowed-tools: .*Bash\(pnpm test:rls\)/m)
+})
+
 /** `rls-check` with its own list and one more entry: one skew, so one finding. @param {string} entry */
 function redWith(entry) {
   const dir = surfaceCopy()

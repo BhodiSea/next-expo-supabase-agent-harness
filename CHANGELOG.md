@@ -98,9 +98,10 @@ twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAG
   as it loads (`git diff --name-only HEAD`, `git status --short` or `date`), the slice
   scaffolder, and the `pnpm` and `node tools/` scripts and `supabase migration new` its steps
   name. `/new-migration` also names `pnpm test:rls`, which its `migration-rls-author` subagent
-  runs: a typed command's rules reach the subagents it starts. `designing-mobile-ui` runs none
-  and names none. Any other command asks first unless the project's settings allow it, and
-  file edits follow the session's permission mode, which the shipped `.claude/settings.json`
+  runs: a typed command's rules reach the subagents it starts. So does `/new-action`, whose
+  `dal-author` subagent has no shell and hands that command back to run. `designing-mobile-ui`
+  runs none and names none. Any other command asks first unless the project's settings allow it,
+  and file edits follow the session's permission mode, which the shipped `.claude/settings.json`
   sets to `acceptEdits`. The plugin's copies keep only the `!` line commands and the
   scaffolder, which they name from `${CLAUDE_PLUGIN_ROOT}`: the source's
   `node .claude/skills/` path exists only in an installed project, so the plugin's

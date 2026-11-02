@@ -1,7 +1,7 @@
 ---
 description: Add a single tRPC procedure (+ optional web Server Action) on the right rung, returning ActionOutcome — then regen the contract inventories.
 argument-hint: "[action-name]"
-allowed-tools: Read, Grep, Glob, Bash(git diff --name-only HEAD), Bash(pnpm gen), Bash(pnpm gen:contracts), Bash(pnpm validate), Bash(pnpm test)
+allowed-tools: Read, Grep, Glob, Bash(git diff --name-only HEAD), Bash(pnpm gen), Bash(pnpm gen:contracts), Bash(pnpm validate), Bash(pnpm test:rls), Bash(pnpm test)
 ---
 
 Add the action **$1** — one tRPC procedure served by `apps/web` and consumed by mobile
