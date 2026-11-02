@@ -20,6 +20,24 @@ twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAG
 
 ### Fixed
 
+### Changed
+
+- **The headline says what the hooks do: send the agent back to work when a check fails.** The
+  README, `package.json`'s description, the documentation site and the social preview image
+  said Claude Code hooks and CI gates "block an agent turn or a merge until validation
+  passes". Claude Code ends a turn anyway after 8 Stop-hook blocks in a row with no tool call
+  between them, when the hook reaches its timeout, and when the hook exits 2 with nothing on
+  stdout and a stderr that says a file is missing. Each now reads "Claude Code hooks that send
+  the agent back to work when a check fails, and CI gates that block a merge until validation
+  passes", and the README's other mentions, `CITATION.cff` and `docs/architecture.md` follow.
+  The doctrine's Stop hook section no longer calls the hook unbreakable, and names all three
+  cases where it called the cap the one way a turn could end red.
+  `docs/media/social-preview.png` is rendered again from its SVG with the command in its
+  comment; the repository's social preview is uploaded by hand.
+  `.claude-plugin/marketplace.json` names Cogvera Labs as its owner, and its plugin
+  description lists every reviewer and skill in plain words. The doctrine is owned and reaches
+  an install with `update`, and this release's runbook says so; the rest is factory only.
+
 ## [2.0.4] — 2026-10-21
 
 **A patch: the v2.0.x defect fixes continue.** Each item that lands after this bump adds its
@@ -268,21 +286,6 @@ this comment. -->
   numbers is the maintainer's decision, for later. The runner is owned and reaches an install
   with `update`. The screen and the catalog are seeded, so an install's own screen shows the
   values only once it renders them, and until then the runner prints that it found none.
-- **The headline says what the hooks do: send the agent back to work when a check fails.**
-  The README, `package.json`'s description, the documentation site and the social preview
-  image said Claude Code hooks and CI gates "block an agent turn or a merge until validation
-  passes". Claude Code ends a turn anyway after 8 Stop-hook blocks in a row with no tool call
-  between them, when the hook reaches its timeout, and when the hook exits 2 with nothing on
-  stdout and a stderr that says a file is missing. Each now reads "Claude Code hooks that send
-  the agent back to work when a check fails, and CI gates that block a merge until validation
-  passes", and the README's other mentions, `CITATION.cff` and `docs/architecture.md` follow.
-  The doctrine's Stop hook section no longer calls the hook unbreakable, and names all three
-  cases where it called the cap the one way a turn could end red. `docs/media/social-preview.png` is rendered again from its SVG with
-  the command in its comment; the repository's social preview is uploaded by hand.
-  `.claude-plugin/marketplace.json` names Cogvera Labs as its owner, and its plugin
-  description lists every reviewer and skill in plain words. The doctrine is owned and
-  reaches an install with `update`, and this release's runbook says so; the rest is factory
-  only.
 
 ## [2.0.3] — 2026-10-17
 

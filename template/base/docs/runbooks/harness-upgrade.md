@@ -4539,15 +4539,6 @@ them, run `update --refresh-seeded` on `apps/mobile/app/perf-harness.tsx` and
 changed yours, and bring in the pass branch and the key. Take both or neither: the `i18n` step
 reds a catalog key that nothing renders.
 
-### The doctrine says the Stop hook sends the agent back to work
-
-Through 2.0.3, `docs/harness/README.md` said a turn cannot end while the gate is red and
-called the block cap the one documented exception. It now says the Stop hook sends the agent
-back to work while the gate is red, and names the two other cases in which Claude Code ends
-the turn anyway: the hook reaching its `timeout`, and an exit 2 with nothing on stdout and a
-stderr that says a file is missing. No hook, gate or setting changes. `update` plants the
-doctrine (owned), and nothing is left to you.
-
 ## 2.0.5 — a patch: defect fixes
 
 **No ramp here applies to any install.** 2.0.5 opens no ramp and moves no deadline. The
@@ -4557,6 +4548,15 @@ above are still the sweep for an install below 1.1.0.
 **What `update` plants.** Owned files, re-planted when your copy still matches a released
 sha: this runbook and the hooks under `.claude/hooks/` (their version stamps). Each fix below
 says what else it delivers and what it leaves to you.
+
+### The doctrine says the Stop hook sends the agent back to work
+
+Through 2.0.4, `docs/harness/README.md` said a turn cannot end while the gate is red and
+called the block cap the one documented exception. It now says the Stop hook sends the agent
+back to work while the gate is red, and names the two other cases in which Claude Code ends
+the turn anyway: the hook reaching its `timeout`, and an exit 2 with nothing on stdout and a
+stderr that says a file is missing. No hook, gate or setting changes. `update` plants the
+doctrine (owned), and nothing is left to you.
 
 ## RECOVERY — when an `update` is interrupted or fails
 
