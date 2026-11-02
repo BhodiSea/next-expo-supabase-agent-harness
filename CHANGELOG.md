@@ -67,11 +67,15 @@ twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAG
   `.claude-plugin/marketplace.json` names Cogvera Labs as its owner, and its plugin
   description lists every reviewer and skill in plain words. The doctrine is owned and reaches
   an install with `update`, and this release's runbook says so; the rest is factory only.
-- **`GOVERNANCE.md` names the collaborator with write access.** It said nobody but the
-  maintainer had write access. Write access lets a collaborator merge a pull request that
-  passes the required checks; settings, the security advisory queue and the release tags
-  (`v*`) stay the maintainer's, so a successor needs administrator access to cut a release, and
-  the continuity section says so. Factory only: nothing changes for an install.
+- **`GOVERNANCE.md` names the collaborator with write access, and says that either the
+  maintainer or the collaborator decides what gets merged.** It said nobody but the maintainer
+  had write access, and that the maintainer made all final decisions, what gets merged
+  included. Write access lets a collaborator merge a pull request that passes the required
+  checks, and the Roles table lists the collaborator. The maintainer still makes the final
+  decisions about the project's direction and its releases. Settings, the security advisory
+  queue and the release tags (`v*`) stay the maintainer's, so a successor needs administrator
+  access to cut a release, and the continuity section says so. Factory only: nothing changes
+  for an install.
 
 ### Corrections to the record
 

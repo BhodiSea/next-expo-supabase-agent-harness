@@ -6,8 +6,9 @@ unavailable. It describes how things are today and makes no claim beyond that.
 
 ## How decisions are made
 
-The maintainer makes all final decisions about the project's direction, its
-releases and what gets merged.
+The maintainer makes all final decisions about the project's direction and its
+releases. Either the maintainer or [@oakla](https://github.com/oakla) decides
+what gets merged.
 
 - Changes arrive as pull requests. Every pull request runs the full CI matrix
   listed in [CONTRIBUTING.md](CONTRIBUTING.md), and the maintainer's own changes
@@ -25,6 +26,7 @@ releases and what gets merged.
 | Role | Held by | Responsibilities |
 |---|---|---|
 | Maintainer | [@BhodiSea](https://github.com/BhodiSea) (Cogvera Labs) | Reviews and merges pull requests, triages issues, sets direction. Code owner for every path in `.github/CODEOWNERS`. |
+| Collaborator | [@oakla](https://github.com/oakla) | Merges pull requests. |
 | Security contact | The maintainer | Receives private vulnerability reports and answers them within the times stated in [SECURITY.md](SECURITY.md). Publishes advisories. |
 | Release manager | The maintainer | Cuts releases by the procedure in CONTRIBUTING.md, "Releases", tags the merge commit, and runs the post-tag follow-ups. |
 | Contributor | Anyone | Opens issues, discussions and pull requests under the [Code of Conduct](CODE_OF_CONDUCT.md). Contributors hold no repository permissions. |
