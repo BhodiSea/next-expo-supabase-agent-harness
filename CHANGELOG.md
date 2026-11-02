@@ -11,6 +11,21 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [Unreleased]
+
+### Added
+
+- **The plugin's README has examples and a troubleshooting section.** `plugin/README.md`
+  gains "Examples", each of which works in a repository the harness did not install:
+  `/next-expo-supabase-agent-harness:rls-check` on a staged migration, the
+  `security-reviewer` agent on a diff and the `designing-mobile-ui` skill on an Expo screen.
+  "Troubleshooting" replaces "Inside a harness-installed project": it keeps that section's
+  notes on plugin component names and on reviewer verdicts in an installed project, and adds
+  that load errors show in the `/plugin` Errors tab. `plugin.json` gains `author.url`,
+  `documentationUrl` (the documentation site), `supportUrl` (Discussions) and `keywords`,
+  and `marketplace.json`'s `owner` gains `url`. Factory only: nothing changes for an
+  install.
+
 ## [2.0.5] — 2026-11-02
 
 **A patch: the v2.0.x defect fixes continue.** No gate is added, the chain length does not

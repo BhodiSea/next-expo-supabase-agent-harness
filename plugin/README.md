@@ -33,6 +33,46 @@ Or, inside a session on Claude Code 2.1.275 or later:
   mobile layers), `authoring-e2ee-feature` (encrypting one feature end to end with the harness's opt-in e2ee
   module) and `designing-mobile-ui`.
 
+## Examples
+
+Each works in a Next.js, Expo or Supabase repository that the harness did not install.
+
+- **Check a new migration's row-level security.** The command reviews the files that
+  `git diff --name-only HEAD` lists. In a repository with at least one commit, stage the
+  migration with `git add`, then run:
+
+  ```
+  /next-expo-supabase-agent-harness:rls-check
+  ```
+
+  The `security-reviewer` agent reports each finding with its file, line and SQL. The
+  command ends `RLS: PASS` or `RLS: FAIL`; after a fail, Claude fixes the migration and
+  offers to check again. Its live checks, the `rls_verify` probe and `pnpm db:test` against
+  a running local stack, need a harness-installed project. Elsewhere it reviews the files
+  alone; decline any command Claude asks to run for those checks.
+
+- **Review a diff for user isolation.** With uncommitted changes to migrations, data access
+  or server-side auth, ask:
+
+  ```
+  Use the security-reviewer agent on this diff.
+  ```
+
+  The agent reviews the files the diff touches. It flags such things as a server-side
+  `getSession()`, an owner id taken from the request, or the service-role key outside an
+  Edge Function, and ends `VERDICT: PASS` or `VERDICT: BLOCK`.
+
+- **Restyle an Expo screen.** Run the skill on the screen's file:
+
+  ```
+  /next-expo-supabase-agent-harness:designing-mobile-ui app/(tabs)/index.tsx
+  ```
+
+  The skill works through the checklist for that kind of screen, its type roles and
+  spacing, its loading, empty and error states, and its motion, then has the
+  `design-reviewer` and `accessibility-reviewer` agents review the change. If Claude stops
+  before the reviews, ask for them.
+
 ## What runs without asking
 
 Opening a command runs the read-only commands on its `!` lines and puts their output in the
@@ -51,17 +91,23 @@ in this plugin. A plugin cannot carry permission rules, and the harness's hooks 
 own `tools/` and validate chain, so they belong to an installed project. Install them with
 `npx --yes next-expo-supabase-agent-harness@latest init`.
 
-The agents and commands are written for a project the harness installed: they read its
-`AGENTS.md`, its docs under `docs/harness/` and its registers, and they run its tools. In
+The agents, commands and skills are written for a project the harness installed: they read
+its docs under `docs/harness/` and its registers, run its tools and name its files. In
 another project they work from whatever of that they find.
 
-## Inside a harness-installed project
+## Troubleshooting
 
-You do not need the plugin there. `init` already writes the same agents, commands and skills
-into the project's `.claude/` folder. Use those, not the plugin's: Claude Code names a plugin
-agent `next-expo-supabase-agent-harness:<name>`, and the project's reviewer ledger records a
-verdict under the exact agent name it requires, so a verdict from the plugin's reviewer does
-not count and the Stop hook keeps asking for it.
+- **A command, agent or skill is missing.** Run `/plugin` and open the **Errors** tab: it
+  lists each load error and how to fix it.
+- **Claude does not use the agent or skill you named.** Claude Code names each of the
+  plugin's components `next-expo-supabase-agent-harness:<name>`, as in the
+  `/next-expo-supabase-agent-harness:rls-check` command. Give the agent or skill that full
+  name.
+- **Inside a harness-installed project, the Stop hook keeps asking for a review.** The
+  project's reviewer ledger records a verdict under the exact agent name it requires, so a
+  verdict from the plugin's reviewer does not count. You do not need the plugin there:
+  `init` already writes the same agents, commands and skills into the project's `.claude/`
+  folder. Use those.
 
 ## License
 
