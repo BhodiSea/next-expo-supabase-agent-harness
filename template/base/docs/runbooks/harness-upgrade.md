@@ -4607,6 +4607,14 @@ says what else it delivers and what it leaves to you.
 ends green, and what that turn looks like with the local stack running and without it.
 `update` plants it (owned), and nothing is left to you.
 
+### The brief says when the local database is not answering
+
+Through 2.0.5 an agent learned that no local stack was running at its first Stop, when
+`rls-isolation` failed closed. The session-start brief now ends with
+`local database: not answering, …` when `supabase/migrations/` exists and nothing answers on
+`supabase/config.toml`'s `[db]` port. `update` plants `tools/lib/harness-brief.mjs` and the
+doctrine, both owned, and nothing is left to you.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

@@ -722,6 +722,15 @@
             "SECURITY_OWNERS"
           ]
         ]
+      },
+      {
+        "sha256": "da6c530c910cb98b8b0f85ca19715d905c3d7646e684c74b0609da31502887d8",
+        "sites": [
+          [
+            20709,
+            "SECURITY_OWNERS"
+          ]
+        ]
       }
     ],
     "docs/harness/enforcement-tiers.md": [
@@ -921,12 +930,12 @@
     ],
     "docs/runbooks/first-run.md": [
       {
-        "sha256": "6775163df078bfb076539d39c52ee14f2427be7c79607927b426190dcceec03b"
+        "sha256": "a77f2dafc8eb2bb45e5836bdbe55d138bd45d5ebb93b590ebc2181c21848d491"
       }
     ],
     "docs/runbooks/harness-upgrade.md": [
       {
-        "sha256": "7b6c05dd2c8260aec9cc435ca3d919b16910646d87ba9da69b32d00bd63425d7",
+        "sha256": "33bdcbbbbd7731ac92b2bdf80377759ce5de5f7e8de99592bdcfa263a494ace5",
         "sites": [
           [
             14122,
@@ -935,7 +944,7 @@
         ]
       },
       {
-        "sha256": "f22b9e759ce0a573c179671e3449d04ee26bb5688c20d9ba0fbf3e7957634d55",
+        "sha256": "7b6c05dd2c8260aec9cc435ca3d919b16910646d87ba9da69b32d00bd63425d7",
         "sites": [
           [
             14122,
@@ -1794,6 +1803,9 @@
     "tools/lib/harness-brief.mjs": [
       {
         "sha256": "3e2d9be1b29e675cfbaba6ce3b26474ee8b4038c6bf007abb4c45c9ec89ea95b"
+      },
+      {
+        "sha256": "6466813d00cfee9614ddebb88be8161c46c610de9ffc816ce66939f79c44497e"
       }
     ],
     "tools/lib/homes.mjs": [

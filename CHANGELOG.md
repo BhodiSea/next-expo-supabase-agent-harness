@@ -33,6 +33,16 @@ twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAG
   README and the page to one order, and `tests/installer/lifecycle.test.mjs` holds the steps,
   red on 2.0.5. The page is owned and reaches an install with `update`; the steps reach new
   projects.
+- **The session-start brief says when the local database is not answering.** An agent learned
+  that no stack was running at its first Stop, when `rls-isolation` failed closed.
+  `tools/lib/harness-brief.mjs` now ends the brief with one fixed line, `local database: not
+  answering, …`, when `supabase/migrations/` exists and nothing accepts a connection on
+  `127.0.0.1` at `supabase/config.toml`'s `[db]` port, so the agent can start the stack before
+  its work. The line is a hint: `rls-isolation` still asks `supabase status` and still fails
+  closed, the hook still exits 0 with nothing on stderr, and the port is never printed.
+  `tests/gates/harness-brief.test.mjs` proves the line against a listening and a closed socket,
+  and `tests/hooks/session-brief.test.mjs` through the spawned hook, red on 2.0.5. The lib and
+  the doctrine are owned and reach an install with `update`.
 
 ## [2.0.5] — 2026-11-02
 

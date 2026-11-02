@@ -44,8 +44,9 @@ judge it. The hook shows you NOTE lines when a turn ends green.
 
 ### With no stack running
 
-A new scaffold has migrations, so under the Stop hook `rls-isolation` fails closed. The
-hook's message to the agent includes:
+A new scaffold has migrations, so the session-start brief ends with
+`local database: not answering, …`, and under the Stop hook `rls-isolation` fails closed.
+The hook's message to the agent includes:
 
 ```
 [rls] FAIL: the RLS surface exists but no running supabase stack (`pnpm db:up`), so cross-tenant isolation is UNPROVEN and the turn cannot end.
