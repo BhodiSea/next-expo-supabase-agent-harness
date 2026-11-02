@@ -49,6 +49,10 @@ twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAG
   zod 3, which the advisory also covers, and no catalog pin reaches it.
   `tests/installer/catalog-pin-floors.test.mjs` holds the record and the template's pin to the
   floor, red on 2.0.4.
+- **`SECURITY.md` says nobody can bypass the required checks on `main`.** Its Branch-Protection
+  finding said the maintainer could bypass them when merging their own pull request. Since
+  2026-11-01 the ruleset on `main` lets nobody bypass it, the administrator included. Factory
+  only: nothing changes for an install.
 
 ### Changed
 
