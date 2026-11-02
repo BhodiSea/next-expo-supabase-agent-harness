@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // Plugin folder generator (#163). Copies the plugin's components from template/base/.claude/
 // (agents/, commands/, skills/) and the root LICENSE into plugin/, as regular files, and
-// deletes any other file there except the two kept by hand: plugin/.claude-plugin/
-// plugin.json and plugin/README.md. A command or skill is copied with what it runs changed
-// for a plugin (pluginCopy). The rule lives in scripts/lib/plugin-folder.mjs, and
-// scripts/check-plugin-manifest.mjs reds on drift, so an agent, command or skill edited at
-// its source without a regenerate fails CI.
+// deletes any other file there except the three kept by hand: plugin/.claude-plugin/
+// plugin.json, its icon.png and plugin/README.md. A command or skill is copied with what it
+// runs changed for a plugin (pluginCopy). The rule lives in scripts/lib/plugin-folder.mjs,
+// and scripts/check-plugin-manifest.mjs reds on drift, so an agent, command or skill edited
+// at its source without a regenerate fails CI.
 //
 //   --check (default): exit 1 naming each stale or extra file.
 //   --write:           make plugin/ match.

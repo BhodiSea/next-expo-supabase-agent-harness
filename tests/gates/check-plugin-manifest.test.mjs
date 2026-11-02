@@ -255,6 +255,54 @@ test('RED: a script rule naming a file the skills do not ship', () => {
   redOnce(dir, /Bash\(node \.claude\/skills\/authoring-vertical-slice\/scripts\/scaffold\.mjs:\*\) names a script the skills do not ship/)
 })
 
+/**
+ * A PNG of the given size. The gate reads the signature, the IHDR size and the IEND, not the
+ * checksums or the pixels.
+ * @param {number} width @param {number} height @param {number} [padding]
+ */
+function png(width, height, padding = 0) {
+  const chunk = (/** @type {string} */ type, /** @type {Buffer} */ data) => {
+    const length = Buffer.alloc(4)
+    length.writeUInt32BE(data.length)
+    return Buffer.concat([length, Buffer.from(type, 'latin1'), data, Buffer.alloc(4)])
+  }
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(width, 0)
+  ihdr.writeUInt32BE(height, 4)
+  ihdr[8] = 8
+  ihdr[9] = 2
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    ...(padding > 0 ? [chunk('IDAT', Buffer.alloc(padding))] : []),
+    chunk('IEND', Buffer.alloc(0)),
+  ])
+}
+
+test('RED: an icon that is missing, or not a square PNG of 512 to 2048 pixels under 2 MB', () => {
+  /** @param {string} dir @param {(m: Record<string, unknown>) => void} edit */
+  const setManifest = (dir, edit) => {
+    const path = join(dir, 'plugin/.claude-plugin/plugin.json')
+    const manifest = JSON.parse(readFileSync(path, 'utf8'))
+    edit(manifest)
+    writeFileSync(path, JSON.stringify(manifest, null, 2))
+  }
+  /** @param {string} dir @param {Buffer} bytes */
+  const setIcon = (dir, bytes) => writeFileSync(join(dir, 'plugin/.claude-plugin/icon.png'), bytes)
+  for (const [skew, want] of /** @type {Array<[(dir: string) => void, RegExp]>} */ ([
+    [(dir) => setManifest(dir, (m) => delete m['icon']), /plugin\.json: icon must name an image inside the plugin/],
+    [(dir) => setManifest(dir, (m) => (m['icon'] = './.claude-plugin/logo.png')), /icon: \.\/\.claude-plugin\/logo\.png does not exist/],
+    [(dir) => setIcon(dir, Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>\n')), /icon\.png is not a complete PNG/],
+    [(dir) => setIcon(dir, png(1024, 512)), /icon\.png is 1024 x 512 pixels; an icon must be square/],
+    [(dir) => setIcon(dir, png(256, 256)), /icon\.png is 256 x 256 pixels/],
+    [(dir) => setIcon(dir, png(1024, 1024, 2_000_000)), /icon\.png is \d+ bytes; an icon must be under 2 MB/],
+  ])) {
+    const dir = surfaceCopy()
+    skew(dir)
+    redOnce(dir, want)
+  }
+})
+
 // 1.1.0 (#62): the repo-side mirror applies docs-sync's fallback-list rule to the SHIPPED
 // roster, so a list that splits to nothing, or repeats an entry, reds this repository's CI
 // before a scaffold ever runs docs-sync. One skew, one finding.

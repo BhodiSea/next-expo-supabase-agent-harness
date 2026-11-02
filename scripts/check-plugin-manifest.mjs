@@ -8,7 +8,8 @@
 // also its drift check: plugin/'s agents, commands, skills and LICENSE must be the copies
 // scripts/lib/plugin-folder.mjs makes of their sources (regenerate with
 // scripts/generate-plugin-folder.mjs --write), within the plugin directory's file limits,
-// and its README must clear the directory's 40-word floor.
+// its README must clear the directory's 40-word floor, and plugin.json's icon must name a
+// square PNG of 512 to 2048 pixels a side, under 2 MB.
 // Also the repo-side mirror of the docs-sync agent-roster sub-check: the
 // shipped template/base/.claude/agents/*.md frontmatter is validated at its
 // SOURCE (same parser, same read-only policy — imported from the canonical
@@ -30,6 +31,7 @@ import {
 } from '../template/base/tools/lib/agent-roster.mjs'
 import {
   PLUGIN_DIR,
+  iconProblem,
   inlineCommands,
   pluginDrift,
   proseWordCount,
@@ -74,6 +76,22 @@ if (plugin !== null) {
       errs.push(`plugin.json ${field}: ${plugin[field]} does not exist`)
     }
   }
+  errs.push(...iconProblems(plugin.icon))
+}
+
+/**
+ * plugin.json's `icon`: an image inside the plugin that iconProblem accepts.
+ * @param {unknown} icon
+ * @returns {string[]}
+ */
+function iconProblems(icon) {
+  if (typeof icon !== 'string' || !icon.startsWith('./') || icon.split('/').includes('..')) {
+    return ['plugin.json: icon must name an image inside the plugin, such as "./.claude-plugin/icon.png"']
+  }
+  const abs = join(ROOT, PLUGIN_DIR, icon)
+  if (!existsSync(abs)) return [`plugin.json icon: ${icon} does not exist`]
+  const problem = iconProblem(readFileSync(abs))
+  return problem === null ? [] : [`plugin.json icon: ${icon} ${problem}`]
 }
 
 const marketplace = load('.claude-plugin/marketplace.json')

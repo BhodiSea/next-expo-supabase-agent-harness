@@ -5,6 +5,7 @@
   "license": "Apache-2.0",
   "homepage": "https://github.com/cogvera-labs/next-expo-supabase-agent-harness#readme",
   "repository": "https://github.com/cogvera-labs/next-expo-supabase-agent-harness",
+  "icon": "./.claude-plugin/icon.png",
   "author": {
     "name": "Cogvera Labs"
   }

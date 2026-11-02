@@ -13,6 +13,15 @@ This lineage's own history starts at 0.1.3.
 
 ## [2.0.5]
 
+### Added
+
+- **The Claude Code plugin has an icon.** `plugin/.claude-plugin/icon.png` is the Cogvera Labs
+  logo, a 1024-pixel square PNG, and `plugin.json` names it in `icon`.
+  `scripts/check-plugin-manifest.mjs` reds when `icon` is missing or names anything but a
+  complete square PNG of 512 to 2048 pixels a side under 2 MB, and
+  `scripts/generate-plugin-folder.mjs` keeps the file beside the manifest. Factory only:
+  nothing changes for an install.
+
 ### Changed
 
 - **Each command and skill pre-approves only the commands it runs.** The seven commands and

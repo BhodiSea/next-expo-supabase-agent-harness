@@ -19,7 +19,8 @@
 // script. The source's other rules pre-approve a project's own commands (pnpm scripts,
 // node tools/*.mjs, the supabase CLI), which run that project's code: an installed project
 // vouches for them, a plugin cannot. Kept by hand: the manifest (.claude-plugin/plugin.json,
-// whose version the release bump sets) and README.md. Anything else under plugin/ is drift.
+// whose version the release bump sets), its icon and README.md. Anything else under plugin/
+// is drift.
 import { existsSync, lstatSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { walkFiles } from '../../installer/lib/fs-walk.mjs'
@@ -27,12 +28,38 @@ import { walkFiles } from '../../installer/lib/fs-walk.mjs'
 export const PLUGIN_DIR = 'plugin'
 const COMPONENT_SOURCE = 'template/base/.claude'
 const COMPONENTS = ['agents', 'commands', 'skills']
-const HAND_EDITED = ['.claude-plugin/plugin.json', 'README.md']
+const HAND_EDITED = ['.claude-plugin/plugin.json', '.claude-plugin/icon.png', 'README.md']
 
 // The plugin directory's pre-submission limits ("Files in the plugin folder").
 const MAX_FILES = 512
 const MAX_FILE_BYTES = 256 * 1024
 const IMAGE_EXT = /\.(?:png|jpe?g|gif|webp|svg)$/i
+
+// The plugin's icon: a square PNG of 512 to 2048 pixels a side, under 2 MB.
+const ICON_SIDE = { min: 512, max: 2048 }
+const ICON_MAX_BYTES = 2_000_000
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+
+/**
+ * Why an image cannot be the plugin's icon, or null when it can.
+ * @param {Buffer} bytes
+ * @returns {string | null}
+ */
+export function iconProblem(bytes) {
+  if (bytes.length >= ICON_MAX_BYTES) return `is ${String(bytes.length)} bytes; an icon must be under 2 MB`
+  const complete =
+    bytes.length > 32 &&
+    bytes.subarray(0, 8).equals(PNG_SIGNATURE) &&
+    bytes.toString('latin1', 12, 16) === 'IHDR' &&
+    bytes.toString('latin1', bytes.length - 8, bytes.length - 4) === 'IEND'
+  if (!complete) return 'is not a complete PNG'
+  const width = bytes.readUInt32BE(16)
+  const height = bytes.readUInt32BE(20)
+  if (width !== height || width < ICON_SIDE.min || width > ICON_SIDE.max) {
+    return `is ${String(width)} x ${String(height)} pixels; an icon must be square, 512 to 2048 pixels a side`
+  }
+  return null
+}
 
 const PROMPT_FILE = /^(?:commands|skills)\/.*\.md$/
 const PROJECT_SCRIPT = 'node .claude/skills/'

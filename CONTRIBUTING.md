@@ -119,7 +119,7 @@ node scripts/hygiene.mjs                # leaked-string + placeholder closure + 
 node scripts/check-reuse.mjs            # REUSE dual-license structure (offline mirror of `reuse lint`)
 node scripts/check-claims.mjs           # README/CHANGELOG numbers recomputed from the sources of truth
 node scripts/check-release-lockstep.mjs # one version across package.json, plugin, hooks, CITATION, CHANGELOG
-node scripts/check-plugin-manifest.mjs  # plugin/marketplace fields, what the commands and skills pre-approve, and plugin/ in sync with its sources (regenerate: node scripts/generate-plugin-folder.mjs --write)
+node scripts/check-plugin-manifest.mjs  # plugin/marketplace fields and icon, what the commands and skills pre-approve, and plugin/ in sync with its sources (regenerate: node scripts/generate-plugin-folder.mjs --write)
 node scripts/check-canary-coverage.mjs  # every gate AND every job in every shipped workflow, base and modules, has a registered, RUNNING red-proof
 node scripts/generate-floor.mjs --check    # BOTH frozen snapshots (validate.floor.json, stop.floor.json) mirror the config
 node scripts/generate-skill-references.mjs --check  # the slice skill's code blocks match the example's marked spans
