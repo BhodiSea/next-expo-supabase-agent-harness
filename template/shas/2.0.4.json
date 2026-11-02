@@ -83,16 +83,10 @@
     ],
     ".claude/commands/adr.md": [
       {
-        "sha256": "0e1ef97257aaaf5b2085f245233f4624f6945afa0466e92a12cba1d3fb81c4d0"
-      },
-      {
         "sha256": "7150502aad7d4e2829dca791890452efa19501fc6cc89ed94d75346f5795fc63"
       }
     ],
     ".claude/commands/new-action.md": [
-      {
-        "sha256": "3af1f00944e21293cd1e37566d538fb85855a9f025c8bee3a8538ebaa18928a9"
-      },
       {
         "sha256": "b27cc4d6bbfe37bc434ef1bd223d9beb14c17af15aa8753775f70b1113400e35"
       }
@@ -102,42 +96,27 @@
         "sha256": "2f37918fad51fb341b24b328e729c7a5daefc6949e9014779329cad1324d1261"
       },
       {
-        "sha256": "69dcbe6c46b6a02e12865b85866e9a12453f9ceeeaee3c9273ab4dc170acdb7a"
-      },
-      {
         "sha256": "e4e93f72d19b19fc808f9c0e45dd7bc338573f38133d50e14a8e7e5f8d25b45c"
       }
     ],
     ".claude/commands/new-migration.md": [
       {
         "sha256": "3e4591364edc7c432bc41077ba789feac2c8f5f0e27bb0359a9f299a998596ef"
-      },
-      {
-        "sha256": "a221fd57e992a6683d4100781280d959095bd6192479b38cb4b9adabdf599eb2"
       }
     ],
     ".claude/commands/rls-check.md": [
       {
         "sha256": "ce3fbb7a4a2fa84b5f00cc72131a00f34401c74470d5671b451a059b22bbb59d"
-      },
-      {
-        "sha256": "cf226ce88ca164d6c09c26ddc0ea6565c813494de2b178fbe65b0b81a8151e8b"
       }
     ],
     ".claude/commands/verify-citations.md": [
       {
         "sha256": "410301bc6e12afabeec4f97755ad3404043242a4b557eee8bede7ab4d33afbe2"
-      },
-      {
-        "sha256": "b54e85292dfc77a129521c2537b70d05993f56885979933a55fda4821f0197ed"
       }
     ],
     ".claude/commands/verify-invariants.md": [
       {
         "sha256": "31ef32b3e3ef36dae57f3a07b05bb5420eddc2d4dd39fe0047af330868c5522c"
-      },
-      {
-        "sha256": "474d1c915fd41a6f33ff93d09b21c01754887897cfe1fa1c9a74d27d69f31d6d"
       },
       {
         "sha256": "fdddd9f65fd9a2f80946eb9f699fde906a65d0ce4ddae53ffe7bb55843aa52d4"
@@ -263,16 +242,10 @@
     ],
     ".claude/skills/authoring-e2ee-feature/SKILL.md": [
       {
-        "sha256": "02012125d4ad291ead9572202e681a4a0d934786250a03d7352afdb8d77bcb2f"
-      },
-      {
         "sha256": "f9e739d241a1b4fd40ecf9422026b419b1e17304b015352e6e0a16babbd50648"
       }
     ],
     ".claude/skills/authoring-vertical-slice/SKILL.md": [
-      {
-        "sha256": "4c9cce4ec79f6a37fcd3a3abd79f624441b508078fc9bddaec8d8d7b21131f2b"
-      },
       {
         "sha256": "9b4354376eec92c48be4de33cf96c9c6ebbf742a9030b3ca47d2849da2274d13"
       },
@@ -309,9 +282,6 @@
       }
     ],
     ".claude/skills/designing-mobile-ui/SKILL.md": [
-      {
-        "sha256": "e4f11edd5ed5fdd781f84fbad1aaf620c7b9a348760ad3ae423b4024ab76f8e2"
-      },
       {
         "sha256": "fa7bb35bdf4fafd2a48280b8a151e3857532e818fa99d0b8877bdd2192c12de9"
       }

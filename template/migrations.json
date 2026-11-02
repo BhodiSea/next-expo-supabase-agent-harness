@@ -1284,5 +1284,47 @@
       ],
       "why": "2.0.4 opens no escape and closes none. The population above is 2.0.0's, restated because a direct hop from any of these vintages crosses 2.0.0's record: the 1.1.0 fleet falls due as it does at 2.0.0, and the documented sweep (docs/runbooks/harness-upgrade.md, the 1.1.0 and 2.0.0 sections; scripts/ci/upgrade-sweep.mjs SWEEPS['1.1.0'] and SWEEPS['2.0.0']) is what clears it. A 1.1.0, 2.0.0, 2.0.1, 2.0.2 or 2.0.3 install meets nothing that expires. Read the count off `node scripts/ci/ramp-expectations.mjs <base> 2.0.4`, never off this paragraph."
     }
+  },
+  "2.0.5": {
+    "//": [
+      "2.0.5 — a patch, the v2.0.x defect fixes after the 2.0.4 cut. This record is authored INCREMENTALLY: the bump commit writes the rampExpiry and this string, and each item appends one string ending with its issue number. The version bump changes the nine hook version stamps and the upgrade runbook, both OWNED and re-planted by `update` when sha-unmodified. A patch opens no ramp and moves no deadline, so the bump adds no removed/renamed/configSteps/seededSourceFixes/dependencyObligations and no rampExtensions, and withholds nothing; an item that withholds a path adds its seedOnInitOnly entry and the reviewed SWEEPS['2.0.5'] entry in scripts/ci/upgrade-sweep.mjs that a withheld path requires.",
+      "FOUR GATES RUN THEIR TOOLS WITHOUT A SHELL. tools/check-edge-functions.mjs, tools/check-gate-integrity.mjs, tools/check-rate-limits.mjs and tools/check-security-headers.mjs (all OWNED, re-planted when sha-unmodified) built a shell command from data: each supabase/functions directory name (deno check), each tsconfig path (git status), and a node -e probe carrying the project's path and, in rate-limits, every procedure name in tools/generated/action-inventory.json and every Server Action name in tools/rate-limit-budget.json. A `$(…)` or backtick in one could run a command when the gate ran; a `$NAME` in the project's path sent both probes to a file that does not exist, so rate-limits and security-headers skipped locally and failed in CI; and a space split a tsconfig path into two pathspecs that match nothing, so an uncommitted edit to a tsconfig under such a directory read as committed (CodeQL js/shell-command-injection-from-environment flagged the deno half). All four now call execFileSync with an argument list. No verdict moves for an input with none of these. An install whose path holds a `$NAME` now has rate-limits and security-headers evaluate their modules, and one holding an uncommitted edit to a tsconfig under a directory whose name has a space now reds gate-integrity, which committing the edit clears. Nothing is withheld and no ramp opens.",
+      "THE zod CATALOG PIN FLOOR. GHSA-mrhx-c7xc-m3w5 (CVE-2023-54404, high, published 2026-10-01) is memory exhaustion in zod through 4.6.5: an array schema with no length limit, given a large array, collects one issue per failing element with no cap. Every release from 0.1.3 through 2.0.4 shipped the catalog pin ^4.4.3, whose lower bound admits those versions. The template now pins ^4.6.6, and the catalogPinFloors entry below carries the floor to existing installs: pnpm-workspace.yaml is SEEDED, so `update` never writes it, names the floor in a CATALOG PIN FLOOR note and parks .harness/pending/pin-floors.json, and `doctor` warns (exit 2, never 1) until the pin's lower bound is at least 4.6.6. @expo/cli 57, which Expo SDK 57 installs, still depends on zod ^3.25.76, which the advisory also covers; no catalog pin reaches it. Nothing is withheld and no ramp opens.",
+      "#281 — THE DOCTRINE SAYS THE STOP HOOK SENDS THE AGENT BACK TO WORK. docs/harness/README.md (OWNED, re-planted when sha-unmodified) said through 2.0.4 that a turn cannot end while the gate is red, and called the block cap the one documented exception. It now says the Stop hook sends the agent back to work while the gate is red, and names the two other cases in which Claude Code ends the turn anyway: the hook reaching its timeout, and an exit 2 with nothing on stdout and a stderr that says a file is missing. Its stop-validate-gate heading no longer calls the hook the unbreakable core. This release's runbook section (OWNED) says so. Prose only: no hook, gate, setting or verdict moves, nothing is withheld and no ramp opens (#281)."
+    ],
+    "rampExpiry": {
+      "//": "COMPUTED by scripts/check-ramp-ledger.mjs at version 2.0.5 and copied from its output, never typed. The vintage list is identical to 2.0.4's, and 2.0.0's, for the reason 1.0.4's was identical to 1.0.3's: a patch closes no new escape, but a direct hop from an old vintage crosses 2.0.0's record and meets its expiries on arrival, so the population is restated rather than inherited by implication.",
+      "affects": [
+        "0.1.3",
+        "0.2.0",
+        "0.2.1",
+        "0.3.0",
+        "0.4.0",
+        "0.5.0",
+        "0.6.0",
+        "0.7.0",
+        "0.8.0",
+        "0.9.0",
+        "0.9.5",
+        "0.9.9",
+        "0.10.0",
+        "0.11.0",
+        "0.11.1",
+        "1.0.0",
+        "1.0.1",
+        "1.0.2",
+        "1.0.3",
+        "1.0.4"
+      ],
+      "why": "2.0.5 opens no escape and closes none. The population above is 2.0.0's, restated because a direct hop from any of these vintages crosses 2.0.0's record: the 1.1.0 fleet falls due as it does at 2.0.0, and the documented sweep (docs/runbooks/harness-upgrade.md, the 1.1.0 and 2.0.0 sections; scripts/ci/upgrade-sweep.mjs SWEEPS['1.1.0'] and SWEEPS['2.0.0']) is what clears it. A 1.1.0, 2.0.0, 2.0.1, 2.0.2, 2.0.3 or 2.0.4 install meets nothing that expires. Read the count off `node scripts/ci/ramp-expectations.mjs <base> 2.0.5`, never off this paragraph."
+    },
+    "catalogPinFloors": [
+      {
+        "name": "zod",
+        "minVersion": "4.6.6",
+        "advisory": "GHSA-mrhx-c7xc-m3w5",
+        "why": "zod through 4.6.5 is affected by GHSA-mrhx-c7xc-m3w5 (high): validating a large array against an array schema with no length limit collects one issue per failing element with no cap, and can exhaust the process's memory. Every release from 0.1.3 through 2.0.4 shipped ^4.4.3, so meeting the floor is a minor raise on the same major."
+      }
+    ]
   }
 }

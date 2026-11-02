@@ -6,8 +6,9 @@ unavailable. It describes how things are today and makes no claim beyond that.
 
 ## How decisions are made
 
-The maintainer makes all final decisions about the project's direction, its
-releases and what gets merged.
+The maintainer makes all final decisions about the project's direction and its
+releases. Either the maintainer or [@oakla](https://github.com/oakla) decides
+what gets merged.
 
 - Changes arrive as pull requests. Every pull request runs the full CI matrix
   listed in [CONTRIBUTING.md](CONTRIBUTING.md), and the maintainer's own changes
@@ -25,15 +26,18 @@ releases and what gets merged.
 | Role | Held by | Responsibilities |
 |---|---|---|
 | Maintainer | [@BhodiSea](https://github.com/BhodiSea) (Cogvera Labs) | Reviews and merges pull requests, triages issues, sets direction. Code owner for every path in `.github/CODEOWNERS`. |
+| Collaborator | [@oakla](https://github.com/oakla) | Merges pull requests. |
 | Security contact | The maintainer | Receives private vulnerability reports and answers them within the times stated in [SECURITY.md](SECURITY.md). Publishes advisories. |
 | Release manager | The maintainer | Cuts releases by the procedure in CONTRIBUTING.md, "Releases", tags the merge commit, and runs the post-tag follow-ups. |
 | Contributor | Anyone | Opens issues, discussions and pull requests under the [Code of Conduct](CODE_OF_CONDUCT.md). Contributors hold no repository permissions. |
 
 ## Who has access to what
 
-- **Repository administration**, which includes merging, settings, the security
-  advisory queue and the ability to push tags: the maintainer's GitHub account
-  only. There are no other collaborators.
+- **Repository administration**, which includes settings, the security advisory
+  queue and the ability to push a release tag (`v*`): the maintainer's GitHub
+  account only.
+- **Write access**, which includes merging a pull request that passes the
+  required checks: the maintainer and [@oakla](https://github.com/oakla).
 - **Release signing**: nobody holds a signing key, because there is none.
   `.github/workflows/release.yml` builds the release asset and signs its
   provenance attestation with a short-lived identity issued to the workflow run.
@@ -42,18 +46,18 @@ releases and what gets merged.
 
 ### Granting access
 
-Nobody else has write access today. If that changes, it will be granted only
-to someone with a record of reviewed contributions to this repository, with
-two-factor authentication enabled on their account, and at the lowest
-permission level that lets them do the work. Administrator access stays with
-the project owner. This document will name every person who holds access.
+Further access will be granted only to someone with a record of reviewed
+contributions to this repository, with two-factor authentication enabled on
+their account, and at the lowest permission level that lets them do the work.
+Administrator access stays with the project owner. This document will name
+every person who holds access.
 
 ## Continuity
 
 **There is no named successor today.** If the maintainer became unavailable,
-nobody else could merge a change, close an issue or publish a release in this
-repository. That is a real limitation of a single-maintainer project, and
-anyone depending on this project should weigh it.
+nobody else could cut a release or change a setting in this repository. That
+is a real limitation of a single-maintainer project, and anyone depending on
+this project should weigh it.
 
 What does not depend on the maintainer:
 
@@ -62,8 +66,8 @@ What does not depend on the maintainer:
   [docs/forking.md](docs/forking.md) says how to start one with a fresh history
   and lists every place a fork has to rename.
 - **No credential needs handing over to publish a release.** Release signing
-  uses the workflow's own short-lived identity, so a successor with write access
-  could cut a release on their first day.
+  uses the workflow's own short-lived identity, so a successor with
+  administrator access could cut a release on their first day.
 - **Installed projects keep working.** A scaffolded project carries its own
   copy of every gate, hook and workflow. It contacts this repository only when
   someone runs `update`.

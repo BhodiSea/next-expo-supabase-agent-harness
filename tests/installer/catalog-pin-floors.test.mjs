@@ -283,6 +283,27 @@ test('the SHIPPED 1.1.0 record floors vitest and @vitest/coverage-v8 at 4.1.11, 
   )
 })
 
+test('the SHIPPED 2.0.5 record floors zod at 4.6.6, the template meets it, and ^4.4.3 is below it', () => {
+  const migrations = JSON.parse(readFileSync(join(ROOT, 'template/migrations.json'), 'utf8'))
+  const floors = migrations['2.0.5']?.catalogPinFloors ?? []
+  assert.deepEqual(
+    floors.map((f) => [f.name, f.minVersion, f.advisory]),
+    [['zod', '4.6.6', 'GHSA-mrhx-c7xc-m3w5']],
+  )
+  for (const f of floors) assert.ok(f.why.length >= 40, `${f.name}: why is ${f.why.length} chars`)
+  const workspaceYaml = readFileSync(join(ROOT, 'template/base/pnpm-workspace.yaml'), 'utf8')
+  assert.deepEqual(lib.unmetCatalogPinFloors(migrations, '99.0.0', { workspaceYaml }), [])
+  // Every release from 0.1.3 through 2.0.4 shipped `zod: ^4.4.3`; a 2.0.4 installer demands
+  // no 2.0.5 floor of it.
+  const shipped = workspaceYaml.replace(/^( {2}zod: )\S+/m, '$1^4.4.3')
+  assert.notEqual(shipped, workspaceYaml, 'fixture precondition: the template pins zod above ^4.4.3')
+  assert.deepEqual(
+    lib.unmetCatalogPinFloors(migrations, '2.0.5', { workspaceYaml: shipped }).map((f) => [f.name, f.found]),
+    [['zod', '^4.4.3']],
+  )
+  assert.deepEqual(lib.unmetCatalogPinFloors(migrations, '2.0.4', { workspaceYaml: shipped }), [])
+})
+
 test('the anchored catalog-entry pattern has exactly one home', () => {
   // unmetDependencyObligations, unmetCatalogPinFloors and doctor's toolchain report read a
   // catalog entry through catalogEntry(); a second copy of the anchor is how two of them

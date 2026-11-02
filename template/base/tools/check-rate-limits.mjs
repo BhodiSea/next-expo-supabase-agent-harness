@@ -21,6 +21,7 @@
 // budget names must actually call the guard.
 // SOURCE: docs/adr/20260204-rate-limiting.md
 // SOURCE: docs/harness/gates-catalog.md (rate-limits) [corpus: harness/doctrine]
+import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { walkFiles } from './lib/fs-walk.mjs'
@@ -28,9 +29,9 @@ import {
   commandFailureOutput,
   fail,
   failures,
+  MAX_BUFFER,
   ok,
   rampNote,
-  runCmd,
   skipOrFail,
   stampGate,
 } from './lib/gate.mjs'
@@ -288,10 +289,10 @@ for (const [action, entry] of exempt) {
 if (!existsSync(MODULE)) {
   skipOrFail(GATE, `${MODULE} not found — nothing to evaluate the budget against`)
 }
-// ONE PHYSICAL LINE: runCmd goes through a shell, and a `-e` payload with real newlines
-// arrives at node as literal backslash-n — a syntax error whose message reads exactly like
-// "type stripping is unavailable", which would make this gate skip forever for a plausible
-// reason. (Learned by the security-headers gate; kept identical here on purpose.)
+// The probe reaches node as one argument, never through a shell (2.0.5): it carries the
+// module's path and every procedure and Server Action name in the inventory and the budget,
+// and through 2.0.4 a shell ran a `$(…)` in one. (The security-headers gate evaluates its
+// module the same way, on purpose.)
 const probe =
   `import(${JSON.stringify(pathToFileURL(MODULE).href)}).then((m) => process.stdout.write(JSON.stringify(` +
   `{ buckets: m.rateLimitBuckets(), procedures: Object.fromEntries(${JSON.stringify([
@@ -305,7 +306,11 @@ const probe =
 let evaluated
 try {
   evaluated = JSON.parse(
-    runCmd(`node --experimental-strip-types --no-warnings -e ${JSON.stringify(probe)}`),
+    execFileSync(process.execPath, ['--experimental-strip-types', '--no-warnings', '-e', probe], {
+      encoding: 'utf8',
+      maxBuffer: MAX_BUFFER,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }),
   )
 } catch (e) {
   const reason = commandFailureOutput(e).split('\n').slice(0, 3).join(' / ')

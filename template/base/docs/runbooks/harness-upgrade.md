@@ -4539,14 +4539,57 @@ them, run `update --refresh-seeded` on `apps/mobile/app/perf-harness.tsx` and
 changed yours, and bring in the pass branch and the key. Take both or neither: the `i18n` step
 reds a catalog key that nothing renders.
 
+## 2.0.5 — a patch: defect fixes
+
+**No ramp here applies to any install.** 2.0.5 opens no ramp and moves no deadline. The
+population 2.0.0 reds is restated in this release's record, and the 1.1.0 and 2.0.0 sections
+above are still the sweep for an install below 1.1.0.
+
+**What `update` plants.** Owned files, re-planted when your copy still matches a released
+sha: this runbook and the hooks under `.claude/hooks/` (their version stamps). Each fix below
+says what else it delivers and what it leaves to you.
+
 ### The doctrine says the Stop hook sends the agent back to work
 
-Through 2.0.3, `docs/harness/README.md` said a turn cannot end while the gate is red and
+Through 2.0.4, `docs/harness/README.md` said a turn cannot end while the gate is red and
 called the block cap the one documented exception. It now says the Stop hook sends the agent
 back to work while the gate is red, and names the two other cases in which Claude Code ends
 the turn anyway: the hook reaching its `timeout`, and an exit 2 with nothing on stdout and a
 stderr that says a file is missing. No hook, gate or setting changes. `update` plants the
 doctrine (owned), and nothing is left to you.
+
+### Four gates run their tools without a shell
+
+Through 2.0.4 `edge-functions`, `gate-integrity`, `rate-limits` and `security-headers` handed
+what they read to a shell: function directory names, tsconfig paths, procedure and Server
+Action names, and your project's path. `$(…)` or backticks in one of them could run a
+command. A `$NAME` in your project's path made `rate-limits` and `security-headers` skip
+locally and fail in CI. A tsconfig under a directory whose name has a space was looked up as
+two paths that match nothing, so `gate-integrity` passed an uncommitted edit to it. The four
+gates now pass each of these as one argument. `update` plants `tools/check-edge-functions.mjs`,
+`tools/check-gate-integrity.mjs`, `tools/check-rate-limits.mjs` and
+`tools/check-security-headers.mjs`, all owned. If such a tsconfig holds an uncommitted edit,
+`gate-integrity` now names it; commit the edit, or undo it.
+
+### Raise `zod` to `^4.6.6` (GHSA-mrhx-c7xc-m3w5)
+
+zod through 4.6.5 can exhaust a process's memory while it validates a large array against an
+array schema with no length limit (GHSA-mrhx-c7xc-m3w5, high). The `zod: ^4.4.3` that every
+release through 2.0.4 seeded in your catalog admits those versions. `update` does not touch
+your pins: it names the floor and parks `.harness/pending/pin-floors.json`, and `doctor`
+warns until the pin's lower bound is 4.6.6 or higher. To meet it:
+
+```
+# in the pnpm-workspace.yaml catalog: zod: ^4.6.6
+pnpm install && git add pnpm-lock.yaml pnpm-workspace.yaml
+pnpm validate
+npx next-expo-supabase-agent-harness@latest doctor
+```
+
+`doctor` then removes the parked file. `@expo/cli` 57, which Expo SDK 57 installs, still
+depends on zod 3, which the advisory also covers. No catalog pin reaches it, so a scan of
+your lockfile keeps reporting it; `@expo/cli` 58.1.18, on the SDK 58 line, no longer depends
+on zod.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

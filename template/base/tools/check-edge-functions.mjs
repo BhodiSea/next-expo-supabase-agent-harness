@@ -30,13 +30,36 @@
 // but not the seeded deno.json, deno.lock and handler split, which reach fresh scaffolds only
 // (the 1.1.0 runbook section pulls them with `update --refresh-seeded`).
 // SOURCE: docs/harness/gates-catalog.md (CI-only lanes, edge-functions)
+import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { commandFailureOutput, failures, ok, rampNote, runCmd, skipOrFail } from './lib/gate.mjs'
+import {
+  commandFailureOutput,
+  failures,
+  MAX_BUFFER,
+  ok,
+  rampNote,
+  skipOrFail,
+} from './lib/gate.mjs'
 
 const GATE = 'edge-functions'
 const ROOT = 'supabase/functions'
 // Deno's own exit code decides; these only keep its output quiet and non-interactive.
 const DENO_ENV = { ...process.env, DENO_NO_UPDATE_CHECK: '1', DENO_NO_PROMPT: '1', NO_COLOR: '1' }
+
+// deno with an argument list, never a shell (2.0.5): a function's directory name is data,
+// and through 2.0.4 a shell ran a `$(…)` in one (CodeQL
+// js/shell-command-injection-from-environment). deno is a binary, so no Windows `.cmd` shim
+// needs a shell to resolve it.
+/** @param {string[]} args @param {{ timeout?: number }} [opts] */
+const deno = (args, opts = {}) =>
+  execFileSync('deno', args, {
+    encoding: 'utf8',
+    env: DENO_ENV,
+    maxBuffer: MAX_BUFFER,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    ...opts,
+  })
+
 // A jsr:/npm: specifier pinned to one release: name@x.y.z, an optional prerelease/build tag,
 // an optional subpath. Anything else in a jsr:/npm: import (no version, ^, ~, a bare major)
 // is a range.
@@ -80,7 +103,7 @@ function configProblems(dir) {
 /** Whether a deno binary answers on PATH; its version line, or null. */
 function denoVersion() {
   try {
-    return runCmd('deno --version', { env: DENO_ENV }).split('\n')[0].trim()
+    return deno(['--version']).split('\n')[0].trim()
   } catch {
     return null
   }
@@ -89,9 +112,16 @@ function denoVersion() {
 /** `deno check --frozen` of one function; a finding with deno's own output, or null. */
 function typecheck(dir) {
   try {
-    runCmd(
-      `deno check --frozen --config "${dir}/deno.json" --lock="${dir}/deno.lock" "${dir}/index.ts"`,
-      { env: DENO_ENV, timeout: 300_000 },
+    deno(
+      [
+        'check',
+        '--frozen',
+        '--config',
+        `${dir}/deno.json`,
+        `--lock=${dir}/deno.lock`,
+        `${dir}/index.ts`,
+      ],
+      { timeout: 300_000 },
     )
     return null
   } catch (e) {
