@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { PLUGIN_SCRIPT, inlineCommands, pluginCopy, toolEntries } from '../../scripts/lib/plugin-folder.mjs'
+import { PLUGIN_SCRIPT, allowedTools, inlineCommands, pluginCopy, toolEntries, wholeToolGrant } from '../../scripts/lib/plugin-folder.mjs'
 
 const REPO = fileURLToPath(new URL('../../', import.meta.url))
 const SCRIPT = join(REPO, 'scripts/check-plugin-manifest.mjs')
@@ -234,8 +234,10 @@ test('the shipped plugin pre-approves only the commands its `!` lines run and it
   for (const rel of files) {
     const text = readFileSync(join(pluginDir, rel), 'utf8')
     const own = inlineCommands(text)
-    for (const entry of toolEntries(/^allowed-tools:(.*)$/m.exec(text)?.[1] ?? '')) {
-      assert.ok(!['Bash', 'PowerShell', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(entry), `${rel}: ${entry}`)
+    const entries = allowedTools(/^allowed-tools:(.*)$/m.exec(text)?.[1] ?? '')
+    assert.ok(entries !== null, `${rel}: allowed-tools is not a plain or wholly quoted list`)
+    for (const entry of entries) {
+      assert.equal(wholeToolGrant(entry), null, `${rel}: ${entry}`)
       const command = /^Bash\((.*)\)$/.exec(entry)?.[1]
       if (command === undefined || own.includes(command)) continue
       assert.ok(command.startsWith(PLUGIN_SCRIPT) && command.endsWith(':*'), `${rel}: ${entry} is neither a \`!\` command nor the plugin's script`)
@@ -262,6 +264,23 @@ test('RED: a command that grants every call of a tool, or a rule nearly as wide'
   }
 })
 
+// Claude Code's rule parser reads Tool() and Tool(*) as the bare Tool.
+for (const [entry, tool] of /** @type {Array<[string, string]>} */ ([
+  ['Bash()', 'Bash'],
+  ['Bash(*)', 'Bash'],
+  ['PowerShell()', 'PowerShell'],
+  ['PowerShell(*)', 'PowerShell'],
+  ['Edit(*)', 'Edit'],
+  ['Write()', 'Write'],
+])) {
+  test(`RED: ${entry} grants every ${tool} call, as Claude Code reads it`, () => {
+    const dir = surfaceCopy()
+    const rel = 'commands/rls-check.md'
+    setPrompt(dir, rel, withTools(dir, rel, `Read, Grep, Glob, Bash(git diff --name-only HEAD), Bash(pnpm db:test), ${entry}`))
+    redOnce(dir, new RegExp(`commands/rls-check\\.md: allowed-tools grants every ${tool} call`))
+  })
+}
+
 // Claude Code splits the list at spaces too, so a missing comma, or a list written with
 // spaces, grants what it names.
 test('RED: a bare Bash in a list with a missing comma, or in a list written with spaces', () => {
@@ -277,6 +296,45 @@ test('RED: a bare Bash in a list with a missing comma, or in a list written with
     setPrompt(dir, rel, withTools(dir, rel, tools))
     redOnce(dir, want)
   }
+})
+
+// Claude Code parses the frontmatter as YAML, and ends it at the first `---`, even mid-line.
+// It reads a bare Bash in each of these lists but two. The comment hides the rule the
+// command's `!` line needs. The entry that is not a tool is read as its text, but the plugin
+// copy drops `Bash(pnpm gen)` and starts with the quote, which Claude Code reads as Bash.
+// YAML reads a no-break space as text, so the line after the list continues it. Its spec
+// reads a lone carriage return as a line break, so the comment ends there.
+const NOT_PLAIN = /allowed-tools is not a plain or wholly quoted list/
+/** @type {Array<[string, string, string, RegExp]>} */
+const LIST_FORMS = [
+  ['a flow list', 'skills/designing-mobile-ui/SKILL.md', 'allowed-tools: [Read, Grep, Glob, Bash]', NOT_PLAIN],
+  ['a quoted list and a comment', 'skills/designing-mobile-ui/SKILL.md', 'allowed-tools: "Read, Grep, Glob, Bash" # read-only', NOT_PLAIN],
+  ['an alias', 'skills/designing-mobile-ui/SKILL.md', 'shared: &tools Read, Grep, Glob, Bash\nallowed-tools: *tools', NOT_PLAIN],
+  ['a block scalar', 'skills/designing-mobile-ui/SKILL.md', 'allowed-tools: |\n  Read, Grep, Glob\n    Bash', NOT_PLAIN],
+  ['a double-quoted escape', 'skills/designing-mobile-ui/SKILL.md', 'allowed-tools: "Read, Grep, Glob, \\x42ash"', NOT_PLAIN],
+  ['a comment', 'commands/verify-invariants.md', 'allowed-tools: Read, Grep, Glob # Bash(git diff --name-only HEAD)', NOT_PLAIN],
+  ['a --- inside it', 'skills/designing-mobile-ui/SKILL.md', 'allowed-tools: Read, Grep, Glob, Bash---', /a `---` inside the frontmatter ends it there/],
+  ['an entry that is not a tool', 'skills/authoring-e2ee-feature/SKILL.md', 'allowed-tools: Bash(pnpm gen), "Bash"', NOT_PLAIN],
+  ['a no-break space', 'skills/designing-mobile-ui/SKILL.md', 'allowed-tools: Read, Grep, Glob\n  \u00a0#, Bash', /frontmatter holds U\+00A0/],
+  ['a carriage return', 'skills/designing-mobile-ui/SKILL.md', '# tools\rallowed-tools: Read, Grep, Glob, Bash', /frontmatter holds U\+000D/],
+]
+for (const [form, rel, lines, want] of LIST_FORMS) {
+  test(`RED: allowed-tools written as ${form}`, () => {
+    const dir = surfaceCopy()
+    const text = readFileSync(join(dir, 'template/base/.claude', rel), 'utf8')
+    setPrompt(dir, rel, text.replace(/^allowed-tools: .*$/m, () => lines))
+    redOnce(dir, want)
+  })
+}
+
+// A wholly quoted list is the text it shows.
+test('GREEN: a wholly quoted list is read for what it names, and its plugin copy keeps the quotes', () => {
+  const dir = surfaceCopy()
+  const rel = 'commands/rls-check.md'
+  setPrompt(dir, rel, withTools(dir, rel, '"Read, Grep, Glob, Bash(git diff --name-only HEAD), Bash(pnpm db:test)"'))
+  const { code, out } = run([dir])
+  assert.equal(code, 0, out)
+  assert.match(readFileSync(join(dir, 'plugin', rel), 'utf8'), /^allowed-tools: "Read, Grep, Glob, Bash\(git diff --name-only HEAD\)"$/m)
 })
 
 test('RED: a `!` line whose command allowed-tools does not name', () => {

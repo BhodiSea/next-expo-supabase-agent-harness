@@ -31,11 +31,12 @@ import {
 } from '../template/base/tools/lib/agent-roster.mjs'
 import {
   PLUGIN_DIR,
+  allowedTools,
   iconProblem,
   inlineCommands,
   pluginDrift,
   proseWordCount,
-  toolEntries,
+  wholeToolGrant,
 } from './lib/plugin-folder.mjs'
 
 const ROOT = resolve(process.argv[2] ?? fileURLToPath(new URL('..', import.meta.url)))
@@ -137,15 +138,19 @@ if (existsSync(readmeAbs)) {
 
 // ── what the shipped commands and skills pre-approve, judged at their source ──
 // allowed-tools lets a command or skill run what it names without asking, so each names
-// exactly the commands it runs. The list is read as Claude Code reads it (toolEntries), so
-// a missing comma still grants what it names. A bare Bash, PowerShell, Edit or Write
-// pre-approves every call of that tool while it runs, and a prefix rule on one word
-// (Bash(node:*)) or a * wildcard is nearly as wide. Each command a `!` line or fenced `!`
-// block runs needs its exact rule: Claude Code runs it as the file loads and refuses to
-// load a file whose command it may not run. A script rule names a file the skills ship.
-// plugin/'s copies keep a subset of these rules.
+// exactly the commands it runs. The list is read as Claude Code reads it. Claude Code ends
+// the frontmatter at the first `---` after its opening line, even mid-line, and parses it as
+// YAML, which reads only a space or tab as a space, and by its spec a lone carriage return as
+// a line break, where parseFrontmatter reads JavaScript's white space (frontmatterProblem).
+// So the list must be a plain or wholly quoted string, which YAML reads as its text
+// (allowedTools); and a missing comma still grants what it names. A bare Bash, PowerShell,
+// Edit or Write pre-approves every call of that tool while it runs, and so do Tool() and
+// Tool(*) (wholeToolGrant); a Bash prefix rule on one word (Bash(node:*)) or a * wildcard is
+// nearly as wide. Each command a `!` line or fenced `!` block runs needs its exact rule:
+// Claude Code runs it as the file loads and refuses to load a file whose command it may not
+// run. A script rule names a file the skills ship. plugin/'s copies keep a subset of these
+// rules.
 const PROMPTS_DIR = 'template/base/.claude'
-const BARE_GRANTS = new Set(['Bash', 'PowerShell', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 
 /**
  * What one Bash rule pre-approves beyond the command it names.
@@ -166,6 +171,19 @@ function bashRuleProblems(rel, command) {
 }
 
 /**
+ * Why Claude Code would read a frontmatter otherwise than parseFrontmatter does, or null.
+ * @param {string} frontmatter the text from the opening line to the first `---`
+ * @returns {string | null}
+ */
+function frontmatterProblem(frontmatter) {
+  if (frontmatter !== '' && !frontmatter.endsWith('\n')) return 'a `---` inside the frontmatter ends it there for Claude Code'
+  const space = /[^\S \t\r\n]|\r(?!\n)/u.exec(frontmatter)?.[0]
+  if (space === undefined) return null
+  const code = (space.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')
+  return `the frontmatter holds U+${code}, which YAML reads otherwise than JavaScript; use only spaces, tabs and newlines`
+}
+
+/**
  * @param {string} rel path under template/base/.claude/
  * @returns {string[]}
  */
@@ -173,11 +191,19 @@ function grantProblems(rel) {
   const text = readFileSync(join(ROOT, PROMPTS_DIR, rel), 'utf8')
   const parsed = parseFrontmatter(text)
   if (!parsed.ok) return [`${PROMPTS_DIR}/${rel}: frontmatter does not parse (${parsed.error})`]
-  const entries = toolEntries(parsed.data['allowed-tools'] ?? '')
+  const frontmatter = /^\uFEFF?---\s*\n([\s\S]*?)---/.exec(text)?.[1] ?? ''
+  const problem = frontmatterProblem(frontmatter)
+  if (problem !== null) return [`${PROMPTS_DIR}/${rel}: ${problem}`]
+  const entries = allowedTools(/^allowed-tools:(.*)$/m.exec(frontmatter)?.[1] ?? '')
+  if (entries === null) {
+    return [`${PROMPTS_DIR}/${rel}: allowed-tools is not a plain or wholly quoted list, so Claude Code's YAML reading of it can differ from its text`]
+  }
   const out = []
   for (const entry of entries) {
-    if (BARE_GRANTS.has(entry)) {
-      out.push(`${PROMPTS_DIR}/${rel}: allowed-tools grants every ${entry} call; name what it needs, as Bash(<command>) or Edit(<path>)`)
+    const tool = wholeToolGrant(entry)
+    if (tool !== null) {
+      out.push(`${PROMPTS_DIR}/${rel}: allowed-tools grants every ${tool} call; name what it needs, as Bash(<command>) or Edit(<path>)`)
+      continue
     }
     const command = /^Bash\((.*)\)$/.exec(entry)?.[1]
     if (command !== undefined) out.push(...bashRuleProblems(`${PROMPTS_DIR}/${rel}`, command))

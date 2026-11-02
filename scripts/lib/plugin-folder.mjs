@@ -87,6 +87,38 @@ export function toolEntries(list) {
 }
 
 /**
+ * An allowed-tools value's entries as Claude Code 2.1.292 reads them, or null when the value
+ * is not a plain or wholly quoted list. Claude Code parses the frontmatter as YAML, which
+ * reads a flow list, an anchor, alias or tag, a block scalar, a comment or a double-quoted
+ * escape otherwise than its text. A plain list holds no comment, and it and each entry start
+ * with a letter, as a tool name does, so the part of it a plugin copy keeps is plain too. A
+ * quoted list holds no quote or backslash.
+ * @param {string} value the text after `allowed-tools:`
+ * @returns {string[] | null}
+ */
+export function allowedTools(value) {
+  const text = value.trim()
+  const quoted = /^"([^"\\]*)"$|^'([^']*)'$/.exec(text)
+  const entries = toolEntries(quoted === null ? text : (quoted[1] ?? quoted[2] ?? ''))
+  const plain = quoted !== null || (/^(?:[A-Za-z]|$)/.test(text) && !/\s#/.test(text))
+  return plain && entries.every((entry) => /^[A-Za-z]/.test(entry)) ? entries : null
+}
+
+// The tools whose bare entry pre-approves every shell command or every file edit.
+const WHOLE_TOOLS = new Set(['Bash', 'PowerShell', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
+
+/**
+ * The tool an allowed-tools entry pre-approves every call of, or null. Claude Code 2.1.292's
+ * rule parser reads `Tool()` and `Tool(*)` as the bare `Tool`.
+ * @param {string} entry
+ * @returns {string | null}
+ */
+export function wholeToolGrant(entry) {
+  const tool = entry.replace(/^([^()]+)\(\*?\)$/, '$1')
+  return WHOLE_TOOLS.has(tool) ? tool : null
+}
+
+/**
  * The commands a command or skill runs as it loads, matched as Claude Code 2.1.292 matches
  * them: the body of a fenced block opened with three backticks and `!`, and an inline `!`
  * code span at a line start or after whitespace.
@@ -118,9 +150,13 @@ export function pluginCopy(rel, source) {
     const command = bash[1] ?? ''
     return ownCommands.has(command) || command.startsWith(PLUGIN_SCRIPT)
   }
-  const head = text
-    .slice(0, end)
-    .replace(/^allowed-tools:(.*)$/m, (_, list) => `allowed-tools: ${toolEntries(list).filter(keep).join(', ')}`)
+  // A value in another form is left as it is: check-plugin-manifest reds its source.
+  const head = text.slice(0, end).replace(/^allowed-tools:(.*)$/m, (line, /** @type {string} */ value) => {
+    const entries = allowedTools(value)
+    if (entries === null) return line
+    const quote = /^\s*(["']?)/.exec(value)?.[1] ?? ''
+    return `allowed-tools: ${quote}${entries.filter(keep).join(', ')}${quote}`
+  })
   return Buffer.from(head + text.slice(end), 'utf8')
 }
 
