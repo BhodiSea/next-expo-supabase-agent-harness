@@ -16,11 +16,11 @@
 // has, so the copy names the plugin's own file from ${CLAUDE_PLUGIN_ROOT}, which Claude Code
 // replaces with the plugin's folder in the text and in allowed-tools. And the copy's
 // allowed-tools keep a Bash rule only for a command its own `!` lines and blocks run, or for
-// that script. The source's other rules pre-approve a project's own commands (pnpm scripts,
-// node tools/*.mjs, the supabase CLI), which run that project's code: an installed project
-// vouches for them, a plugin cannot. Kept by hand: the manifest (.claude-plugin/plugin.json,
-// whose version the release bump sets), its icon and README.md. Anything else under plugin/
-// is drift.
+// that script; every other entry is kept as it is. The source's other Bash rules pre-approve
+// a project's own commands (pnpm scripts, node tools/*.mjs, the supabase CLI), which run that
+// project's code: an installed project vouches for them, a plugin cannot. Kept by hand: the
+// manifest (.claude-plugin/plugin.json, whose version the release bump sets), its icon and
+// README.md. Anything else under plugin/ is drift.
 import { existsSync, lstatSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { walkFiles } from '../../installer/lib/fs-walk.mjs'
@@ -104,16 +104,17 @@ export function allowedTools(value) {
   return plain && entries.every((entry) => /^[A-Za-z]/.test(entry)) ? entries : null
 }
 
-// The tools that run a shell command or code, or write a file, read in Claude Code 2.1.292.
-// Bash's permission check also judges Monitor's commands, and PowerShell has its own.
-// AppifactRepl runs JavaScript in a process it starts, under Bash's deny and ask rules. Edit,
-// Write and NotebookEdit are judged by the file-write check, which reads only Edit's path
-// rules; MultiEdit is an older Claude Code's. A bare entry pre-approves every call of one.
+// The tools whose grant pre-approves running a shell command or code, or writing a file, read
+// in Claude Code 2.1.292. Bash's permission check also judges Monitor's commands, and
+// PowerShell has its own. AppifactRepl runs JavaScript in a process it starts, under Bash's
+// deny and ask rules. Edit, Write and NotebookEdit are judged by the file-write check, which
+// reads only Edit's path rules; MultiEdit is an older Claude Code's. A bare entry pre-approves
+// every call of one.
 export const SHELL_AND_WRITE_TOOLS = ['Bash', 'Monitor', 'PowerShell', 'AppifactRepl', 'Edit', 'Write', 'NotebookEdit', 'MultiEdit']
 
 /**
- * The tool an allowed-tools entry pre-approves every call of, or null. Claude Code 2.1.292's
- * rule parser reads `Tool()` and `Tool(*)` as the bare `Tool`.
+ * The tool of SHELL_AND_WRITE_TOOLS an allowed-tools entry pre-approves every call of, or
+ * null. Claude Code 2.1.292's rule parser reads `Tool()` and `Tool(*)` as the bare `Tool`.
  * @param {string} entry
  * @returns {string | null}
  */
@@ -123,10 +124,12 @@ export function wholeToolGrant(entry) {
 }
 
 /**
- * Whether a rule of one of SHELL_AND_WRITE_TOOLS pre-approves more than one command or path.
- * Claude Code reads `*` as any text in a shell rule and as a glob in a path rule, so `**`,
- * `//**` and ` * ` cover them all; a closing `:*` is a prefix rule, which on one word
- * (`pnpm:*`) covers every command that word starts.
+ * Whether a rule of one of SHELL_AND_WRITE_TOOLS has a `*` other than a closing `:*`, or is
+ * a prefix rule on one word. Claude Code reads `*` as any text in a shell rule and as a glob
+ * in a path rule, so `**`, `//**` and ` * ` cover them all; a closing `:*` is a prefix rule,
+ * which on one word (`pnpm:*`) covers every command that word starts. A prefix of two words
+ * or more passes, whatever it runs (`node -e:*`), and so does a path rule without a `*`,
+ * which covers everything under a folder it names.
  * @param {string} entry
  * @returns {boolean}
  */
@@ -139,9 +142,10 @@ export function wideRule(entry) {
 }
 
 /**
- * The commands a command or skill runs as it loads, matched as Claude Code 2.1.292 matches
- * them: the body of a fenced block opened with three backticks and `!`, and an inline `!`
- * code span at a line start or after whitespace.
+ * The commands a command or skill runs as it loads, matched with Claude Code 2.1.292's two
+ * patterns: the body of a fenced block opened with three backticks and `!`, and an inline `!`
+ * code span at a line start or after whitespace. Claude Code first blanks the other inline
+ * code spans, and this does not, so it may also read a span Claude Code skips.
  * @param {string} text
  * @returns {string[]}
  */
@@ -170,7 +174,7 @@ export function pluginCopy(rel, source) {
     const command = bash[1] ?? ''
     return ownCommands.has(command) || command.startsWith(PLUGIN_SCRIPT)
   }
-  // A value in another form is left as it is: check-plugin-manifest reds its source.
+  // A value in another form is left as it is: check-plugin-manifest reds it in a source it reads.
   const head = text.slice(0, end).replace(/^allowed-tools:(.*)$/m, (line, /** @type {string} */ value) => {
     const entries = allowedTools(value)
     if (entries === null) return line

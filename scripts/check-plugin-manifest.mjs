@@ -15,8 +15,8 @@
 // SOURCE (same parser, same read-only policy — imported from the canonical
 // tools/lib/agent-roster.mjs, the convention check-canary-coverage.mjs set by
 // importing the template harness.config.mjs), so a PR that widens a reviewer
-// reds this repo's CI before any scaffold ever runs docs-sync. The shipped commands and
-// skills are held at their source too, to pre-approve only the commands they run.
+// reds this repo's CI before any scaffold ever runs docs-sync. The shipped commands' and
+// skills' allowed-tools are read at their source too, to catch a broad grant added by mistake.
 //   usage: node scripts/check-plugin-manifest.mjs [repo-root]
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -137,26 +137,33 @@ if (existsSync(readmeAbs)) {
   }
 }
 
-// ── what the shipped commands and skills pre-approve, judged at their source ──
+// ── the shipped commands' and skills' allowed-tools, read at their source ──
 // allowed-tools lets a command or skill run what it names without asking, so each names
-// exactly the commands it runs. The list is read as Claude Code reads it. Claude Code ends
+// exactly the commands it runs. This check guards against a broad grant added by mistake, in
+// the forms below; it is not a sandbox against one written to get past it. Claude Code ends
 // the frontmatter at the first `---` after its opening line, even mid-line, and parses it as
 // YAML, which reads only a space or tab as a space, and by its spec a lone carriage return as
 // a line break, where parseFrontmatter reads JavaScript's white space (frontmatterProblem).
 // So the list must be a plain or wholly quoted string, which YAML reads as its text
 // (allowedTools); and a missing comma still grants what it names. A bare entry, Tool() or
-// Tool(*) of a tool that runs a shell command or code, or writes a file, pre-approves every
-// call of it while the command runs (wholeToolGrant), and that tool's rule on a one-word
-// prefix (Bash(node:*)) or with a * wildcard nearly as many (wideRule). An MCP rule can name
-// every tool of a server or a glob of tool names, and some MCP tools run shell commands, so
-// no entry names an MCP tool. Each command a `!` line or fenced `!` block runs needs its
-// exact rule: Claude Code runs it as the file loads and refuses to load a file whose command
-// it may not run. A script rule names a file the skills ship. plugin/'s copies keep a subset
-// of these rules.
+// Tool(*) of one of SHELL_AND_WRITE_TOOLS pre-approves every call of it while the command
+// runs (wholeToolGrant), and that tool's rule on a one-word prefix (Bash(node:*)) or with a *
+// wildcard nearly as many (wideRule). An MCP rule can name every tool of a server or a glob
+// of tool names, and some MCP tools run shell commands, so no entry names an MCP tool. Each
+// command a `!` line or fenced `!` block runs needs its exact rule: Claude Code runs it as the
+// file loads and refuses to load a file whose command it may not run. A script rule names a
+// file the skills ship. plugin/'s copies keep a subset of these rules.
+// The check reads only commands/**/*.md and skills/<name>/SKILL.md, in that case, though
+// Claude Code's plugin loader takes a .MD command, and a case-insensitive disk opens SKILL.MD
+// or skill.md as SKILL.md. Of their frontmatter keys it judges only allowed-tools, though a
+// hooks entry there or in plugin.json can allow any call. A rule on a prefix of two words or
+// more passes whatever it runs (Bash(node -e:*)), and so does a path rule naming a folder
+// outside the project (Edit(//Users)).
 const PROMPTS_DIR = 'template/base/.claude'
 
 /**
- * What one allowed-tools entry pre-approves beyond what its file runs.
+ * What reds in one allowed-tools entry: a whole tool of SHELL_AND_WRITE_TOOLS, an MCP tool,
+ * a rule wideRule holds wide, or a script the skills do not ship.
  * @param {string} rel
  * @param {string} entry
  * @returns {string[]}
@@ -176,7 +183,8 @@ function entryProblems(rel, entry) {
 }
 
 /**
- * Why Claude Code would read a frontmatter otherwise than parseFrontmatter does, or null.
+ * Two ways Claude Code reads a frontmatter otherwise than parseFrontmatter does: a `---`
+ * inside it, and white space YAML reads otherwise than JavaScript. Which one, or null.
  * @param {string} frontmatter the text from the opening line to the first `---`
  * @returns {string | null}
  */
