@@ -54,6 +54,15 @@ twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAG
   2026-11-01 the ruleset on `main` lets nobody bypass it, the administrator included. Factory
   only: nothing changes for an install.
 
+### Added
+
+- **The Claude Code plugin has an icon.** `plugin/.claude-plugin/icon.png` is the Cogvera Labs
+  logo, a 1024-pixel square PNG, and `plugin.json` names it in `icon`.
+  `scripts/check-plugin-manifest.mjs` reds when `icon` is missing or names anything but a
+  complete square PNG of 512 to 2048 pixels a side under 2 MB, and
+  `scripts/generate-plugin-folder.mjs` keeps the file beside the manifest. Factory only:
+  nothing changes for an install.
+
 ### Changed
 
 - **The headline says what the hooks do: send the agent back to work when a check fails.** The
@@ -82,6 +91,40 @@ twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAG
   for an install.
 - **`CITATION.cff` names Thomas Nicklin as an author, with his ORCID iD, beside Cogvera Labs.**
   Factory only: nothing changes for an install.
+- **Each command and skill pre-approves only the commands it runs.** The seven commands and
+  three skills each carried a bare `Bash` in `allowed-tools`, and seven a bare `Edit` or
+  `Write`, which pre-approved every shell command and every file edit while one ran, past the
+  project's own allow list. Each now names its commands as Bash rules: what its `!` lines run
+  as it loads (`git diff --name-only HEAD`, `git status --short` or `date`), the slice
+  scaffolder, and the `pnpm` and `node tools/` scripts and `supabase migration new` its steps
+  name. `/new-migration` also names `pnpm test:rls`, which its `migration-rls-author` subagent
+  runs: a typed command's rules reach the subagents it starts. So does `/new-action`, whose
+  `dal-author` subagent has no shell and hands that command back to run. `designing-mobile-ui`
+  runs none and names none. Any other command asks first unless the project's settings allow it,
+  and file edits follow the session's permission mode, which the shipped `.claude/settings.json`
+  sets to `acceptEdits`. The plugin's copies keep only the `!` line commands and the
+  scaffolder, which they name from `${CLAUDE_PLUGIN_ROOT}`: the source's
+  `node .claude/skills/` path exists only in an installed project, so the plugin's
+  `/new-feature` and `authoring-vertical-slice` could not run it, and the project commands run
+  that project's code, which a plugin cannot vouch for. `plugin/README.md` says what runs
+  without asking. `scripts/check-plugin-manifest.mjs` reads each source command
+  (`commands/**/*.md`) and skill (`skills/<name>/SKILL.md`) and splits its `allowed-tools`
+  list as Claude Code 2.1.292 does: at commas and at spaces outside parentheses, with `Tool()`
+  and `Tool(*)` read as the bare tool. Claude Code parses the frontmatter as YAML and ends it
+  at the first `---`, even mid-line, so the check reds a list that is not a plain or wholly
+  quoted one of tool names and rules, a `---` inside the frontmatter, and white space there
+  other than spaces, tabs and newlines. It also reds a bare grant of `Bash`, `Monitor`,
+  `PowerShell`, `AppifactRepl`, `Edit`, `Write`, `NotebookEdit` or `MultiEdit`, the tools whose
+  grant pre-approves running a shell command or code, or writing a file; a rule of one of those
+  on a one-word prefix or with a `*` wildcard; any MCP tool; a `!` line or fenced `!` block with
+  no rule; and a script rule naming a file the skills do not ship. Each is watched red in
+  `tests/gates/check-plugin-manifest.test.mjs`. The check guards against a broad grant added
+  by mistake in these forms; it is not a sandbox against one written to get past it. It passes
+  a command or skill whose file name is spelled in another case, such as `SKILL.MD`, a `hooks`
+  entry in a frontmatter or in `plugin.json`, a rule on a prefix of two words that runs any
+  code, such as `Bash(node -e:*)`, and an `Edit` rule naming a folder outside the project.
+  Every template file this changes is owned and reaches an install with `update`, which
+  re-records its `tools/agents.lock.json` entry.
 
 ### Corrections to the record
 

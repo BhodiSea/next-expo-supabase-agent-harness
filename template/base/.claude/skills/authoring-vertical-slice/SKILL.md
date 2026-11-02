@@ -5,7 +5,7 @@ description: >
   test recipe for shipping one whole feature slice through the Next 16 web + Expo 57 mobile
   + Supabase monorepo in a single turn. Use when asked to add a feature, procedure, or screen
   end-to-end.
-allowed-tools: Read, Grep, Glob, Edit, Write, Bash
+allowed-tools: Read, Grep, Glob, Bash(node .claude/skills/authoring-vertical-slice/scripts/scaffold-slice.mjs:*), Bash(supabase migration new:*), Bash(node tools/gen-grant-assertions.mjs), Bash(pnpm gen), Bash(node tools/gen-web-routes.mjs), Bash(node tools/gen-maestro-flows.mjs:*), Bash(pnpm validate), Bash(pnpm test:rls), Bash(pnpm test), Bash(pnpm test:mobile)
 argument-hint: "[feature-name]"
 ---
 

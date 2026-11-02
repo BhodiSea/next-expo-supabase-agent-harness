@@ -5,20 +5,23 @@
 // plugin folder — a plugin shipping dangling paths is dead on install, and nothing else
 // checks this surface (version equality is check-release-lockstep's job).
 // Since #163 the marketplace installs plugin/, not the repository root, and this gate is
-// also its drift check: plugin/'s agents, commands, skills and LICENSE must be byte copies
-// of their sources (scripts/lib/plugin-folder.mjs; regenerate with
+// also its drift check: plugin/'s agents, commands, skills and LICENSE must be the copies
+// scripts/lib/plugin-folder.mjs makes of their sources (regenerate with
 // scripts/generate-plugin-folder.mjs --write), within the plugin directory's file limits,
-// and its README must clear the directory's 40-word floor.
+// its README must clear the directory's 40-word floor, and plugin.json's icon must name a
+// square PNG of 512 to 2048 pixels a side, under 2 MB.
 // Also the repo-side mirror of the docs-sync agent-roster sub-check: the
 // shipped template/base/.claude/agents/*.md frontmatter is validated at its
 // SOURCE (same parser, same read-only policy — imported from the canonical
 // tools/lib/agent-roster.mjs, the convention check-canary-coverage.mjs set by
 // importing the template harness.config.mjs), so a PR that widens a reviewer
-// reds this repo's CI before any scaffold ever runs docs-sync.
+// reds this repo's CI before any scaffold ever runs docs-sync. The shipped commands' and
+// skills' allowed-tools are read at their source too, to catch a broad grant added by mistake.
 //   usage: node scripts/check-plugin-manifest.mjs [repo-root]
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { walkFiles } from '../installer/lib/fs-walk.mjs'
 import {
   REVIEWER_AGENTS,
   REVIEWER_READONLY_TOOLS,
@@ -26,7 +29,16 @@ import {
   parseFrontmatter,
   splitList,
 } from '../template/base/tools/lib/agent-roster.mjs'
-import { PLUGIN_DIR, pluginDrift, proseWordCount } from './lib/plugin-folder.mjs'
+import {
+  PLUGIN_DIR,
+  allowedTools,
+  iconProblem,
+  inlineCommands,
+  pluginDrift,
+  proseWordCount,
+  wholeToolGrant,
+  wideRule,
+} from './lib/plugin-folder.mjs'
 
 const ROOT = resolve(process.argv[2] ?? fileURLToPath(new URL('..', import.meta.url)))
 const errs = []
@@ -66,6 +78,22 @@ if (plugin !== null) {
       errs.push(`plugin.json ${field}: ${plugin[field]} does not exist`)
     }
   }
+  errs.push(...iconProblems(plugin.icon))
+}
+
+/**
+ * plugin.json's `icon`: an image inside the plugin that iconProblem accepts.
+ * @param {unknown} icon
+ * @returns {string[]}
+ */
+function iconProblems(icon) {
+  if (typeof icon !== 'string' || !icon.startsWith('./') || icon.split('/').includes('..')) {
+    return ['plugin.json: icon must name an image inside the plugin, such as "./.claude-plugin/icon.png"']
+  }
+  const abs = join(ROOT, PLUGIN_DIR, icon)
+  if (!existsSync(abs)) return [`plugin.json icon: ${icon} does not exist`]
+  const problem = iconProblem(readFileSync(abs))
+  return problem === null ? [] : [`plugin.json icon: ${icon} ${problem}`]
 }
 
 const marketplace = load('.claude-plugin/marketplace.json')
@@ -108,6 +136,96 @@ if (existsSync(readmeAbs)) {
     errs.push(`${PLUGIN_DIR}/README.md has ${String(words)} words outside code blocks: the plugin directory asks for at least 40`)
   }
 }
+
+// ── the shipped commands' and skills' allowed-tools, read at their source ──
+// allowed-tools lets a command or skill run what it names without asking, so each names
+// exactly the commands it runs. This check guards against a broad grant added by mistake, in
+// the forms below; it is not a sandbox against one written to get past it. Claude Code ends
+// the frontmatter at the first `---` after its opening line, even mid-line, and parses it as
+// YAML, which reads only a space or tab as a space, and by its spec a lone carriage return as
+// a line break, where parseFrontmatter reads JavaScript's white space (frontmatterProblem).
+// So the list must be a plain or wholly quoted string, which YAML reads as its text
+// (allowedTools); and a missing comma still grants what it names. A bare entry, Tool() or
+// Tool(*) of one of SHELL_AND_WRITE_TOOLS pre-approves every call of it while the command
+// runs (wholeToolGrant), and that tool's rule on a one-word prefix (Bash(node:*)) or with a *
+// wildcard nearly as many (wideRule). An MCP rule can name every tool of a server or a glob
+// of tool names, and some MCP tools run shell commands, so no entry names an MCP tool. Each
+// command a `!` line or fenced `!` block runs needs its exact rule: Claude Code runs it as the
+// file loads and refuses to load a file whose command it may not run. A script rule names a
+// file the skills ship. plugin/'s copies keep a subset of these rules.
+// The check reads only commands/**/*.md and skills/<name>/SKILL.md, in that case, though
+// Claude Code's plugin loader takes a .MD command, and a case-insensitive disk opens SKILL.MD
+// or skill.md as SKILL.md. Of their frontmatter keys it judges only allowed-tools, though a
+// hooks entry there or in plugin.json can allow any call. A rule on a prefix of two words or
+// more passes whatever it runs (Bash(node -e:*)), and so does a path rule naming a folder
+// outside the project (Edit(//Users)).
+const PROMPTS_DIR = 'template/base/.claude'
+
+/**
+ * What reds in one allowed-tools entry: a whole tool of SHELL_AND_WRITE_TOOLS, an MCP tool,
+ * a rule wideRule holds wide, or a script the skills do not ship.
+ * @param {string} rel
+ * @param {string} entry
+ * @returns {string[]}
+ */
+function entryProblems(rel, entry) {
+  const tool = wholeToolGrant(entry)
+  if (tool !== null) return [`${rel}: allowed-tools grants every ${tool} call; name what it needs, as Bash(<command>) or Edit(<path>)`]
+  if (entry.startsWith('mcp__')) {
+    return [`${rel}: allowed-tools grants ${entry}, an MCP tool; an MCP rule can cover a whole server, and some MCP tools run shell commands`]
+  }
+  if (wideRule(entry)) return [`${rel}: ${entry} pre-approves more than one command or path; name it, or a command's first two words before :*`]
+  const script = /^Bash\(node \.claude\/skills\/(\S+?)(?::\*)?\)$/.exec(entry)?.[1]
+  if (script !== undefined && !existsSync(join(ROOT, PROMPTS_DIR, 'skills', script))) {
+    return [`${rel}: ${entry} names a script the skills do not ship`]
+  }
+  return []
+}
+
+/**
+ * Two ways Claude Code reads a frontmatter otherwise than parseFrontmatter does: a `---`
+ * inside it, and white space YAML reads otherwise than JavaScript. Which one, or null.
+ * @param {string} frontmatter the text from the opening line to the first `---`
+ * @returns {string | null}
+ */
+function frontmatterProblem(frontmatter) {
+  if (frontmatter !== '' && !frontmatter.endsWith('\n')) return 'a `---` inside the frontmatter ends it there for Claude Code'
+  const space = /[^\S \t\r\n]|\r(?!\n)/u.exec(frontmatter)?.[0]
+  if (space === undefined) return null
+  const code = (space.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')
+  return `the frontmatter holds U+${code}, which YAML reads otherwise than JavaScript; use only spaces, tabs and newlines`
+}
+
+/**
+ * @param {string} rel path under template/base/.claude/
+ * @returns {string[]}
+ */
+function grantProblems(rel) {
+  const text = readFileSync(join(ROOT, PROMPTS_DIR, rel), 'utf8')
+  const parsed = parseFrontmatter(text)
+  if (!parsed.ok) return [`${PROMPTS_DIR}/${rel}: frontmatter does not parse (${parsed.error})`]
+  const frontmatter = /^\uFEFF?---\s*\n([\s\S]*?)---/.exec(text)?.[1] ?? ''
+  const problem = frontmatterProblem(frontmatter)
+  if (problem !== null) return [`${PROMPTS_DIR}/${rel}: ${problem}`]
+  const entries = allowedTools(/^allowed-tools:(.*)$/m.exec(frontmatter)?.[1] ?? '')
+  if (entries === null) {
+    return [`${PROMPTS_DIR}/${rel}: allowed-tools is not a plain or wholly quoted list, so Claude Code's YAML reading of it can differ from its text`]
+  }
+  const out = entries.flatMap((entry) => entryProblems(`${PROMPTS_DIR}/${rel}`, entry))
+  for (const command of inlineCommands(text)) {
+    if (!entries.includes(`Bash(${command})`)) {
+      out.push(`${PROMPTS_DIR}/${rel}: a \`!\` command runs \`${command}\`, and allowed-tools has no Bash(${command}) rule for it`)
+    }
+  }
+  return out
+}
+
+const promptFiles = ['commands', 'skills'].flatMap((sub) =>
+  walkFiles(join(ROOT, PROMPTS_DIR, sub))
+    .filter((rel) => (sub === 'commands' ? rel.endsWith('.md') : /^[^/]+\/SKILL\.md$/.test(rel)))
+    .map((rel) => `${sub}/${rel}`),
+)
+for (const rel of promptFiles) errs.push(...grantProblems(rel))
 
 // ── agent roster (mirror of the docs-sync roster sub-check, over the source) ──
 // Universal: every agent parses (parse failure = red, never a skip) and carries

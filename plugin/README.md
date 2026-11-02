@@ -33,10 +33,21 @@ Or, inside a session on Claude Code 2.1.275 or later:
   mobile layers), `authoring-e2ee-feature` (encrypting one feature end to end with the harness's opt-in e2ee
   module) and `designing-mobile-ui`.
 
+## What runs without asking
+
+Opening a command runs the read-only commands on its `!` lines and puts their output in the
+prompt: `git diff --name-only HEAD` in most, `git status --short` in `/new-feature`, and
+`date` in `/adr` and `/new-migration`. `/new-feature` and the `authoring-vertical-slice`
+skill may also run the plugin's slice scaffolder, which writes the stub files for a new
+slice into your project and never overwrites a file. The commands and skills also
+pre-approve reading and searching files. Every other command, and every file edit, follows
+your own permission settings. The plugin has no hooks or MCP servers, and the scaffolder
+makes no network request.
+
 ## What it does not hold
 
 The hooks, the `pnpm validate` gate chain, the permission rules and the CI workflows are not
-in this plugin. A plugin cannot carry permissions, and the harness's hooks run the project's
+in this plugin. A plugin cannot carry permission rules, and the harness's hooks run the project's
 own `tools/` and validate chain, so they belong to an installed project. Install them with
 `npx --yes next-expo-supabase-agent-harness@latest init`.
 

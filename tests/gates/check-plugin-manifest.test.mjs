@@ -11,11 +11,21 @@
 // else about an otherwise-green surface does.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import {
+  PLUGIN_SCRIPT,
+  SHELL_AND_WRITE_TOOLS,
+  allowedTools,
+  inlineCommands,
+  pluginCopy,
+  toolEntries,
+  wholeToolGrant,
+  wideRule,
+} from '../../scripts/lib/plugin-folder.mjs'
 
 const REPO = fileURLToPath(new URL('../../', import.meta.url))
 const SCRIPT = join(REPO, 'scripts/check-plugin-manifest.mjs')
@@ -141,6 +151,7 @@ test('generate-plugin-folder: --check reds a drifted mirror, --write makes it cl
   const agent = join(dir, 'template/base/.claude/agents/dal-author.md')
   writeFileSync(agent, `${readFileSync(agent, 'utf8')}\nOne more line.\n`)
   writeFileSync(join(dir, 'plugin/stray.md'), 'stray\n')
+  rmSync(join(dir, 'plugin/commands/new-feature.md'))
   const gen = (/** @type {string} */ mode) =>
     spawnSync(process.execPath, [join(dir, 'scripts/generate-plugin-folder.mjs'), mode], {
       encoding: 'utf8',
@@ -149,12 +160,289 @@ test('generate-plugin-folder: --check reds a drifted mirror, --write makes it cl
   const before = gen('--check')
   assert.equal(before.status, 1, before.stderr)
   assert.match(before.stderr, /plugin\/agents\/dal-author\.md: differs/)
+  assert.match(before.stderr, /plugin\/commands\/new-feature\.md: differs/)
   assert.match(before.stderr, /plugin\/stray\.md: not generated and not hand-edited/)
   const write = gen('--write')
   assert.equal(write.status, 0, write.stderr)
-  assert.match(write.stdout, /1 written, 1 removed/)
+  assert.match(write.stdout, /2 written, 1 removed/)
+  // A command is written as the plugin's copy of it, not byte for byte.
+  const command = readFileSync(join(dir, 'template/base/.claude/commands/new-feature.md'))
+  const written = readFileSync(join(dir, 'plugin/commands/new-feature.md'))
+  assert.ok(!written.equals(command))
+  assert.ok(written.equals(pluginCopy('commands/new-feature.md', command)))
   assert.equal(gen('--check').status, 0)
   assert.equal(run([dir]).code, 0)
+})
+
+/**
+ * A command's or skill's source and the plugin copy generated from it, written together so a
+ * skew of the source is one finding, never a second one for drift.
+ * @param {string} dir @param {string} rel @param {string} text
+ */
+function setPrompt(dir, rel, text) {
+  writeFileSync(join(dir, 'template/base/.claude', rel), text)
+  writeFileSync(join(dir, 'plugin', rel), pluginCopy(rel, Buffer.from(text, 'utf8')))
+}
+
+/** @param {string} dir @param {string} rel @param {string} tools */
+function withTools(dir, rel, tools) {
+  const text = readFileSync(join(dir, 'template/base/.claude', rel), 'utf8')
+  const out = text.replace(/^allowed-tools: .*$/m, `allowed-tools: ${tools}`)
+  assert.notEqual(out, text, `${rel} must carry an allowed-tools line to skew`)
+  return out
+}
+
+// Claude Code 2.1.292 ends an entry at a comma or a space outside parentheses, and the first
+// `)` closes a rule's parentheses. A file runs both a `!` code span and a fenced `!` block.
+test('toolEntries and inlineCommands read a list and a body as Claude Code does', () => {
+  assert.deepEqual(toolEntries(' Read,Grep Glob, Bash(git diff --name-only HEAD) Bash(a (b) c)'), [
+    'Read',
+    'Grep',
+    'Glob',
+    'Bash(git diff --name-only HEAD)',
+    'Bash(a (b)',
+    'c)',
+  ])
+  const fence = '`'.repeat(3)
+  assert.deepEqual(inlineCommands(`Tree: !\`git status --short\`\n\n${fence}!\ndate +%Y\n${fence}\n`), ['date +%Y', 'git status --short'])
+})
+
+test('pluginCopy: a command keeps the commands its `!` lines and blocks run and runs the plugin\'s own script; other files are byte copies', () => {
+  const fence = '`'.repeat(3)
+  const source = Buffer.from(
+    [
+      '---',
+      'description: d',
+      'allowed-tools: Read, Bash(git status --short), Bash(date +%Y), Bash(node .claude/skills/s/scripts/x.mjs:*), Bash(pnpm gen), Bash(node tools/t.mjs), Bash',
+      '---',
+      '',
+      'Run `node .claude/skills/s/scripts/x.mjs $1`, then `pnpm gen`.',
+      '',
+      'Tree: !`git status --short`',
+      '',
+      `${fence}!`,
+      'date +%Y',
+      fence,
+      '',
+    ].join('\n'),
+  )
+  const copy = pluginCopy('commands/c.md', source).toString('utf8')
+  assert.match(copy, /^allowed-tools: Read, Bash\(git status --short\), Bash\(date \+%Y\), Bash\(node \$\{CLAUDE_PLUGIN_ROOT\}\/skills\/s\/scripts\/x\.mjs:\*\)$/m)
+  assert.ok(copy.includes('Run `node ${CLAUDE_PLUGIN_ROOT}/skills/s/scripts/x.mjs $1`, then `pnpm gen`.'), copy)
+  for (const rel of ['agents/a.md', 'skills/s/scripts/x.mjs', 'LICENSE']) {
+    assert.ok(pluginCopy(rel, source).equals(source), rel)
+  }
+})
+
+test('the shipped plugin pre-approves only the commands its `!` lines run and its own scripts', () => {
+  const pluginDir = join(REPO, 'plugin')
+  const files = [
+    ...readdirSync(join(pluginDir, 'commands')).map((f) => `commands/${f}`),
+    ...readdirSync(join(pluginDir, 'skills')).map((s) => `skills/${s}/SKILL.md`),
+  ]
+  for (const rel of files) {
+    const text = readFileSync(join(pluginDir, rel), 'utf8')
+    const own = inlineCommands(text)
+    const entries = allowedTools(/^allowed-tools:(.*)$/m.exec(text)?.[1] ?? '')
+    assert.ok(entries !== null, `${rel}: allowed-tools is not a plain or wholly quoted list`)
+    for (const entry of entries) {
+      assert.equal(wholeToolGrant(entry), null, `${rel}: ${entry}`)
+      assert.ok(!wideRule(entry) && !entry.startsWith('mcp__'), `${rel}: ${entry}`)
+      const command = /^Bash\((.*)\)$/.exec(entry)?.[1]
+      if (command === undefined || own.includes(command)) continue
+      assert.ok(command.startsWith(PLUGIN_SCRIPT) && command.endsWith(':*'), `${rel}: ${entry} is neither a \`!\` command nor the plugin's script`)
+      assert.ok(existsSync(join(pluginDir, 'skills', command.slice(PLUGIN_SCRIPT.length, -2))), `${rel}: ${entry} names no file`)
+    }
+  }
+})
+
+// Claude Code passes a typed command's rules to the subagents it starts, and the shipped
+// settings' Bash(pnpm test:*) admits `pnpm test <args>`, not `pnpm test:rls`.
+test('/new-migration pre-approves pnpm test:rls, which its migration-rls-author subagent runs', () => {
+  const read = (/** @type {string} */ rel) => readFileSync(join(REPO, 'template/base/.claude', rel), 'utf8')
+  const command = read('commands/new-migration.md')
+  assert.ok(command.includes('Delegate the authoring to the `migration-rls-author` subagent'), 'new-migration.md delegates to the subagent')
+  assert.ok(read('agents/migration-rls-author.md').includes('`pnpm test:rls`'), 'the subagent verifies with pnpm test:rls')
+  assert.match(command, /^allowed-tools: .*Bash\(pnpm test:rls\)/m)
+})
+
+// dal-author has no shell: it hands back the commands to run, and /new-action runs them.
+test('/new-action pre-approves pnpm test:rls, which its dal-author subagent hands back', () => {
+  const read = (/** @type {string} */ rel) => readFileSync(join(REPO, 'template/base/.claude', rel), 'utf8')
+  const command = read('commands/new-action.md')
+  assert.ok(command.includes('to the `dal-author` subagent'), 'new-action.md delegates to the subagent')
+  assert.ok(read('agents/dal-author.md').includes('`pnpm test`, and `pnpm test:rls`'), 'the subagent hands back pnpm test:rls')
+  assert.match(command, /^allowed-tools: .*Bash\(pnpm test:rls\)/m)
+})
+
+/** `rls-check` with its own list and one more entry: one skew, so one finding. @param {string} entry */
+function redWith(entry) {
+  const dir = surfaceCopy()
+  const rel = 'commands/rls-check.md'
+  setPrompt(dir, rel, withTools(dir, rel, `Read, Grep, Glob, Bash(git diff --name-only HEAD), Bash(pnpm db:test), ${entry}`))
+  return dir
+}
+
+/** @param {string} text */
+const literal = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// Each tool in SHELL_AND_WRITE_TOOLS runs a shell command or code, or writes a file. Claude
+// Code's rule parser reads Tool() and Tool(*) as the bare Tool, which pre-approves every call
+// while the command runs. A rule with a `*` or on a one-word prefix is nearly as wide: `*` is
+// any text in a shell rule and a glob in a path rule, so `**`, `//**` and ` * ` each cover
+// every command or path.
+for (const tool of SHELL_AND_WRITE_TOOLS) {
+  for (const entry of [tool, `${tool}()`, `${tool}(*)`]) {
+    test(`RED: ${entry} grants every ${tool} call, as Claude Code reads it`, () => {
+      redOnce(redWith(entry), new RegExp(`commands/rls-check\\.md: allowed-tools grants every ${tool} call`))
+    })
+  }
+  for (const entry of [`${tool}(**)`, `${tool}(//**)`, `${tool}( * )`, `${tool}(pnpm:*)`]) {
+    test(`RED: ${entry} pre-approves more than one command or path`, () => {
+      redOnce(redWith(entry), new RegExp(`commands/rls-check\\.md: ${literal(entry)} pre-approves more than one command or path`))
+    })
+  }
+}
+
+test('RED: a Bash rule on a wildcard after a word', () => {
+  redOnce(redWith('Bash(pnpm *)'), /Bash\(pnpm \*\) pre-approves more than one command/)
+})
+
+// Claude Code reads mcp__<server> and mcp__<server>__* as every tool of that server, and a `*`
+// in a tool name as a glob. It names MCP tools that run shell commands or code
+// (mcp__workspace__bash, mcp__remote-devices__device_bash, mcp__ide__executeCode), and what any
+// other server's tool runs is that server's to say. So no entry names an MCP tool.
+for (const entry of ['mcp__workspace__bash', 'mcp__workspace', 'mcp__workspace__b*', 'mcp__ide__executeCode(*)']) {
+  test(`RED: ${entry}, an MCP tool`, () => {
+    redOnce(redWith(entry), new RegExp(`commands/rls-check\\.md: allowed-tools grants ${literal(entry)}, an MCP tool`))
+  })
+}
+
+// Claude Code splits the list at spaces too, so a missing comma, or a list written with
+// spaces, grants what it names.
+test('RED: a bare Bash in a list with a missing comma, or in a list written with spaces', () => {
+  for (const [rel, tools, want] of /** @type {Array<[string, string, RegExp]>} */ ([
+    [
+      'commands/rls-check.md',
+      'Read, Grep, Glob Bash, Bash(git diff --name-only HEAD), Bash(pnpm db:test)',
+      /commands\/rls-check\.md: allowed-tools grants every Bash call/,
+    ],
+    ['skills/designing-mobile-ui/SKILL.md', 'Read Grep Glob Bash', /designing-mobile-ui\/SKILL\.md: allowed-tools grants every Bash call/],
+  ])) {
+    const dir = surfaceCopy()
+    setPrompt(dir, rel, withTools(dir, rel, tools))
+    redOnce(dir, want)
+  }
+})
+
+// Claude Code parses the frontmatter as YAML, and ends it at the first `---`, even mid-line.
+// It reads a bare Bash in each of these lists but two. The comment hides the rule the
+// command's `!` line needs. The entry that is not a tool is read as its text, but the plugin
+// copy drops `Bash(pnpm gen)` and starts with the quote, which Claude Code reads as Bash.
+// YAML reads a no-break space as text, so the line after the list continues it. Its spec
+// reads a lone carriage return as a line break, so the comment ends there.
+const NOT_PLAIN = /allowed-tools is not a plain or wholly quoted list/
+/** @type {Array<[string, string, string, RegExp]>} */
+const LIST_FORMS = [
+  ['a flow list', 'skills/designing-mobile-ui/SKILL.md', 'allowed-tools: [Read, Grep, Glob, Bash]', NOT_PLAIN],
+  ['a quoted list and a comment', 'skills/designing-mobile-ui/SKILL.md', 'allowed-tools: "Read, Grep, Glob, Bash" # read-only', NOT_PLAIN],
+  ['an alias', 'skills/designing-mobile-ui/SKILL.md', 'shared: &tools Read, Grep, Glob, Bash\nallowed-tools: *tools', NOT_PLAIN],
+  ['a block scalar', 'skills/designing-mobile-ui/SKILL.md', 'allowed-tools: |\n  Read, Grep, Glob\n    Bash', NOT_PLAIN],
+  ['a double-quoted escape', 'skills/designing-mobile-ui/SKILL.md', 'allowed-tools: "Read, Grep, Glob, \\x42ash"', NOT_PLAIN],
+  ['a comment', 'commands/verify-invariants.md', 'allowed-tools: Read, Grep, Glob # Bash(git diff --name-only HEAD)', NOT_PLAIN],
+  ['a --- inside it', 'skills/designing-mobile-ui/SKILL.md', 'allowed-tools: Read, Grep, Glob, Bash---', /a `---` inside the frontmatter ends it there/],
+  ['an entry that is not a tool', 'skills/authoring-e2ee-feature/SKILL.md', 'allowed-tools: Bash(pnpm gen), "Bash"', NOT_PLAIN],
+  ['a no-break space', 'skills/designing-mobile-ui/SKILL.md', 'allowed-tools: Read, Grep, Glob\n  \u00a0#, Bash', /frontmatter holds U\+00A0/],
+  ['a carriage return', 'skills/designing-mobile-ui/SKILL.md', '# tools\rallowed-tools: Read, Grep, Glob, Bash', /frontmatter holds U\+000D/],
+]
+for (const [form, rel, lines, want] of LIST_FORMS) {
+  test(`RED: allowed-tools written as ${form}`, () => {
+    const dir = surfaceCopy()
+    const text = readFileSync(join(dir, 'template/base/.claude', rel), 'utf8')
+    setPrompt(dir, rel, text.replace(/^allowed-tools: .*$/m, () => lines))
+    redOnce(dir, want)
+  })
+}
+
+// A wholly quoted list is the text it shows.
+test('GREEN: a wholly quoted list is read for what it names, and its plugin copy keeps the quotes', () => {
+  const dir = surfaceCopy()
+  const rel = 'commands/rls-check.md'
+  setPrompt(dir, rel, withTools(dir, rel, '"Read, Grep, Glob, Bash(git diff --name-only HEAD), Bash(pnpm db:test)"'))
+  const { code, out } = run([dir])
+  assert.equal(code, 0, out)
+  assert.match(readFileSync(join(dir, 'plugin', rel), 'utf8'), /^allowed-tools: "Read, Grep, Glob, Bash\(git diff --name-only HEAD\)"$/m)
+})
+
+test('RED: a `!` line whose command allowed-tools does not name', () => {
+  const dir = surfaceCopy()
+  setPrompt(dir, 'commands/verify-citations.md', withTools(dir, 'commands/verify-citations.md', 'Read, Grep, Glob'))
+  redOnce(dir, /a `!` command runs `git diff --name-only HEAD`, and allowed-tools has no Bash\(git diff --name-only HEAD\) rule/)
+})
+
+test('RED: a fenced `!` block whose command allowed-tools does not name', () => {
+  const dir = surfaceCopy()
+  const rel = 'commands/verify-citations.md'
+  const fence = '`'.repeat(3)
+  const text = readFileSync(join(dir, 'template/base/.claude', rel), 'utf8')
+  setPrompt(dir, rel, `${text}\n${fence}!\ngit log -1 --format=%cd\n${fence}\n`)
+  redOnce(dir, /a `!` command runs `git log -1 --format=%cd`, and allowed-tools has no Bash\(git log -1 --format=%cd\) rule/)
+})
+
+test('RED: a script rule naming a file the skills do not ship', () => {
+  const dir = surfaceCopy()
+  const rel = 'skills/authoring-vertical-slice/SKILL.md'
+  const text = readFileSync(join(dir, 'template/base/.claude', rel), 'utf8')
+  setPrompt(dir, rel, text.replace('scripts/scaffold-slice.mjs:*)', 'scripts/scaffold.mjs:*)'))
+  redOnce(dir, /Bash\(node \.claude\/skills\/authoring-vertical-slice\/scripts\/scaffold\.mjs:\*\) names a script the skills do not ship/)
+})
+
+/**
+ * A PNG of the given size. The gate reads the signature, the IHDR size and the IEND, not the
+ * checksums or the pixels.
+ * @param {number} width @param {number} height @param {number} [padding]
+ */
+function png(width, height, padding = 0) {
+  const chunk = (/** @type {string} */ type, /** @type {Buffer} */ data) => {
+    const length = Buffer.alloc(4)
+    length.writeUInt32BE(data.length)
+    return Buffer.concat([length, Buffer.from(type, 'latin1'), data, Buffer.alloc(4)])
+  }
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(width, 0)
+  ihdr.writeUInt32BE(height, 4)
+  ihdr[8] = 8
+  ihdr[9] = 2
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    ...(padding > 0 ? [chunk('IDAT', Buffer.alloc(padding))] : []),
+    chunk('IEND', Buffer.alloc(0)),
+  ])
+}
+
+test('RED: an icon that is missing, or not a square PNG of 512 to 2048 pixels under 2 MB', () => {
+  /** @param {string} dir @param {(m: Record<string, unknown>) => void} edit */
+  const setManifest = (dir, edit) => {
+    const path = join(dir, 'plugin/.claude-plugin/plugin.json')
+    const manifest = JSON.parse(readFileSync(path, 'utf8'))
+    edit(manifest)
+    writeFileSync(path, JSON.stringify(manifest, null, 2))
+  }
+  /** @param {string} dir @param {Buffer} bytes */
+  const setIcon = (dir, bytes) => writeFileSync(join(dir, 'plugin/.claude-plugin/icon.png'), bytes)
+  for (const [skew, want] of /** @type {Array<[(dir: string) => void, RegExp]>} */ ([
+    [(dir) => setManifest(dir, (m) => delete m['icon']), /plugin\.json: icon must name an image inside the plugin/],
+    [(dir) => setManifest(dir, (m) => (m['icon'] = './.claude-plugin/logo.png')), /icon: \.\/\.claude-plugin\/logo\.png does not exist/],
+    [(dir) => setIcon(dir, Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>\n')), /icon\.png is not a complete PNG/],
+    [(dir) => setIcon(dir, png(1024, 512)), /icon\.png is 1024 x 512 pixels; an icon must be square/],
+    [(dir) => setIcon(dir, png(256, 256)), /icon\.png is 256 x 256 pixels/],
+    [(dir) => setIcon(dir, png(1024, 1024, 2_000_000)), /icon\.png is \d+ bytes; an icon must be under 2 MB/],
+  ])) {
+    const dir = surfaceCopy()
+    skew(dir)
+    redOnce(dir, want)
+  }
 })
 
 // 1.1.0 (#62): the repo-side mirror applies docs-sync's fallback-list rule to the SHIPPED
