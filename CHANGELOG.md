@@ -80,6 +80,8 @@ twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAG
   queue and the release tags (`v*`) stay the maintainer's, so a successor needs administrator
   access to cut a release, and the continuity section says so. Factory only: nothing changes
   for an install.
+- **`CITATION.cff` names Thomas Nicklin as an author, with his ORCID iD, beside Cogvera Labs.**
+  Factory only: nothing changes for an install.
 
 ### Corrections to the record
 
