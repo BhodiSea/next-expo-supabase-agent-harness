@@ -21,23 +21,23 @@ twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAG
 ### Fixed
 
 - **`edge-functions`, `gate-integrity`, `rate-limits` and `security-headers` pass what they
-  read to their tools as arguments, not through a shell** (CodeQL
-  `js/shell-command-injection-from-environment`, medium). Each built a shell command from data:
-  `tools/check-edge-functions.mjs` a `deno check` from each function's directory name,
+  read to their tools as arguments, not through a shell.** Each built a shell command from
+  data: `tools/check-edge-functions.mjs` a `deno check` from each function's directory name,
   `tools/check-gate-integrity.mjs` a `git status` from each tsconfig path, and
   `tools/check-rate-limits.mjs` and `tools/check-security-headers.mjs` a `node -e` whose probe
   carries the project's path and, in `rate-limits`, every procedure name in
   `tools/generated/action-inventory.json` and every Server Action name in
-  `tools/rate-limit-budget.json`. The double quotes around them stop neither `$(…)` nor
-  backticks, so either could run a command when the gate ran. A `$NAME` in the project's path
-  sent both probes to a file that does not exist, so `rate-limits` and `security-headers`
-  skipped locally, naming type stripping, and failed in CI. A space split a tsconfig's path
-  into two that match nothing, so an uncommitted edit to a tsconfig under such a directory read
-  as committed. Every input comes from the project itself, whose code the chain and CI run
-  anyway, so it could do nothing that code could not. The four gates now call `execFileSync`
-  with an argument list, and their tests under `tests/gates/` check that each name reaches its
-  tool as written and that nothing in it runs, red on 2.0.4. All four are owned and reach an
-  install with `update`.
+  `tools/rate-limit-budget.json`. `$(…)` and backticks run inside double quotes, and the
+  tsconfig path had no quotes, so either could run a command when the gate ran. CodeQL flagged
+  only `edge-functions` (`js/shell-command-injection-from-environment`, medium). A `$NAME` in
+  the project's path sent both probes to a file that does not exist, so `rate-limits` and
+  `security-headers` skipped locally, naming type stripping, and failed in CI. A space split a
+  tsconfig's path into two that match nothing, so an uncommitted edit to a tsconfig under such
+  a directory read as committed. Every input comes from the project itself, whose code the
+  chain and CI run anyway, so it could do nothing that code could not. The four gates now call
+  `execFileSync` with an argument list, and their tests under `tests/gates/` check that each
+  name reaches its tool as written and that nothing in it runs, red on 2.0.4. All four are
+  owned and reach an install with `update`.
 - **The template catalog pins `zod` at `^4.6.6`, and `update` and `doctor` ask an install to
   do the same** (GHSA-mrhx-c7xc-m3w5, high). zod through 4.6.5 can exhaust memory validating a
   large array against an array schema with no length limit. Every release from 0.1.3 through
