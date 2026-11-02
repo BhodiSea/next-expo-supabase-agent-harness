@@ -29,7 +29,7 @@ This lineage's own history starts at 0.1.3.
   `Write`, which pre-approved every shell command and every file edit while one ran, past the
   project's own allow list. Each now names its commands as Bash rules: what its `!` lines run
   as it loads (`git diff --name-only HEAD`, `git status --short` or `date`), the slice
-  scaffolder, and the `pnpm`, `node tools/` and `supabase migration new` commands its steps
+  scaffolder, and the `pnpm` and `node tools/` scripts and `supabase migration new` its steps
   name. `designing-mobile-ui` runs none and names none. Any other command asks first unless
   the project's settings allow it, and file edits follow the session's permission mode, which
   the shipped `.claude/settings.json` sets to `acceptEdits`. The plugin's copies keep only the
