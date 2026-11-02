@@ -73,6 +73,11 @@ twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAG
   (`v*`) stay the maintainer's, so a successor needs administrator access to cut a release, and
   the continuity section says so. Factory only: nothing changes for an install.
 
+### Corrections to the record
+
+- **2.0.4 shipped on 2026-11-01, not 2026-10-21.** Its heading and the `date-released` in that
+  release's `CITATION.cff` give the date of its version bump.
+
 ## [2.0.4] — 2026-10-21
 
 **A patch: the v2.0.x defect fixes continue.** Each item that lands after this bump adds its
