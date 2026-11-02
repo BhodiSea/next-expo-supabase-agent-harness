@@ -479,9 +479,9 @@ test('/new-feature has the main thread resolve the cited sections into the revie
   const text = readFileSync(join(BASE, '.claude', 'commands', 'new-feature.md'), 'utf8')
   assert.ok(text.includes('`node tools/spec-anchor.mjs specs/$1.md#<id>`'), 'new-feature.md must name the resolver')
   const reviewer = text.indexOf('torvalds-reviewer')
-  const anchor = text.indexOf('node tools/spec-anchor.mjs')
+  const anchor = text.indexOf('node tools/spec-anchor.mjs specs/')
   assert.ok(reviewer !== -1 && anchor > reviewer, 'the resolver step sits at the reviewer step')
-  assert.match(text, /^allowed-tools: Read, Grep, Glob, Edit, Write, Bash$/m, 'frontmatter unchanged')
+  assert.match(text, /^allowed-tools: .*Bash\(node tools\/spec-anchor\.mjs:\*\)/m, 'the frontmatter pre-approves the resolver')
 })
 
 test('torvalds-reviewer judges against cited sections, falls back to the whole spec, and gains no tool', () => {

@@ -1,18 +1,25 @@
 // The installable plugin folder (#163): what plugin/ must hold, and how far the tree on disk
 // is from it. One home for the rule, read by the generator (scripts/generate-plugin-folder.mjs)
 // and the drift check in scripts/check-plugin-manifest.mjs, so the two can never disagree on
-// which files are generated.
+// which files are generated or what they hold.
 //
 // The marketplace entry points at plugin/, and Claude Code installs exactly that folder. It
 // used to point at the repository root, so an install copied every tracked file to deliver
 // the thirty component files, and the plugin directory's automated checks hold for a
 // reviewer any folder with more than 512 files or a non-image file over 256 KiB.
 //
-// Generated: agents/, commands/ and skills/, byte copies of template/base/.claude/, and
-// LICENSE, a byte copy of the root LICENSE. All are regular files, because the plugin
-// directory rejects a symbolic link for anything a plugin loads. Hand-edited: the manifest
-// (.claude-plugin/plugin.json, whose version the release bump sets) and README.md. Anything
-// else under plugin/ is drift.
+// Generated: agents/, commands/ and skills/, copied from template/base/.claude/, and LICENSE,
+// a byte copy of the root LICENSE. All are regular files, because the plugin directory
+// rejects a symbolic link for anything a plugin loads. A command or skill is copied with two
+// changes (pluginCopy), both to what it runs; every other file is a byte copy. Its source
+// runs the slice scaffolder as `node .claude/skills/...`, a path only an installed project
+// has, so the copy names the plugin's own file from ${CLAUDE_PLUGIN_ROOT}, which Claude Code
+// replaces with the plugin's folder in the text and in allowed-tools. And the copy's
+// allowed-tools keep a Bash rule only for a command its own `!` lines run, or for that
+// script. The source's other rules pre-approve a project's own commands (pnpm scripts,
+// node tools/*.mjs, the supabase CLI), which run that project's code: an installed project
+// vouches for them, a plugin cannot. Kept by hand: the manifest (.claude-plugin/plugin.json,
+// whose version the release bump sets) and README.md. Anything else under plugin/ is drift.
 import { existsSync, lstatSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { walkFiles } from '../../installer/lib/fs-walk.mjs'
@@ -26,6 +33,65 @@ const HAND_EDITED = ['.claude-plugin/plugin.json', 'README.md']
 const MAX_FILES = 512
 const MAX_FILE_BYTES = 256 * 1024
 const IMAGE_EXT = /\.(?:png|jpe?g|gif|webp|svg)$/i
+
+const PROMPT_FILE = /^(?:commands|skills)\/.*\.md$/
+const PROJECT_SCRIPT = 'node .claude/skills/'
+export const PLUGIN_SCRIPT = 'node ${CLAUDE_PLUGIN_ROOT}/skills/'
+
+/**
+ * A tool list split at the commas outside parentheses, as Claude Code reads allowed-tools.
+ * @param {string} list
+ * @returns {string[]}
+ */
+export function toolEntries(list) {
+  const out = ['']
+  let depth = 0
+  for (const ch of list) {
+    if (ch === ',' && depth === 0) {
+      out.push('')
+      continue
+    }
+    if (ch === '(') depth += 1
+    if (ch === ')') depth -= 1
+    out[out.length - 1] += ch
+  }
+  return out.map((entry) => entry.trim()).filter((entry) => entry !== '')
+}
+
+/**
+ * The commands a command's or skill's `!` lines run as it loads, matched as Claude Code
+ * 2.1.292 matches them: an inline `!` code span at a line start or after a space.
+ * @param {string} text
+ * @returns {string[]}
+ */
+export function inlineCommands(text) {
+  return [...text.matchAll(/(?<=^|\s)!`([^`]+)`/gm)].map((m) => String(m[1]).trim())
+}
+
+/**
+ * The bytes plugin/<rel> holds, for the source bytes it is generated from.
+ * @param {string} rel path inside plugin/
+ * @param {Buffer} source
+ * @returns {Buffer}
+ */
+export function pluginCopy(rel, source) {
+  if (!PROMPT_FILE.test(rel)) return source
+  const text = source.toString('utf8').replaceAll(PROJECT_SCRIPT, PLUGIN_SCRIPT)
+  const end = text.startsWith('---\n') ? text.indexOf('\n---\n', 3) : -1
+  if (end === -1) return Buffer.from(text, 'utf8')
+  const ownCommands = new Set(inlineCommands(text))
+  /** @param {string} entry */
+  const keep = (entry) => {
+    const bash = /^Bash(?:\((.*)\))?$/.exec(entry)
+    if (bash === null) return true
+    const command = bash[1] ?? ''
+    return ownCommands.has(command) || command.startsWith(PLUGIN_SCRIPT)
+  }
+  const head = text
+    .slice(0, end)
+    .replace(/^allowed-tools:(.*)$/m, (_, list) => `allowed-tools: ${toolEntries(list).filter(keep).join(', ')}`)
+  return Buffer.from(head + text.slice(end), 'utf8')
+}
 
 /**
  * Every generated file of plugin/, keyed by its POSIX path inside plugin/, with the
@@ -45,18 +111,18 @@ export function generatedFiles(root) {
 }
 
 /**
- * Whether a generated copy is missing, differs from its source bytes, or is a link.
+ * Whether a generated copy is missing, differs from the bytes it must hold, or is a link.
  * @param {string} dest
- * @param {Buffer} source
+ * @param {Buffer} want
  */
-function copyIsStale(dest, source) {
+function copyIsStale(dest, want) {
   let copy
   try {
     copy = readFileSync(dest)
   } catch {
     return true
   }
-  return !copy.equals(source) || lstatSync(dest).isSymbolicLink()
+  return !copy.equals(want) || lstatSync(dest).isSymbolicLink()
 }
 
 /**
@@ -79,7 +145,7 @@ export function pluginDrift(root) {
       problems.push(`${src} is a symbolic link: the plugin directory rejects links, so the source must be a regular file`)
       continue
     }
-    if (copyIsStale(join(pluginAbs, rel), source)) stale.push(rel)
+    if (copyIsStale(join(pluginAbs, rel), pluginCopy(rel, source))) stale.push(rel)
   }
   const onDisk = walkFiles(pluginAbs)
   const extra = onDisk.filter((rel) => !want.has(rel) && !HAND_EDITED.includes(rel))

@@ -11,6 +11,29 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [2.0.5]
+
+### Changed
+
+- **Each command and skill pre-approves only the commands it runs.** The seven commands and
+  three skills each carried a bare `Bash` in `allowed-tools`, and seven a bare `Edit` or
+  `Write`, which pre-approved every shell command and every file edit while one ran, past the
+  project's own allow list. Each now names its commands as Bash rules: what its `!` lines run
+  as it loads (`git diff --name-only HEAD`, `git status --short` or `date`), the slice
+  scaffolder, and the `pnpm`, `node tools/` and `supabase migration new` commands its steps
+  name. `designing-mobile-ui` runs none and names none. Any other command asks first unless
+  the project's settings allow it, and file edits follow the session's permission mode, which
+  the shipped `.claude/settings.json` sets to `acceptEdits`. The plugin's copies keep only the
+  `!` line commands and the scaffolder, which they name from `${CLAUDE_PLUGIN_ROOT}`: the
+  source's `node .claude/skills/` path exists only in an installed project, so the plugin's
+  `/new-feature` and `authoring-vertical-slice` could not run it, and the project commands
+  run that project's code, which a plugin cannot vouch for. `plugin/README.md` says what runs
+  without asking. `scripts/check-plugin-manifest.mjs` reds a source command or skill that
+  grants a bare `Bash`, `Edit` or `Write`, a prefix rule on one word or a `*` wildcard, a `!`
+  line with no rule, or a script rule naming a file the skills do not ship, each watched red
+  in `tests/gates/check-plugin-manifest.test.mjs`. Every template file this changes is owned
+  and reaches an install with `update`, which re-records its `tools/agents.lock.json` entry.
+
 ## [2.0.4] — 2026-10-21
 
 **A patch: the v2.0.x defect fixes continue.** Each item that lands after this bump adds its

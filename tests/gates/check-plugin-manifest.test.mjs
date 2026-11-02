@@ -11,11 +11,12 @@
 // else about an otherwise-green surface does.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { PLUGIN_SCRIPT, inlineCommands, pluginCopy, toolEntries } from '../../scripts/lib/plugin-folder.mjs'
 
 const REPO = fileURLToPath(new URL('../../', import.meta.url))
 const SCRIPT = join(REPO, 'scripts/check-plugin-manifest.mjs')
@@ -141,6 +142,7 @@ test('generate-plugin-folder: --check reds a drifted mirror, --write makes it cl
   const agent = join(dir, 'template/base/.claude/agents/dal-author.md')
   writeFileSync(agent, `${readFileSync(agent, 'utf8')}\nOne more line.\n`)
   writeFileSync(join(dir, 'plugin/stray.md'), 'stray\n')
+  rmSync(join(dir, 'plugin/commands/new-feature.md'))
   const gen = (/** @type {string} */ mode) =>
     spawnSync(process.execPath, [join(dir, 'scripts/generate-plugin-folder.mjs'), mode], {
       encoding: 'utf8',
@@ -149,12 +151,108 @@ test('generate-plugin-folder: --check reds a drifted mirror, --write makes it cl
   const before = gen('--check')
   assert.equal(before.status, 1, before.stderr)
   assert.match(before.stderr, /plugin\/agents\/dal-author\.md: differs/)
+  assert.match(before.stderr, /plugin\/commands\/new-feature\.md: differs/)
   assert.match(before.stderr, /plugin\/stray\.md: not generated and not hand-edited/)
   const write = gen('--write')
   assert.equal(write.status, 0, write.stderr)
-  assert.match(write.stdout, /1 written, 1 removed/)
+  assert.match(write.stdout, /2 written, 1 removed/)
+  // A command is written as the plugin's copy of it, not byte for byte.
+  const command = readFileSync(join(dir, 'template/base/.claude/commands/new-feature.md'))
+  const written = readFileSync(join(dir, 'plugin/commands/new-feature.md'))
+  assert.ok(!written.equals(command))
+  assert.ok(written.equals(pluginCopy('commands/new-feature.md', command)))
   assert.equal(gen('--check').status, 0)
   assert.equal(run([dir]).code, 0)
+})
+
+/**
+ * A command's or skill's source and the plugin copy generated from it, written together so a
+ * skew of the source is one finding, never a second one for drift.
+ * @param {string} dir @param {string} rel @param {string} text
+ */
+function setPrompt(dir, rel, text) {
+  writeFileSync(join(dir, 'template/base/.claude', rel), text)
+  writeFileSync(join(dir, 'plugin', rel), pluginCopy(rel, Buffer.from(text, 'utf8')))
+}
+
+/** @param {string} dir @param {string} rel @param {string} tools */
+function withTools(dir, rel, tools) {
+  const text = readFileSync(join(dir, 'template/base/.claude', rel), 'utf8')
+  const out = text.replace(/^allowed-tools: .*$/m, `allowed-tools: ${tools}`)
+  assert.notEqual(out, text, `${rel} must carry an allowed-tools line to skew`)
+  return out
+}
+
+test('pluginCopy: a command keeps the commands its `!` lines run and runs the plugin\'s own script; other files are byte copies', () => {
+  const source = Buffer.from(
+    [
+      '---',
+      'description: d',
+      'allowed-tools: Read, Bash(git status --short), Bash(node .claude/skills/s/scripts/x.mjs:*), Bash(pnpm gen), Bash(node tools/t.mjs), Bash',
+      '---',
+      '',
+      'Run `node .claude/skills/s/scripts/x.mjs $1`, then `pnpm gen`.',
+      '',
+      'Tree: !`git status --short`',
+      '',
+    ].join('\n'),
+  )
+  const copy = pluginCopy('commands/c.md', source).toString('utf8')
+  assert.match(copy, /^allowed-tools: Read, Bash\(git status --short\), Bash\(node \$\{CLAUDE_PLUGIN_ROOT\}\/skills\/s\/scripts\/x\.mjs:\*\)$/m)
+  assert.ok(copy.includes('Run `node ${CLAUDE_PLUGIN_ROOT}/skills/s/scripts/x.mjs $1`, then `pnpm gen`.'), copy)
+  for (const rel of ['agents/a.md', 'skills/s/scripts/x.mjs', 'LICENSE']) {
+    assert.ok(pluginCopy(rel, source).equals(source), rel)
+  }
+})
+
+test('the shipped plugin pre-approves only the commands its `!` lines run and its own scripts', () => {
+  const pluginDir = join(REPO, 'plugin')
+  const files = [
+    ...readdirSync(join(pluginDir, 'commands')).map((f) => `commands/${f}`),
+    ...readdirSync(join(pluginDir, 'skills')).map((s) => `skills/${s}/SKILL.md`),
+  ]
+  for (const rel of files) {
+    const text = readFileSync(join(pluginDir, rel), 'utf8')
+    const own = inlineCommands(text)
+    for (const entry of toolEntries(/^allowed-tools:(.*)$/m.exec(text)?.[1] ?? '')) {
+      assert.ok(!['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(entry), `${rel}: ${entry}`)
+      const command = /^Bash\((.*)\)$/.exec(entry)?.[1]
+      if (command === undefined || own.includes(command)) continue
+      assert.ok(command.startsWith(PLUGIN_SCRIPT) && command.endsWith(':*'), `${rel}: ${entry} is neither a \`!\` command nor the plugin's script`)
+      assert.ok(existsSync(join(pluginDir, 'skills', command.slice(PLUGIN_SCRIPT.length, -2))), `${rel}: ${entry} names no file`)
+    }
+  }
+})
+
+// A bare entry pre-approves every call of the tool while the command runs; Bash(node:*) and
+// a * wildcard are nearly as wide. One skew, one finding.
+test('RED: a command that grants every call of a tool, or a rule nearly as wide', () => {
+  for (const [extra, want] of /** @type {Array<[string, RegExp]>} */ ([
+    ['Bash', /commands\/rls-check\.md: allowed-tools grants every Bash call/],
+    ['Edit', /commands\/rls-check\.md: allowed-tools grants every Edit call/],
+    ['Write', /commands\/rls-check\.md: allowed-tools grants every Write call/],
+    ['Bash(node:*)', /Bash\(node:\*\) pre-approves more than one command/],
+    ['Bash(pnpm *)', /Bash\(pnpm \*\) pre-approves more than one command/],
+  ])) {
+    const dir = surfaceCopy()
+    const rel = 'commands/rls-check.md'
+    setPrompt(dir, rel, withTools(dir, rel, `Read, Grep, Glob, Bash(git diff --name-only HEAD), Bash(pnpm db:test), ${extra}`))
+    redOnce(dir, want)
+  }
+})
+
+test('RED: a `!` line whose command allowed-tools does not name', () => {
+  const dir = surfaceCopy()
+  setPrompt(dir, 'commands/verify-citations.md', withTools(dir, 'commands/verify-citations.md', 'Read, Grep, Glob'))
+  redOnce(dir, /a `!` line runs `git diff --name-only HEAD`, and allowed-tools has no Bash\(git diff --name-only HEAD\) rule/)
+})
+
+test('RED: a script rule naming a file the skills do not ship', () => {
+  const dir = surfaceCopy()
+  const rel = 'skills/authoring-vertical-slice/SKILL.md'
+  const text = readFileSync(join(dir, 'template/base/.claude', rel), 'utf8')
+  setPrompt(dir, rel, text.replace('scripts/scaffold-slice.mjs:*)', 'scripts/scaffold.mjs:*)'))
+  redOnce(dir, /Bash\(node \.claude\/skills\/authoring-vertical-slice\/scripts\/scaffold\.mjs:\*\) names a script the skills do not ship/)
 })
 
 // 1.1.0 (#62): the repo-side mirror applies docs-sync's fallback-list rule to the SHIPPED

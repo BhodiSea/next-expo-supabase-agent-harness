@@ -5,8 +5,8 @@
 // plugin folder — a plugin shipping dangling paths is dead on install, and nothing else
 // checks this surface (version equality is check-release-lockstep's job).
 // Since #163 the marketplace installs plugin/, not the repository root, and this gate is
-// also its drift check: plugin/'s agents, commands, skills and LICENSE must be byte copies
-// of their sources (scripts/lib/plugin-folder.mjs; regenerate with
+// also its drift check: plugin/'s agents, commands, skills and LICENSE must be the copies
+// scripts/lib/plugin-folder.mjs makes of their sources (regenerate with
 // scripts/generate-plugin-folder.mjs --write), within the plugin directory's file limits,
 // and its README must clear the directory's 40-word floor.
 // Also the repo-side mirror of the docs-sync agent-roster sub-check: the
@@ -14,11 +14,13 @@
 // SOURCE (same parser, same read-only policy — imported from the canonical
 // tools/lib/agent-roster.mjs, the convention check-canary-coverage.mjs set by
 // importing the template harness.config.mjs), so a PR that widens a reviewer
-// reds this repo's CI before any scaffold ever runs docs-sync.
+// reds this repo's CI before any scaffold ever runs docs-sync. The shipped commands and
+// skills are held at their source too, to pre-approve only the commands they run.
 //   usage: node scripts/check-plugin-manifest.mjs [repo-root]
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { walkFiles } from '../installer/lib/fs-walk.mjs'
 import {
   REVIEWER_AGENTS,
   REVIEWER_READONLY_TOOLS,
@@ -26,7 +28,13 @@ import {
   parseFrontmatter,
   splitList,
 } from '../template/base/tools/lib/agent-roster.mjs'
-import { PLUGIN_DIR, pluginDrift, proseWordCount } from './lib/plugin-folder.mjs'
+import {
+  PLUGIN_DIR,
+  inlineCommands,
+  pluginDrift,
+  proseWordCount,
+  toolEntries,
+} from './lib/plugin-folder.mjs'
 
 const ROOT = resolve(process.argv[2] ?? fileURLToPath(new URL('..', import.meta.url)))
 const errs = []
@@ -108,6 +116,66 @@ if (existsSync(readmeAbs)) {
     errs.push(`${PLUGIN_DIR}/README.md has ${String(words)} words outside code blocks: the plugin directory asks for at least 40`)
   }
 }
+
+// ── what the shipped commands and skills pre-approve, judged at their source ──
+// allowed-tools lets a command or skill run what it names without asking, so each names
+// exactly the commands it runs. A bare Bash, Edit or Write pre-approves every call of that
+// tool while it runs, and a prefix rule on one word (Bash(node:*)) or a * wildcard is
+// nearly as wide. Each command a `!` line runs needs its exact rule: Claude Code runs the
+// line as the file loads and refuses to load a file whose line it may not run. A script
+// rule names a file the skills ship. plugin/'s copies keep a subset of these rules.
+const PROMPTS_DIR = 'template/base/.claude'
+const BARE_GRANTS = new Set(['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
+
+/**
+ * What one Bash rule pre-approves beyond the command it names.
+ * @param {string} rel
+ * @param {string} command
+ * @returns {string[]}
+ */
+function bashRuleProblems(rel, command) {
+  const prefix = command.endsWith(':*') ? command.slice(0, -2) : command
+  if (prefix.includes('*') || (prefix !== command && !prefix.includes(' '))) {
+    return [`${rel}: Bash(${command}) pre-approves more than one command; name the command, or its first two words before :*`]
+  }
+  const script = /^node \.claude\/skills\/(\S+)$/.exec(prefix)?.[1]
+  if (script !== undefined && !existsSync(join(ROOT, PROMPTS_DIR, 'skills', script))) {
+    return [`${rel}: Bash(${command}) names a script the skills do not ship`]
+  }
+  return []
+}
+
+/**
+ * @param {string} rel path under template/base/.claude/
+ * @returns {string[]}
+ */
+function grantProblems(rel) {
+  const text = readFileSync(join(ROOT, PROMPTS_DIR, rel), 'utf8')
+  const parsed = parseFrontmatter(text)
+  if (!parsed.ok) return [`${PROMPTS_DIR}/${rel}: frontmatter does not parse (${parsed.error})`]
+  const entries = toolEntries(parsed.data['allowed-tools'] ?? '')
+  const out = []
+  for (const entry of entries) {
+    if (BARE_GRANTS.has(entry)) {
+      out.push(`${PROMPTS_DIR}/${rel}: allowed-tools grants every ${entry} call; name what it needs, as Bash(<command>) or Edit(<path>)`)
+    }
+    const command = /^Bash\((.*)\)$/.exec(entry)?.[1]
+    if (command !== undefined) out.push(...bashRuleProblems(`${PROMPTS_DIR}/${rel}`, command))
+  }
+  for (const command of inlineCommands(text)) {
+    if (!entries.includes(`Bash(${command})`)) {
+      out.push(`${PROMPTS_DIR}/${rel}: a \`!\` line runs \`${command}\`, and allowed-tools has no Bash(${command}) rule for it`)
+    }
+  }
+  return out
+}
+
+const promptFiles = ['commands', 'skills'].flatMap((sub) =>
+  walkFiles(join(ROOT, PROMPTS_DIR, sub))
+    .filter((rel) => (sub === 'commands' ? rel.endsWith('.md') : /^[^/]+\/SKILL\.md$/.test(rel)))
+    .map((rel) => `${sub}/${rel}`),
+)
+for (const rel of promptFiles) errs.push(...grantProblems(rel))
 
 // ── agent roster (mirror of the docs-sync roster sub-check, over the source) ──
 // Universal: every agent parses (parse failure = red, never a skip) and carries

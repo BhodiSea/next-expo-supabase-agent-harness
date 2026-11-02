@@ -1,7 +1,7 @@
 ---
 description: One-turn vertical-slice entry point (migration+RLS -> RLS tests -> ./client data fn -> tRPC procedure (+ optional Server Action) -> web screen -> mobile screen -> tests -> provenance -> green gate).
 argument-hint: "[feature-name]"
-allowed-tools: Read, Grep, Glob, Edit, Write, Bash
+allowed-tools: Read, Grep, Glob, Bash(git status --short), Bash(node .claude/skills/authoring-vertical-slice/scripts/scaffold-slice.mjs:*), Bash(pnpm gen), Bash(node tools/gen-grant-assertions.mjs), Bash(pnpm db:reset), Bash(pnpm db:test), Bash(node tools/spec-anchor.mjs:*), Bash(pnpm validate), Bash(pnpm test:rls), Bash(pnpm test), Bash(pnpm test:mobile)
 model: opus
 ---
 

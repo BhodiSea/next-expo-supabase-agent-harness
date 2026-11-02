@@ -5,7 +5,7 @@ description: >
   -> DSR record -> reviewers recipe for encrypting one feature end-to-end with the opt-in e2ee
   module, so the server never holds plaintext or a key that decrypts it. Use when asked to
   encrypt a feature, add client-side encryption, or make a column unreadable to the server.
-allowed-tools: Read, Grep, Glob, Edit, Write, Bash
+allowed-tools: Read, Grep, Glob, Bash(node tools/gen-grant-assertions.mjs), Bash(pnpm gen), Bash(node tools/check-expo-policy.mjs), Bash(node tools/check-data-flow.mjs), Bash(pnpm validate), Bash(pnpm test:rls), Bash(pnpm test), Bash(pnpm test:mobile)
 argument-hint: "[feature-name]"
 ---
 
