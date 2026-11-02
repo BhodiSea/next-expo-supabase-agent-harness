@@ -20,6 +20,20 @@ twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAG
 
 ### Fixed
 
+- **`edge-functions` and `gate-integrity` pass the paths they read from the tree to `deno` and
+  `git` as arguments, not through a shell** (CodeQL
+  `js/shell-command-injection-from-environment`, medium). `tools/check-edge-functions.mjs`
+  built a `deno check` command from each function's directory name, and
+  `tools/check-gate-integrity.mjs` a `git status` command from each tsconfig path. A directory
+  name holding `$(…)` or backticks ran that command when the gate ran, since the double quotes
+  around the deno paths stop neither, and a space split a tsconfig's path into two that match
+  nothing, so an uncommitted edit to a tsconfig under such a directory read as committed. A
+  name comes from the project's own tree, whose code the chain and CI run anyway, so it could
+  do nothing that code could not. Both gates now call `execFileSync` with an argument list.
+  `tests/gates/check-edge-functions.test.mjs` and `tests/gates/check-gate-integrity.test.mjs`
+  check that each path reaches the tool as one argument and that nothing in a name runs, red
+  on 2.0.4. Both gates are owned and reach an install with `update`.
+
 ### Changed
 
 - **The headline says what the hooks do: send the agent back to work when a check fails.** The

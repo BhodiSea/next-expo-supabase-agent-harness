@@ -17,7 +17,7 @@
 //     and skips loudly otherwise (the selftest canary is its CI twin).
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, dirname, join } from 'node:path'
 import { after, test } from 'node:test'
@@ -76,7 +76,7 @@ const NO_DENO = () => scratch('nsah-edge-nodeno-')
 
 /**
  * A POSIX `deno` that answers --version, fails `check` on an index.ts holding TYPE_ERROR the way
- * deno does, and records every check's arguments in $STUB_LOG.
+ * deno does, and records every check's arguments in $STUB_LOG, and one per line in $STUB_ARGV.
  */
 function stubDeno() {
   const dir = scratch('nsah-edge-stub-')
@@ -88,6 +88,7 @@ function stubDeno() {
       'if [ "$1" = "--version" ]; then echo "deno 2.9.6 (stub)"; exit 0; fi',
       'if [ "$1" = "check" ]; then',
       '  echo "$*" >> "$STUB_LOG"',
+      '  if [ -n "$STUB_ARGV" ]; then printf "%s\\n" "$@" >> "$STUB_ARGV"; fi',
       '  for last; do :; done',
       `  if grep -q "const n: number" "$last"; then`,
       `    echo "TS2322 [ERROR]: Type 'string' is not assignable to type 'number'." >&2`,
@@ -106,9 +107,9 @@ function stubDeno() {
 
 /**
  * @param {string} cwd
- * @param {{ path: string, ci?: boolean, log?: string }} opts
+ * @param {{ path: string, ci?: boolean, log?: string, argv?: string }} opts
  */
-function runGate(cwd, { path, ci = false, log }) {
+function runGate(cwd, { path, ci = false, log, argv }) {
   /** @type {Record<string, string | undefined>} */
   const env = { ...process.env, PATH: path }
   delete env.CI
@@ -116,6 +117,7 @@ function runGate(cwd, { path, ci = false, log }) {
   delete env.HARNESS_PARITY_REPORT_DIR
   if (ci) env.CI = 'true'
   if (log) env.STUB_LOG = log
+  if (argv) env.STUB_ARGV = argv
   const res = spawnSync(process.execPath, [GATE], { cwd, env, encoding: 'utf8' })
   return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
 }
@@ -220,6 +222,38 @@ test('two functions: each is checked on its own config, and one red is named alo
   assert.match(res.out, /supabase\/functions\/other: deno check failed/, res.out)
   assert.doesNotMatch(res.out, /supabase\/functions\/fn: deno check failed/, res.out)
   assert.equal(readFileSync(log, 'utf8').trim().split('\n').length, 2)
+})
+
+// CodeQL js/shell-command-injection-from-environment. Through 2.0.4 the gate built one shell
+// string from each directory name, and the double quotes around it stop neither `$(…)` nor
+// backticks: the shell ran `touch PWNED` and handed deno a different path.
+test('a directory name holding shell syntax reaches deno as it is, and nothing in it runs', { skip: NEEDS_STUB }, () => {
+  const names = ['y$(touch PWNED)', 'z`touch PWNED`']
+  const dir = install(
+    Object.fromEntries(
+      names.flatMap((name) => [
+        [`supabase/functions/${name}/index.ts`, INDEX],
+        [`supabase/functions/${name}/deno.json`, DENO_JSON],
+        [`supabase/functions/${name}/deno.lock`, DENO_LOCK],
+      ]),
+    ),
+  )
+  const argv = join(scratch('nsah-edge-argv-'), 'argv.log')
+  const res = runGate(dir, { path: stubPath(stubDeno()), log: join(dir, 'calls.log'), argv, ci: true })
+  assert.equal(res.code, 0, res.out)
+  assert.match(res.out, /^edge-functions: OK — 2 Edge Function\(s\) typecheck/m, res.out)
+  assert.equal(existsSync(join(dir, 'PWNED')), false, 'the shell ran a command from a directory name')
+  assert.deepEqual(
+    readFileSync(argv, 'utf8').trim().split('\n'),
+    names.flatMap((name) => [
+      'check',
+      '--frozen',
+      '--config',
+      `supabase/functions/${name}/deno.json`,
+      `--lock=supabase/functions/${name}/deno.lock`,
+      `supabase/functions/${name}/index.ts`,
+    ]),
+  )
 })
 
 // ── the ramp: pre-1.1.0 installs get NOTEs until 1.2.0 ─────────────────────────────────────

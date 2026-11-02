@@ -4558,6 +4558,16 @@ the turn anyway: the hook reaching its `timeout`, and an exit 2 with nothing on 
 stderr that says a file is missing. No hook, gate or setting changes. `update` plants the
 doctrine (owned), and nothing is left to you.
 
+### `edge-functions` and `gate-integrity` run `deno` and `git` without a shell
+
+Through 2.0.4 both gates handed the paths they read from your tree to a shell. A directory
+name holding `$(…)` or backticks ran that command, and a tsconfig under a directory whose
+name has a space was looked up as two paths that match nothing, so `gate-integrity` passed
+an uncommitted edit to it. Both gates now pass each path
+as one argument. `update` plants `tools/check-edge-functions.mjs` and
+`tools/check-gate-integrity.mjs`, both owned. If such a tsconfig holds an uncommitted edit,
+`gate-integrity` now names it; commit the edit, or undo it.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it
