@@ -4574,8 +4574,8 @@ gates now pass each of these as one argument. `update` plants `tools/check-edge-
 ### Raise `zod` to `^4.6.6` (GHSA-mrhx-c7xc-m3w5)
 
 zod through 4.6.5 can exhaust a process's memory while it validates a large array against an
-array schema with no length limit (GHSA-mrhx-c7xc-m3w5, high). Your catalog's `zod: ^4.4.3`,
-which every release through 2.0.4 shipped, admits those versions. `update` does not touch
+array schema with no length limit (GHSA-mrhx-c7xc-m3w5, high). The `zod: ^4.4.3` that every
+release through 2.0.4 seeded in your catalog admits those versions. `update` does not touch
 your pins: it names the floor and parks `.harness/pending/pin-floors.json`, and `doctor`
 warns until the pin's lower bound is 4.6.6 or higher. To meet it:
 
@@ -4583,6 +4583,7 @@ warns until the pin's lower bound is 4.6.6 or higher. To meet it:
 # in the pnpm-workspace.yaml catalog: zod: ^4.6.6
 pnpm install && git add pnpm-lock.yaml pnpm-workspace.yaml
 pnpm validate
+npx next-expo-supabase-agent-harness@latest doctor
 ```
 
 `doctor` then removes the parked file. `@expo/cli` 57, which Expo SDK 57 installs, still
