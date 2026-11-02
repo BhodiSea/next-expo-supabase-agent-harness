@@ -16,7 +16,16 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { PLUGIN_SCRIPT, allowedTools, inlineCommands, pluginCopy, toolEntries, wholeToolGrant } from '../../scripts/lib/plugin-folder.mjs'
+import {
+  PLUGIN_SCRIPT,
+  SHELL_AND_WRITE_TOOLS,
+  allowedTools,
+  inlineCommands,
+  pluginCopy,
+  toolEntries,
+  wholeToolGrant,
+  wideRule,
+} from '../../scripts/lib/plugin-folder.mjs'
 
 const REPO = fileURLToPath(new URL('../../', import.meta.url))
 const SCRIPT = join(REPO, 'scripts/check-plugin-manifest.mjs')
@@ -238,6 +247,7 @@ test('the shipped plugin pre-approves only the commands its `!` lines run and it
     assert.ok(entries !== null, `${rel}: allowed-tools is not a plain or wholly quoted list`)
     for (const entry of entries) {
       assert.equal(wholeToolGrant(entry), null, `${rel}: ${entry}`)
+      assert.ok(!wideRule(entry) && !entry.startsWith('mcp__'), `${rel}: ${entry}`)
       const command = /^Bash\((.*)\)$/.exec(entry)?.[1]
       if (command === undefined || own.includes(command)) continue
       assert.ok(command.startsWith(PLUGIN_SCRIPT) && command.endsWith(':*'), `${rel}: ${entry} is neither a \`!\` command nor the plugin's script`)
@@ -256,38 +266,46 @@ test('/new-migration pre-approves pnpm test:rls, which its migration-rls-author 
   assert.match(command, /^allowed-tools: .*Bash\(pnpm test:rls\)/m)
 })
 
-// A bare entry pre-approves every call of the tool while the command runs; Bash(node:*) and
-// a * wildcard are nearly as wide. One skew, one finding.
-test('RED: a command that grants every call of a tool, or a rule nearly as wide', () => {
-  for (const [extra, want] of /** @type {Array<[string, RegExp]>} */ ([
-    ['Bash', /commands\/rls-check\.md: allowed-tools grants every Bash call/],
-    ['PowerShell', /commands\/rls-check\.md: allowed-tools grants every PowerShell call/],
-    ['Edit', /commands\/rls-check\.md: allowed-tools grants every Edit call/],
-    ['Write', /commands\/rls-check\.md: allowed-tools grants every Write call/],
-    ['Bash(node:*)', /Bash\(node:\*\) pre-approves more than one command/],
-    ['Bash(pnpm *)', /Bash\(pnpm \*\) pre-approves more than one command/],
-  ])) {
-    const dir = surfaceCopy()
-    const rel = 'commands/rls-check.md'
-    setPrompt(dir, rel, withTools(dir, rel, `Read, Grep, Glob, Bash(git diff --name-only HEAD), Bash(pnpm db:test), ${extra}`))
-    redOnce(dir, want)
+/** `rls-check` with its own list and one more entry: one skew, so one finding. @param {string} entry */
+function redWith(entry) {
+  const dir = surfaceCopy()
+  const rel = 'commands/rls-check.md'
+  setPrompt(dir, rel, withTools(dir, rel, `Read, Grep, Glob, Bash(git diff --name-only HEAD), Bash(pnpm db:test), ${entry}`))
+  return dir
+}
+
+/** @param {string} text */
+const literal = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// Each tool in SHELL_AND_WRITE_TOOLS runs a shell command or code, or writes a file. Claude
+// Code's rule parser reads Tool() and Tool(*) as the bare Tool, which pre-approves every call
+// while the command runs. A rule with a `*` or on a one-word prefix is nearly as wide: `*` is
+// any text in a shell rule and a glob in a path rule, so `**`, `//**` and ` * ` each cover
+// every command or path.
+for (const tool of SHELL_AND_WRITE_TOOLS) {
+  for (const entry of [tool, `${tool}()`, `${tool}(*)`]) {
+    test(`RED: ${entry} grants every ${tool} call, as Claude Code reads it`, () => {
+      redOnce(redWith(entry), new RegExp(`commands/rls-check\\.md: allowed-tools grants every ${tool} call`))
+    })
   }
+  for (const entry of [`${tool}(**)`, `${tool}(//**)`, `${tool}( * )`, `${tool}(pnpm:*)`]) {
+    test(`RED: ${entry} pre-approves more than one command or path`, () => {
+      redOnce(redWith(entry), new RegExp(`commands/rls-check\\.md: ${literal(entry)} pre-approves more than one command or path`))
+    })
+  }
+}
+
+test('RED: a Bash rule on a wildcard after a word', () => {
+  redOnce(redWith('Bash(pnpm *)'), /Bash\(pnpm \*\) pre-approves more than one command/)
 })
 
-// Claude Code's rule parser reads Tool() and Tool(*) as the bare Tool.
-for (const [entry, tool] of /** @type {Array<[string, string]>} */ ([
-  ['Bash()', 'Bash'],
-  ['Bash(*)', 'Bash'],
-  ['PowerShell()', 'PowerShell'],
-  ['PowerShell(*)', 'PowerShell'],
-  ['Edit(*)', 'Edit'],
-  ['Write()', 'Write'],
-])) {
-  test(`RED: ${entry} grants every ${tool} call, as Claude Code reads it`, () => {
-    const dir = surfaceCopy()
-    const rel = 'commands/rls-check.md'
-    setPrompt(dir, rel, withTools(dir, rel, `Read, Grep, Glob, Bash(git diff --name-only HEAD), Bash(pnpm db:test), ${entry}`))
-    redOnce(dir, new RegExp(`commands/rls-check\\.md: allowed-tools grants every ${tool} call`))
+// Claude Code reads mcp__<server> and mcp__<server>__* as every tool of that server, and a `*`
+// in a tool name as a glob. It names MCP tools that run shell commands or code
+// (mcp__workspace__bash, mcp__remote-devices__device_bash, mcp__ide__executeCode), and what any
+// other server's tool runs is that server's to say. So no entry names an MCP tool.
+for (const entry of ['mcp__workspace__bash', 'mcp__workspace', 'mcp__workspace__b*', 'mcp__ide__executeCode(*)']) {
+  test(`RED: ${entry}, an MCP tool`, () => {
+    redOnce(redWith(entry), new RegExp(`commands/rls-check\\.md: allowed-tools grants ${literal(entry)}, an MCP tool`))
   })
 }
 

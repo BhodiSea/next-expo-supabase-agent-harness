@@ -37,6 +37,7 @@ import {
   pluginDrift,
   proseWordCount,
   wholeToolGrant,
+  wideRule,
 } from './lib/plugin-folder.mjs'
 
 const ROOT = resolve(process.argv[2] ?? fileURLToPath(new URL('..', import.meta.url)))
@@ -143,29 +144,33 @@ if (existsSync(readmeAbs)) {
 // YAML, which reads only a space or tab as a space, and by its spec a lone carriage return as
 // a line break, where parseFrontmatter reads JavaScript's white space (frontmatterProblem).
 // So the list must be a plain or wholly quoted string, which YAML reads as its text
-// (allowedTools); and a missing comma still grants what it names. A bare Bash, PowerShell,
-// Edit or Write pre-approves every call of that tool while it runs, and so do Tool() and
-// Tool(*) (wholeToolGrant); a Bash prefix rule on one word (Bash(node:*)) or a * wildcard is
-// nearly as wide. Each command a `!` line or fenced `!` block runs needs its exact rule:
-// Claude Code runs it as the file loads and refuses to load a file whose command it may not
-// run. A script rule names a file the skills ship. plugin/'s copies keep a subset of these
-// rules.
+// (allowedTools); and a missing comma still grants what it names. A bare entry, Tool() or
+// Tool(*) of a tool that runs a shell command or code, or writes a file, pre-approves every
+// call of it while the command runs (wholeToolGrant), and that tool's rule on a one-word
+// prefix (Bash(node:*)) or with a * wildcard nearly as many (wideRule). An MCP rule can name
+// every tool of a server or a glob of tool names, and some MCP tools run shell commands, so
+// no entry names an MCP tool. Each command a `!` line or fenced `!` block runs needs its
+// exact rule: Claude Code runs it as the file loads and refuses to load a file whose command
+// it may not run. A script rule names a file the skills ship. plugin/'s copies keep a subset
+// of these rules.
 const PROMPTS_DIR = 'template/base/.claude'
 
 /**
- * What one Bash rule pre-approves beyond the command it names.
+ * What one allowed-tools entry pre-approves beyond what its file runs.
  * @param {string} rel
- * @param {string} command
+ * @param {string} entry
  * @returns {string[]}
  */
-function bashRuleProblems(rel, command) {
-  const prefix = command.endsWith(':*') ? command.slice(0, -2) : command
-  if (prefix.includes('*') || (prefix !== command && !prefix.includes(' '))) {
-    return [`${rel}: Bash(${command}) pre-approves more than one command; name the command, or its first two words before :*`]
+function entryProblems(rel, entry) {
+  const tool = wholeToolGrant(entry)
+  if (tool !== null) return [`${rel}: allowed-tools grants every ${tool} call; name what it needs, as Bash(<command>) or Edit(<path>)`]
+  if (entry.startsWith('mcp__')) {
+    return [`${rel}: allowed-tools grants ${entry}, an MCP tool; an MCP rule can cover a whole server, and some MCP tools run shell commands`]
   }
-  const script = /^node \.claude\/skills\/(\S+)$/.exec(prefix)?.[1]
+  if (wideRule(entry)) return [`${rel}: ${entry} pre-approves more than one command or path; name it, or a command's first two words before :*`]
+  const script = /^Bash\(node \.claude\/skills\/(\S+?)(?::\*)?\)$/.exec(entry)?.[1]
   if (script !== undefined && !existsSync(join(ROOT, PROMPTS_DIR, 'skills', script))) {
-    return [`${rel}: Bash(${command}) names a script the skills do not ship`]
+    return [`${rel}: ${entry} names a script the skills do not ship`]
   }
   return []
 }
@@ -198,16 +203,7 @@ function grantProblems(rel) {
   if (entries === null) {
     return [`${PROMPTS_DIR}/${rel}: allowed-tools is not a plain or wholly quoted list, so Claude Code's YAML reading of it can differ from its text`]
   }
-  const out = []
-  for (const entry of entries) {
-    const tool = wholeToolGrant(entry)
-    if (tool !== null) {
-      out.push(`${PROMPTS_DIR}/${rel}: allowed-tools grants every ${tool} call; name what it needs, as Bash(<command>) or Edit(<path>)`)
-      continue
-    }
-    const command = /^Bash\((.*)\)$/.exec(entry)?.[1]
-    if (command !== undefined) out.push(...bashRuleProblems(`${PROMPTS_DIR}/${rel}`, command))
-  }
+  const out = entries.flatMap((entry) => entryProblems(`${PROMPTS_DIR}/${rel}`, entry))
   for (const command of inlineCommands(text)) {
     if (!entries.includes(`Bash(${command})`)) {
       out.push(`${PROMPTS_DIR}/${rel}: a \`!\` command runs \`${command}\`, and allowed-tools has no Bash(${command}) rule for it`)

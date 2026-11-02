@@ -111,11 +111,13 @@ twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAG
   `Tool(*)` read as the bare tool. Claude Code parses the frontmatter as YAML and ends it at
   the first `---`, even mid-line, so the check reds a list that is not a plain or wholly
   quoted one of tool names and rules, a `---` inside the frontmatter, and white space there
-  other than spaces, tabs and newlines. It also reds a bare `Bash`, `PowerShell`, `Edit` or
-  `Write`, a Bash rule on a one-word prefix or with a `*` wildcard, a `!` line or fenced `!`
-  block with no rule, or a script rule naming a file the skills do not ship, each watched red
-  in `tests/gates/check-plugin-manifest.test.mjs`. Every template file this changes is owned
-  and reaches an install with `update`, which re-records its `tools/agents.lock.json` entry.
+  other than spaces, tabs and newlines. It also reds a bare grant of a tool that runs a shell
+  command or code, or writes a file (`Bash`, `Monitor`, `PowerShell`, `AppifactRepl`, `Edit`,
+  `Write`, `NotebookEdit` or `MultiEdit`), a rule of one of those on a one-word prefix or with a
+  `*` wildcard, any MCP tool, a `!` line or fenced `!` block with no rule, or a script rule
+  naming a file the skills do not ship, each watched red in
+  `tests/gates/check-plugin-manifest.test.mjs`. Every template file this changes is owned and
+  reaches an install with `update`, which re-records its `tools/agents.lock.json` entry.
 
 ### Corrections to the record
 

@@ -104,8 +104,12 @@ export function allowedTools(value) {
   return plain && entries.every((entry) => /^[A-Za-z]/.test(entry)) ? entries : null
 }
 
-// The tools whose bare entry pre-approves every shell command or every file edit.
-const WHOLE_TOOLS = new Set(['Bash', 'PowerShell', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
+// The tools that run a shell command or code, or write a file, read in Claude Code 2.1.292.
+// Bash's permission check also judges Monitor's commands, and PowerShell has its own.
+// AppifactRepl runs JavaScript in a process it starts, under Bash's deny and ask rules. Edit,
+// Write and NotebookEdit are judged by the file-write check, which reads only Edit's path
+// rules; MultiEdit is an older Claude Code's. A bare entry pre-approves every call of one.
+export const SHELL_AND_WRITE_TOOLS = ['Bash', 'Monitor', 'PowerShell', 'AppifactRepl', 'Edit', 'Write', 'NotebookEdit', 'MultiEdit']
 
 /**
  * The tool an allowed-tools entry pre-approves every call of, or null. Claude Code 2.1.292's
@@ -115,7 +119,23 @@ const WHOLE_TOOLS = new Set(['Bash', 'PowerShell', 'Edit', 'Write', 'MultiEdit',
  */
 export function wholeToolGrant(entry) {
   const tool = entry.replace(/^([^()]+)\(\*?\)$/, '$1')
-  return WHOLE_TOOLS.has(tool) ? tool : null
+  return SHELL_AND_WRITE_TOOLS.includes(tool) ? tool : null
+}
+
+/**
+ * Whether a rule of one of SHELL_AND_WRITE_TOOLS pre-approves more than one command or path.
+ * Claude Code reads `*` as any text in a shell rule and as a glob in a path rule, so `**`,
+ * `//**` and ` * ` cover them all; a closing `:*` is a prefix rule, which on one word
+ * (`pnpm:*`) covers every command that word starts.
+ * @param {string} entry
+ * @returns {boolean}
+ */
+export function wideRule(entry) {
+  const rule = /^([^()]+)\((.*)\)$/.exec(entry)
+  if (rule === null || !SHELL_AND_WRITE_TOOLS.includes(String(rule[1]))) return false
+  const content = String(rule[2])
+  const prefix = content.endsWith(':*') ? content.slice(0, -2) : content
+  return prefix.includes('*') || (prefix !== content && !prefix.includes(' '))
 }
 
 /**
