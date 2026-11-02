@@ -329,10 +329,15 @@ export async function init(opts) {
   }
 
   /**
-   * The commands a new install runs next, in order, each with its reason. `git init` is left
-   * out when the target already is a git repository. scripts/lib/ci-preconditions.mjs reads
-   * this function's source for the committed-lockfile step, so keep `pnpm-lock.yaml` in it.
-   * It has no branches, so init()'s score in scripts/complexity-ratchet.json does not grow.
+   * The commands a new install runs next, in order, each with its reason, through the first
+   * Claude Code turn. `git init` is left out when the target already is a git repository. The
+   * stack comes up before that turn because its Stop hook runs the RLS suites, which fail
+   * closed without one once supabase/migrations exists (tests/rls/run-rls.mjs), and
+   * `pnpm validate` does not run them. README.md and docs/runbooks/first-run.md give the same
+   * steps, and tests/gates/next-steps-order.test.mjs holds the three to one order.
+   * scripts/lib/ci-preconditions.mjs reads this function's source for the committed-lockfile
+   * step, so keep `pnpm-lock.yaml` in it. It has no branches, so init()'s score in
+   * scripts/complexity-ratchet.json does not grow.
    * @returns {string[]}
    */
   function nextSteps() {
@@ -342,7 +347,10 @@ export async function init(opts) {
       ),
       'pnpm install',
       'git add -A && git commit — the first commit must include pnpm-lock.yaml (the shipped workflows run `pnpm install --frozen-lockfile`, which hard-fails without it, and the version-sync gate reds an absent lockfile)',
-      'pnpm validate — must be green before any agent turn ends',
+      'pnpm db:up — with Docker running; the first run downloads the Supabase images',
+      'pnpm validate',
+      'open Claude Code in this folder and ask for one small change; the turn ends when every gate, the RLS tests included, is green',
+      'what that first turn looks like, with the stack running and without it: docs/runbooks/first-run.md',
     ]
   }
   report.steps.push(...nextSteps())

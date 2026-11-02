@@ -18,6 +18,22 @@ change, and no ramp opens or moves. The `template/migrations.json` record restat
 twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by
 `2.0.5`.
 
+### Added
+
+- **`init`'s next steps and the README start the local stack before the first Claude Code turn,
+  and a new runbook shows that turn.** Both stopped at `pnpm validate`, which does not run the
+  RLS tests, while the Stop hook's `rls-isolation` step fails closed with no local stack once
+  `supabase/migrations/` exists. So unless the stack was already up, a new project's first turn
+  was sent back at its first Stop whatever it was asked, and without Docker it ended red at the
+  block cap. The steps are now `git init`, `pnpm install`, the first commit with
+  `pnpm-lock.yaml`, `pnpm db:up` with Docker running, `pnpm validate` and one small change in
+  Claude Code, then `docs/runbooks/first-run.md`, which the README and the documentation site's
+  landing page link. That page gives the same steps and shows the first turn with the stack
+  running and without it. `tests/gates/next-steps-order.test.mjs` holds `init`'s steps, the
+  README and the page to one order, and `tests/installer/lifecycle.test.mjs` holds the steps,
+  red on 2.0.5. The page is owned and reaches an install with `update`; the steps reach new
+  projects.
+
 ## [2.0.5] — 2026-11-02
 
 **A patch: the v2.0.x defect fixes continue.** No gate is added, the chain length does not

@@ -4601,6 +4601,12 @@ above are still the sweep for an install below 1.1.0.
 sha: this runbook and the hooks under `.claude/hooks/` (their version stamps). Each fix below
 says what else it delivers and what it leaves to you.
 
+### A runbook for the first run
+
+`docs/runbooks/first-run.md` is new: the steps from `init` to a first Claude Code turn that
+ends green, and what that turn looks like with the local stack running and without it.
+`update` plants it (owned), and nothing is left to you.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

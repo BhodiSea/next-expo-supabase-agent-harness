@@ -71,7 +71,7 @@ test('bootstrap init renders the monorepo layout with manifest modes', () => {
   assert.equal(r.code, 0, r.out)
   assert.match(
     r.out,
-    /next steps:\r?\n\s+1\. git init[^\r\n]*\r?\n\s+2\. pnpm install\r?\n\s+3\. git add -A && git commit[^\r\n]*pnpm-lock\.yaml[^\r\n]*\r?\n\s+4\. pnpm validate/,
+    /next steps:\r?\n\s+1\. git init[^\r\n]*\r?\n\s+2\. pnpm install\r?\n\s+3\. git add -A && git commit[^\r\n]*pnpm-lock\.yaml[^\r\n]*\r?\n\s+4\. pnpm db:up[^\r\n]*\r?\n\s+5\. pnpm validate\r?\n\s+6\. open Claude Code[^\r\n]*\r?\n\s+7\. [^\r\n]*docs\/runbooks\/first-run\.md/,
   )
 
   for (const expected of [
@@ -169,18 +169,31 @@ test('init in an existing Git repository omits the git init step', () => {
   execFileSync('git', ['init', '-q', dir])
   const r = run(['init', '--dir', dir, '--yes', ...SETS])
   assert.equal(r.code, 0, r.out)
-  assert.match(r.out, /next steps:\r?\n\s+1\. pnpm install\r?\n\s+2\. git add -A && git commit[\s\S]*?\r?\n\s+3\. pnpm validate/)
+  assert.match(
+    r.out,
+    /next steps:\r?\n\s+1\. pnpm install\r?\n\s+2\. git add -A && git commit[^\r\n]*\r?\n\s+3\. pnpm db:up[^\r\n]*\r?\n\s+4\. pnpm validate\r?\n\s+5\. open Claude Code[^\r\n]*\r?\n\s+6\. [^\r\n]*docs\/runbooks\/first-run\.md/,
+  )
   assert.doesNotMatch(r.out, /^\s+\d+\. git init/m)
 })
 
-test('init JSON report carries next steps as an array', () => {
+// The first run ends at a green Claude Code turn, and that turn's Stop hook runs the RLS suites
+// against the local stack: `pnpm validate` alone does not, so the stack comes up before it.
+test('init JSON report carries next steps as an array, through the first Claude Code turn', () => {
   const dir = mkdtempSync(join(tmpdir(), 'epah-json-'))
   const r = run(['init', '--dir', dir, '--yes', '--report', 'json', ...SETS])
   assert.equal(r.code, 0, r.out)
   const report = JSON.parse(r.out)
-  assert.equal(report.steps.length, 4)
+  assert.equal(report.steps.length, 7, report.steps.join('\n'))
   assert.match(report.steps[0], /^git init/)
+  assert.equal(report.steps[1], 'pnpm install')
   assert.match(report.steps[2], /pnpm-lock\.yaml/)
+  assert.match(report.steps[3], /^pnpm db:up — .*Docker.*the first run downloads the Supabase images/)
+  assert.equal(report.steps[4], 'pnpm validate')
+  assert.match(report.steps[5], /^open Claude Code in this folder .*one small change.*the RLS tests included, is green$/)
+  // The last step names a page, and init planted it.
+  const page = /docs\/runbooks\/first-run\.md/.exec(report.steps[6])?.[0]
+  assert.ok(page, report.steps[6])
+  assert.ok(existsSync(join(dir, page)), `the next steps name ${page}, which init did not write`)
 })
 
 test('dry-run writes nothing', () => {
