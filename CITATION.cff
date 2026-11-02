@@ -17,6 +17,9 @@ abstract: >-
   inline-citation provenance pipeline, and supply-chain-hardened CI.
 authors:
   - name: Cogvera Labs
+  - given-names: Thomas
+    family-names: Nicklin
+    orcid: 'https://orcid.org/0009-0006-6658-6560'
 repository-code: 'https://github.com/cogvera-labs/next-expo-supabase-agent-harness'
 keywords:
   - nextjs
@@ -30,5 +33,5 @@ keywords:
   - provenance
   - supply-chain
 license: Apache-2.0
-version: 2.0.4
-date-released: '2026-10-21'
+version: 2.0.5
+date-released: '2026-11-02'

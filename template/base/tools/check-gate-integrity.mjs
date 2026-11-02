@@ -23,6 +23,7 @@
 // a skip that prints a clean count reads as a pass.
 // Static and fast: sha256 recompute + a few cheap git reads.
 // SOURCE: docs/harness/README.md (tamper evidence) [corpus: harness/doctrine]
+import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -31,7 +32,7 @@ import { pathToFileURL } from 'node:url'
 import { derender } from './lib/derender.mjs'
 import { CONFIG_COMMIT, ESCAPE_LISTS } from './lib/enforcement-surface.mjs'
 import { walkFiles } from './lib/fs-walk.mjs'
-import { fail, failures, ok, rampNote, runCmd, skipOrFail } from './lib/gate.mjs'
+import { fail, failures, MAX_BUFFER, ok, rampNote, skipOrFail } from './lib/gate.mjs'
 
 const GATE = 'gate-integrity'
 const MANIFEST = '.harness/manifest.json'
@@ -405,15 +406,21 @@ if (existsSync(STOP_FLOOR) && existsSync(CONFIG)) {
 // The manifest hashes every other file, but nothing hashes the manifest — so its own
 // fields (baseVersion above all) were free bytes. Git history is the external record
 // an agent cannot rewrite without a force-push, which the bash-guard denies.
-/** @param {string} cmd @returns {string | null} */
-function git(cmd) {
+// An argument list, never a shell (2.0.5): a tsconfig path is read from the tree, and
+// through 2.0.4 a shell split one with a space into two pathspecs and ran a `$(…)` in one.
+/** @param {string[]} args @returns {string | null} */
+function git(...args) {
   try {
-    return runCmd(`git ${cmd}`, { stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+    return execFileSync('git', args, {
+      encoding: 'utf8',
+      maxBuffer: MAX_BUFFER,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
   } catch {
     return null // no git, no history, shallow clone, or the path is untracked
   }
 }
-const hasGit = git('rev-parse --is-inside-work-tree') === 'true'
+const hasGit = git('rev-parse', '--is-inside-work-tree') === 'true'
 // The exact string '1', like every other reader of the flag. It lifts the two commit rules
 // (3 and 3b) and nothing else; docs/harness/README.md, "What `HARNESS_ALLOW_SELF_EDIT=1`
 // relaxes", lists every check it lifts across the harness.
@@ -460,12 +467,12 @@ if (!currentBase) {
 if (hasGit) {
   // Every revision of the manifest, newest first. It changes only on init/update/
   // graduation, so this list is short (bounded anyway, so a long-lived repo stays fast).
-  const revs = (git(`log --format=%H --max-count=50 -- ${MANIFEST}`) ?? '')
+  const revs = (git('log', '--format=%H', '--max-count=50', '--', MANIFEST) ?? '')
     .split('\n')
     .filter(Boolean)
   let newest = currentBase
   for (const rev of revs) {
-    const raw = git(`show ${rev}:${MANIFEST}`)
+    const raw = git('show', `${rev}:${MANIFEST}`)
     if (!raw) continue
     let past
     try {
@@ -519,7 +526,7 @@ if (hasGit && present.length > 0 && !selfEdit) {
   // we already hold, so no slicing can mangle it and a path with spaces cannot confuse us.
   const unplanted = []
   for (const p of present) {
-    const status = git(`status --porcelain -- ${p}`)
+    const status = git('status', '--porcelain', '--', p)
     if (!status) continue // empty output = clean (or untracked-but-ignored)
     const verdict = plantVerdict(p, status)
     if (verdict === 'plant') {
@@ -659,7 +666,7 @@ let configCommitSummary = `${String(configCommitPaths.length)} threshold config(
 if (hasGit && configCommitPaths.length > 0 && !selfEdit) {
   const dirty = []
   for (const p of configCommitPaths) {
-    if (!git(`status --porcelain -- ${p}`)) continue
+    if (!git('status', '--porcelain', '--', p)) continue
     // A file `update` JUST REWROTE is not a widening — it is the upgrade, and the consumer
     // has not touched it. vitest.config.ts and eslint.config.mjs are harness-OWNED, so any
     // release that changes them leaves this rule accusing the install of "modifying" a file

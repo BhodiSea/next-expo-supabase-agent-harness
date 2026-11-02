@@ -11,6 +11,83 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [2.0.5] — 2026-11-02
+
+**A patch: the v2.0.x defect fixes continue.** No gate is added, the chain length does not
+change, and no ramp opens or moves. The `template/migrations.json` record restates 2.0.0's
+twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by
+`2.0.4`.
+
+### Fixed
+
+- **`edge-functions`, `gate-integrity`, `rate-limits` and `security-headers` pass what they
+  read to their tools as arguments, not through a shell.** Each built a shell command from
+  data: `tools/check-edge-functions.mjs` a `deno check` from each function's directory name,
+  `tools/check-gate-integrity.mjs` a `git status` from each tsconfig path, and
+  `tools/check-rate-limits.mjs` and `tools/check-security-headers.mjs` a `node -e` whose probe
+  carries the project's path and, in `rate-limits`, every procedure name in
+  `tools/generated/action-inventory.json` and every Server Action name in
+  `tools/rate-limit-budget.json`. `$(…)` and backticks run inside double quotes, and the
+  tsconfig path had no quotes, so either could run a command when the gate ran. CodeQL flagged
+  only `edge-functions` (`js/shell-command-injection-from-environment`, medium). A `$NAME` in
+  the project's path sent both probes to a file that does not exist, so `rate-limits` and
+  `security-headers` skipped locally, naming type stripping, and failed in CI. A space split a
+  tsconfig's path into two that match nothing, so an uncommitted edit to a tsconfig under such
+  a directory read as committed. Every input comes from the project itself, whose code the
+  chain and CI run anyway, so it could do nothing that code could not. The four gates now call
+  `execFileSync` with an argument list, and their tests under `tests/gates/` check that each
+  name reaches its tool as written and that nothing in it runs, red on 2.0.4. All four are
+  owned and reach an install with `update`.
+- **The template catalog pins `zod` at `^4.6.6`, and `update` and `doctor` ask an install to
+  do the same** (GHSA-mrhx-c7xc-m3w5, high). zod through 4.6.5 can exhaust memory validating a
+  large array against an array schema with no length limit. Every release from 0.1.3 through
+  2.0.4 shipped `zod: ^4.4.3`, whose lower bound admits those versions. A `catalogPinFloors`
+  entry in the 2.0.5 record floors `zod` at 4.6.6. `pnpm-workspace.yaml` is seeded, so
+  `update` leaves the pin, names the floor and parks `.harness/pending/pin-floors.json`, and
+  `doctor` warns (exit 2) until the pin's lower bound is 4.6.6 or higher; this release's
+  runbook says how to raise it. `@expo/cli` 57, which Expo SDK 57 installs, still depends on
+  zod 3, which the advisory also covers, and no catalog pin reaches it.
+  `tests/installer/catalog-pin-floors.test.mjs` holds the record and the template's pin to the
+  floor, red on 2.0.4.
+- **`SECURITY.md` says nobody can bypass the required checks on `main`.** Its Branch-Protection
+  finding said the maintainer could bypass them when merging their own pull request. Since
+  2026-11-01 the ruleset on `main` lets nobody bypass it, the administrator included. Factory
+  only: nothing changes for an install.
+
+### Changed
+
+- **The headline says what the hooks do: send the agent back to work when a check fails.** The
+  README, `package.json`'s description, the documentation site and the social preview image
+  said Claude Code hooks and CI gates "block an agent turn or a merge until validation
+  passes". Claude Code ends a turn anyway after 8 Stop-hook blocks in a row with no tool call
+  between them, when the hook reaches its timeout, and when the hook exits 2 with nothing on
+  stdout and a stderr that says a file is missing. Each now reads "Claude Code hooks that send
+  the agent back to work when a check fails, and CI gates that block a merge until validation
+  passes", and the README's other mentions, `CITATION.cff` and `docs/architecture.md` follow.
+  The doctrine's Stop hook section no longer calls the hook unbreakable, and names all three
+  cases where it called the cap the one way a turn could end red.
+  `docs/media/social-preview.png` is rendered again from its SVG with the command in its
+  comment; the repository's social preview is uploaded by hand.
+  `.claude-plugin/marketplace.json` names Cogvera Labs as its owner, and its plugin
+  description lists every reviewer and skill in plain words. The doctrine is owned and reaches
+  an install with `update`, and this release's runbook says so; the rest is factory only.
+- **`GOVERNANCE.md` names the collaborator with write access, and says that either the
+  maintainer or the collaborator decides what gets merged.** It said nobody but the maintainer
+  had write access, and that the maintainer made all final decisions, what gets merged
+  included. Write access lets a collaborator merge a pull request that passes the required
+  checks, and the Roles table lists the collaborator. The maintainer still makes the final
+  decisions about the project's direction and its releases. Settings, the security advisory
+  queue and the release tags (`v*`) stay the maintainer's, so a successor needs administrator
+  access to cut a release, and the continuity section says so. Factory only: nothing changes
+  for an install.
+- **`CITATION.cff` names Thomas Nicklin as an author, with his ORCID iD, beside Cogvera Labs.**
+  Factory only: nothing changes for an install.
+
+### Corrections to the record
+
+- **2.0.4 shipped on 2026-11-01, not 2026-10-21.** Its heading and the `date-released` in that
+  release's `CITATION.cff` give the date of its version bump.
+
 ## [2.0.4] — 2026-10-21
 
 **A patch: the v2.0.x defect fixes continue.** Each item that lands after this bump adds its
@@ -259,21 +336,6 @@ this comment. -->
   numbers is the maintainer's decision, for later. The runner is owned and reaches an install
   with `update`. The screen and the catalog are seeded, so an install's own screen shows the
   values only once it renders them, and until then the runner prints that it found none.
-- **The headline says what the hooks do: send the agent back to work when a check fails.**
-  The README, `package.json`'s description, the documentation site and the social preview
-  image said Claude Code hooks and CI gates "block an agent turn or a merge until validation
-  passes". Claude Code ends a turn anyway after 8 Stop-hook blocks in a row with no tool call
-  between them, when the hook reaches its timeout, and when the hook exits 2 with nothing on
-  stdout and a stderr that says a file is missing. Each now reads "Claude Code hooks that send
-  the agent back to work when a check fails, and CI gates that block a merge until validation
-  passes", and the README's other mentions, `CITATION.cff` and `docs/architecture.md` follow.
-  The doctrine's Stop hook section no longer calls the hook unbreakable, and names all three
-  cases where it called the cap the one way a turn could end red. `docs/media/social-preview.png` is rendered again from its SVG with
-  the command in its comment; the repository's social preview is uploaded by hand.
-  `.claude-plugin/marketplace.json` names Cogvera Labs as its owner, and its plugin
-  description lists every reviewer and skill in plain words. The doctrine is owned and
-  reaches an install with `update`, and this release's runbook says so; the rest is factory
-  only.
 
 ## [2.0.3] — 2026-10-17
 
