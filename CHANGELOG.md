@@ -33,6 +33,17 @@ twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAG
   `tests/gates/check-edge-functions.test.mjs` and `tests/gates/check-gate-integrity.test.mjs`
   check that each path reaches the tool as one argument and that nothing in a name runs, red
   on 2.0.4. Both gates are owned and reach an install with `update`.
+- **The template catalog pins `zod` at `^4.6.6`, and `update` and `doctor` ask an install to
+  do the same** (GHSA-mrhx-c7xc-m3w5, high). zod through 4.6.5 can exhaust memory validating a
+  large array against an array schema with no length limit. Every release from 0.1.3 through
+  2.0.4 shipped `zod: ^4.4.3`, whose lower bound admits those versions. A `catalogPinFloors`
+  entry in the 2.0.5 record floors `zod` at 4.6.6. `pnpm-workspace.yaml` is seeded, so
+  `update` leaves the pin, names the floor and parks `.harness/pending/pin-floors.json`, and
+  `doctor` warns (exit 2) until the pin's lower bound is 4.6.6 or higher; this release's
+  runbook says how to raise it. `@expo/cli` 57, which Expo SDK 57 installs, still depends on
+  zod 3, which the advisory also covers, and no catalog pin reaches it.
+  `tests/installer/catalog-pin-floors.test.mjs` holds the record and the template's pin to the
+  floor, red on 2.0.4.
 
 ### Changed
 

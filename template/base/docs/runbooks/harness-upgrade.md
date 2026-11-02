@@ -4568,6 +4568,25 @@ as one argument. `update` plants `tools/check-edge-functions.mjs` and
 `tools/check-gate-integrity.mjs`, both owned. If such a tsconfig holds an uncommitted edit,
 `gate-integrity` now names it; commit the edit, or undo it.
 
+### Raise `zod` to `^4.6.6` (GHSA-mrhx-c7xc-m3w5)
+
+zod through 4.6.5 can exhaust a process's memory while it validates a large array against an
+array schema with no length limit (GHSA-mrhx-c7xc-m3w5, high). Your catalog's `zod: ^4.4.3`,
+which every release through 2.0.4 shipped, admits those versions. `update` does not touch
+your pins: it names the floor and parks `.harness/pending/pin-floors.json`, and `doctor`
+warns until the pin's lower bound is 4.6.6 or higher. To meet it:
+
+```
+# in the pnpm-workspace.yaml catalog: zod: ^4.6.6
+pnpm install && git add pnpm-lock.yaml pnpm-workspace.yaml
+pnpm validate
+```
+
+`doctor` then removes the parked file. `@expo/cli` 57, which Expo SDK 57 installs, still
+depends on zod 3, which the advisory also covers. No catalog pin reaches it, so a scan of
+your lockfile keeps reporting it; `@expo/cli` 58.1.18, on the SDK 58 line, no longer depends
+on zod.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it
