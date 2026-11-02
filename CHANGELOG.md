@@ -30,13 +30,15 @@ This lineage's own history starts at 0.1.3.
   project's own allow list. Each now names its commands as Bash rules: what its `!` lines run
   as it loads (`git diff --name-only HEAD`, `git status --short` or `date`), the slice
   scaffolder, and the `pnpm` and `node tools/` scripts and `supabase migration new` its steps
-  name. `designing-mobile-ui` runs none and names none. Any other command asks first unless
-  the project's settings allow it, and file edits follow the session's permission mode, which
-  the shipped `.claude/settings.json` sets to `acceptEdits`. The plugin's copies keep only the
-  `!` line commands and the scaffolder, which they name from `${CLAUDE_PLUGIN_ROOT}`: the
-  source's `node .claude/skills/` path exists only in an installed project, so the plugin's
-  `/new-feature` and `authoring-vertical-slice` could not run it, and the project commands
-  run that project's code, which a plugin cannot vouch for. `plugin/README.md` says what runs
+  name. `/new-migration` also names `pnpm test:rls`, which its `migration-rls-author` subagent
+  runs: a typed command's rules reach the subagents it starts. `designing-mobile-ui` runs none
+  and names none. Any other command asks first unless the project's settings allow it, and
+  file edits follow the session's permission mode, which the shipped `.claude/settings.json`
+  sets to `acceptEdits`. The plugin's copies keep only the `!` line commands and the
+  scaffolder, which they name from `${CLAUDE_PLUGIN_ROOT}`: the source's
+  `node .claude/skills/` path exists only in an installed project, so the plugin's
+  `/new-feature` and `authoring-vertical-slice` could not run it, and the project commands run
+  that project's code, which a plugin cannot vouch for. `plugin/README.md` says what runs
   without asking. `scripts/check-plugin-manifest.mjs` reads a source command's or skill's list
   as Claude Code does: split at commas and at spaces outside parentheses, with `Tool()` and
   `Tool(*)` read as the bare tool. Claude Code parses the frontmatter as YAML and ends it at

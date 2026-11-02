@@ -246,6 +246,16 @@ test('the shipped plugin pre-approves only the commands its `!` lines run and it
   }
 })
 
+// Claude Code passes a typed command's rules to the subagents it starts, and the shipped
+// settings' Bash(pnpm test:*) admits `pnpm test <args>`, not `pnpm test:rls`.
+test('/new-migration pre-approves pnpm test:rls, which its migration-rls-author subagent runs', () => {
+  const read = (/** @type {string} */ rel) => readFileSync(join(REPO, 'template/base/.claude', rel), 'utf8')
+  const command = read('commands/new-migration.md')
+  assert.ok(command.includes('Delegate the authoring to the `migration-rls-author` subagent'), 'new-migration.md delegates to the subagent')
+  assert.ok(read('agents/migration-rls-author.md').includes('`pnpm test:rls`'), 'the subagent verifies with pnpm test:rls')
+  assert.match(command, /^allowed-tools: .*Bash\(pnpm test:rls\)/m)
+})
+
 // A bare entry pre-approves every call of the tool while the command runs; Bash(node:*) and
 // a * wildcard are nearly as wide. One skew, one finding.
 test('RED: a command that grants every call of a tool, or a rule nearly as wide', () => {
