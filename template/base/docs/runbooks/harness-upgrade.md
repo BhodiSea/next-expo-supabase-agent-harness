@@ -4558,14 +4558,17 @@ the turn anyway: the hook reaching its `timeout`, and an exit 2 with nothing on 
 stderr that says a file is missing. No hook, gate or setting changes. `update` plants the
 doctrine (owned), and nothing is left to you.
 
-### `edge-functions` and `gate-integrity` run `deno` and `git` without a shell
+### Four gates run their tools without a shell
 
-Through 2.0.4 both gates handed the paths they read from your tree to a shell. A directory
-name holding `$(…)` or backticks ran that command, and a tsconfig under a directory whose
-name has a space was looked up as two paths that match nothing, so `gate-integrity` passed
-an uncommitted edit to it. Both gates now pass each path
-as one argument. `update` plants `tools/check-edge-functions.mjs` and
-`tools/check-gate-integrity.mjs`, both owned. If such a tsconfig holds an uncommitted edit,
+Through 2.0.4 `edge-functions`, `gate-integrity`, `rate-limits` and `security-headers` handed
+what they read to a shell: function directory names, tsconfig paths, procedure and Server
+Action names, and your project's path. `$(…)` or backticks in one of them could run a
+command. A `$NAME` in your project's path made `rate-limits` and `security-headers` skip
+locally and fail in CI. A tsconfig under a directory whose name has a space was looked up as
+two paths that match nothing, so `gate-integrity` passed an uncommitted edit to it. The four
+gates now pass each of these as one argument. `update` plants `tools/check-edge-functions.mjs`,
+`tools/check-gate-integrity.mjs`, `tools/check-rate-limits.mjs` and
+`tools/check-security-headers.mjs`, all owned. If such a tsconfig holds an uncommitted edit,
 `gate-integrity` now names it; commit the edit, or undo it.
 
 ### Raise `zod` to `^4.6.6` (GHSA-mrhx-c7xc-m3w5)

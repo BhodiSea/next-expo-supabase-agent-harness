@@ -8,7 +8,7 @@
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -203,6 +203,21 @@ test('a missing module SKIPS locally and FAILS in CI', () => {
   })
   assert.equal(local.status, 0, `${local.stdout}${local.stderr}`)
   assert.ok(`${local.stdout}`.includes('SKIPPED'), local.stdout)
+})
+
+// CodeQL js/shell-command-injection-from-environment. Through 2.0.4 the probe carrying the
+// module's path reached node through a shell, and the double quotes around it stop no `$`: the
+// shell ran `touch PWNED`, and node was asked to import a path that does not exist, which the
+// gate reported as missing type stripping. `$IFS` stands in for a space, which the file URL
+// would encode.
+test('a project path holding shell syntax reaches node as it is, and nothing in it runs', () => {
+  const plain = fixture()
+  const dir = `${plain}-$(touch$IFS'PWNED')`
+  renameSync(plain, dir)
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('match tools/security-headers.json by value'), r.out)
+  assert.equal(existsSync(join(dir, 'PWNED')), false, 'the shell ran a command from the project path')
 })
 
 // ── RFC 9116 security.txt (1.0.0): present ⇒ parses ────────────────────────────────

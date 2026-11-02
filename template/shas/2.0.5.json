@@ -921,7 +921,7 @@
     ],
     "docs/runbooks/harness-upgrade.md": [
       {
-        "sha256": "1b96c4ea2169f4ec0b99c5633313c98590f4f12270fdff939ee61a99a6e6260e",
+        "sha256": "4e003c37054dbf4798527c7193f2abed051b952fd250e9e980589820d935a003",
         "sites": [
           [
             14122,
@@ -1380,7 +1380,7 @@
     ],
     "tools/check-rate-limits.mjs": [
       {
-        "sha256": "b976144c0a8c529493e69ae60f59916ac071184a726651f931afd5e042d7eb23"
+        "sha256": "bd524597809a69919fe210c9ada24ba445b6bc2a257c977ce5e41e3a3b0e8a5c"
       }
     ],
     "tools/check-resilience.mjs": [
@@ -1420,7 +1420,7 @@
     ],
     "tools/check-security-headers.mjs": [
       {
-        "sha256": "3f282b07ca2a31841536c111af7a2c7a0ad38d0697107e85c3400a84ede4a4bc"
+        "sha256": "184722037cfeed41cadf647ef945746fc2797866a7eaf4d6a1b0d7409f8faafd"
       }
     ],
     "tools/check-sources.mjs": [
