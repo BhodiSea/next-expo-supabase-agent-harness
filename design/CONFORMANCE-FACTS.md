@@ -336,7 +336,8 @@ software that is not monetised, and a steward's Art. 14 duties do not apply unti
 So "out of scope entirely" above is true of the manufacturer duties and of today. For
 2027-12-11 it was **not settled** on 2026-09-29, because whether this repository has a steward
 depends on facts the tree cannot establish.
-`package.json`, `CITATION.cff` and `GOVERNANCE.md` name Cogvera Labs as the author. Whether
+`package.json` names Cogvera Labs as the author, `CITATION.cff` as the first author, before
+Thomas Nicklin, and `GOVERNANCE.md` as the maintainer's organisation. Whether
 Cogvera Labs is a legal person that systematically supports this harness, as software intended
 for commercial activities, is for the maintainer to determine. This file recorded the question
 as **open** on 2026-09-29, and did not answer it. The maintainer answered it on 2026-10-02

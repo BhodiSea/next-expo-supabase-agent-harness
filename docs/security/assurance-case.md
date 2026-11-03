@@ -64,7 +64,7 @@ delivered into every project that installs or updates.
                                                                               │
         consumer CI ◀── workflows and gates from the template ◀───────────────┘
 
- contributor PR ──▶ factory CI (read-only token, no secrets) ──▶ maintainer review ──▶ main
+ contributor PR ──▶ factory CI (read-only token, no secrets) ──▶ maintainer or @oakla ──▶ main
  tag ──▶ release.yml (OIDC identity) ──▶ attested tarball ──▶ GitHub Release ──▶ npm registry
 ```
 

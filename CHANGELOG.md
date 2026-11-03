@@ -11,6 +11,19 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [Unreleased]
+
+### Fixed
+
+- **The steward record names the authors as `CITATION.cff` does, and the trust-boundary diagram
+  names who merges as `GOVERNANCE.md` does.** `design/CONFORMANCE-FACTS.md` and the
+  `conformance-cra-art14-application` row of `scripts/obligations.json` said `package.json`,
+  `CITATION.cff` and `GOVERNANCE.md` name Cogvera Labs as the author. They now say
+  `package.json` names it as the author, `CITATION.cff` as the first author, before Thomas
+  Nicklin, and `GOVERNANCE.md` as the maintainer's organisation. The diagram in
+  `docs/security/assurance-case.md` drew maintainer review as the one step before `main`, and
+  now draws `maintainer or @oakla`. Factory only: nothing changes for an install.
+
 ## [2.0.5] — 2026-11-02
 
 **A patch: the v2.0.x defect fixes continue.** No gate is added, the chain length does not
