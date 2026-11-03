@@ -1,7 +1,7 @@
 ---
 description: Emit an Architecture Decision Record for the current feature slice.
 argument-hint: "[slice-name]"
-allowed-tools: Read, Grep, Glob, Write, Bash
+allowed-tools: Read, Grep, Glob, Bash(date +%Y%m%d), Bash(node tools/spec-anchor.mjs:*)
 ---
 
 Today's date (the command engine does NOT expand `$(...)`, so use this inline line):

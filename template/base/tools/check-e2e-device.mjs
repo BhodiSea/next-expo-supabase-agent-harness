@@ -29,7 +29,8 @@
 //   --phase perf-harness  Generates the perf-harness journey from
 //                         tools/interaction-budget.json and runs it — the flow asserts
 //                         the screen's self-measured `perf-pass` leaf marker, so the
-//                         assertion IS the interaction-budget verdict.
+//                         assertion IS the interaction-budget verdict. After a pass it
+//                         prints the values the screen measured (2.0.4).
 //
 // Discipline carried from the source harness's lanes: per-flow hard timeout (a wedged
 // emulator must red the lane, never hang it), evidence on failure (Maestro debug
@@ -138,6 +139,40 @@ function captureEvidence(name, flowFile) {
   // FAILED": now it says whether the screen showed perf-fail, and which cap, or was still
   // measuring.
   console.error(describeScreen(flowFile, summarizeHierarchy(tree)))
+}
+
+// A value line on the perf-harness screen names its metric by the probe's own id (the
+// ProbeMeasurements keys in apps/mobile/src/lib/perf-probes.ts), which the catalog never
+// translates, so the line is found in any locale.
+const PERF_VALUE = /\b(?:tabSwitchMs|actionsOpenMs|droppedFrames)\b/
+// The flow has already passed, so a wedged `maestro hierarchy` must not hang the lane.
+const HIERARCHY_TIMEOUT_MS = 2 * 60 * 1000
+
+/** The ids and text on screen now; empty lists when `maestro hierarchy` printed no JSON. */
+function readScreen(maestroBin) {
+  const tree = sh(`${maestroBin} hierarchy`, {
+    timeout: HIERARCHY_TIMEOUT_MS,
+    killSignal: 'SIGKILL',
+  })
+  return summarizeHierarchy(tree.status === 0 ? (tree.stdout ?? '') : '')
+}
+
+/**
+ * One line naming the values a passing perf-harness screen measured (2.0.4). A red prints
+ * its over-budget lines through describeScreen, but through 2.0.3 a green printed none, so
+ * the lane's printed medians that tools/interaction-budget.json re-baselines from did not
+ * exist. Best-effort, like the evidence: the flow's verdict stands whatever this reads.
+ */
+function describePerfValues(flowFile, { ids, texts }) {
+  const head = `${GATE}: on screen after ${basename(flowFile)} passed —`
+  if (ids.length === 0 && texts.length === 0) {
+    return `${head} nothing readable (maestro hierarchy printed no JSON)`
+  }
+  const values = texts.filter((text) => PERF_VALUE.test(text))
+  if (values.length === 0) {
+    return `${head} no measured values (a perf-harness screen from 2.0.3 or earlier shows them only when a budget fails)`
+  }
+  return `${head} ${values.map((text) => JSON.stringify(text)).join(' · ')}`
 }
 
 function runFlow(maestroBin, flowFile) {
@@ -259,6 +294,7 @@ if (phase === 'flows') {
     )
   }
   runFlow(maestroBin, journeyFile)
+  console.log(describePerfValues(journeyFile, readScreen(maestroBin)))
   executed = 1
 } else {
   fail(

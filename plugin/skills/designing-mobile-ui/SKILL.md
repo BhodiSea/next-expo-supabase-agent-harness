@@ -5,7 +5,7 @@ description: >
   motion tokens, state choreography, and per-surface "default beautiful"
   checklists. Use when building or restyling any screen, component, list,
   form, modal, or interaction — BEFORE composing the JSX.
-allowed-tools: Read, Grep, Glob, Edit, Write, Bash
+allowed-tools: Read, Grep, Glob
 argument-hint: "[surface-type]"
 ---
 

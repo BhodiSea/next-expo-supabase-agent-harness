@@ -1,6 +1,6 @@
 ---
 description: Audit the working tree against the always-loaded security-invariants rule via the torvalds-reviewer subagent — return a PASS/FAIL verdict naming any invariant weakened.
-allowed-tools: Read, Grep, Glob, Bash
+allowed-tools: Read, Grep, Glob, Bash(git diff --name-only HEAD)
 model: opus
 ---
 

@@ -1,7 +1,7 @@
 ---
 description: Add a Supabase migration + RLS — a declarative schema change plus a new timestamped, append-only migration carrying FORCE RLS, per-op policies on auth.uid(), a leading-column owner index, and narrow grants.
 argument-hint: "[table-or-change]"
-allowed-tools: Read, Grep, Glob, Edit, Write, Bash
+allowed-tools: Read, Grep, Glob, Bash(date -u +%Y%m%d%H%M%S), Bash(git diff --name-only HEAD), Bash(node tools/gen-grant-assertions.mjs), Bash(pnpm gen), Bash(pnpm db:reset), Bash(pnpm db:test), Bash(pnpm test:rls)
 ---
 
 Add the schema change **$1**. Two files move together: the DECLARATIVE source of truth and a

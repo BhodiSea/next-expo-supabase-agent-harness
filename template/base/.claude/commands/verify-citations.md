@@ -1,6 +1,6 @@
 ---
 description: Verify every // SOURCE: and ADR citation in the working tree; reject hallucinations.
-allowed-tools: Read, Grep, Glob, Bash
+allowed-tools: Read, Grep, Glob, Bash(git diff --name-only HEAD)
 model: sonnet
 ---
 

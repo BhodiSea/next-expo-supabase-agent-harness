@@ -20,15 +20,16 @@
 // real browser and collects securitypolicyviolation events — check-web-e2e.mjs holds
 // that spec present the same way it holds the axe scan present.
 // SOURCE: docs/harness/gates-catalog.md (security-headers) [corpus: harness/doctrine]
+import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import {
   commandFailureOutput,
   fail,
   failures,
+  MAX_BUFFER,
   ok,
   rampNote,
-  runCmd,
   skipOrFail,
   stampGate,
 } from './lib/gate.mjs'
@@ -109,10 +110,9 @@ for (const key of ['hstsPreload', 'coep']) {
 const recordGreen = stampGate(GATE, STAMP_INPUTS[GATE])
 
 // ---- evaluate the module -------------------------------------------------------
-// ONE PHYSICAL LINE. runCmd goes through a shell, and a `-e` payload containing real
-// newlines arrives at node as literal backslash-n — a syntax error that reads exactly
-// like "type stripping is unavailable" and would have made this gate skip forever
-// while reporting a plausible reason.
+// The probe reaches node as one argument, never through a shell (2.0.5): it carries the
+// project's path, and through 2.0.4 a shell expanded a `$` in it, so node was asked to
+// import a file that does not exist.
 const url = pathToFileURL(MODULE).href
 const n = JSON.stringify(NONCE)
 const o = JSON.stringify(SUPABASE_ORIGIN)
@@ -124,7 +124,11 @@ const probe =
 let evaluated
 try {
   evaluated = JSON.parse(
-    runCmd(`node --experimental-strip-types --no-warnings -e ${JSON.stringify(probe)}`),
+    execFileSync(process.execPath, ['--experimental-strip-types', '--no-warnings', '-e', probe], {
+      encoding: 'utf8',
+      maxBuffer: MAX_BUFFER,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }),
   )
 } catch (e) {
   const reason = commandFailureOutput(e).split('\n').slice(0, 3).join(' / ')

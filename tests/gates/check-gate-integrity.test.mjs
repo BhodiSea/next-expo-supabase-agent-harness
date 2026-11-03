@@ -8,7 +8,7 @@ import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { appendFileSync, chmodSync, existsSync, readFileSync, renameSync, rmSync, mkdtempSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, mkdtempSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -641,6 +641,37 @@ test('a config the INSTALLER rewrote is a NOTE; the same file hand-tuned is stil
   const tuned = run()
   assert.equal(tuned.code, 1, tuned.out)
   assert.ok(tuned.out.includes('NOT COMMITTED'), tuned.out)
+})
+
+// A tsconfig's path comes from walking the tree. Through 2.0.4 the gate asked git about it
+// through a shell, which split a path with a space into two pathspecs that match nothing, so
+// an uncommitted edit under such a directory read as committed, and ran a `$(…)` in a name.
+/** @param {ReturnType<typeof plantScaffold>} fx @param {string} rel */
+function commitTsconfig(fx, rel) {
+  mkdirSync(join(fx.repo, dirname(rel)), { recursive: true })
+  writeFileSync(join(fx.repo, rel), '{ "compilerOptions": { "strict": true } }\n')
+  fx.git('add', '-A')
+  fx.commitAll('a package')
+}
+
+test('an uncommitted tsconfig under a directory whose name has a space reds, naming its path', () => {
+  const fx = plantScaffold()
+  const rel = 'packages/my lib/tsconfig.json'
+  commitTsconfig(fx, rel)
+  const clean = fx.run()
+  assert.equal(clean.code, 0, clean.out)
+  writeFileSync(join(fx.repo, rel), '{ "compilerOptions": { "strict": false } }\n')
+  const dirty = fx.run()
+  assert.equal(dirty.code, 1, dirty.out)
+  assert.ok(dirty.out.includes(`${rel}: threshold-bearing config modified but NOT COMMITTED`), dirty.out)
+})
+
+test('nothing in a tsconfig directory name runs', { skip: process.platform === 'win32' && 'cmd.exe expands no $(…), so this case is a POSIX shell one' }, () => {
+  const fx = plantScaffold()
+  commitTsconfig(fx, 'packages/x$(touch PWNED)/tsconfig.json')
+  const r = fx.run()
+  assert.equal(r.code, 0, r.out)
+  assert.equal(existsSync(join(fx.repo, 'PWNED')), false, 'the shell ran a command from a directory name')
 })
 
 // ── WHAT HARNESS_ALLOW_SELF_EDIT=1 RELAXES HERE (1.1.0, #80) ──────────────────────

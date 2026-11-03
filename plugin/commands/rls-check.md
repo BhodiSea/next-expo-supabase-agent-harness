@@ -1,6 +1,6 @@
 ---
 description: Run the security-reviewer over the RLS/policy/migration diff, plus (if the local stack is up) the rls_verify probe and pgTAP — return `RLS: PASS` or `RLS: FAIL` and fix until it passes.
-allowed-tools: Read, Grep, Glob, Bash
+allowed-tools: Read, Grep, Glob, Bash(git diff --name-only HEAD)
 model: sonnet
 ---
 

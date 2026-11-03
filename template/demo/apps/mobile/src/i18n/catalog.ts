@@ -201,6 +201,9 @@ export const en = {
   // {metric} is a machine id (tabSwitchMs / actionsOpenMs / droppedFrames) — a
   // diagnostic key, deliberately untranslated; the numbers localize via t().
   'perf.over': '{metric}: measured {measured}, budget {cap}',
+  // The same ids on a pass, one line per value: the device runner prints them to the
+  // lane's log, so a green run leaves its numbers for a re-baseline as a red one does.
+  'perf.measured': '{metric}: measured {measured}',
   'perf.unavailable': 'The performance harness is a development-build surface.',
 
   // ---- not found --------------------------------------------------------------

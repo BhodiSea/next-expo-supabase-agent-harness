@@ -6,7 +6,7 @@ head:
   - tag: title
     content: next-expo-supabase-agent-harness documentation
 hero:
-  tagline: A CLI that scaffolds a pnpm monorepo with a Next.js web app and an Expo (React Native) mobile app on one Supabase backend, plus Claude Code hooks and CI gates that block an agent turn or a merge until validation passes.
+  tagline: A CLI that scaffolds a pnpm monorepo with a Next.js web app and an Expo (React Native) mobile app on one Supabase backend, plus Claude Code hooks that send the agent back to work when a check fails, and CI gates that block a merge until validation passes.
   actions:
     - text: Read the doctrine
       link: /next-expo-supabase-agent-harness/harness/

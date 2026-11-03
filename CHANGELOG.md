@@ -11,6 +11,143 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [Unreleased]
+
+### Fixed
+
+- **The machinery's minimatch moves to 11.0.3** (GHSA-g3hv-75wg-m249, medium). The advisory,
+  published on 2026-10-30, covers every minimatch below 11.0.1, and the scheduled OSV scan in
+  `hygiene` has been red on it since. eslint 9 and its `@eslint` packages ask for `^3.1.5`
+  and `eslint-plugin-sonarjs` for `^10.2.6`, and neither line has a fixed release, so an
+  override in `pnpm-workspace.yaml` gives the root tree 11.0.3 alone. ESLint loads those
+  packages' CommonJS builds, which only construct `Minimatch`, and it lints the same files
+  with the same resolved configuration on 11.0.3. Their ES-module builds default-import
+  minimatch, which 11.x does not provide, so nothing here may import `@eslint/eslintrc` or
+  `@eslint/config-array` from an ES module while the override stands. The two components
+  it adds have reviewed rows in `scripts/sbom-additions.json`, and the
+  `minimatch-11-override` row in `scripts/obligations.json` says when the override goes.
+  Factory only: nothing changes for an install.
+
+## [2.0.5] — 2026-11-02
+
+**A patch: the v2.0.x defect fixes continue.** No gate is added, the chain length does not
+change, and no ramp opens or moves. The `template/migrations.json` record restates 2.0.0's
+twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by
+`2.0.4`.
+
+### Fixed
+
+- **`edge-functions`, `gate-integrity`, `rate-limits` and `security-headers` pass what they
+  read to their tools as arguments, not through a shell.** Each built a shell command from
+  data: `tools/check-edge-functions.mjs` a `deno check` from each function's directory name,
+  `tools/check-gate-integrity.mjs` a `git status` from each tsconfig path, and
+  `tools/check-rate-limits.mjs` and `tools/check-security-headers.mjs` a `node -e` whose probe
+  carries the project's path and, in `rate-limits`, every procedure name in
+  `tools/generated/action-inventory.json` and every Server Action name in
+  `tools/rate-limit-budget.json`. `$(…)` and backticks run inside double quotes, and the
+  tsconfig path had no quotes, so either could run a command when the gate ran. CodeQL flagged
+  only `edge-functions` (`js/shell-command-injection-from-environment`, medium). A `$NAME` in
+  the project's path sent both probes to a file that does not exist, so `rate-limits` and
+  `security-headers` skipped locally, naming type stripping, and failed in CI. A space split a
+  tsconfig's path into two that match nothing, so an uncommitted edit to a tsconfig under such
+  a directory read as committed. Every input comes from the project itself, whose code the
+  chain and CI run anyway, so it could do nothing that code could not. The four gates now call
+  `execFileSync` with an argument list, and their tests under `tests/gates/` check that each
+  name reaches its tool as written and that nothing in it runs, red on 2.0.4. All four are
+  owned and reach an install with `update`.
+- **The template catalog pins `zod` at `^4.6.6`, and `update` and `doctor` ask an install to
+  do the same** (GHSA-mrhx-c7xc-m3w5, high). zod through 4.6.5 can exhaust memory validating a
+  large array against an array schema with no length limit. Every release from 0.1.3 through
+  2.0.4 shipped `zod: ^4.4.3`, whose lower bound admits those versions. A `catalogPinFloors`
+  entry in the 2.0.5 record floors `zod` at 4.6.6. `pnpm-workspace.yaml` is seeded, so
+  `update` leaves the pin, names the floor and parks `.harness/pending/pin-floors.json`, and
+  `doctor` warns (exit 2) until the pin's lower bound is 4.6.6 or higher; this release's
+  runbook says how to raise it. `@expo/cli` 57, which Expo SDK 57 installs, still depends on
+  zod 3, which the advisory also covers, and no catalog pin reaches it.
+  `tests/installer/catalog-pin-floors.test.mjs` holds the record and the template's pin to the
+  floor, red on 2.0.4.
+- **`SECURITY.md` says nobody can bypass the required checks on `main`.** Its Branch-Protection
+  finding said the maintainer could bypass them when merging their own pull request. Since
+  2026-11-01 the ruleset on `main` lets nobody bypass it, the administrator included. Factory
+  only: nothing changes for an install.
+
+### Added
+
+- **The Claude Code plugin has an icon.** `plugin/.claude-plugin/icon.png` is the Cogvera Labs
+  logo, a 1024-pixel square PNG, and `plugin.json` names it in `icon`.
+  `scripts/check-plugin-manifest.mjs` reds when `icon` is missing or names anything but a
+  complete square PNG of 512 to 2048 pixels a side under 2 MB, and
+  `scripts/generate-plugin-folder.mjs` keeps the file beside the manifest. Factory only:
+  nothing changes for an install.
+
+### Changed
+
+- **The headline says what the hooks do: send the agent back to work when a check fails.** The
+  README, `package.json`'s description, the documentation site and the social preview image
+  said Claude Code hooks and CI gates "block an agent turn or a merge until validation
+  passes". Claude Code ends a turn anyway after 8 Stop-hook blocks in a row with no tool call
+  between them, when the hook reaches its timeout, and when the hook exits 2 with nothing on
+  stdout and a stderr that says a file is missing. Each now reads "Claude Code hooks that send
+  the agent back to work when a check fails, and CI gates that block a merge until validation
+  passes", and the README's other mentions, `CITATION.cff` and `docs/architecture.md` follow.
+  The doctrine's Stop hook section no longer calls the hook unbreakable, and names all three
+  cases where it called the cap the one way a turn could end red.
+  `docs/media/social-preview.png` is rendered again from its SVG with the command in its
+  comment; the repository's social preview is uploaded by hand.
+  `.claude-plugin/marketplace.json` names Cogvera Labs as its owner, and its plugin
+  description lists every reviewer and skill in plain words. The doctrine is owned and reaches
+  an install with `update`, and this release's runbook says so; the rest is factory only.
+- **`GOVERNANCE.md` names the collaborator with write access, and says that either the
+  maintainer or the collaborator decides what gets merged.** It said nobody but the maintainer
+  had write access, and that the maintainer made all final decisions, what gets merged
+  included. Write access lets a collaborator merge a pull request that passes the required
+  checks, and the Roles table lists the collaborator. The maintainer still makes the final
+  decisions about the project's direction and its releases. Settings, the security advisory
+  queue and the release tags (`v*`) stay the maintainer's, so a successor needs administrator
+  access to cut a release, and the continuity section says so. Factory only: nothing changes
+  for an install.
+- **`CITATION.cff` names Thomas Nicklin as an author, with his ORCID iD, beside Cogvera Labs.**
+  Factory only: nothing changes for an install.
+- **Each command and skill pre-approves only the commands it runs.** The seven commands and
+  three skills each carried a bare `Bash` in `allowed-tools`, and seven a bare `Edit` or
+  `Write`, which pre-approved every shell command and every file edit while one ran, past the
+  project's own allow list. Each now names its commands as Bash rules: what its `!` lines run
+  as it loads (`git diff --name-only HEAD`, `git status --short` or `date`), the slice
+  scaffolder, and the `pnpm` and `node tools/` scripts and `supabase migration new` its steps
+  name. `/new-migration` also names `pnpm test:rls`, which its `migration-rls-author` subagent
+  runs: a typed command's rules reach the subagents it starts. So does `/new-action`, whose
+  `dal-author` subagent has no shell and hands that command back to run. `designing-mobile-ui`
+  runs none and names none. Any other command asks first unless the project's settings allow it,
+  and file edits follow the session's permission mode, which the shipped `.claude/settings.json`
+  sets to `acceptEdits`. The plugin's copies keep only the `!` line commands and the
+  scaffolder, which they name from `${CLAUDE_PLUGIN_ROOT}`: the source's
+  `node .claude/skills/` path exists only in an installed project, so the plugin's
+  `/new-feature` and `authoring-vertical-slice` could not run it, and the project commands run
+  that project's code, which a plugin cannot vouch for. `plugin/README.md` says what runs
+  without asking. `scripts/check-plugin-manifest.mjs` reads each source command
+  (`commands/**/*.md`) and skill (`skills/<name>/SKILL.md`) and splits its `allowed-tools`
+  list as Claude Code 2.1.292 does: at commas and at spaces outside parentheses, with `Tool()`
+  and `Tool(*)` read as the bare tool. Claude Code parses the frontmatter as YAML and ends it
+  at the first `---`, even mid-line, so the check reds a list that is not a plain or wholly
+  quoted one of tool names and rules, a `---` inside the frontmatter, and white space there
+  other than spaces, tabs and newlines. It also reds a bare grant of `Bash`, `Monitor`,
+  `PowerShell`, `AppifactRepl`, `Edit`, `Write`, `NotebookEdit` or `MultiEdit`, the tools whose
+  grant pre-approves running a shell command or code, or writing a file; a rule of one of those
+  on a one-word prefix or with a `*` wildcard; any MCP tool; a `!` line or fenced `!` block with
+  no rule; and a script rule naming a file the skills do not ship. Each is watched red in
+  `tests/gates/check-plugin-manifest.test.mjs`. The check guards against a broad grant added
+  by mistake in these forms; it is not a sandbox against one written to get past it. It passes
+  a command or skill whose file name is spelled in another case, such as `SKILL.MD`, a `hooks`
+  entry in a frontmatter or in `plugin.json`, a rule on a prefix of two words that runs any
+  code, such as `Bash(node -e:*)`, and an `Edit` rule naming a folder outside the project.
+  Every template file this changes is owned and reaches an install with `update`, which
+  re-records its `tools/agents.lock.json` entry.
+
+### Corrections to the record
+
+- **2.0.4 shipped on 2026-11-01, not 2026-10-21.** Its heading and the `date-released` in that
+  release's `CITATION.cff` give the date of its version bump.
+
 ## [2.0.4] — 2026-10-21
 
 **A patch: the v2.0.x defect fixes continue.** Each item that lands after this bump adds its
@@ -133,18 +270,13 @@ this comment. -->
   repository's analyses `.claude/`; this repository's lane found the race in the new
   `plugin/` copy. The script is owned and reaches an install with `update`. It runs only
   when someone runs it, so no slice an install already has changes.
-- **The machinery's minimatch moves to 11.0.3** (GHSA-g3hv-75wg-m249, medium). The advisory,
-  published on 2026-10-30, covers every minimatch below 11.0.1, and the scheduled OSV scan in
-  `hygiene` has been red on it since. eslint 9 and its `@eslint` packages ask for `^3.1.5`
-  and `eslint-plugin-sonarjs` for `^10.2.6`, and neither line has a fixed release, so an
-  override in `pnpm-workspace.yaml` gives the root tree 11.0.3 alone. ESLint loads those
-  packages' CommonJS builds, which only construct `Minimatch`, and it lints the same files
-  with the same resolved configuration on 11.0.3. Their ES-module builds default-import
-  minimatch, which 11.x does not provide, so nothing here may import `@eslint/eslintrc` or
-  `@eslint/config-array` from an ES module while the override stands. The two components
-  it adds have reviewed rows in `scripts/sbom-additions.json`, and the
-  `minimatch-11-override` row in `scripts/obligations.json` says when the override goes.
-  Factory only: nothing changes for an install.
+- **The stand-in npm registry in `tests/gates/npm-publish.test.mjs` keeps its routes and
+  request counts in `Map`s** (CodeQL `js/remote-property-injection` and
+  `js/unvalidated-dynamic-method-call`, both high). They were plain objects indexed by the
+  request path, so CodeQL traced a request to a write to, and a call of, a key that could
+  name an `Object.prototype` member. The server lives for one test on 127.0.0.1 and its only
+  client is the CLI under test, so no request could; with `Map`s the question does not
+  arise, and every test keeps its meaning. Factory only: nothing changes for an install.
 ### Added
 
 - **The README shows the harness running, and says which projects it fits** (#165). A
@@ -239,6 +371,31 @@ this comment. -->
   gives each release's signer. `publish-npm` and the Pages deploy check the repository's id
   instead of its name, so they run after the move and a fork still skips them. Factory only:
   nothing changes for an install.
+- **The Supabase grants row is re-checked and re-dated to 2026-12-01.**
+  `conformance-supabase-grants-arrival` fell due on 2026-10-30, and the nightly
+  `obligations-clockful` job has been red on it since. The re-check on 2026-11-01 found that
+  neither date Supabase announced has landed. Its announcement still says new projects stop
+  getting Data API grants automatically from 2026-05-30 and every project from 2026-10-30.
+  Supabase CLI 2.116.0 made an unset `auto_expose_new_tables` mean `true` again, because the
+  cloud change "never landed", and dropped the flag's planned removal on 2026-10-30. A hosted
+  project created after 2026-05-30 still granted `anon`, `authenticated` and `service_role`
+  every privilege by default. The scaffold's migrations revoke and grant explicitly, so they
+  are right either way. The maintainer re-dated the row rather than deleting it.
+  `design/CONFORMANCE-FACTS.md` §1 records the re-check and its sources, and the row's reason
+  and `ROADMAP.md` follow it. Factory docs: nothing reaches an install.
+- **The perf-harness screen shows its three measured values on a pass, and the device runner
+  prints them.** `maestro-smoke`, the selftest's nightly device lane, is red on about two
+  nights in three, nearly always on `droppedFrames` over its cap of 12, and the same commit is
+  green on other nights. `tools/interaction-budget.json` says to re-baseline its caps only
+  from the lane's printed medians, but a green run printed no values. On a pass,
+  `apps/mobile/app/perf-harness.tsx` now shows one line per value beside `perf-pass`, through
+  a new catalog key, `perf.measured`, and after the flow passes `tools/check-e2e-device.mjs
+  --phase perf-harness` reads the screen and prints the values in one `e2e-device: on screen
+  after perf-harness.yaml passed` line. No cap, verdict or failure line changes, so Canary
+  20's 300 ms stall fails the phase on `droppedFrames` as before. A re-baseline from these
+  numbers is the maintainer's decision, for later. The runner is owned and reaches an install
+  with `update`. The screen and the catalog are seeded, so an install's own screen shows the
+  values only once it renders them, and until then the runner prints that it found none.
 
 ## [2.0.3] — 2026-10-17
 

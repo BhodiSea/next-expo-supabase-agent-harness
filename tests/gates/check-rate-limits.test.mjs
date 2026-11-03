@@ -14,7 +14,7 @@
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -363,6 +363,33 @@ test('RED: a bucket declared in code that the contract never approved', () => {
   )
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('emits bucket "bulk"'), r.out)
+})
+
+// CodeQL js/shell-command-injection-from-environment. Through 2.0.4 the probe carrying these
+// names reached node through a shell, and the double quotes around it stop neither `$(…)` nor
+// backticks: the shell ran `touch PWNED`, and the module was asked about `notes.y` and `notes.z`.
+test('a procedure name holding shell syntax reaches the module as it is, and nothing in it runs', () => {
+  const names = ['notes.y$(touch PWNED)', 'notes.z`touch PWNED`']
+  const read = Object.fromEntries(names.map((name) => [name, 'read']))
+  const dir = fixture({
+    inventory: [...INVENTORY, ...names.map((action) => ({ action, type: 'query' }))],
+    budget: (b) => ({ ...b, procedures: { ...b.procedures, ...read } }),
+    policy: policyModule({
+      procedures: {
+        'notes.create': 'write',
+        'notes.get': 'read',
+        'notes.list': 'read',
+        'notes.remove': 'write',
+        'notes.update': 'write',
+        'system.health': null,
+        'system.me': 'read',
+        ...read,
+      },
+    }),
+  })
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.equal(existsSync(join(dir, 'PWNED')), false, 'the shell ran a command from a procedure name')
 })
 
 // ── ceilings and bucket hygiene ───────────────────────────────────────────────

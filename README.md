@@ -5,8 +5,9 @@
 [![npm version](https://img.shields.io/npm/v/next-expo-supabase-agent-harness)](https://www.npmjs.com/package/next-expo-supabase-agent-harness)
 
 A CLI that scaffolds a pnpm monorepo with a Next.js 16 web app and an Expo 57
-(React Native) mobile app on one Supabase backend, plus Claude Code hooks and CI
-gates that block an agent turn or a merge until validation passes.
+(React Native) mobile app on one Supabase backend, plus Claude Code hooks that
+send the agent back to work when a check fails, and CI gates that block a merge
+until validation passes.
 
 ![A terminal recording: init writes a project, the Bash guard denies a force-push, the secrets gate goes red on a service-role key in a tracked file and green once it is removed](docs/media/harness-demo.gif)
 
@@ -84,8 +85,8 @@ commit hooks, `pnpm validate`, and CI. Outside that shape, some layers still app
   `pnpm-workspace.yaml`, is refused.
 - **An agent that is not Claude Code.** The commit hooks, `pnpm validate` and CI apply as
   they do for a person. The `.claude/` hooks never run, so nothing denies a command before
-  it runs or keeps a turn from ending on a red tree: a violation is caught at the commit
-  or at the pull request instead.
+  it runs or sends the agent back to work when a check fails: a violation is caught at the
+  commit or at the pull request instead.
 
 ## Requirements
 
@@ -125,10 +126,11 @@ supabase-js 2, tRPC 11, zod 4.
   call against a data table of 151 guard-rule ids before the agent's tool runs.
   Nine hooks are wired: seven guards, a launcher that fails closed if a hook
   cannot load, and a session-start brief.
-- **Stop hook.** The agent cannot end a turn until `pnpm validate`, the RLS
-  isolation tests against a real Postgres, both unit suites with coverage,
-  per-file diff coverage, duplication, i18n, test quality, the mobile perf
-  closure and the reviewer verdicts all pass.
+- **Stop hook.** When the agent tries to end a turn, the hook runs
+  `pnpm validate`, the RLS isolation tests against a real Postgres, both unit
+  suites with coverage, per-file diff coverage, duplication, i18n, test
+  quality, the mobile perf closure and the reviewer verdicts, and sends the
+  agent back to work when one fails.
 - **`pnpm validate`.** One chain of 37 gates, ordered cheap to expensive, driven
   by `tools/harness.config.mjs`. Each gate is documented with a proof that it
   can fail in the [gates catalog](template/base/docs/harness/gates-catalog.md).
@@ -170,8 +172,8 @@ In this harness:
 - Authorization is Postgres row-level security keyed on `auth.uid()`. Both apps
   meet the same policies, and pgTAP and supabase-js suites test them against a
   real database.
-- Claude Code hooks and CI gates block an agent turn or a merge until
-  validation passes.
+- Claude Code hooks send the agent back to work when a check fails, and CI
+  gates block a merge until validation passes.
 - `update` applies a later harness release to a project that already exists.
 - The two apps share the API, the contracts and the design tokens, not their
   screens.
