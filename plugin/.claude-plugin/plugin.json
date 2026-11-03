@@ -5,8 +5,26 @@
   "license": "Apache-2.0",
   "homepage": "https://github.com/cogvera-labs/next-expo-supabase-agent-harness#readme",
   "repository": "https://github.com/cogvera-labs/next-expo-supabase-agent-harness",
+  "documentationUrl": "https://github.com/cogvera-labs/next-expo-supabase-agent-harness/tree/main/plugin#readme",
+  "supportUrl": "https://github.com/cogvera-labs/next-expo-supabase-agent-harness/discussions",
   "icon": "./.claude-plugin/icon.png",
+  "keywords": [
+    "nextjs",
+    "expo",
+    "react-native",
+    "supabase",
+    "postgres",
+    "rls",
+    "row-level-security",
+    "migrations",
+    "subagents",
+    "code-review",
+    "security-review",
+    "accessibility",
+    "mobile-ui"
+  ],
   "author": {
-    "name": "Cogvera Labs"
+    "name": "Cogvera Labs",
+    "url": "https://www.cogveralabs.ai"
   }
 }

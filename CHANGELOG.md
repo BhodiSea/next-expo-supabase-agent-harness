@@ -44,6 +44,18 @@ twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAG
   `tests/gates/harness-brief.test.mjs` proves the line against a listening and a closed socket,
   and `tests/hooks/session-brief.test.mjs` through the spawned hook, red on 2.0.5. The lib and
   the doctrine are owned and reach an install with `update`.
+- **The plugin's README has examples and a troubleshooting section.** `plugin/README.md`
+  gains "Examples", each of which works in a repository the harness did not install:
+  `/next-expo-supabase-agent-harness:rls-check` on a staged migration, the
+  `security-reviewer` agent on a diff and the `designing-mobile-ui` skill on an Expo screen.
+  "Troubleshooting" replaces "Inside a harness-installed project": it keeps that section's
+  notes on plugin component names and on reviewer verdicts in an installed project, and adds
+  that load errors show in the `/plugin` Errors tab. "What runs without asking" now says
+  that the commands and skills pre-approve reading and searching files, the plugin's own
+  included, when you type them, and that a skill Claude starts by itself asks first.
+  `plugin.json` gains `author.url`, `documentationUrl` (the plugin's README), `supportUrl`
+  (Discussions) and `keywords`, and `marketplace.json`'s `owner` gains `url`. Factory only:
+  nothing changes for an install.
 
 ### Fixed
 

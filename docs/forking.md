@@ -88,7 +88,7 @@ is the set of repo-root sites that hardcode the upstream owner:
 - `.claude/settings.json`: you inherit the upstream maintainer's permissions.
   Review the default mode before your first agent turn.
 - `plugin/.claude-plugin/plugin.json`: the `npx` command in `description`, plus
-  `author`, `homepage`, `repository`
+  `author`, `homepage`, `repository`, `documentationUrl`, `supportUrl`
 - `plugin/.claude-plugin/icon.png`: the upstream logo; put your own square PNG there
 - `plugin/README.md`: the marketplace in both install commands
 - `.claude-plugin/marketplace.json`: `owner`
