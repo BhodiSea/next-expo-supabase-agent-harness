@@ -10,10 +10,10 @@
 #
 # minimatch below 11.0.1 is replaced tree-wide: GHSA-g3hv-75wg-m249 covers it, and
 # neither eslint 9's packages (^3.1.5) nor eslint-plugin-sonarjs (^10.2.6) has a fixed
-# release in range. ESLint loads their CommonJS builds, which only construct
-# `Minimatch`, and 11.x still exports it; their ES-module builds default-import
-# minimatch, which 11.x does not provide. The `minimatch-11-override` row in
-# scripts/obligations.json says when this goes.
+# release in range. All of these load here as CommonJS and only construct `Minimatch`,
+# and 11.x still exports it. Only `@eslint/eslintrc` and `@eslint/config-array` have
+# ES-module builds; those default-import minimatch, and 11.x has no default export. The
+# `minimatch-11-override` row in scripts/obligations.json says when this goes.
 overrides:
   typescript: 6.0.3
   'minimatch@<11.0.1': 11.0.3

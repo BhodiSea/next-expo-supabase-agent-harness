@@ -19,12 +19,12 @@ This lineage's own history starts at 0.1.3.
   published on 2026-10-30, covers every minimatch below 11.0.1, and the scheduled OSV scan in
   `hygiene` has been red on it since. eslint 9 and its `@eslint` packages ask for `^3.1.5`
   and `eslint-plugin-sonarjs` for `^10.2.6`, and neither line has a fixed release, so an
-  override in `pnpm-workspace.yaml` gives the root tree 11.0.3 alone. ESLint loads those
-  packages' CommonJS builds, which only construct `Minimatch`, and it lints the same files
-  with the same resolved configuration on 11.0.3. Their ES-module builds default-import
-  minimatch, which 11.x does not provide, so nothing here may import `@eslint/eslintrc` or
-  `@eslint/config-array` from an ES module while the override stands. The two components
-  it adds have reviewed rows in `scripts/sbom-additions.json`, and the
+  override in `pnpm-workspace.yaml` gives the root tree 11.0.3 alone. All of these load here
+  as CommonJS and only construct `Minimatch`, and ESLint lints the same files with the same
+  resolved configuration on 11.0.3. Only `@eslint/eslintrc` and `@eslint/config-array` have
+  ES-module builds. Those default-import minimatch, and 11.x has no default export, so
+  nothing here may import either from an ES module while the override stands. The two
+  components it adds have reviewed rows in `scripts/sbom-additions.json`, and the
   `minimatch-11-override` row in `scripts/obligations.json` says when the override goes.
   Factory only: nothing changes for an install.
 
