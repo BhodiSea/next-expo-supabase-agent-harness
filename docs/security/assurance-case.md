@@ -52,8 +52,8 @@ delivered into every project that installs or updates.
 - **A malicious pull request** to this repository that tries to widen an escape
   list, weaken a gate, or reach CI credentials.
 - **Tampering with a release asset** between the build and the user.
-- **Compromise of the maintainer's account or of this repository.** This is
-  only partly defended. See the residual risks.
+- **Compromise of the maintainer's or @oakla's account or of this repository.**
+  This is only partly defended. See the residual risks.
 
 ## Trust boundaries
 
@@ -64,7 +64,7 @@ delivered into every project that installs or updates.
                                                                               │
         consumer CI ◀── workflows and gates from the template ◀───────────────┘
 
- contributor PR ──▶ factory CI (read-only token, no secrets) ──▶ maintainer review ──▶ main
+ contributor PR ──▶ factory CI (read-only token, no secrets) ──▶ maintainer or @oakla ──▶ main
  tag ──▶ release.yml (OIDC identity) ──▶ attested tarball ──▶ GitHub Release ──▶ npm registry
 ```
 
@@ -131,7 +131,9 @@ and an equivalent write guard on itself. Writes to `scripts/`, `installer/`,
 `.github/workflows/`, `template/base/tools/`, the shipped hooks,
 `template/migrations.json`, the canary registry and `.claude/` are denied
 unless a human has set `HARNESS_ALLOW_SELF_EDIT=1` in the environment the
-session was started from. `.github/CODEOWNERS` covers every one of those paths.
+session was started from. `.github/CODEOWNERS` covers every one of those paths,
+but the ruleset on `main` requires a pull request and passing checks, not a code
+owner's review.
 `scripts/check-rule-integrity.mjs` fails if a shipped boundary rule is deleted
 or narrowed, and `scripts/check-complexity-ratchet.mjs` re-lints with inline
 suppressions disabled.
@@ -175,7 +177,7 @@ SECURITY.md commits to response times for reported vulnerabilities.
 | Least privilege | Read-only workflow tokens with per-job grants. In the scaffold, `service_role` is revoked on every table and reachable only from an ADR-governed Edge Function. |
 | Economy of mechanism | One file, `tools/harness.config.mjs`, defines the chain for the Stop hook, the CLI and CI. Guard rules are data tables, not code paths. |
 | Open design | Every rule, gate and escape list is a readable file in the consumer's own repository. Nothing depends on a rule being secret. |
-| Separation of privilege | Editing the enforcement surface needs both an environment flag only a human can set and code-owner review. |
+| Separation of privilege | In an agent session here, changing the enforcement surface needs both an environment flag only a human can set and a pull request that passes the required checks. |
 | Input validation | Placeholders are validated against per-field patterns. CLI flags are parsed by `node:util` `parseArgs` against a closed option table. Tiers and modules are closed sets. |
 | Defence in depth | The same property is usually held twice, for example secrets by gitleaks after a push and by the hermetic `secrets` step on every run, with their rule ids kept in lockstep. |
 
@@ -203,9 +205,10 @@ than they need the mechanisms above.
 2. **The `npx github:` form, and a version published outside the workflow, are
    checked less.** The `npx github:` form runs whatever the ref points at: a
    branch name moves, only a tag or a commit SHA pins the code, and no
-   attestation covers that fetch. A compromise of the maintainer's GitHub
-   account or of this repository would reach users who install from an unpinned
-   ref. On the registry, a version published outside the workflow (by someone
+   attestation covers that fetch. A compromise of the maintainer's or @oakla's
+   GitHub account or of this repository would reach users who install from an
+   unpinned ref.
+   On the registry, a version published outside the workflow (by someone
    holding the maintainer's npm account and its second factor) would carry no
    provenance, and `npm audit signatures` does not report a missing statement;
    the package page and `npm view <package>@<version> dist.attestations` show
