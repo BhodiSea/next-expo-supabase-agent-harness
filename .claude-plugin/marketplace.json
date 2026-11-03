@@ -4,7 +4,8 @@
     "description": "Agent-side companion to the next-expo-supabase-agent-harness: subagents, commands, and skills for monorepos shipping a Next.js web app and an Expo mobile app over one shared Supabase backend."
   },
   "owner": {
-    "name": "Cogvera Labs"
+    "name": "Cogvera Labs",
+    "url": "https://www.cogveralabs.ai"
   },
   "plugins": [
     {

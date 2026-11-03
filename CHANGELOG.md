@@ -11,10 +11,66 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
-## [Unreleased]
+## [2.0.6] — 2026-11-03
+
+**A patch: the v2.0.x defect fixes continue.** No gate is added, the chain length does not
+change, and no ramp opens or moves. The `template/migrations.json` record restates 2.0.0's
+twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by
+`2.0.5`.
+
+### Added
+
+- **`init`'s next steps and the README start the local stack before the first Claude Code turn,
+  and a new runbook shows that turn.** Both stopped at `pnpm validate`, which does not run the
+  RLS tests, while the Stop hook's `rls-isolation` step fails closed with no local stack once
+  `supabase/migrations/` exists. So unless the stack was already up, a new project's first turn
+  was sent back at its first Stop whatever it was asked, and without Docker it ended red at the
+  block cap. The steps are now `git init`, `pnpm install`, the first commit with
+  `pnpm-lock.yaml`, `pnpm db:up` with Docker running, `pnpm validate` and one small change in
+  Claude Code, then `docs/runbooks/first-run.md`, which the README and the documentation site's
+  landing page link. An existing project with no `supabase/config.toml` has no local Supabase
+  project to start, so `init` leaves `pnpm db:up` out there. The page gives the same steps and
+  shows the first turn with the stack running and without it.
+  `tests/gates/next-steps-order.test.mjs` holds `init`'s steps, the README and the page to one
+  order, and `tests/installer/lifecycle.test.mjs` holds the steps, red on 2.0.5. The page is
+  owned and reaches an install with `update`; the steps reach new projects.
+- **The session-start brief says when the local database is not answering.** An agent learned
+  that no stack was running at its first Stop, when `rls-isolation` failed closed.
+  `tools/lib/harness-brief.mjs` now ends the brief with one fixed line, `local database: not
+  answering, …`, when `supabase/migrations/` exists and nothing accepts a connection on
+  `127.0.0.1` at `supabase/config.toml`'s `[db]` port, so the agent can start the stack before
+  its work. The line is a hint: `rls-isolation` still asks `supabase status` and still fails
+  closed, the hook still exits 0 with nothing on stderr, and the port is never printed.
+  `tests/gates/harness-brief.test.mjs` proves the line against a listening and a closed socket,
+  and `tests/hooks/session-brief.test.mjs` through the spawned hook, red on 2.0.5. The lib and
+  the doctrine are owned and reach an install with `update`.
+- **The plugin's README has examples and a troubleshooting section.** `plugin/README.md`
+  gains "Examples", each of which works in a repository the harness did not install:
+  `/next-expo-supabase-agent-harness:rls-check` on a staged migration, the
+  `security-reviewer` agent on a diff and the `designing-mobile-ui` skill on an Expo screen.
+  "Troubleshooting" replaces "Inside a harness-installed project": it keeps that section's
+  notes on plugin component names and on reviewer verdicts in an installed project, and adds
+  that load errors show in the `/plugin` Errors tab. "What runs without asking" now says
+  that the commands and skills pre-approve reading and searching files, the plugin's own
+  included, when you type them, and that a skill Claude starts by itself asks first.
+  `plugin.json` gains `author.url`, `documentationUrl` (the plugin's README), `supportUrl`
+  (Discussions) and `keywords`, and `marketplace.json`'s `owner` gains `url`. Factory only:
+  nothing changes for an install.
 
 ### Fixed
 
+- **The machinery's minimatch moves to 11.0.3** (GHSA-g3hv-75wg-m249, medium). The advisory,
+  published on 2026-10-30, covers every minimatch below 11.0.1, and the scheduled OSV scan in
+  `hygiene` has been red on it since. eslint 9 and its `@eslint` packages ask for `^3.1.5`
+  and `eslint-plugin-sonarjs` for `^10.2.6`, and neither line has a fixed release, so an
+  override in `pnpm-workspace.yaml` gives the root tree 11.0.3 alone. All of these load here
+  as CommonJS and only construct `Minimatch`, and ESLint lints the same files with the same
+  resolved configuration on 11.0.3. Only `@eslint/eslintrc` and `@eslint/config-array` have
+  ES-module builds. Those default-import minimatch, and 11.x has no default export, so
+  nothing here may import either from an ES module while the override stands. The two
+  components it adds have reviewed rows in `scripts/sbom-additions.json`, and the
+  `minimatch-11-override` row in `scripts/obligations.json` says when the override goes.
+  Factory only: nothing changes for an install.
 - **The steward record names the authors as `CITATION.cff` does, and the trust-boundary diagram
   names who merges as `GOVERNANCE.md` does.** `design/CONFORMANCE-FACTS.md` and the
   `conformance-cra-art14-application` row of `scripts/obligations.json` said `package.json`,
