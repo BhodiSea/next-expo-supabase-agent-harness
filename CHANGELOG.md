@@ -45,6 +45,21 @@ twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAG
   and `tests/hooks/session-brief.test.mjs` through the spawned hook, red on 2.0.5. The lib and
   the doctrine are owned and reach an install with `update`.
 
+### Fixed
+
+- **The machinery's minimatch moves to 11.0.3** (GHSA-g3hv-75wg-m249, medium). The advisory,
+  published on 2026-10-30, covers every minimatch below 11.0.1, and the scheduled OSV scan in
+  `hygiene` has been red on it since. eslint 9 and its `@eslint` packages ask for `^3.1.5`
+  and `eslint-plugin-sonarjs` for `^10.2.6`, and neither line has a fixed release, so an
+  override in `pnpm-workspace.yaml` gives the root tree 11.0.3 alone. All of these load here
+  as CommonJS and only construct `Minimatch`, and ESLint lints the same files with the same
+  resolved configuration on 11.0.3. Only `@eslint/eslintrc` and `@eslint/config-array` have
+  ES-module builds. Those default-import minimatch, and 11.x has no default export, so
+  nothing here may import either from an ES module while the override stands. The two
+  components it adds have reviewed rows in `scripts/sbom-additions.json`, and the
+  `minimatch-11-override` row in `scripts/obligations.json` says when the override goes.
+  Factory only: nothing changes for an install.
+
 ## [2.0.5] — 2026-11-02
 
 **A patch: the v2.0.x defect fixes continue.** No gate is added, the chain length does not

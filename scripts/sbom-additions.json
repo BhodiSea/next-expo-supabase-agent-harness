@@ -432,6 +432,18 @@
       "reason": "Transitive of knip 6.42.1 (the direct bump from 6.41.0). knip 6.42.0 migrated its shell-script parsing to unbash v6 and raised the range from ^5.0.0 to ^6.0.0; a major of a package published by knip's own maintainer, resolved inside the new range. No advisory is recorded against it in OSV on the review date.",
       "release": "2.0.4",
       "reviewedOn": "2026-10-26"
+    },
+    {
+      "purl": "pkg:npm/minimatch@11.0.3",
+      "reason": "Arrives through the override 'minimatch@<11.0.1': 11.0.3 in pnpm-workspace.yaml, which replaces minimatch 3.1.5 (under eslint 9.39.5, @eslint/config-array 0.21.2 and @eslint/eslintrc 3.3.6) and 10.2.6 (under eslint-plugin-sonarjs 4.2.2). GHSA-g3hv-75wg-m249 (CVE-2026-118764, published 2026-10-30) covers every version below 11.0.1, and neither the 3.x nor the 10.x line has a fixed release. A new major of the same package from the same maintainer; ESLint lints the same files with the same resolved configs on it. No install script, and no npm provenance attestation, as for the two versions it replaces. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.6",
+      "reviewedOn": "2026-11-01"
+    },
+    {
+      "purl": "pkg:npm/%40isaacs/nonrecursive-glob-match@1.0.3",
+      "reason": "Transitive of minimatch 11.0.3 (the override above), which depends on it at ^1.0.3: a matcher for one path portion that does not backtrack recursively, from minimatch's own maintainer, first published on 2026-10-26. No dependencies, no install script and no npm provenance attestation. No advisory is recorded against it in OSV on the review date.",
+      "release": "2.0.6",
+      "reviewedOn": "2026-11-01"
     }
   ]
 }
