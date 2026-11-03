@@ -56,8 +56,14 @@ page (the tag without its `v`) and use it in place of `latest`, or install
 git init          # first: the prepare script (lefthook install) needs a repository
 pnpm install
 git add -A && git commit -m "chore: scaffold"   # the first commit must include pnpm-lock.yaml
+pnpm db:up        # with Docker running; the first run downloads the Supabase images
 pnpm validate
+claude            # Claude Code: ask for one small change
 ```
+
+That turn's Stop hook sends the agent back while any gate, the RLS tests included, is red.
+[First run](https://cogvera-labs.github.io/next-expo-supabase-agent-harness/runbooks/first-run/)
+shows what the first turn looks like with the local stack running and without it.
 
 **Status: stable (2.0.x).** CI proves the scaffold on Linux, and on macOS without
 the database gates. The installer's unit tests run on Linux, Windows and macOS.

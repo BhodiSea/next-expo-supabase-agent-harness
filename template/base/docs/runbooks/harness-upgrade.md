@@ -4591,6 +4591,30 @@ depends on zod 3, which the advisory also covers. No catalog pin reaches it, so 
 your lockfile keeps reporting it; `@expo/cli` 58.1.18, on the SDK 58 line, no longer depends
 on zod.
 
+## 2.0.6 — a patch: defect fixes
+
+**No ramp here applies to any install.** 2.0.6 opens no ramp and moves no deadline. The
+population 2.0.0 reds is restated in this release's record, and the 1.1.0 and 2.0.0 sections
+above are still the sweep for an install below 1.1.0.
+
+**What `update` plants.** Owned files, re-planted when your copy still matches a released
+sha: this runbook and the hooks under `.claude/hooks/` (their version stamps). Each fix below
+says what else it delivers and what it leaves to you.
+
+### A runbook for the first run
+
+`docs/runbooks/first-run.md` is new: the steps from `init` to a first Claude Code turn that
+ends green, and what that turn looks like with the local stack running and without it.
+`update` plants it (owned), and nothing is left to you.
+
+### The brief says when the local database is not answering
+
+Through 2.0.5 an agent learned that no local stack was running at its first Stop, when
+`rls-isolation` failed closed. The session-start brief now ends with
+`local database: not answering, …` when `supabase/migrations/` exists and nothing answers on
+`supabase/config.toml`'s `[db]` port. `update` plants `tools/lib/harness-brief.mjs` and the
+doctrine, both owned, and nothing is left to you.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it
