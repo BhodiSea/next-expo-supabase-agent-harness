@@ -25,6 +25,9 @@ Start a new project from an empty folder:
 npx --yes next-expo-supabase-agent-harness@latest init
 ```
 
+[The first run](/next-expo-supabase-agent-harness/runbooks/first-run/) goes from there to a
+first Claude Code turn that ends green.
+
 `init` writes these pages into the new project's `docs/` folder. This site renders the same
 Markdown files from the repository's `template/` tree whenever the main branch is built, so
 it can describe changes that are not released yet. Where a page shows a placeholder such as

@@ -9,7 +9,8 @@
 // lives here, under the write guard (`tools-lib`) and the gate-integrity hash.
 //
 // IT IS AN INJECTION SURFACE, so the output is closed, not merely short:
-//   - the renderer prints four fields in a fixed order and nothing else;
+//   - the renderer prints four fields in a fixed order, then the fixed local database line
+//     when it applies, and nothing else;
 //   - every value passes a closed validator (versions, tier and mode from closed sets, agent
 //     and gate names, repository-relative paths, each path in a code span) or prints as
 //     `(unprintable)`;
@@ -26,8 +27,16 @@
 // ones, so scoping by it would read a session that ended red at the cap as green. The owed
 // reviewers are the set tools/check-reviewer-verdicts.mjs decides on, from the same libs.
 // Each dependency is imported inside its own field, so an unloadable one costs that field.
+//
+// THE LOCAL DATABASE LINE (2.0.6). One fixed line after the four fields, printed only when
+// supabase/migrations exists and nothing accepts a connection on the local database port. That
+// is the state in which the Stop hook's rls-isolation step fails closed (tests/rls/run-rls.mjs),
+// and through 2.0.5 an agent met it at its first Stop. The line is a hint, not that check: the
+// step asks `supabase status`, and a port another program answers on prints nothing here. The
+// port is read from supabase/config.toml only to probe it, so no byte of that file is printed.
 // SOURCE: docs/harness/README.md (the session-start brief)
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { connect } from 'node:net'
 import process from 'node:process'
 import { path as closedPath, NAME_RE, UNPRINTABLE } from './closed-text.mjs'
 
@@ -43,6 +52,8 @@ const FIELD = {
   lastTurn: 'last turn in this directory',
   reviewers: 'reviewers owed by the current diff',
 }
+const DATABASE_DOWN =
+  "local database: not answering, so the Stop hook's rls-isolation step fails until `pnpm db:up` starts it (Docker must be running)"
 
 // ── the closed validators ───────────────────────────────────────────────────────
 // The name set, the path printer and `(unprintable)` live in lib/closed-text.mjs (2.1.0,
@@ -129,6 +140,11 @@ function reviewerLines(f) {
   return [`${FIELD.reviewers}: ${String(owed.length)}`, ...listLines(entries, owed.length)]
 }
 
+/** The local database line, or nothing: it prints only for the one state it names. @param {unknown} f */
+function databaseLines(f) {
+  return isObject(f) && f.kind === 'down' ? [DATABASE_DOWN] : []
+}
+
 /**
  * Lines up to the cap, cut at a line boundary; a cut brief ends in the marker.
  * @param {string[]} lines
@@ -146,8 +162,9 @@ function capped(lines) {
 }
 
 /**
- * The brief, as text: four fields in a fixed order, each value validated, capped. Never
- * throws: a field it cannot render prints as unavailable.
+ * The brief, as text: four fields in a fixed order, each value validated, then the local
+ * database line when it applies, capped. Never throws: a field it cannot render prints as
+ * unavailable.
  * @param {unknown} fields collectBrief()'s result
  * @returns {string}
  */
@@ -166,6 +183,7 @@ export function renderBrief(fields) {
       lines.push(render(null)[0])
     }
   }
+  lines.push(...databaseLines(f.database))
   return capped(lines)
 }
 
@@ -314,17 +332,69 @@ async function reviewersField(manifest, env) {
   }
 }
 
+const MIGRATIONS = 'supabase/migrations'
+const SUPABASE_CONFIG = 'supabase/config.toml'
+/** The [db] port the template's supabase/config.toml ships, for a config that names none. */
+const DEFAULT_DB_PORT = 54322
+/** How long the probe waits for a connection. */
+const PROBE_MS = 500
+
+/** supabase/config.toml's [db] port, or the shipped default when it names no usable one. */
+async function dbPort() {
+  try {
+    const { parseToml } = await import('./toml.mjs')
+    const port = parseToml(readFileSync(SUPABASE_CONFIG, 'utf8')).values.get('db.port')
+    if (Number.isInteger(port) && port > 0 && port <= 65535) return port
+  } catch {
+    // an unreadable config, or a toml.mjs that does not load: the shipped default
+  }
+  return DEFAULT_DB_PORT
+}
+
 /**
- * The four fields, raw. Never throws: a source that cannot be read yields null for its
- * field, which renderBrief prints as unavailable.
- * @param {{ env?: Record<string, string|undefined> }} [opts]
+ * Whether anything accepts a TCP connection on 127.0.0.1 at `port` within PROBE_MS. It sends
+ * nothing, and it never rejects.
+ * @param {number} port @returns {Promise<boolean>}
  */
-export async function collectBrief({ env = process.env } = {}) {
+function answers(port) {
+  return new Promise((resolve) => {
+    const socket = connect({ host: '127.0.0.1', port })
+    const timer = setTimeout(() => settle(false), PROBE_MS)
+    /** @param {boolean} ok */
+    function settle(ok) {
+      clearTimeout(timer)
+      socket.destroy()
+      resolve(ok)
+    }
+    socket.once('connect', () => settle(true))
+    socket.once('error', () => settle(false))
+  })
+}
+
+/** @param {(port: number) => Promise<boolean>} probe */
+async function databaseField(probe) {
+  try {
+    if (!existsSync(MIGRATIONS)) return { kind: 'no-migrations' }
+    return { kind: (await probe(await dbPort())) ? 'answering' : 'down' }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The four fields and the local database's state, raw. Never throws: a source that cannot be
+ * read yields null for its field, which renderBrief prints as unavailable, or for the database
+ * as no line at all.
+ * @param {{ env?: Record<string, string|undefined>, probe?: (port: number) => Promise<boolean> }} [opts]
+ *   `probe` says whether anything answers on a port; the tests replace it.
+ */
+export async function collectBrief({ env = process.env, probe = answers } = {}) {
   const manifest = readInstall()
   return {
     install: installField(manifest),
     parked: await parkedField(),
     lastTurn: await lastTurnField(env),
     reviewers: await reviewersField(manifest, env),
+    database: await databaseField(probe),
   }
 }

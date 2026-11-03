@@ -97,6 +97,18 @@ function parkConflict({ targetDir, ip, currentRaw, entry, report, opts }) {
   }
 }
 
+/**
+ * Whether the project has `rel` once this init is done: init wrote it (a dry run reports what
+ * it would write), or it was there already, as a retrofit's own supabase/ is.
+ * @param {{ written: string[] }} report
+ * @param {string} targetDir
+ * @param {string} rel
+ * @returns {boolean}
+ */
+function willHave(report, targetDir, rel) {
+  return report.written.includes(rel) || existsSync(join(targetDir, rel))
+}
+
 // eslint-disable-next-line sonarjs/cognitive-complexity -- ceiling is machine-enforced by scripts/complexity-ratchet.json (G16); this directive only silences the rule, the ratchet is what stops the score growing
 export async function init(opts) {
   const targetDir = opts.dir
@@ -329,10 +341,17 @@ export async function init(opts) {
   }
 
   /**
-   * The commands a new install runs next, in order, each with its reason. `git init` is left
-   * out when the target already is a git repository. scripts/lib/ci-preconditions.mjs reads
-   * this function's source for the committed-lockfile step, so keep `pnpm-lock.yaml` in it.
-   * It has no branches, so init()'s score in scripts/complexity-ratchet.json does not grow.
+   * The commands a new install runs next, in order, each with its reason, through the first
+   * Claude Code turn. `git init` is left out when the target already is a git repository, and
+   * `pnpm db:up` when the project will have no supabase/config.toml, as a retrofit with no
+   * supabase/ of its own will not. The stack comes up before that turn because its Stop hook
+   * runs the RLS suites, which fail closed without one once supabase/migrations exists
+   * (tests/rls/run-rls.mjs), and `pnpm validate` does not run them. README.md and
+   * docs/runbooks/first-run.md give the same steps, and
+   * tests/gates/next-steps-order.test.mjs holds the three to one order.
+   * scripts/lib/ci-preconditions.mjs reads this function's source for the committed-lockfile
+   * step, so keep `pnpm-lock.yaml` in it. It has no branches, so init()'s score in
+   * scripts/complexity-ratchet.json does not grow.
    * @returns {string[]}
    */
   function nextSteps() {
@@ -342,7 +361,12 @@ export async function init(opts) {
       ),
       'pnpm install',
       'git add -A && git commit — the first commit must include pnpm-lock.yaml (the shipped workflows run `pnpm install --frozen-lockfile`, which hard-fails without it, and the version-sync gate reds an absent lockfile)',
-      'pnpm validate — must be green before any agent turn ends',
+      ...['pnpm db:up — with Docker running; the first run downloads the Supabase images'].filter(
+        () => willHave(report, targetDir, 'supabase/config.toml'),
+      ),
+      'pnpm validate',
+      'open Claude Code in this folder and ask for one small change; its Stop hook sends the agent back while any gate, the RLS tests included, is red',
+      'what that first turn looks like, with the stack running and without it: docs/runbooks/first-run.md',
     ]
   }
   report.steps.push(...nextSteps())
