@@ -189,11 +189,58 @@ test('init JSON report carries next steps as an array, through the first Claude 
   assert.match(report.steps[2], /pnpm-lock\.yaml/)
   assert.match(report.steps[3], /^pnpm db:up — .*Docker.*the first run downloads the Supabase images/)
   assert.equal(report.steps[4], 'pnpm validate')
-  assert.match(report.steps[5], /^open Claude Code in this folder .*one small change.*the RLS tests included, is green$/)
+  assert.match(report.steps[5], /^open Claude Code in this folder .*one small change.*Stop hook sends the agent back while any gate, the RLS tests included, is red$/)
   // The last step names a page, and init planted it.
   const page = /docs\/runbooks\/first-run\.md/.exec(report.steps[6])?.[0]
   assert.ok(page, report.steps[6])
   assert.ok(existsSync(join(dir, page)), `the next steps name ${page}, which init did not write`)
+})
+
+// `pnpm db:up` is `supabase start`, which reads supabase/config.toml, and a retrofit gets no
+// supabase/ from init. So the step is printed only where the project will have that file, as
+// `git init` is printed only where the target is no repository.
+/** @param {string} prefix */
+function retrofitTarget(prefix) {
+  const dir = mkdtempSync(join(tmpdir(), prefix))
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'existing', dependencies: { next: '16.0.0' } }))
+  writeFileSync(join(dir, 'pnpm-workspace.yaml'), "packages:\n  - 'apps/*'\n")
+  return dir
+}
+
+test('init in an existing project with no supabase/config.toml omits the pnpm db:up step', () => {
+  const dir = retrofitTarget('epah-retro-nodb-')
+  const r = run(['init', '--dir', dir, '--yes', ...SETS])
+  assert.notEqual(r.code, 1, r.out)
+  assert.ok(!existsSync(join(dir, 'supabase/config.toml')), 'a retrofit must not get the stack config')
+  assert.match(
+    r.out,
+    /next steps:\r?\n\s+1\. git init[^\r\n]*\r?\n\s+2\. pnpm install\r?\n\s+3\. git add -A && git commit[^\r\n]*\r?\n\s+4\. pnpm validate\r?\n\s+5\. open Claude Code[^\r\n]*\r?\n\s+6\. [^\r\n]*docs\/runbooks\/first-run\.md/,
+  )
+})
+
+test('init in an existing project with its own supabase/config.toml keeps the pnpm db:up step', () => {
+  const dir = retrofitTarget('epah-retro-db-')
+  mkdirSync(join(dir, 'supabase/migrations'), { recursive: true })
+  const theirs = 'project_id = "theirs"\n'
+  writeFileSync(join(dir, 'supabase/config.toml'), theirs)
+  const r = run(['init', '--dir', dir, '--yes', ...SETS])
+  assert.notEqual(r.code, 1, r.out)
+  assert.equal(readFileSync(join(dir, 'supabase/config.toml'), 'utf8'), theirs)
+  assert.match(
+    r.out,
+    /next steps:\r?\n\s+1\. git init[^\r\n]*\r?\n\s+2\. pnpm install\r?\n\s+3\. git add -A && git commit[^\r\n]*\r?\n\s+4\. pnpm db:up[^\r\n]*\r?\n\s+5\. pnpm validate\r?\n/,
+  )
+})
+
+// A dry run writes no file, so `will have` cannot be read off the disk alone.
+test('a dry run of a new project prints the steps the real run prints', () => {
+  const steps = (extra) => {
+    const dir = mkdtempSync(join(tmpdir(), 'epah-dry-steps-'))
+    const r = run(['init', '--dir', dir, '--yes', '--report', 'json', ...extra, ...SETS])
+    assert.equal(r.code, 0, r.out)
+    return JSON.parse(r.out).steps
+  }
+  assert.deepEqual(steps(['--dry-run']), steps([]))
 })
 
 test('dry-run writes nothing', () => {

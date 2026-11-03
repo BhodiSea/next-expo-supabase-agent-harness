@@ -13,13 +13,15 @@ it finishes.
    without it, and the `version-sync` gate reds an absent lockfile.
 4. `pnpm db:up`, with Docker running. It runs `supabase start`, which downloads the Supabase
    images the first time and applies the migrations.
-   [Local development](./local-development.md) lists what it starts. On Windows, also
-   install the Supabase CLI on PATH, at the version `pnpm-workspace.yaml` pins. There the
-   Stop hook's `rls-isolation` step never uses the copy in `node_modules/.bin`, so with none
-   on PATH it fails closed, with `supabase CLI not installed`, even with the stack up.
+   [Local development](./local-development.md) lists what it starts. An existing project
+   with no `supabase/config.toml` has no local Supabase project to start, so `init` leaves
+   this step out. On Windows, also install the Supabase CLI on PATH, at the version
+   `pnpm-workspace.yaml` pins. There the Stop hook's `rls-isolation` step never uses the
+   copy in `node_modules/.bin`, so with none on PATH it fails closed, with
+   `supabase CLI not installed`, even with the stack up.
 5. `pnpm validate`.
-6. Open Claude Code in this folder and ask for one small change. The turn ends when every
-   gate, the RLS tests included, is green.
+6. Open Claude Code in this folder and ask for one small change. Its Stop hook sends the
+   agent back while any gate, the RLS tests included, is red.
 
 ## What the first turn looks like
 

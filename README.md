@@ -61,9 +61,9 @@ pnpm validate
 claude            # Claude Code: ask for one small change
 ```
 
-That first turn ends when every gate, the RLS tests included, is green.
+That turn's Stop hook sends the agent back while any gate, the RLS tests included, is red.
 [First run](https://cogvera-labs.github.io/next-expo-supabase-agent-harness/runbooks/first-run/)
-shows what it looks like with the local stack running and without it.
+shows what the first turn looks like with the local stack running and without it.
 
 **Status: stable (2.0.x).** CI proves the scaffold on Linux, and on macOS without
 the database gates. The installer's unit tests run on Linux, Windows and macOS.

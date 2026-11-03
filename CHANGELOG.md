@@ -28,11 +28,12 @@ twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAG
   block cap. The steps are now `git init`, `pnpm install`, the first commit with
   `pnpm-lock.yaml`, `pnpm db:up` with Docker running, `pnpm validate` and one small change in
   Claude Code, then `docs/runbooks/first-run.md`, which the README and the documentation site's
-  landing page link. That page gives the same steps and shows the first turn with the stack
-  running and without it. `tests/gates/next-steps-order.test.mjs` holds `init`'s steps, the
-  README and the page to one order, and `tests/installer/lifecycle.test.mjs` holds the steps,
-  red on 2.0.5. The page is owned and reaches an install with `update`; the steps reach new
-  projects.
+  landing page link. An existing project with no `supabase/config.toml` has no local Supabase
+  project to start, so `init` leaves `pnpm db:up` out there. The page gives the same steps and
+  shows the first turn with the stack running and without it.
+  `tests/gates/next-steps-order.test.mjs` holds `init`'s steps, the README and the page to one
+  order, and `tests/installer/lifecycle.test.mjs` holds the steps, red on 2.0.5. The page is
+  owned and reaches an install with `update`; the steps reach new projects.
 - **The session-start brief says when the local database is not answering.** An agent learned
   that no stack was running at its first Stop, when `rls-isolation` failed closed.
   `tools/lib/harness-brief.mjs` now ends the brief with one fixed line, `local database: not
