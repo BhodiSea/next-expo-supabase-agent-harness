@@ -80,9 +80,10 @@ prompt: `git diff --name-only HEAD` in most, `git status --short` in `/new-featu
 `date` in `/adr` and `/new-migration`. `/new-feature` and the `authoring-vertical-slice`
 skill may also run the plugin's slice scaffolder, which writes the stub files for a new
 slice into your project and never overwrites a file. The commands and skills also
-pre-approve reading and searching files. Every other command, and every file edit, follows
-your own permission settings. The plugin has no hooks or MCP servers, and the scaffolder
-makes no network request.
+pre-approve reading and searching files, the plugin's own included, when you type them. A
+skill that Claude starts by itself asks first. Every other command, and every file edit,
+follows your own permission settings. The plugin has no hooks or MCP servers, and the
+scaffolder makes no network request.
 
 ## What it does not hold
 

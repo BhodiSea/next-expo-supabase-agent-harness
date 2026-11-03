@@ -21,10 +21,12 @@ This lineage's own history starts at 0.1.3.
   `security-reviewer` agent on a diff and the `designing-mobile-ui` skill on an Expo screen.
   "Troubleshooting" replaces "Inside a harness-installed project": it keeps that section's
   notes on plugin component names and on reviewer verdicts in an installed project, and adds
-  that load errors show in the `/plugin` Errors tab. `plugin.json` gains `author.url`,
-  `documentationUrl` (the documentation site), `supportUrl` (Discussions) and `keywords`,
-  and `marketplace.json`'s `owner` gains `url`. Factory only: nothing changes for an
-  install.
+  that load errors show in the `/plugin` Errors tab. "What runs without asking" now says
+  that the commands and skills pre-approve reading and searching files, the plugin's own
+  included, when you type them, and that a skill Claude starts by itself asks first.
+  `plugin.json` gains `author.url`, `documentationUrl` (the plugin's README), `supportUrl`
+  (Discussions) and `keywords`, and `marketplace.json`'s `owner` gains `url`. Factory only:
+  nothing changes for an install.
 
 ## [2.0.5] — 2026-11-02
 
