@@ -23,6 +23,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs'
+import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
@@ -292,4 +293,23 @@ test('run from a subdirectory, the hook reads the project root CLAUDE_PROJECT_DI
   assert.equal(res.status, 0, res.stderr)
   assert.equal(res.stdout, cli(dir).stdout)
   assert.match(res.stdout, /^harness 1\.1\.0 \(base 1\.1\.0\) · tier core · mode bootstrap$/m)
+})
+
+// ── the local database line (2.0.6) ─────────────────────────────────────────────
+
+test('migrations and nothing on the [db] port: the hook and the CLI end the brief with the database line, exit 0, nothing on stderr', async () => {
+  // A port that was just free: bound, read, released. The lib's in-process tests cover the
+  // listening case; this one proves the spawned hook reaches the probe and stays exit 0.
+  const server = createServer()
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(undefined)))
+  const { port } = /** @type {import('node:net').AddressInfo} */ (server.address())
+  await new Promise((resolve) => server.close(() => resolve(undefined)))
+  const dir = tree()
+  put(dir, 'supabase/migrations/20260930000000_x.sql', 'select 1;\n')
+  put(dir, 'supabase/config.toml', `[db]\nport = ${String(port)}\n`)
+  const h = hook(dir, PAYLOAD)
+  assert.equal(h.code, 0, h.stderr)
+  assert.equal(h.stderr, '')
+  assert.match(h.stdout, /\nlocal database: not answering, so the Stop hook's rls-isolation step fails until `pnpm db:up` starts it \(Docker must be running\)\n$/)
+  assert.equal(h.stdout, cli(dir).stdout)
 })

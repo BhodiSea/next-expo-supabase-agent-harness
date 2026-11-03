@@ -11,7 +11,39 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
-## [Unreleased]
+## [2.0.6] — 2026-11-03
+
+**A patch: the v2.0.x defect fixes continue.** No gate is added, the chain length does not
+change, and no ramp opens or moves. The `template/migrations.json` record restates 2.0.0's
+twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by
+`2.0.5`.
+
+### Added
+
+- **`init`'s next steps and the README start the local stack before the first Claude Code turn,
+  and a new runbook shows that turn.** Both stopped at `pnpm validate`, which does not run the
+  RLS tests, while the Stop hook's `rls-isolation` step fails closed with no local stack once
+  `supabase/migrations/` exists. So unless the stack was already up, a new project's first turn
+  was sent back at its first Stop whatever it was asked, and without Docker it ended red at the
+  block cap. The steps are now `git init`, `pnpm install`, the first commit with
+  `pnpm-lock.yaml`, `pnpm db:up` with Docker running, `pnpm validate` and one small change in
+  Claude Code, then `docs/runbooks/first-run.md`, which the README and the documentation site's
+  landing page link. An existing project with no `supabase/config.toml` has no local Supabase
+  project to start, so `init` leaves `pnpm db:up` out there. The page gives the same steps and
+  shows the first turn with the stack running and without it.
+  `tests/gates/next-steps-order.test.mjs` holds `init`'s steps, the README and the page to one
+  order, and `tests/installer/lifecycle.test.mjs` holds the steps, red on 2.0.5. The page is
+  owned and reaches an install with `update`; the steps reach new projects.
+- **The session-start brief says when the local database is not answering.** An agent learned
+  that no stack was running at its first Stop, when `rls-isolation` failed closed.
+  `tools/lib/harness-brief.mjs` now ends the brief with one fixed line, `local database: not
+  answering, …`, when `supabase/migrations/` exists and nothing accepts a connection on
+  `127.0.0.1` at `supabase/config.toml`'s `[db]` port, so the agent can start the stack before
+  its work. The line is a hint: `rls-isolation` still asks `supabase status` and still fails
+  closed, the hook still exits 0 with nothing on stderr, and the port is never printed.
+  `tests/gates/harness-brief.test.mjs` proves the line against a listening and a closed socket,
+  and `tests/hooks/session-brief.test.mjs` through the spawned hook, red on 2.0.5. The lib and
+  the doctrine are owned and reach an install with `update`.
 
 ### Fixed
 

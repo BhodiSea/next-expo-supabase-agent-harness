@@ -727,6 +727,7 @@ harness <version> (base <baseVersion>) · tier <core|standard|strict> · mode <b
 parked: <n>                                   (then up to five `<path>` entries under .harness/pending/)
 last turn in this directory: green | none recorded | <n> consecutive block(s), cap <cap> | ended red at the cap (<gates>)
 reviewers owed by the current diff: <n>       (then up to five <agent> (`<path>`) entries)
+local database: not answering, so …           (only with migrations and nothing on the database port)
 ```
 
 It is an injection surface, so it is closed rather than merely short. The fields are
@@ -757,6 +758,12 @@ agent's context uses a printer of its own.
   changes) otherwise. Outside a git repository it is `unavailable`, never 0, and so it is
   where v2 is live and `tools/lib/git-diff.mjs` is a fork that predates it, because the
   step's finding there is the fork, not a set.
+- **The local database line** (2.0.6) prints only when `supabase/migrations/` exists and
+  nothing accepts a connection on `127.0.0.1` at `supabase/config.toml`'s `[db]` port. In
+  that state Stop step `rls-isolation` fails closed, so the agent can start the stack with
+  `pnpm db:up` before its work rather than at its first Stop. It is a hint, not that check:
+  the step asks `supabase status`, and a port another program answers on prints nothing.
+  Its text is fixed, and the port is never printed.
 - **Read-only.** Neither the hook nor the CLI writes anything, `.harness/turn.lock`
   included, and the hook reads no stdin, so no payload byte reaches the brief. The hook
   reads from `$CLAUDE_PROJECT_DIR`, so a resume after the shell moved into a subdirectory

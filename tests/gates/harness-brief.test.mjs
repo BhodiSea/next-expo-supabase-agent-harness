@@ -19,6 +19,7 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
@@ -87,8 +88,16 @@ async function inDir(dir, fn) {
   }
 }
 
-/** The brief a tree prints, collected and rendered in process. @param {string} dir @param {Record<string, string>} [env] */
-const briefOf = (dir, env = {}) => inDir(dir, async () => renderBrief(await collectBrief({ env })))
+// The local database line (2.0.6) probes a port. Every case but the probe's own finds the
+// database answering, so no brief here depends on what this machine has listening.
+const ANSWERING = async () => true
+
+/**
+ * The brief a tree prints, collected and rendered in process.
+ * @param {string} dir @param {Record<string, string>} [env] @param {(port: number) => Promise<boolean>} [probe]
+ */
+const briefOf = (dir, env = {}, probe = ANSWERING) =>
+  inDir(dir, async () => renderBrief(await collectBrief({ env, probe })))
 
 /** @param {string} dir @param {...string} args */
 const git = (dir, ...args) =>
@@ -485,4 +494,95 @@ test('the brief\'s v2 ramp is the Stop step\'s: same opening version, same deadl
   assert.ok(ramp !== null, 'the reviewer ledger v2 rampNote call is no longer where this test looks')
   assert.match(lib, new RegExp(`const V2_SINCE = '${ramp[1].replaceAll('.', '\\.')}'`))
   assert.match(lib, new RegExp(`const V2_UNTIL = '${ramp[2].replaceAll('.', '\\.')}'`))
+})
+
+// ── the local database line (2.0.6) ─────────────────────────────────────────────
+
+const DATABASE_DOWN =
+  "local database: not answering, so the Stop hook's rls-isolation step fails until `pnpm db:up` starts it (Docker must be running)"
+/** A tree with one migration, so rls-isolation has something to prove. @param {string} dir */
+const withMigration = (dir) => put(dir, 'supabase/migrations/20260930000000_x.sql', 'select 1;\n')
+
+/** A probe that records the ports it is asked about and gives one answer. @param {boolean} answer */
+function recorder(answer) {
+  /** @type {number[]} */
+  const ports = []
+  /** @param {number} port */
+  const probe = async (port) => {
+    ports.push(port)
+    return answer
+  }
+  return { ports, probe }
+}
+
+test('migrations and nothing answering on the [db] port: the brief ends with the one fixed database line', async () => {
+  const dir = fixture('dbdown')
+  withMigration(dir)
+  put(dir, 'supabase/config.toml', '[api]\nport = 54321\n\n[db]\nport = 54999 # local\nshadow_port = 54320\n')
+  const { ports, probe } = recorder(false)
+  const text = await briefOf(dir, {}, probe)
+  assert.deepEqual(ports, [54999], 'the probe asks about [db] port, not [api] port or shadow_port')
+  assert.ok(text.endsWith(`\n${DATABASE_DOWN}\n`), text)
+  assert.ok(!text.includes('54999'), `no byte of config.toml is printed:\n${text}`)
+})
+
+test('no config.toml, or no usable [db] port in it: the probe asks about the port the template ships', async () => {
+  const shipped = readFileSync(fileURLToPath(new URL('../../template/stack/supabase/config.toml', import.meta.url)), 'utf8')
+  for (const config of [shipped, null, '[db]\nmajor_version = 17\n', '[db]\nport = "54999"\n', '[db]\nport = 70000\n']) {
+    const dir = fixture('dbdefault')
+    withMigration(dir)
+    if (config !== null) put(dir, 'supabase/config.toml', config)
+    const { ports, probe } = recorder(false)
+    assert.ok((await briefOf(dir, {}, probe)).endsWith(`${DATABASE_DOWN}\n`), String(config))
+    assert.deepEqual(ports, [54322], `${String(config)}: the shipped config.toml's [db] port is the default`)
+  }
+})
+
+test('the database answering, or no supabase/migrations: no line, and with no migrations no probe', async () => {
+  const up = fixture('dbup')
+  withMigration(up)
+  assert.ok(!(await briefOf(up, {}, recorder(true).probe)).includes('local database'))
+  const none = fixture('nomigrations')
+  put(none, 'supabase/config.toml', '[db]\nport = 54999\n')
+  const { ports, probe } = recorder(false)
+  const text = await briefOf(none, {}, probe)
+  assert.deepEqual(ports, [], 'rls-isolation has nothing to prove without migrations, so nothing is asked')
+  assert.ok(!text.includes('local database'), text)
+})
+
+test('a probe that throws costs the database line alone: the four fields print as before', async () => {
+  const dir = fixture('dbthrows')
+  withMigration(dir)
+  const text = await briefOf(dir, {}, async () => {
+    throw new Error('probe failed')
+  })
+  assert.ok(!text.includes('local database'), text)
+  assert.equal(text.split('\n').filter((l) => /^[a-z]/.test(l)).length, 4, text)
+})
+
+test('the renderer prints the database line for `down` alone, and no value the field carries', () => {
+  for (const database of [undefined, null, {}, 'down', { kind: 'answering' }, { kind: 'no-migrations' }, { kind: 'DOWN' }]) {
+    assert.ok(!renderBrief({ ...healthy(), database }).includes('local database'), JSON.stringify(database))
+  }
+  const text = renderBrief({ ...healthy(), database: { kind: 'down', port: NEWLINE } })
+  assert.ok(text.endsWith(`\n${DATABASE_DOWN}\n`), text)
+  assert.ok(!text.includes('IGNORE'), text)
+})
+
+test('the shipped probe: a port something listens on answers, and the same port closed does not', async () => {
+  const server = createServer((socket) => socket.destroy())
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(undefined)))
+  const { port } = /** @type {import('node:net').AddressInfo} */ (server.address())
+  const dir = fixture('dbprobe')
+  withMigration(dir)
+  put(dir, 'supabase/config.toml', `[db]\nport = ${String(port)}\n`)
+  const brief = () => inDir(dir, async () => renderBrief(await collectBrief({ env: {} })))
+  try {
+    const listening = await brief()
+    assert.ok(!listening.includes('local database'), listening)
+  } finally {
+    await new Promise((resolve) => server.close(() => resolve(undefined)))
+  }
+  const closed = await brief()
+  assert.ok(closed.endsWith(`\n${DATABASE_DOWN}\n`), closed)
 })
