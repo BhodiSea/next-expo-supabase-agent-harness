@@ -23,6 +23,14 @@ This lineage's own history starts at 0.1.3.
   Nicklin, and `GOVERNANCE.md` as the maintainer's organisation. The diagram in
   `docs/security/assurance-case.md` drew maintainer review as the one step before `main`, and
   now draws `maintainer or @oakla`. Factory only: nothing changes for an install.
+- **The assurance case says what the ruleset on `main` requires, and names oakla's account beside
+  the maintainer's.** Its separation-of-privilege row said editing the enforcement surface needs
+  code-owner review, which the ruleset does not require. The row now says a change from an agent
+  session in this repository needs the environment flag and a pull request that passes the
+  required checks. R6, which cites `.github/CODEOWNERS`, now says the ruleset does not require
+  that review. The list of adversaries and residual risk 2 named only the maintainer's account
+  as the compromise route, though oakla's can merge to `main` once the required checks pass. They
+  now name both. Factory only: nothing changes for an install.
 
 ## [2.0.5] — 2026-11-02
 
