@@ -9,9 +9,7 @@ Audit the just-written change against the non-negotiable invariants in
 This is the human-readable second opinion behind the deterministic gates — it catches
 the invariant a two-row test DB and a passing static scan both miss.
 
-Files changed in the working tree:
-
-!`git diff --name-only HEAD`
+List the files changed in the working tree with `git diff --name-only HEAD`.
 
 Run the `torvalds-reviewer` subagent over that diff (it runs `git diff` against the
 base itself, ranks every finding CRITICAL / HIGH / MEDIUM / LOW with a `file:line`

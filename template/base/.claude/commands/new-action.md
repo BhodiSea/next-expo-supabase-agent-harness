@@ -85,4 +85,4 @@ Then:
 
 Finish only when `pnpm validate` is green and `pnpm test` passes.
 
-Current working tree: !`git diff --name-only HEAD`
+For context, list the files changed in the working tree with `git diff --name-only HEAD`.

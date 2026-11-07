@@ -4625,6 +4625,21 @@ above are still the sweep for an install below 1.1.0.
 sha: this runbook and the hooks under `.claude/hooks/` (their version stamps). Each fix below
 says what else it delivers and what it leaves to you.
 
+### The commands ask Claude to run what they ran as they loaded
+
+Through 2.0.6, `/adr`, `/new-action`, `/new-feature`, `/new-migration`, `/rls-check`,
+`/verify-citations` and `/verify-invariants` ran `git diff --name-only HEAD`,
+`git status --short` or `date` on a `!` line as they loaded. Each now asks Claude to run the
+same command, which its own Bash rule still pre-approves. `update` plants the seven commands
+(owned), and nothing is left to you.
+
+### `citation-verifier` says to use its corpus server when `tools:` names it
+
+Through 2.0.6, the agent's note said its `mcp__corpus_search` server IS wired in (see
+`tools:` above). It now says to use the server when `tools:` names it, which the agent's own
+`tools:` does, so it works as before. `update` plants the agent (owned), and nothing is left
+to you.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

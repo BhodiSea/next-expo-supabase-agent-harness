@@ -1,14 +1,12 @@
 ---
-description: Run the security-reviewer over the RLS/policy/migration diff, plus (if the local stack is up) the rls_verify probe and pgTAP — return `RLS: PASS` or `RLS: FAIL` and fix until it passes.
+description: "Run the security-reviewer over the RLS/policy/migration diff, plus (if the local stack is up) the rls_verify probe and pgTAP — return `RLS: PASS` or `RLS: FAIL` and fix until it passes."
 allowed-tools: Read, Grep, Glob, Bash(git diff --name-only HEAD), Bash(pnpm db:test)
 model: sonnet
 ---
 
 Audit the row-level-security surface of the current change.
 
-Files changed in the working tree:
-
-!`git diff --name-only HEAD`
+List the files changed in the working tree with `git diff --name-only HEAD`.
 
 Run the `security-reviewer` subagent over that diff. It holds the RLS invariants: every
 user-scoped table has `ENABLE` + `FORCE ROW LEVEL SECURITY` in the SAME migration that creates

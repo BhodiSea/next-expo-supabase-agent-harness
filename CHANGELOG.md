@@ -18,7 +18,22 @@ change, and no ramp opens or moves. The `template/migrations.json` record restat
 twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by
 `2.0.6`.
 
-### Fixed
+### Changed
+
+- **The seven commands ask Claude to run what they ran as they loaded.** `/adr`, `/new-action`,
+  `/new-feature`, `/new-migration`, `/rls-check`, `/verify-citations` and `/verify-invariants`
+  each ran `git diff --name-only HEAD`, `git status --short` or `date` on a `!` line as the file
+  loaded, and put its output in the prompt. Each now tells Claude to run the same command and
+  keeps the Bash rule that pre-approves it, so in an installed project it still runs without
+  asking. The plugin ships the same text, and the plugin directory refuses such lines (below).
+  `/rls-check` and `/verify-citations` also quote their `description`, whose `: ` a strict YAML
+  reader cannot parse. The seven commands are owned and reach an install with `update`, which
+  re-records their `tools/agents.lock.json` entries.
+- **`citation-verifier` says to use its corpus server when `tools` names it.** Its note said
+  the `mcp__corpus_search` server IS wired in (see `tools:` above), which the plugin's copy,
+  whose `tools` names no MCP tool (below), would make false. In an installed project `tools`
+  names the server, so the agent works as before. It is owned and reaches an install with
+  `update`.
 
 ## [2.0.6] — 2026-11-03
 

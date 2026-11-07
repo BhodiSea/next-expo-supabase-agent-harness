@@ -113,4 +113,4 @@ Every non-trivial decision carries `// SOURCE:` (`-- SOURCE:` in SQL), ideally w
 `pnpm test:rls` / `pnpm db:test` / `pnpm test` / `pnpm test:mobile` pass. The Stop hook
 enforces exactly this — do not stop on a red build or with provenance incomplete.
 
-Current working tree for context: !`git status --short`
+For context, list the working tree's changes with `git status --short`.

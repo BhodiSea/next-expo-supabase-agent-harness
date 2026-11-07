@@ -14,6 +14,9 @@
     ],
     ".claude/agents/citation-verifier.md": [
       {
+        "sha256": "4b01c6394c5f0f1ae66f71d411364e3ee26cecd6dc990994a0e667d1d324d5d2"
+      },
+      {
         "sha256": "e9178a19ff6ad0b1920c4e9c7ade20fd9aec23c78459194bb2ff90711d17fab8"
       }
     ],
@@ -72,34 +75,55 @@
     ".claude/commands/adr.md": [
       {
         "sha256": "0e1ef97257aaaf5b2085f245233f4624f6945afa0466e92a12cba1d3fb81c4d0"
+      },
+      {
+        "sha256": "43ae5e2bf1f071f79b2ae2efff3c8ba0c087a10e54ad908eb17ff3b9ddb9fc06"
       }
     ],
     ".claude/commands/new-action.md": [
+      {
+        "sha256": "2a34ab6e2cdda487476901d6707f099afcefced96cff18955f02ec878605b3cc"
+      },
       {
         "sha256": "54f22ccaaaf084eaced5c6ac209b91297c0868784b3d7bf8d432107896c33f15"
       }
     ],
     ".claude/commands/new-feature.md": [
       {
+        "sha256": "62259ef74f5d839a4793c9e37b89a7051a05e7ab4ad92b95c28bfc9ecdc89145"
+      },
+      {
         "sha256": "69dcbe6c46b6a02e12865b85866e9a12453f9ceeeaee3c9273ab4dc170acdb7a"
       }
     ],
     ".claude/commands/new-migration.md": [
+      {
+        "sha256": "161f24c07d8848fb08fd2e97d8243d0f6b00cddd80533812072b8704feab145a"
+      },
       {
         "sha256": "a221fd57e992a6683d4100781280d959095bd6192479b38cb4b9adabdf599eb2"
       }
     ],
     ".claude/commands/rls-check.md": [
       {
+        "sha256": "4e2453d96ab22c76588a935824876c31e15fbaba0120aeff77f4516191bb2025"
+      },
+      {
         "sha256": "cf226ce88ca164d6c09c26ddc0ea6565c813494de2b178fbe65b0b81a8151e8b"
       }
     ],
     ".claude/commands/verify-citations.md": [
       {
+        "sha256": "05173f837af373a06640e2eae5fb4a0b1e0d4cde298947838313c70c8a6c5c84"
+      },
+      {
         "sha256": "b54e85292dfc77a129521c2537b70d05993f56885979933a55fda4821f0197ed"
       }
     ],
     ".claude/commands/verify-invariants.md": [
+      {
+        "sha256": "2e55f33c20edd11b409a4316389a7cc2b907e73a89bf349c7163eaa4d930897d"
+      },
       {
         "sha256": "474d1c915fd41a6f33ff93d09b21c01754887897cfe1fa1c9a74d27d69f31d6d"
       }
@@ -925,6 +949,15 @@
       }
     ],
     "docs/runbooks/harness-upgrade.md": [
+      {
+        "sha256": "0ed0eaa30be1ffdd876bfff469d4c80d9a62fba34bbc0d38f1e46dd9ae7435fb",
+        "sites": [
+          [
+            14122,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
       {
         "sha256": "f44bfd1528b9ecf1fb0a89c33089d095dfdf81ad5a719f90b5290fa83cf257fb",
         "sites": [
