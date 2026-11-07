@@ -55,9 +55,9 @@ jobs:
           # security-and-quality = every security-extended query plus the reliability
           # and maintainability ones (1.0.3; was security-extended).
           queries: security-and-quality
-          # plugin/ is scanned on purpose (#163): CodeQL's JavaScript extractor skips hidden
-          # folders other than .github, so plugin/ is the only place it sees the files that
-          # template/base/.claude/ ships.
+          # CodeQL's JavaScript extractor skips hidden folders other than .github, so it
+          # analyzes no script that template/base/.claude/ ships. Until 2.0.7 it analyzed
+          # the slice scaffolder through its copy in plugin/ (#163).
           # tests/evals/b/fixture/ (#188) is eval B's frozen copy of the 2.0.0 template: data
           # the sweep reads, never run, and analyzed at its source when it shipped.
           config: |

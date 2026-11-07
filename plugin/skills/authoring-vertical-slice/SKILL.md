@@ -5,7 +5,7 @@ description: >
   test recipe for shipping one whole feature slice through the Next 16 web + Expo 57 mobile
   + Supabase monorepo in a single turn. Use when asked to add a feature, procedure, or screen
   end-to-end.
-allowed-tools: Read, Grep, Glob, Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/authoring-vertical-slice/scripts/scaffold-slice.mjs:*)
+allowed-tools: Read, Grep, Glob
 argument-hint: "[feature-name]"
 ---
 
@@ -122,7 +122,7 @@ Only when nothing covers the need do you scaffold a new slice.
 The MAIN THREAD scaffolds the empty skeleton (the `dal-author` subagent has no Bash):
 
 ```
-node ${CLAUDE_PLUGIN_ROOT}/skills/authoring-vertical-slice/scripts/scaffold-slice.mjs <slice>
+node .claude/skills/authoring-vertical-slice/scripts/scaffold-slice.mjs <slice>
 ```
 
 `<slice>` is a single kebab-case argument (e.g. `release-notes`). The script is idempotent:

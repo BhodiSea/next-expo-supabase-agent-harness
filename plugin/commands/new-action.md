@@ -1,7 +1,7 @@
 ---
 description: Add a single tRPC procedure (+ optional web Server Action) on the right rung, returning ActionOutcome — then regen the contract inventories.
 argument-hint: "[action-name]"
-allowed-tools: Read, Grep, Glob, Bash(git diff --name-only HEAD)
+allowed-tools: Read, Grep, Glob
 ---
 
 Add the action **$1** — one tRPC procedure served by `apps/web` and consumed by mobile
@@ -85,4 +85,4 @@ Then:
 
 Finish only when `pnpm validate` is green and `pnpm test` passes.
 
-Current working tree: !`git diff --name-only HEAD`
+For context, list the files changed in the working tree with `git diff --name-only HEAD`.

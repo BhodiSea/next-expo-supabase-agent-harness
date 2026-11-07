@@ -1,12 +1,11 @@
 ---
-description: Verify every // SOURCE: and ADR citation in the working tree; reject hallucinations.
-allowed-tools: Read, Grep, Glob, Bash(git diff --name-only HEAD)
+description: "Verify every // SOURCE: and ADR citation in the working tree; reject hallucinations."
+allowed-tools: Read, Grep, Glob
 model: sonnet
 ---
 
-Run the `citation-verifier` subagent over the current changes:
-
-!`git diff --name-only HEAD`
+List the current changes with `git diff --name-only HEAD`, and run the `citation-verifier`
+subagent over them.
 
 It must perform PRE-SCREEN -> EXISTENCE-RESOLVE -> SUPPORT-CHECK (resolving
 `[corpus: <id>]` references through the `corpus_search` MCP server against

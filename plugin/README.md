@@ -75,15 +75,10 @@ Each works in a Next.js, Expo or Supabase repository that the harness did not in
 
 ## What runs without asking
 
-Opening a command runs the read-only commands on its `!` lines and puts their output in the
-prompt: `git diff --name-only HEAD` in most, `git status --short` in `/new-feature`, and
-`date` in `/adr` and `/new-migration`. `/new-feature` and the `authoring-vertical-slice`
-skill may also run the plugin's slice scaffolder, which writes the stub files for a new
-slice into your project and never overwrites a file. The commands and skills also
-pre-approve reading and searching files, the plugin's own included, when you type them. A
-skill that Claude starts by itself asks first. Every other command, and every file edit,
-follows your own permission settings. The plugin has no hooks or MCP servers, and the
-scaffolder makes no network request.
+Nothing runs when a command or skill loads. When you type one, it pre-approves only reading
+and searching files, the plugin's own included; a skill that Claude starts by itself asks
+first. Every command Claude runs for them, and every file edit, follows your own permission
+settings. The plugin has no hooks, MCP servers or scripts.
 
 ## What it does not hold
 

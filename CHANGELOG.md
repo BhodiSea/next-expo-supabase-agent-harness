@@ -34,6 +34,25 @@ twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAG
   whose `tools` names no MCP tool (below), would make false. In an installed project `tools`
   names the server, so the agent works as before. It is owned and reaches an install with
   `update`.
+- **The plugin meets the plugin directory's rules.** The directory accepts it only if its
+  commands and skills run nothing as they load and pre-approve only `Read`, `Grep`, `Glob` and
+  `LS`, its files are Markdown, text, JSON, YAML or PNG, JPEG, GIF, WebP or ICO images, none of
+  them starting with `#!` or configuring a package manager, and its frontmatter holds only keys
+  the directory knows. 2.0.6's copies kept the `!` line commands and the slice scaffolder in
+  `allowed-tools`, shipped the scaffolder script and carried `harnessFallbackModels` in eight
+  agents. `scripts/lib/plugin-folder.mjs` now copies only those file types, so the copies of
+  `/new-feature` and `authoring-vertical-slice` name the installed project's scaffolder, as
+  their sources do. A command's or skill's copy keeps only those four tools in `allowed-tools`,
+  and every component's copy only the frontmatter keys Claude Code reads for it. An agent's
+  copy also drops each `mcp__` entry from `tools`: `security-reviewer` named `mcp__rls_verify`
+  and `citation-verifier` `mcp__corpus_search`, servers an installed project runs and the
+  plugin does not ship. `scripts/check-plugin-manifest.mjs` reds a `!` line or fenced `!` block
+  in any command or skill, at its source or in `plugin/`. In `plugin/` it reds a file of another
+  type, one that starts with `#!`, is not UTF-8 or holds a NUL byte, a package manager
+  configuration file, any other `allowed-tools` entry, a frontmatter key the copy does not keep,
+  a plain frontmatter value YAML reads otherwise than its text, and an agent's MCP tool. Each
+  is watched red in `tests/gates/check-plugin-manifest.test.mjs`. `plugin/README.md` says that
+  nothing runs as a command or skill loads. Factory only: nothing changes for an install.
 
 ## [2.0.6] — 2026-11-03
 
