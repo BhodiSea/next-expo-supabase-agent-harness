@@ -11,6 +11,15 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [2.0.7] — 2026-11-07
+
+**A patch: the v2.0.x defect fixes continue.** No gate is added, the chain length does not
+change, and no ramp opens or moves. The `template/migrations.json` record restates 2.0.0's
+twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by
+`2.0.6`.
+
+### Fixed
+
 ## [2.0.6] — 2026-11-03
 
 **A patch: the v2.0.x defect fixes continue.** No gate is added, the chain length does not
