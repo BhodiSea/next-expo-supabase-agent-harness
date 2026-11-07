@@ -1,26 +1,23 @@
 ---
 description: Add a Supabase migration + RLS — a declarative schema change plus a new timestamped, append-only migration carrying FORCE RLS, per-op policies on auth.uid(), a leading-column owner index, and narrow grants.
 argument-hint: "[table-or-change]"
-allowed-tools: Read, Grep, Glob, Bash(date -u +%Y%m%d%H%M%S), Bash(git diff --name-only HEAD)
+allowed-tools: Read, Grep, Glob
 ---
 
 Add the schema change **$1**. Two files move together: the DECLARATIVE source of truth and a
 new APPLIED migration.
 
-Today's UTC migration timestamp (the command engine does NOT expand `$(...)`, so use this
-inline line):
-
-!`date -u +%Y%m%d%H%M%S`
+Get the UTC migration timestamp with `date -u +%Y%m%d%H%M%S` and use it as `<timestamp>`.
 
 ## What to write
 
 1. **Declarative change** in `supabase/schemas/*.sql` — the desired end state and the home for
    every rationale comment (`supabase/schemas/20_notes.sql` is the reference shape).
-2. **A NEW migration** at `supabase/migrations/<timestamp>_$1.sql` (use the 14-digit UTC
-   timestamp printed above as `<timestamp>`). Migrations are APPEND-ONLY and DML-free: they are
-   applied history, not desired state, and an existing migration is NEVER edited — a mistake is
-   a further new migration. Editing an applied file changes nothing on a database that already
-   ran it, so the deployed schema and the committed history diverge silently.
+2. **A NEW migration** at `supabase/migrations/<timestamp>_$1.sql`. Migrations are APPEND-ONLY
+   and DML-free: they are applied history, not desired state, and an existing migration is
+   NEVER edited — a mistake is a further new migration. Editing an applied file changes nothing
+   on a database that already ran it, so the deployed schema and the committed history diverge
+   silently.
 
 Every user-scoped table carries, IN THE SAME migration:
 
@@ -71,4 +68,4 @@ pnpm db:test         # pgTAP: structure + cross-user isolation, against what the
 Both must pass. Then run `/rls-check` (or the `security-reviewer` subagent) over the diff and
 require PASS.
 
-Current working tree: !`git diff --name-only HEAD`
+For context, list the files changed in the working tree with `git diff --name-only HEAD`.

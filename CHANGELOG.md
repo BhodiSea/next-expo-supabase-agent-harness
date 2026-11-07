@@ -11,6 +11,49 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [2.0.7] — 2026-11-07
+
+**A patch: the v2.0.x defect fixes continue.** No gate is added, the chain length does not
+change, and no ramp opens or moves. The `template/migrations.json` record restates 2.0.0's
+twenty-vintage `rampExpiry` population, and `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by
+`2.0.6`.
+
+### Changed
+
+- **The seven commands ask Claude to run what they ran as they loaded.** `/adr`, `/new-action`,
+  `/new-feature`, `/new-migration`, `/rls-check`, `/verify-citations` and `/verify-invariants`
+  each ran `git diff --name-only HEAD`, `git status --short` or `date` on a `!` line as the file
+  loaded, and put its output in the prompt. Each now tells Claude to run the same command and
+  keeps the Bash rule that pre-approves it, so in an installed project it still runs without
+  asking. The plugin ships the same text, and the plugin directory refuses such lines (below).
+  `/rls-check` and `/verify-citations` also quote their `description`, whose `: ` a strict YAML
+  reader cannot parse. The seven commands are owned and reach an install with `update`, which
+  re-records their `tools/agents.lock.json` entries.
+- **`citation-verifier` says to use its corpus server when `tools` names it.** Its note said
+  the `mcp__corpus_search` server IS wired in (see `tools:` above), which the plugin's copy,
+  whose `tools` names no MCP tool (below), would make false. In an installed project `tools`
+  names the server, so the agent works as before. It is owned and reaches an install with
+  `update`.
+- **The plugin meets the plugin directory's rules.** The directory accepts it only if its
+  commands and skills run nothing as they load and pre-approve only `Read`, `Grep`, `Glob` and
+  `LS`, its files are Markdown, text, JSON, YAML or PNG, JPEG, GIF, WebP or ICO images, none of
+  them starting with `#!` or configuring a package manager, and its frontmatter holds only keys
+  the directory knows. 2.0.6's copies kept the `!` line commands and the slice scaffolder in
+  `allowed-tools`, shipped the scaffolder script and carried `harnessFallbackModels` in eight
+  agents. `scripts/lib/plugin-folder.mjs` now copies only those file types, so the copies of
+  `/new-feature` and `authoring-vertical-slice` name the installed project's scaffolder, as
+  their sources do. A command's or skill's copy keeps only those four tools in `allowed-tools`,
+  and every component's copy only the frontmatter keys Claude Code reads for it. An agent's
+  copy also drops each `mcp__` entry from `tools`: `security-reviewer` named `mcp__rls_verify`
+  and `citation-verifier` `mcp__corpus_search`, servers an installed project runs and the
+  plugin does not ship. `scripts/check-plugin-manifest.mjs` reds a `!` line or fenced `!` block
+  in any command or skill, at its source or in `plugin/`. In `plugin/` it reds a file of another
+  type, one that starts with `#!`, is not UTF-8 or holds a NUL byte, a package manager
+  configuration file, any other `allowed-tools` entry, a frontmatter key the copy does not keep,
+  a plain frontmatter value YAML reads otherwise than its text, and an agent's MCP tool. Each
+  is watched red in `tests/gates/check-plugin-manifest.test.mjs`. `plugin/README.md` says that
+  nothing runs as a command or skill loads. Factory only: nothing changes for an install.
+
 ## [2.0.6] — 2026-11-03
 
 **A patch: the v2.0.x defect fixes continue.** No gate is added, the chain length does not

@@ -7,10 +7,9 @@ description: >
   Server Actions, apps/web/lib/app-data/**), service-role usage, or server-side
   auth verification. Use PROACTIVELY whenever those surfaces are touched. Cannot
   edit or run tests.
-tools: Read, Grep, Glob, mcp__rls_verify
+tools: Read, Grep, Glob
 disallowedTools: Write, Edit
 model: opus
-harnessFallbackModels: fable
 ---
 
 You are a senior application-security engineer auditing the USER-ISOLATION boundary of

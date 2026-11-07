@@ -1360,5 +1360,38 @@
       ],
       "why": "2.0.6 opens no escape and closes none. The population above is 2.0.0's, restated because a direct hop from any of these vintages crosses 2.0.0's record: the 1.1.0 fleet falls due as it does at 2.0.0, and the documented sweep (docs/runbooks/harness-upgrade.md, the 1.1.0 and 2.0.0 sections; scripts/ci/upgrade-sweep.mjs SWEEPS['1.1.0'] and SWEEPS['2.0.0']) is what clears it. A 1.1.0, 2.0.0, 2.0.1, 2.0.2, 2.0.3, 2.0.4 or 2.0.5 install meets nothing that expires. Read the count off `node scripts/ci/ramp-expectations.mjs <base> 2.0.6`, never off this paragraph."
     }
+  },
+  "2.0.7": {
+    "//": [
+      "2.0.7 — a patch, the v2.0.x defect fixes after the 2.0.6 cut. This record is authored INCREMENTALLY: the bump commit writes the rampExpiry and this string, and each item appends one string. The version bump changes the nine hook version stamps and the upgrade runbook, both OWNED and re-planted by `update` when sha-unmodified. A patch opens no ramp and moves no deadline, so the bump adds no removed/renamed/configSteps/seededSourceFixes/dependencyObligations and no rampExtensions, and withholds nothing; an item that withholds a path adds its seedOnInitOnly entry and the reviewed SWEEPS['2.0.7'] entry in scripts/ci/upgrade-sweep.mjs that a withheld path requires.",
+      "THE COMMANDS ASK CLAUDE TO RUN WHAT THEY RAN AS THEY LOADED. .claude/commands/adr.md, new-action.md, new-feature.md, new-migration.md, rls-check.md, verify-citations.md and verify-invariants.md (all OWNED, re-planted when sha-unmodified) ran `git diff --name-only HEAD`, `git status --short` or `date` on a `!` line as the file loaded, through 2.0.6. Each now tells Claude to run the same command and keeps the Bash rule that pre-approves it, so the command still runs without asking; its output reaches Claude as a tool result, not in the prompt. This release's runbook section (OWNED) says so. rls-check.md and verify-citations.md also quote their description, whose `: ` a strict YAML reader cannot parse, and Claude Code reads the same text. `update` re-records the tools/agents.lock.json entry of each file it re-plants, and a kept fork keeps its `!` lines, which still run. No hook, gate, setting or verdict moves. The plugin's copies and their check are factory only. Nothing is withheld and no ramp opens.",
+      "CITATION-VERIFIER SAYS TO USE ITS CORPUS SERVER WHEN ITS TOOLS NAME IT. .claude/agents/citation-verifier.md (OWNED, re-planted when sha-unmodified) said its mcp__corpus_search server IS wired in (see `tools:` above), through 2.0.6. It now says to use the server when `tools:` names it, as the agent's own `tools:` does, so the agent works as before; the plugin's copy names no MCP tool in tools, and the note is true there too. This release's runbook section (OWNED) says so. `update` re-records the agent's tools/agents.lock.json entry when it re-plants it. Prose only: no hook, gate, setting or verdict moves, nothing is withheld and no ramp opens."
+    ],
+    "rampExpiry": {
+      "//": "COMPUTED by scripts/check-ramp-ledger.mjs at version 2.0.7 and copied from its output, never typed. The vintage list is identical to 2.0.6's, and 2.0.0's, for the reason 1.0.4's was identical to 1.0.3's: a patch closes no new escape, but a direct hop from an old vintage crosses 2.0.0's record and meets its expiries on arrival, so the population is restated rather than inherited by implication.",
+      "affects": [
+        "0.1.3",
+        "0.2.0",
+        "0.2.1",
+        "0.3.0",
+        "0.4.0",
+        "0.5.0",
+        "0.6.0",
+        "0.7.0",
+        "0.8.0",
+        "0.9.0",
+        "0.9.5",
+        "0.9.9",
+        "0.10.0",
+        "0.11.0",
+        "0.11.1",
+        "1.0.0",
+        "1.0.1",
+        "1.0.2",
+        "1.0.3",
+        "1.0.4"
+      ],
+      "why": "2.0.7 opens no escape and closes none. The population above is 2.0.0's, restated because a direct hop from any of these vintages crosses 2.0.0's record: the 1.1.0 fleet falls due as it does at 2.0.0, and the documented sweep (docs/runbooks/harness-upgrade.md, the 1.1.0 and 2.0.0 sections; scripts/ci/upgrade-sweep.mjs SWEEPS['1.1.0'] and SWEEPS['2.0.0']) is what clears it. A 1.1.0, 2.0.0, 2.0.1, 2.0.2, 2.0.3, 2.0.4, 2.0.5 or 2.0.6 install meets nothing that expires. Read the count off `node scripts/ci/ramp-expectations.mjs <base> 2.0.7`, never off this paragraph."
+    }
   }
 }

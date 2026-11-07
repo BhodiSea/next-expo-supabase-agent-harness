@@ -1,7 +1,7 @@
 ---
 description: One-turn vertical-slice entry point (migration+RLS -> RLS tests -> ./client data fn -> tRPC procedure (+ optional Server Action) -> web screen -> mobile screen -> tests -> provenance -> green gate).
 argument-hint: "[feature-name]"
-allowed-tools: Read, Grep, Glob, Bash(git status --short), Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/authoring-vertical-slice/scripts/scaffold-slice.mjs:*)
+allowed-tools: Read, Grep, Glob
 model: opus
 ---
 
@@ -23,7 +23,7 @@ The MAIN THREAD scaffolds the empty skeleton (the skill owns the layout) and run
 inventory regen — the `dal-author` subagent authors, the main thread runs Bash:
 
 ```
-node ${CLAUDE_PLUGIN_ROOT}/skills/authoring-vertical-slice/scripts/scaffold-slice.mjs $1
+node .claude/skills/authoring-vertical-slice/scripts/scaffold-slice.mjs $1
 pnpm gen        # after any procedure/event change; the `contracts` gate regen-diffs the committed inventories
 ```
 
@@ -113,4 +113,4 @@ Every non-trivial decision carries `// SOURCE:` (`-- SOURCE:` in SQL), ideally w
 `pnpm test:rls` / `pnpm db:test` / `pnpm test` / `pnpm test:mobile` pass. The Stop hook
 enforces exactly this — do not stop on a red build or with provenance incomplete.
 
-Current working tree for context: !`git status --short`
+For context, list the working tree's changes with `git status --short`.

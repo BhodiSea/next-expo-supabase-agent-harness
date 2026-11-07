@@ -9,7 +9,8 @@
 // scripts/lib/plugin-folder.mjs makes of their sources (regenerate with
 // scripts/generate-plugin-folder.mjs --write), within the plugin directory's file limits,
 // its README must clear the directory's 40-word floor, and plugin.json's icon must name a
-// square PNG of 512 to 2048 pixels a side, under 2 MB.
+// square PNG of 512 to 2048 pixels a side, under 2 MB. plugin/ must also meet the plugin
+// directory's rules, and no command or skill, at its source or in plugin/, holds inline shell.
 // Also the repo-side mirror of the docs-sync agent-roster sub-check: the
 // shipped template/base/.claude/agents/*.md frontmatter is validated at its
 // SOURCE (same parser, same read-only policy — imported from the canonical
@@ -30,12 +31,17 @@ import {
   splitList,
 } from '../template/base/tools/lib/agent-roster.mjs'
 import {
+  COPY_KEYS,
   PLUGIN_DIR,
+  READ_ONLY_TOOLS,
   allowedTools,
+  componentKind,
+  fileProblem,
   iconProblem,
-  inlineCommands,
+  inlineShell,
   pluginDrift,
   proseWordCount,
+  readOnlyGrant,
   wholeToolGrant,
   wideRule,
 } from './lib/plugin-folder.mjs'
@@ -149,10 +155,8 @@ if (existsSync(readmeAbs)) {
 // Tool(*) of one of SHELL_AND_WRITE_TOOLS pre-approves every call of it while the command
 // runs (wholeToolGrant), and that tool's rule on a one-word prefix (Bash(node:*)) or with a *
 // wildcard nearly as many (wideRule). An MCP rule can name every tool of a server or a glob
-// of tool names, and some MCP tools run shell commands, so no entry names an MCP tool. Each
-// command a `!` line or fenced `!` block runs needs its exact rule: Claude Code runs it as the
-// file loads and refuses to load a file whose command it may not run. A script rule names a
-// file the skills ship. plugin/'s copies keep a subset of these rules.
+// of tool names, and some MCP tools run shell commands, so no entry names an MCP tool.
+// plugin/'s copies keep only the entries readOnlyGrant accepts (below).
 // The check reads only commands/**/*.md and skills/<name>/SKILL.md, in that case, though
 // Claude Code's plugin loader takes a .MD command, and a case-insensitive disk opens SKILL.MD
 // or skill.md as SKILL.md. Of their frontmatter keys it judges only allowed-tools, though a
@@ -163,7 +167,7 @@ const PROMPTS_DIR = 'template/base/.claude'
 
 /**
  * What reds in one allowed-tools entry: a whole tool of SHELL_AND_WRITE_TOOLS, an MCP tool,
- * a rule wideRule holds wide, or a script the skills do not ship.
+ * or a rule wideRule holds wide.
  * @param {string} rel
  * @param {string} entry
  * @returns {string[]}
@@ -175,10 +179,6 @@ function entryProblems(rel, entry) {
     return [`${rel}: allowed-tools grants ${entry}, an MCP tool; an MCP rule can cover a whole server, and some MCP tools run shell commands`]
   }
   if (wideRule(entry)) return [`${rel}: ${entry} pre-approves more than one command or path; name it, or a command's first two words before :*`]
-  const script = /^Bash\(node \.claude\/skills\/(\S+?)(?::\*)?\)$/.exec(entry)?.[1]
-  if (script !== undefined && !existsSync(join(ROOT, PROMPTS_DIR, 'skills', script))) {
-    return [`${rel}: ${entry} names a script the skills do not ship`]
-  }
   return []
 }
 
@@ -211,13 +211,7 @@ function grantProblems(rel) {
   if (entries === null) {
     return [`${PROMPTS_DIR}/${rel}: allowed-tools is not a plain or wholly quoted list, so Claude Code's YAML reading of it can differ from its text`]
   }
-  const out = entries.flatMap((entry) => entryProblems(`${PROMPTS_DIR}/${rel}`, entry))
-  for (const command of inlineCommands(text)) {
-    if (!entries.includes(`Bash(${command})`)) {
-      out.push(`${PROMPTS_DIR}/${rel}: a \`!\` command runs \`${command}\`, and allowed-tools has no Bash(${command}) rule for it`)
-    }
-  }
-  return out
+  return entries.flatMap((entry) => entryProblems(`${PROMPTS_DIR}/${rel}`, entry))
 }
 
 const promptFiles = ['commands', 'skills'].flatMap((sub) =>
@@ -226,6 +220,111 @@ const promptFiles = ['commands', 'skills'].flatMap((sub) =>
     .map((rel) => `${sub}/${rel}`),
 )
 for (const rel of promptFiles) errs.push(...grantProblems(rel))
+
+// ── inline shell: no command or skill holds a `!` code span or a fenced `!` block ──
+// Claude Code runs either as a command or skill loads (inlineShell), and the plugin directory
+// refuses either. The plugin's commands and skills are the template's, one text in both
+// places, so each asks Claude to run its command instead: under its own Bash rule in an
+// installed project, and the user's permission settings in the plugin. Every Markdown file
+// under commands/ and skills/ is read, at its source and in plugin/, a skill's references
+// included.
+for (const root of [PROMPTS_DIR, PLUGIN_DIR]) {
+  for (const sub of ['commands', 'skills']) {
+    for (const rel of walkFiles(join(ROOT, root, sub)).filter((f) => /\.md$/i.test(f))) {
+      const file = `${root}/${sub}/${rel}`
+      for (const { line, shell } of inlineShell(readFileSync(join(ROOT, file), 'utf8'))) {
+        errs.push(`${file}:${String(line)}: ${shell} is inline shell; write it as an instruction to Claude to run the command`)
+      }
+    }
+  }
+}
+
+// ── plugin/ against the plugin directory's rules ──
+// Every file is Markdown, text, JSON, YAML or a PNG, JPEG, GIF, WebP or ICO image (a license,
+// a readme or .gitignore by name), none starts with `#!` or is a package manager's
+// configuration, and a text file is UTF-8 with no NUL byte (fileProblem). An agent's,
+// command's or skill's frontmatter holds only the keys its copy keeps (COPY_KEYS), read with
+// the sources' parser. A command's or skill's allowed-tools pre-approves only reading and
+// searching (readOnlyGrant). An agent's tools names no MCP tool: the plugin ships no MCP
+// server, and Claude Code reads mcp__<server> as every tool of whatever server the session
+// has by that name. A list the parser cannot read reds, as at the source. So does a plain
+// value YAML reads otherwise than its text, or not at all: one that holds `: ` or ` #`, ends
+// with `:`, or starts with an indicator. One with `: ` inside or `:` at the end stops a strict
+// YAML reader reading the file at all.
+const KIND_NAME = { agents: 'agent', commands: 'command', skills: 'skill' }
+const PLAIN_MISREAD = /: |\s#|:$|^[,[\]{}#&*!%@`]|^[-?:](?:\s|$)/
+
+/**
+ * The keys whose plain value YAML reads otherwise than its text. A quoted value, a block
+ * scalar and the tool list, which allowedTools reads, are judged elsewhere.
+ * @param {string} frontmatter
+ * @param {string} listKey
+ * @returns {string[]}
+ */
+function misreadKeys(frontmatter, listKey) {
+  return [...frontmatter.matchAll(/^([A-Za-z][\w-]*):[ \t]*(.*)$/gm)]
+    .filter(([, key, value]) => key !== listKey && !/^(?:["']|[>|][+-]?\s*$|$)/.test(value) && PLAIN_MISREAD.test(value.trimEnd()))
+    .map(([, key]) => key)
+}
+
+/**
+ * A plugin agent's, command's or skill's frontmatter: its copy's keys only, and the list it
+ * grants read as Claude Code reads it.
+ * @param {string} file
+ * @param {'agents' | 'commands' | 'skills'} kind
+ * @param {string} text
+ * @returns {string[]}
+ */
+function copyProblems(file, kind, text) {
+  const parsed = parseFrontmatter(text)
+  if (!parsed.ok) return [`${file}: frontmatter does not parse (${parsed.error})`]
+  const frontmatter = /^\uFEFF?---\s*\n([\s\S]*?)---/.exec(text)?.[1] ?? ''
+  const problem = frontmatterProblem(frontmatter)
+  if (problem !== null) return [`${file}: ${problem}`]
+  const listKey = kind === 'agents' ? 'tools' : 'allowed-tools'
+  const out = [
+    ...Object.keys(parsed.data)
+      .filter((key) => !COPY_KEYS[kind].includes(key))
+      .map((key) => `${file}: frontmatter key '${key}' is not one a plugin ${KIND_NAME[kind]} keeps (${COPY_KEYS[kind].join(', ')})`),
+    ...misreadKeys(frontmatter, listKey).map(
+      (key) => `${file}: ${key} is a plain YAML value that YAML reads otherwise than its text, or not at all; quote it`,
+    ),
+  ]
+  const value = new RegExp(`^${listKey}:(.*)$`, 'm').exec(frontmatter)?.[1]
+  const entries = value === undefined ? [] : allowedTools(value)
+  if (entries === null) {
+    return [...out, `${file}: ${listKey} is not a plain or wholly quoted list, so Claude Code's YAML reading of it can differ from its text`]
+  }
+  const refused = entries.filter((entry) => (kind === 'agents' ? /^mcp__/i.test(entry) : !readOnlyGrant(entry)))
+  if (refused.length === 0) return out
+  if (kind === 'agents') {
+    return [...out, `${file}: tools names ${refused.join(', ')}; a plugin agent names no MCP tool, because the plugin ships no MCP server`]
+  }
+  return [
+    ...out,
+    `${file}: allowed-tools pre-approves ${refused.join(', ')}; a plugin's command or skill may pre-approve only ${READ_ONLY_TOOLS.join(', ')}, with no \`\${...}\`, \`//\` or \`\\\\\` path and no URL`,
+  ]
+}
+
+/**
+ * What the plugin directory refuses in one file of plugin/.
+ * @param {string} rel path inside plugin/
+ * @returns {string[]}
+ */
+function pluginFileProblems(rel) {
+  let bytes
+  try {
+    bytes = readFileSync(join(ROOT, PLUGIN_DIR, rel))
+  } catch {
+    return [] // not a file it can read: the drift check names the path
+  }
+  const problem = fileProblem(rel, bytes)
+  if (problem !== null) return [`${PLUGIN_DIR}/${rel} ${problem}, which the plugin directory refuses`]
+  const kind = componentKind(rel)
+  return kind === null ? [] : copyProblems(`${PLUGIN_DIR}/${rel}`, kind, bytes.toString('utf8'))
+}
+
+for (const rel of walkFiles(join(ROOT, PLUGIN_DIR))) errs.push(...pluginFileProblems(rel))
 
 // ── agent roster (mirror of the docs-sync roster sub-check, over the source) ──
 // Universal: every agent parses (parse failure = red, never a skip) and carries

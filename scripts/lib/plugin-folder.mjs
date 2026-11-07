@@ -10,17 +10,16 @@
 //
 // Generated: agents/, commands/ and skills/, copied from template/base/.claude/, and LICENSE,
 // a byte copy of the root LICENSE. All are regular files, because the plugin directory
-// rejects a symbolic link for anything a plugin loads. A command or skill is copied with two
-// changes (pluginCopy), both to what it runs; every other file is a byte copy. Its source
-// runs the slice scaffolder as `node .claude/skills/...`, a path only an installed project
-// has, so the copy names the plugin's own file from ${CLAUDE_PLUGIN_ROOT}, which Claude Code
-// replaces with the plugin's folder in the text and in allowed-tools. And the copy's
-// allowed-tools keep a Bash rule only for a command its own `!` lines and blocks run, or for
-// that script; every other entry is kept as it is. The source's other Bash rules pre-approve
-// a project's own commands (pnpm scripts, node tools/*.mjs, the supabase CLI), which run that
-// project's code: an installed project vouches for them, a plugin cannot. Kept by hand: the
-// manifest (.claude-plugin/plugin.json, whose version the release bump sets), its icon and
-// README.md. Anything else under plugin/ is drift.
+// rejects a symbolic link for anything a plugin loads. Its rules also accept only the file
+// types typeProblem allows, commands and skills that pre-approve only reading and searching,
+// and frontmatter keys it knows. So a source of another type, the slice scaffolder, is not
+// copied, and a component's copy (pluginCopy) keeps only the keys COPY_KEYS lists, only
+// READ_ONLY_TOOLS in a command's or skill's allowed-tools, and no MCP entry in an agent's
+// tools; every other file is a byte copy. What a copy drops belongs to an installed project:
+// the commands, scripts and MCP servers it vouches for, as a plugin cannot, and its
+// reviewer-verdict tooling's harnessFallbackModels. Kept by hand: the manifest
+// (.claude-plugin/plugin.json, whose version the release bump sets), its icon and README.md.
+// Anything else under plugin/ is drift.
 import { existsSync, lstatSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { walkFiles } from '../../installer/lib/fs-walk.mjs'
@@ -33,7 +32,46 @@ const HAND_EDITED = ['.claude-plugin/plugin.json', '.claude-plugin/icon.png', 'R
 // The plugin directory's pre-submission limits ("Files in the plugin folder").
 const MAX_FILES = 512
 const MAX_FILE_BYTES = 256 * 1024
-const IMAGE_EXT = /\.(?:png|jpe?g|gif|webp|svg)$/i
+
+// The files the plugin directory accepts: PNG, JPEG, GIF, WebP and ICO images, which the
+// size limit exempts; Markdown, text, JSON and YAML; and a license, a readme or .gitignore by
+// name. No package manager configuration, whatever its type.
+const IMAGE_EXT = /\.(?:png|jpe?g|gif|webp|ico)$/i
+const TEXT_TYPE = /\.(?:md|txt|json|ya?ml)$|^(?:LICENSE|README|\.gitignore)$/i
+const PACKAGE_MANAGER_FILE =
+  /^(?:package\.json|npm-shrinkwrap\.json|\.npmrc|\.yarnrc(?:\.yml)?|pnpm-workspace\.yaml|bunfig\.toml|deno\.jsonc?|uv\.toml|pyproject\.toml|requirements\.txt)$|(?:^|[.-])lockb?(?:\.json|\.ya?ml)?$/i
+
+/**
+ * Why the plugin directory refuses a file for its name or its first bytes, or null.
+ * @param {string} rel
+ * @param {Buffer} bytes
+ * @returns {string | null}
+ */
+function typeProblem(rel, bytes) {
+  const name = rel.slice(rel.lastIndexOf('/') + 1)
+  if (PACKAGE_MANAGER_FILE.test(name)) return 'is a package manager configuration file'
+  if (!TEXT_TYPE.test(name) && !IMAGE_EXT.test(name)) return 'is not Markdown, text, JSON, YAML or a PNG, JPEG, GIF, WebP or ICO image'
+  return bytes.subarray(0, 2).toString('latin1') === '#!' ? 'starts with `#!`' : null
+}
+
+/**
+ * Why the plugin directory refuses a file of plugin/, or null: its type or first bytes, or,
+ * in a text file, a NUL byte or bytes that are not UTF-8.
+ * @param {string} rel
+ * @param {Buffer} bytes
+ * @returns {string | null}
+ */
+export function fileProblem(rel, bytes) {
+  const problem = typeProblem(rel, bytes)
+  if (problem !== null || IMAGE_EXT.test(rel)) return problem
+  if (bytes.includes(0)) return 'holds a NUL byte'
+  try {
+    new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+    return null
+  } catch {
+    return 'is not valid UTF-8'
+  }
+}
 
 // The plugin's icon: a square PNG of 512 to 2048 pixels a side, under 2 MB.
 const ICON_SIDE = { min: 512, max: 2048 }
@@ -61,9 +99,27 @@ export function iconProblem(bytes) {
   return null
 }
 
-const PROMPT_FILE = /^(?:commands|skills)\/.*\.md$/
-const PROJECT_SCRIPT = 'node .claude/skills/'
-export const PLUGIN_SCRIPT = 'node ${CLAUDE_PLUGIN_ROOT}/skills/'
+// The frontmatter keys a component's copy keeps: keys Claude Code reads. The plugin directory
+// publishes no list of the keys it accepts. harnessFallbackModels is the installed project's
+// reviewer-verdict tooling's (template/base/tools/lib/agent-roster.mjs), not Claude Code's.
+export const COPY_KEYS = {
+  agents: ['name', 'description', 'tools', 'disallowedTools', 'model'],
+  commands: ['description', 'argument-hint', 'allowed-tools', 'model'],
+  skills: ['name', 'description', 'argument-hint', 'allowed-tools'],
+}
+
+/**
+ * Which kind of component plugin/<rel> is, or null. `.md` counts in any case: Claude Code's
+ * plugin loader takes a .MD command, and a case-insensitive disk opens SKILL.MD or skill.md
+ * as SKILL.md.
+ * @param {string} rel
+ * @returns {'agents' | 'commands' | 'skills' | null}
+ */
+export function componentKind(rel) {
+  if (/^skills\/[^/]+\/SKILL\.md$/i.test(rel)) return 'skills'
+  if (/^agents\/.+\.md$/i.test(rel)) return 'agents'
+  return /^commands\/.+\.md$/i.test(rel) ? 'commands' : null
+}
 
 /**
  * A tool list split as Claude Code 2.1.292 splits allowed-tools: at each comma or space
@@ -104,6 +160,20 @@ export function allowedTools(value) {
   return plain && entries.every((entry) => /^[A-Za-z]/.test(entry)) ? entries : null
 }
 
+// What the plugin directory lets a command or skill pre-approve: reading and searching files.
+export const READ_ONLY_TOOLS = ['Read', 'Grep', 'Glob', 'LS']
+
+/**
+ * Whether an allowed-tools entry is one of READ_ONLY_TOOLS, bare or with a path that holds no
+ * `${...}`, does not start with `//` or `\\`, and is not a URL, as the plugin directory asks.
+ * @param {string} entry
+ * @returns {boolean}
+ */
+export function readOnlyGrant(entry) {
+  const rule = /^([^()]+)(?:\((.*)\))?$/.exec(entry)
+  return rule !== null && READ_ONLY_TOOLS.includes(String(rule[1])) && !/\$\{|^(?:\/\/|\\\\)|:\/\//.test(rule[2] ?? '')
+}
+
 // The tools whose grant pre-approves running a shell command or code, or writing a file, read
 // in Claude Code 2.1.292. Bash's permission check also judges Monitor's commands, and
 // PowerShell has its own. AppifactRepl runs JavaScript in a process it starts, under Bash's
@@ -142,17 +212,62 @@ export function wideRule(entry) {
 }
 
 /**
- * The commands a command or skill runs as it loads, matched with Claude Code 2.1.292's two
- * patterns: the body of a fenced block opened with three backticks and `!`, and an inline `!`
- * code span at a line start or after whitespace. Claude Code first blanks the other inline
- * code spans, and this does not, so it may also read a span Claude Code skips.
+ * The inline shell in a command or skill, as Claude Code 2.1.292 finds it: a fenced block
+ * opened with three backticks and `!`, and an inline `!` code span at a line start or after
+ * white space. Claude Code first blanks the other inline code spans, and this does not, so it
+ * may also find a span Claude Code skips. Each is the line it starts on and its opening text,
+ * on one line.
  * @param {string} text
- * @returns {string[]}
+ * @returns {Array<{ line: number, shell: string }>}
  */
-export function inlineCommands(text) {
-  const fenced = text.matchAll(/```!\s*\n?([\s\S]*?)\n?```/g)
-  const inline = text.matchAll(/(?<=^|\s)!`([^`]+)`/gm)
-  return [...fenced, ...inline].map((m) => String(m[1]).trim()).filter((command) => command !== '')
+export function inlineShell(text) {
+  return [...text.matchAll(/```!.*|(?<=^|\s)!`[^`]+`/gm)].map((m) => ({
+    line: text.slice(0, m.index).split('\n').length,
+    shell: m[0].replace(/\s+/g, ' '),
+  }))
+}
+
+/**
+ * A frontmatter's top-level entries: each `key:` line at column 0 with the blank and indented
+ * lines after it, which hold a block scalar's text. A comment line, or a blank line before the
+ * first key, belongs to none. Null when a line is none of these.
+ * @param {string} head the frontmatter's lines, each ending in a newline
+ * @returns {Array<{ key: string, text: string }> | null}
+ */
+function frontmatterEntries(head) {
+  /** @type {Array<{ key: string, text: string }>} */
+  const entries = []
+  for (const line of head.split(/(?<=\n)/).filter((l) => l !== '')) {
+    const key = /^([A-Za-z][\w-]*):/.exec(line)?.[1]
+    const last = entries.at(-1)
+    if (key !== undefined) entries.push({ key, text: line })
+    else if (/^(?:[ \t]|\n$)/.test(line) && last !== undefined) last.text += line
+    else if (line !== '\n' && !line.startsWith('#')) return null
+  }
+  return entries
+}
+
+/**
+ * One entry of a component's copy. An agent's tools loses its MCP entries, and a command's or
+ * skill's allowed-tools keeps only READ_ONLY_TOOLS, or goes when none is left. The list is its
+ * key's line, and the blank and indented comment lines after it, which YAML reads as nothing,
+ * stay with it. A list the copy cannot read, or an agent's that the drop would empty, stays as
+ * it is, and check-plugin-manifest reds it. Every other entry is copied as it is.
+ * @param {'agents' | 'commands' | 'skills'} kind
+ * @param {{ key: string, text: string }} entry
+ * @returns {string}
+ */
+function copyEntry(kind, { key, text }) {
+  const agent = kind === 'agents'
+  const list = key === (agent ? 'tools' : 'allowed-tools') ? /^[^:]*:(.*)\n((?:[ \t]*(?:#.*)?\n)*)$/.exec(text) : null
+  const value = list?.[1] ?? ''
+  const entries = list === null ? null : allowedTools(value)
+  if (entries === null) return text
+  const kept = entries.filter((entry) => (agent ? !/^mcp__/i.test(entry) : readOnlyGrant(entry)))
+  if (kept.length === entries.length || (agent && kept.length === 0)) return text
+  if (kept.length === 0) return ''
+  const quote = /^\s*(["']?)/.exec(value)?.[1] ?? ''
+  return `${key}: ${quote}${kept.join(', ')}${quote}\n${list?.[2] ?? ''}`
 }
 
 /**
@@ -162,31 +277,20 @@ export function inlineCommands(text) {
  * @returns {Buffer}
  */
 export function pluginCopy(rel, source) {
-  if (!PROMPT_FILE.test(rel)) return source
-  const text = source.toString('utf8').replaceAll(PROJECT_SCRIPT, PLUGIN_SCRIPT)
-  const end = text.startsWith('---\n') ? text.indexOf('\n---\n', 3) : -1
-  if (end === -1) return Buffer.from(text, 'utf8')
-  const ownCommands = new Set(inlineCommands(text))
-  /** @param {string} entry */
-  const keep = (entry) => {
-    const bash = /^Bash(?:\((.*)\))?$/.exec(entry)
-    if (bash === null) return true
-    const command = bash[1] ?? ''
-    return ownCommands.has(command) || command.startsWith(PLUGIN_SCRIPT)
-  }
-  // A value in another form is left as it is: check-plugin-manifest reds it in a source it reads.
-  const head = text.slice(0, end).replace(/^allowed-tools:(.*)$/m, (line, /** @type {string} */ value) => {
-    const entries = allowedTools(value)
-    if (entries === null) return line
-    const quote = /^\s*(["']?)/.exec(value)?.[1] ?? ''
-    return `allowed-tools: ${quote}${entries.filter(keep).join(', ')}${quote}`
-  })
-  return Buffer.from(head + text.slice(end), 'utf8')
+  const kind = componentKind(rel)
+  const text = source.toString('utf8')
+  const end = kind !== null && text.startsWith('---\n') ? text.indexOf('\n---\n', 3) : -1
+  const entries = end === -1 ? null : frontmatterEntries(text.slice(4, end + 1))
+  // A frontmatter in another form is copied as it is: check-plugin-manifest reds it.
+  if (kind === null || entries === null) return source
+  const head = entries.filter((entry) => COPY_KEYS[kind].includes(entry.key)).map((entry) => copyEntry(kind, entry))
+  return Buffer.from(`---\n${head.join('')}${text.slice(end + 1)}`, 'utf8')
 }
 
 /**
  * Every generated file of plugin/, keyed by its POSIX path inside plugin/, with the
- * repository path it is copied from.
+ * repository path it is copied from: each component file of a type the plugin directory
+ * accepts (typeProblem), and LICENSE.
  * @param {string} root
  * @returns {Map<string, string>}
  */
@@ -194,7 +298,8 @@ export function generatedFiles(root) {
   const out = new Map()
   for (const sub of COMPONENTS) {
     for (const rel of walkFiles(join(root, COMPONENT_SOURCE, sub))) {
-      out.set(`${sub}/${rel}`, `${COMPONENT_SOURCE}/${sub}/${rel}`)
+      const src = `${COMPONENT_SOURCE}/${sub}/${rel}`
+      if (typeProblem(rel, readFileSync(join(root, src))) === null) out.set(`${sub}/${rel}`, src)
     }
   }
   out.set('LICENSE', 'LICENSE')

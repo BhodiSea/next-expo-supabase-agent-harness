@@ -4,17 +4,16 @@ description: >
   Verifies every // SOURCE: (-- SOURCE: in SQL) and ADR citation in the changed
   files. MUST BE USED before finishing a feature and on /verify-citations. Use
   PROACTIVELY to reject hallucinated or unresolvable citations. Cannot edit code.
-tools: Read, Grep, Glob, mcp__corpus_search
+tools: Read, Grep, Glob
 disallowedTools: Write, Edit
 model: sonnet
-harnessFallbackModels: opus, fable
 ---
 
 <!--
-  The mcp__corpus_search server (tools: corpus_search + corpus_resolve, over the
-  version-pinned corpus: the harness's tools/mcp/corpus/index.json and the
-  project's tools/mcp/corpus/project.json) IS wired in (see `tools:` above). Use it
-  to resolve `[corpus: <id>]` references and internal doc ids.
+  When `tools:` above names the mcp__corpus_search server (tools: corpus_search +
+  corpus_resolve, over the version-pinned corpus: the harness's
+  tools/mcp/corpus/index.json and the project's tools/mcp/corpus/project.json), use
+  it to resolve `[corpus: <id>]` references and internal doc ids.
   NO WebFetch, since 0.9.0: this agent reads the whole repository and its report
   egresses to the caller, so an external-fetch tool handed it all three
   lethal-trifecta legs in one place (repo read + untrusted web content + a channel

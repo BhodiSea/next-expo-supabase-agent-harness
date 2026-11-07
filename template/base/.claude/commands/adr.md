@@ -4,12 +4,10 @@ argument-hint: "[slice-name]"
 allowed-tools: Read, Grep, Glob, Bash(date +%Y%m%d), Bash(node tools/spec-anchor.mjs:*)
 ---
 
-Today's date (the command engine does NOT expand `$(...)`, so use this inline line):
+Get today's date with `date +%Y%m%d` and use it as `<YYYYMMDD>`.
 
-!`date +%Y%m%d`
-
-Write an ADR to `docs/adr/<YYYYMMDD>-$1.md` (use the date printed above as `<YYYYMMDD>`)
-from the template at `docs/adr/0000-adr-template.md`. Fill in every section:
+Write an ADR to `docs/adr/<YYYYMMDD>-$1.md` from the template at
+`docs/adr/0000-adr-template.md`. Fill in every section:
 
 - **Context** — the problem and constraints driving this slice.
 - **Decision** — what was chosen.
