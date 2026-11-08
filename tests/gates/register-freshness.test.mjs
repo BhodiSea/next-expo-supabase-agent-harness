@@ -30,66 +30,73 @@ const run = (args = []) => {
   return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` }
 }
 
+/** A pattern that matches `path` literally. @param {string} path */
+const pathRe = (path) => new RegExp(path.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&'))
+
+/** @param {string} day @param {number} n */
+const plusDays = (day, n) =>
+  new Date(Date.parse(`${day}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10)
+
+/**
+ * Each seed's last day under review, read from the seeds: the earliest `reviewedUntil`
+ * across the floor's packages and across the support register's rows, the eol register's
+ * `reviewedUntil`, and cc-floor.json's `checkedOn` plus the gate's fixed 45 days (2.0.8).
+ * @returns {Record<string, string>}
+ */
+function lastDays() {
+  /** @param {string} name */
+  const seed = (name) => JSON.parse(readFileSync(join(ROOT, 'template/base/tools', name), 'utf8'))
+  /** @param {any[]} rows */
+  const earliest = (rows) => rows.map((r) => String(r.reviewedUntil)).sort()[0]
+  const support = seed('support-register.json')
+  return {
+    'tools/framework-floor.json': earliest(Object.values(seed('framework-floor.json').packages)),
+    'tools/cc-floor.json': plusDays(String(seed('cc-floor.json').checkedOn), 45),
+    'tools/eol.json': String(seed('eol.json').reviewedUntil),
+    'tools/support-register.json': earliest([...support.services, ...support.platforms]),
+  }
+}
+
 test('the SHIPPED seeds carry a live review today — the green half', () => {
   const r = run()
   assert.equal(r.code, 0, r.out)
   assert.match(r.out, /REGISTER FRESHNESS: CLEAN/)
   // Anti-vacuity read from the outside: a run that reached no register would also print
   // "CLEAN" if the count were not in the line, which is why it is.
-  assert.match(r.out, /2 shipped register\(s\)/)
+  assert.match(r.out, /4 shipped register\(s\)/)
 })
 
-test('a lapsed review reds, and names BOTH registers and the date', () => {
+test('a lapsed review reds, and names EVERY register and the date', () => {
   const r = run(['--today=2099-01-01'])
   assert.equal(r.code, 1)
-  assert.match(r.out, /tools\/framework-floor\.json/)
-  assert.match(r.out, /tools\/eol\.json/)
+  for (const path of Object.keys(lastDays())) assert.match(r.out, pathRe(path))
   assert.match(r.out, /today is 2099-01-01/)
 })
 
-/**
- * The two shipped review windows, read from the seeds: the earliest and latest
- * `reviewedUntil` across the floor's packages, and the eol register's.
- */
-function shippedWindows() {
-  const floor = JSON.parse(readFileSync(join(ROOT, 'template/base/tools/framework-floor.json'), 'utf8'))
-  const eol = JSON.parse(readFileSync(join(ROOT, 'template/base/tools/eol.json'), 'utf8'))
-  const floorUntil = Object.values(floor.packages)
-    .map((/** @type {any} */ p) => String(p.reviewedUntil))
-    .sort()
-  return { floorFirst: floorUntil[0], floorLast: floorUntil[floorUntil.length - 1], eol: String(eol.reviewedUntil), floorUntil }
-}
-
-test('each seed reds INDEPENDENTLY — one lapse is not masked by the other', () => {
-  // The two windows close on different days (the next test pins that), so the last day of
-  // the later one catches exactly the earlier one. A check that only ever reported them
-  // together could be reading one register and attributing it to both.
-  // DERIVED, not typed (1.0.2): this read `--today=2026-09-10` against the 0.9.9 windows,
-  // so every honest re-review moved both dates past it and turned the test red for a
-  // reason that had nothing to do with isolation. A review lapses when reviewedUntil is
-  // BEFORE today, so on the later register's own last day the earlier one has lapsed and it
-  // has not. WHICH REGISTER CLOSES FIRST IS DERIVED TOO (2.0.0): the test used to assume the
-  // floor did, so the 2.0.0 floor review, whose window runs past the eol register's, turned
-  // it red for the same unrelated reason.
-  const w = shippedWindows()
-  const floorFirst = w.floorLast < w.eol
-  const r = run([`--today=${floorFirst ? w.eol : w.floorFirst}`])
-  assert.equal(r.code, 1)
-  const [lapsed, live] = floorFirst
-    ? [/tools\/framework-floor\.json/, /tools\/eol\.json/]
-    : [/tools\/eol\.json/, /tools\/framework-floor\.json/]
-  assert.match(r.out, lapsed)
-  assert.doesNotMatch(r.out, live)
+test('each seed reds on the day after its own last day, and not before', () => {
+  // A check that only ever reported the registers together could be reading one and
+  // attributing it to all. On a seed's own last day every seed whose window closed earlier
+  // has lapsed and reds, and this one must not; the next day it must.
+  // DERIVED, not typed (1.0.2): a typed date turned red on every honest re-review that
+  // moved a window past it, for a reason that had nothing to do with isolation. The days
+  // and their order are read from the seeds (2.0.0), and since 2.0.8 there are four.
+  for (const [path, last] of Object.entries(lastDays())) {
+    const re = pathRe(path)
+    assert.doesNotMatch(run([`--today=${last}`]).out, re, `${path} reds on its last day, ${last}`)
+    const after = run([`--today=${plusDays(last, 1)}`])
+    assert.equal(after.code, 1, after.out)
+    assert.match(after.out, re, `${path} does not red the day after ${last}`)
+  }
 })
 
-test('the shipped windows really do close on different days, as the test above assumes', () => {
-  // Pins what the isolation test straddles. Without this, two windows ending on the same
-  // day (or a floor package on each side of the eol register) would silently turn that test
-  // into a duplicate of the one above it — still green, still passing, proving half as much.
-  const w = shippedWindows()
+test('the shipped windows do not all close on one day, as the test above assumes', () => {
+  // Pins what the isolation test straddles. Were every window to close on the same day, no
+  // seed would be read while another had lapsed, and that test would prove only that each
+  // register reds at all.
+  const days = lastDays()
   assert.ok(
-    w.floorLast < w.eol || w.eol < w.floorFirst,
-    `every framework-floor window must close on one side of tools/eol.json's for the isolation test to isolate anything; got floor ${w.floorUntil.join(',')} vs eol ${w.eol}`,
+    new Set(Object.values(days)).size > 1,
+    `the four review windows close on one day: ${JSON.stringify(days)}`,
   )
 })
 

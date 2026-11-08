@@ -63,10 +63,11 @@ no gate reads the Claude Code version a developer runs.
   re-taken.** The snapshot in `tools/cc-floor.json` dated from 2026-08-15 and its 45-day window
   ended on 2026-09-29, so the scheduled `floor-review` job has been red on it since 2026-09-30,
   in every install and in every scaffold made since. The factory's nightly
-  `registers-clockful` job reads only `framework-floor.json` and `eol.json`, so nothing here
-  noticed. Re-taken on 2026-11-08, GitHub's reviewed database returns 29 advisories, one more
-  than before: GHSA-pq7j-f95f-qfcv (CVE-2026-86063, High, fixed in 2.1.179), where installing
-  a plugin pinned to a commit SHA could install a branch named like that SHA. Anthropic's own
+  `registers-clockful` job read only `framework-floor.json` and `eol.json`, so nothing here
+  noticed; it now reads `cc-floor.json` and `support-register.json` too. Re-taken on
+  2026-11-08, GitHub's reviewed database returns 29 advisories, one more than before:
+  GHSA-pq7j-f95f-qfcv (CVE-2026-86063, High, fixed in 2.1.179), where installing a plugin
+  pinned to a commit SHA could install a branch named like that SHA. Anthropic's own
   advisory page lists three more npm advisories that neither that database nor OSV's npm
   records held that day: GHSA-5j29-h97v-84ch (CVE-2026-103435, High, 2.1.129) and
   GHSA-5xjx-9qx6-jcrv (CVE-2026-88968, High, 2.1.251), where a symlink swapped in after the
