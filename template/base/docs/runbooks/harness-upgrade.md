@@ -4710,8 +4710,9 @@ next review falls due by 2026-12-23, and moves the floor from 2.1.163 to **2.1.2
 npm advisories Anthropic has published since:
 
 - [CVE-2026-103012](https://github.com/anthropics/claude-code/security/advisories/GHSA-gfvf-j8jh-jxxw)
-  (Low, fixed in 2.1.260): a stored API key, preferred over an Enterprise or Team sign-in,
-  could start a session without the organisation's server-managed settings, or with a stale
+  (Low, fixed in 2.1.260): in a session signed in with an Enterprise or Team account, Claude
+  Code fetched the organisation's server-managed settings with a stored API key instead, and
+  when the endpoint refused the key, the session ran without those settings, or with a stale
   copy of them. File and MDM managed settings were not affected.
 - [CVE-2026-88968](https://github.com/anthropics/claude-code/security/advisories/GHSA-5xjx-9qx6-jcrv)
   (High, fixed in 2.1.251): on macOS, code inside the Bash sandbox could make an Edit write
@@ -4729,8 +4730,12 @@ address beside `github.com/advisories/`.
 
 `tools/cc-floor.json` is harness-owned, so `update` refreshes it and the `floor-review` red
 clears. Nothing reds on the floor itself: no gate reads the version of Claude Code you run.
-Claude Code's auto-update has already delivered these fixes; if you update it by hand, check
-that it reports 2.1.260 or later:
+The file also recommends **2.1.309**. Three hook fixes since the floor, none with an
+advisory, keep the harness's guards from failing open: a PreToolUse hook was skipped when
+matching it failed or the tool's input could not be serialized (2.1.288), and on Windows
+without Git for Windows a hook that set no shell failed open (2.1.299) and one that ran in
+PowerShell did not block on exit code 2 (2.1.309). Claude Code's auto-update has already
+delivered these fixes; if you update it by hand, check that it reports 2.1.309 or later:
 
 ```
 claude --version

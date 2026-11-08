@@ -71,15 +71,22 @@ no gate reads the Claude Code version a developer runs.
   records held that day: GHSA-5j29-h97v-84ch (CVE-2026-103435, High, 2.1.129) and
   GHSA-5xjx-9qx6-jcrv (CVE-2026-88968, High, 2.1.251), where a symlink swapped in after the
   path check took a file write outside the workspace, and GHSA-gfvf-j8jh-jxxw
-  (CVE-2026-103012, Low, 2.1.260), where a stored API key could start an Enterprise or Team
-  session without its server-managed settings. The floor is the earliest release outside
-  every published vulnerable range, so it counts all four. The three rows that database lacks
-  cite the vendor's record until it has them: `version-sync` required a `github.com/advisories/`
-  address and now also accepts one on Claude Code's own advisory page. `recommended`
-  moves to 2.1.260 as well, since the floor now covers `sandbox.network.strictAllowlist`
-  (2.1.219). The next review falls due by 2026-12-23. The file is owned, so `update` refreshes
-  it. Claude Code's auto-update has already delivered the fixes, and the runbook's 2.0.8
-  section says how to check the version.
+  (CVE-2026-103012, Low, 2.1.260), where a session signed in with an Enterprise or Team
+  account fetched its server-managed settings with a stored API key, and ran without them, or
+  on a stale copy, when the endpoint refused the key. The floor is the earliest release
+  outside every published vulnerable range, so it counts all four. The three rows that
+  database lacks cite the vendor's record until it has them: `version-sync` required a
+  `github.com/advisories/` address and now also accepts one on Claude Code's own advisory
+  page. `recommended` moves to 2.1.309, for three hook fixes above the floor that carry no
+  advisory and reach the shipped guards: before them a PreToolUse hook was skipped when
+  matching it failed or the tool's input could not be serialized (2.1.288), and on Windows
+  without Git for Windows a hook that set no shell failed open (2.1.299) and one that ran in
+  PowerShell did not block on exit code 2 (2.1.309). The file's `uncvedHookFixes` records
+  them beside the hook fixes that do not reach the shipped guards, and a new note lists three
+  VulnCheck CVE records that neither of its advisory queries returns, all below the floor.
+  The next review falls due by 2026-12-23. The file is owned, so `update` refreshes it.
+  Claude Code's auto-update has already delivered the fixes, and the runbook's 2.0.8 section
+  says how to check the version.
 
 ## [2.0.7] — 2026-11-07
 

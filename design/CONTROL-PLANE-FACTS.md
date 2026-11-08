@@ -233,8 +233,8 @@ worktree isolation: only above the floor.
 
 The 2026-11-08 re-query (harness 2.0.8) returned **29**. The new one, CVE-2026-86063
 (patched 2.1.179), let a branch named like a plugin's pinned commit SHA be installed in its
-place. The vendor's own advisory page
-(`gh api "/repos/anthropics/claude-code/security-advisories"`) lists three more npm-scoped
+place, on a git host that allows branch names shaped like a SHA. The vendor's own advisory
+page (`gh api "/repos/anthropics/claude-code/security-advisories"`) lists three more npm-scoped
 advisories that neither GitHub's reviewed database nor OSV's npm records held that day:
 CVE-2026-103435 (2.1.129) and CVE-2026-88968 (2.1.251), symlink races that took a file write
 outside the workspace, and CVE-2026-103012 (2.1.260), server-managed settings not applied
@@ -246,14 +246,27 @@ Four advisories on the `anthropics/claude-code` repository advisory page, two of
 2026-08-15, are scoped to **Claude Desktop** (ecosystem `anthropic` or `other`), not npm, and
 **must not** set this floor.
 
+Three CVE records from VulnCheck, CVE-2026-35020, -35021 and -35022, are unreviewed advisories
+in GitHub's database with no package mapping, so neither query returns them;
+`gh api "/advisories?cve_id=<CVE-id>"` does. They give Claude Code through 2.1.91 as affected
+and state no fixed version; that range ends below the floor, so they set nothing. The file
+lists them under `unreviewedWithoutPackage`.
+
 Separately, three changelog fixes matter to a harness whose enforcement layer is hooks, and
 none carries a CVE: a PreToolUse hook returning `"allow"` could bypass `permissions.deny`
 including enterprise managed settings (2.1.77); `permissions.deny` did not override a hook's
 `permissionDecision: "ask"` (2.1.101); and `PermissionRequest` `updatedInput` was not
-re-checked against `permissions.deny` (2.1.110). The changelog from 2.1.163 to 2.1.319, read
-on 2026-11-08, adds more hook-versus-permission fixes, and none reaches the shipped hooks:
-they only deny or stay silent, never approve or rewrite a call, and the bash guard matches
-`Monitor` itself (2.1.314 made Bash-matching hooks run on Monitor's commands).
+re-checked against `permissions.deny` (2.1.110). The changelog read on 2026-11-08 adds more.
+The file's `uncvedHookFixes` lists two below the 2.1.260 floor (2.1.211, 2.1.222) and, above
+it, every one but those its note sets aside. Three, all above the floor, reach the shipped
+guards, which set no shell and fail closed through exit 2: PreToolUse hooks were skipped when
+matching them failed or the tool's input could not be serialized to JSON (2.1.288), and on
+Windows without Git for Windows a hook that set no shell failed open (2.1.299) and a hook
+that ran in PowerShell did not block on exit code 2 (2.1.309). They carry no advisory, so
+they set no required floor, and `recommended` is **2.1.309** for them. The others need what
+the shipped guards never do: approve, ask or rewrite a call, run a command that is only quoted
+strings (2.1.310) or that begins with a type cast, `param`, `using` or an attribute (2.1.316),
+or match `Bash` without `Monitor` (2.1.314).
 
 ## Fact 11 — only MANAGED hooks survive `disableAllHooks`
 

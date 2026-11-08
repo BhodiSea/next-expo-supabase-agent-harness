@@ -13,8 +13,8 @@
   },
 
   "recommended": {
-    "version": "2.1.260",
-    "why": "The same as `required.version`, which covers every feature below. The field stays so that a feature above the security floor can be recommended without being required: a floor that overreaches is a floor people route around.",
+    "version": "2.1.309",
+    "why": "Above `required.version` for the last feature below: the hook fixes the shipped guards need carry no advisory, so they set no floor. The field exists so that a feature above the security floor can be recommended without being required: a floor that overreaches is a floor people route around.",
     "featureFloors": [
       {
         "version": "2.1.47",
@@ -31,6 +31,10 @@
       {
         "version": "2.1.219",
         "feature": "`sandbox.network.strictAllowlist` (user/managed/CLI settings only — ignored from project settings)."
+      },
+      {
+        "version": "2.1.309",
+        "feature": "PreToolUse and PermissionRequest hooks that block reliably. The call is blocked when matching its hooks fails or the tool's input cannot be serialized to JSON (2.1.288), when a hook that sets no shell fails on Windows without Git for Windows (2.1.299), and when a hook that runs in PowerShell exits with code 2 (2.1.309). Each of the three reaches the shipped guards (`uncvedHookFixes`)."
       }
     ]
   },
@@ -144,7 +148,7 @@
       "patched": "2.1.260",
       "summary": "Managed settings not applied when a stored API key was preferred over Enterprise sign-in",
       "url": "https://github.com/anthropics/claude-code/security/advisories/GHSA-gfvf-j8jh-jxxw",
-      "whyItMattersHere": "docs/security/managed-settings.md makes managed settings the one layer a developer cannot switch off, and server-managed delivery is one of its routes. A stored API key could start an Enterprise or Team session without that policy, or on a stale copy of it; file and MDM delivery were not affected. It sets the required floor."
+      "whyItMattersHere": "docs/security/managed-settings.md makes managed settings the one layer a developer cannot switch off, and server-managed delivery is one of its routes. A session signed in with an Enterprise or Team account fetched that policy with a stored API key instead, and when the endpoint refused the key, the session ran without the policy, or on a stale cached copy of it; file and MDM delivery were not affected. It sets the required floor."
     },
     {
       "id": "CVE-2026-103435",
@@ -192,7 +196,51 @@
       "what": "`PermissionRequest` hooks returning `updatedInput` were not re-checked against `permissions.deny`."
     },
     {
-      "note": "None of these three carries a CVE, so no advisory query finds them — and every one is a hook-versus-permission interaction, which is precisely this harness's enforcement model. They sit BELOW the required floor, so the floor already covers them; they are recorded because the next person to compute a floor should know that the advisory database alone would have missed them."
+      "version": "2.1.211",
+      "what": "Auto mode overrode a PreToolUse hook's `ask` decision for unsandboxed Bash; a hook's `ask` now floors the decision at a prompt."
+    },
+    {
+      "version": "2.1.222",
+      "what": "PreToolUse auto-allow hooks bypassed tool restrictions in background agent tasks (summaries, compaction, renames)."
+    },
+    {
+      "version": "2.1.288",
+      "what": "PreToolUse and PermissionRequest hooks were skipped when matching them failed or the tool's input could not be serialized to JSON; the call is now blocked."
+    },
+    {
+      "version": "2.1.290",
+      "what": "Some permission rules and safety checks were not applied to a tool call after a PreToolUse hook rewrote its input."
+    },
+    {
+      "version": "2.1.292",
+      "what": "PreToolUse hook approvals and auto mode bypassed the permission prompt for file reads from network (UNC) paths. The changelog marks it \"Security\"."
+    },
+    {
+      "version": "2.1.299",
+      "what": "On Windows, PreToolUse and PermissionRequest hooks that set no shell failed open when Git for Windows was not installed; a guard that fails now blocks the call."
+    },
+    {
+      "version": "2.1.299",
+      "what": "Plan mode ran a write (an MCP tool's, a file's, a shell command's) that a PreToolUse hook allowed."
+    },
+    {
+      "version": "2.1.309",
+      "what": "Hooks that run in PowerShell did not block when the hook's program exited with code 2, and on Windows, PreToolUse and PermissionRequest hooks with `\"shell\": \"powershell\"` failed open when Git for Windows was not installed."
+    },
+    {
+      "version": "2.1.310",
+      "what": "On Windows, PreToolUse and PermissionRequest hooks let a tool call through when Git Bash was missing and the hook's command was only quoted strings, such as a quoted path."
+    },
+    {
+      "version": "2.1.314",
+      "what": "Hooks matching Bash did not run on shell commands started by the Monitor tool; such hooks can block or ask, but not approve or rewrite those commands."
+    },
+    {
+      "version": "2.1.316",
+      "what": "PowerShell hooks did not block on exit code 2 when the command began with a type cast, `param`, `using` or an attribute."
+    },
+    {
+      "note": "None of these carries a CVE, so no advisory query finds them, and each is a hook-versus-permission interaction, which is this harness's enforcement model. The first five sit below the required floor, which covers them. Above it, three reach the shipped guards, which set no shell and fail closed through exit 2: 2.1.288, and on Windows without Git for Windows the 2.1.299 shell fix and 2.1.309's exit-code-2 fix. `recommended` covers them. The rest need what the shipped guards never do: return allow, ask or `updatedInput`, run a command that is only quoted strings (2.1.310) or that begins with a type cast, `param`, `using` or an attribute (2.1.316), or match Bash without Monitor (2.1.314). Above the floor this is every such fix in the changelog up to 2.1.319, read on 2026-11-08, except those that concern only mods, prompt, agent, http or mcp_tool hooks, hook events the harness does not use, or cloud and Desktop sessions. They are recorded because the next person to compute a floor should know that the advisory database alone would have missed them."
     }
   ],
 
@@ -216,6 +264,15 @@
       "ghsa": "GHSA-4p2j-qj3c-6x84",
       "product": "Claude Desktop (Windows)",
       "why": "Same: repository advisory page, `anthropic` ecosystem, returns 404 from /advisories/<ghsa>."
+    }
+  ],
+
+  "unreviewedWithoutPackage": [
+    { "id": "CVE-2026-35020", "ghsa": "GHSA-jgg3-qqhf-7rx7" },
+    { "id": "CVE-2026-35021", "ghsa": "GHSA-72p2-f44p-v65f" },
+    { "id": "CVE-2026-35022", "ghsa": "GHSA-479q-mw77-pmr5" },
+    {
+      "note": "CVE records from VulnCheck that GitHub holds as unreviewed advisories with no package mapping, so neither `advisorySource` nor `vendorAdvisorySource` returns them; `gh api \"/advisories?cve_id=<CVE-id>\"` does. They give Claude Code through 2.1.91 as affected and state no fixed version. That range ends below the required floor, so they set nothing."
     }
   ],
 
