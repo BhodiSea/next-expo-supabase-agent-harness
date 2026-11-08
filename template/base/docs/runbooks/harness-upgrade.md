@@ -4732,7 +4732,7 @@ GitHub's advisory database does not have the first, second and fourth yet, so th
 Anthropic's record, and `tools/lib/cc-floor.mjs`, which `version-sync` runs, now accepts that
 address beside `github.com/advisories/`.
 
-`tools/cc-floor.json` is harness-owned, so `update` refreshes it and the `floor-review` red
+`tools/cc-floor.json` is harness-owned, so `update` refreshes it and its `floor-review` finding
 clears. Nothing reds on the floor itself: no gate reads the version of Claude Code you run.
 The file also recommends **2.1.309**. Three hook fixes since the floor, none with an
 advisory, keep the harness's guards from failing open: a PreToolUse hook was skipped when
@@ -4744,6 +4744,30 @@ delivered these fixes; if you update it by hand, check that it reports 2.1.309 o
 ```
 claude --version
 ```
+
+### `tools/eol.json` re-reviewed
+
+The template's end-of-life register is re-reviewed to 2026-12-09. The registry sweep found no
+new deprecation, and Expo's supported set is unchanged. `react-native` 0.85 leaves the set,
+because the vendor's table now calls it Unsupported. The scaffold has never shipped below
+0.86, so that reds only a tree that was moved down by hand.
+
+The register is seeded, so `update` does not deliver the review. A register from 2.0.3 or
+earlier lapsed on 2026-10-20 or before, one from 2.0.4 to 2.0.7 lapses on 2026-11-20, and
+your scheduled `floor-review` job reds on a lapsed register whichever release you run. Two
+ways to clear it:
+
+```
+# if you have never edited tools/eol.json: take the harness's register
+# (overwrites when untouched, parks on drift)
+npx next-expo-supabase-agent-harness@latest update --refresh-seeded tools/eol.json
+
+# if you have your own rows: run pnpm install, re-read them against what it resolves,
+# and move reviewedOn and reviewedUntil yourself
+```
+
+From 2.0.3 or earlier, read the 2.0.4 section's `tools/eol.json` re-reviewed first: the
+refreshed register has no `uuid` row.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

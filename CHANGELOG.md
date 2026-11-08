@@ -18,9 +18,10 @@ This lineage's own history starts at 0.1.3.
 scheduled `floor-advisories` job in `hygiene.yml` is red on them. 2.0.8 moves the floor and
 the pin to 16.4.5 (15.5.29 on the 15 line), records all seven, and gives the floor a new
 review window. It also re-takes the Claude Code advisory snapshot, whose review window ended
-on 2026-09-29, and moves the Claude Code floor from 2.1.163 to 2.1.260 for four advisories
-published since. No gate is added, the chain length does not change, and no ramp opens or
-moves. The `template/migrations.json` record withholds nothing and restates 2.0.0's
+on 2026-09-29, moves the Claude Code floor from 2.1.163 to 2.1.260 for four advisories
+published since, and re-reviews `tools/eol.json`, whose window ends on 2026-11-20. No gate is
+added, the chain length does not change, and no ramp opens or moves. The
+`template/migrations.json` record withholds nothing and restates 2.0.0's
 twenty-vintage `rampExpiry` population. `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by
 `2.0.7`.
 
@@ -30,8 +31,11 @@ any `next` pin below the new floor until the consumer raises it. The remedy is i
 `docs/runbooks/harness-upgrade.md`, 2.0.8 section. An install that stays on an earlier
 release keeps the review window 2.0.3 set, which lapses on 2026-11-16, and its scheduled
 `floor-review` job then reds on it. That job has been red since 2026-09-30 on the lapsed
-Claude Code snapshot, and taking 2.0.8 clears it. The Claude Code floor itself reds nothing:
-no gate reads the Claude Code version a developer runs.
+Claude Code snapshot, and taking 2.0.8 clears that finding. It does not deliver the
+re-reviewed `tools/eol.json`, which is seeded: an install's own register lapsed on 2026-10-20
+or before if it came from 2.0.3 or earlier, and lapses on 2026-11-20 if it came from 2.0.4 to
+2.0.7. The runbook's 2.0.8 section says how to take the new one. The Claude Code floor itself
+reds nothing: no gate reads the Claude Code version a developer runs.
 
 ### Security
 
@@ -112,6 +116,13 @@ no gate reads the Claude Code version a developer runs.
   `example.com`, and its README and redaction test name account identifiers among the PII
   shapes to add. The module's two docs are owned and reach an install with `update`; the
   test is seeded, so only a new scaffold gets it.
+- **`tools/eol.json` is re-reviewed, to 2026-12-09.** The window 2.0.4 set ends on
+  2026-11-20, after which every new scaffold's `floor-review` would have failed on it. The
+  registry sweep over a fresh strict-tier scaffold found the same six deprecations, none in
+  the production closure. Expo's supported set is unchanged (SDK 58, 57 and 56). The
+  vendor's table now calls `react-native` 0.85 Unsupported, so it leaves the set; every
+  release of this harness pins 0.86.2. **The register is seeded, so `update` does not
+  deliver the review**: the runbook's 2.0.8 section says how to take it.
 
 ## [2.0.7] — 2026-11-07
 

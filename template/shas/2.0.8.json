@@ -926,7 +926,7 @@
     ],
     "docs/runbooks/harness-upgrade.md": [
       {
-        "sha256": "2dc4cd7539a4ae7c167890dfc242a66877a58c12b3dd881f1c560b92a1b2c8b5",
+        "sha256": "a5a72773a18233b9ad77bcd8e97c2449678373260384619370bad850eaaf0d03",
         "sites": [
           [
             14122,
@@ -1849,7 +1849,7 @@
     ],
     "tools/lib/planted-shas.json": [
       {
-        "sha256": "b812fcb8cdf3af167fb86ba910bf29dc851287ddfe51332f3411fb2081eb876f"
+        "sha256": "1ef63c05e11ed7b8f2eccb123772c53534bcffdde4efd7ffd434f82de61d9a59"
       }
     ],
     "tools/lib/png.mjs": [
@@ -2151,7 +2151,7 @@
     ],
     "tools/eol.json": [
       {
-        "sha256": "560f282b1c110b64148ef502b777d4479f3ceddf389f4669edd8c57bc1b6e2c3"
+        "sha256": "143cd815089177586f220497143d75bd9022a8abab441147c061343508ad5938"
       }
     ],
     "tools/expo-permissions.json": [
