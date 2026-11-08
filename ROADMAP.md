@@ -35,7 +35,9 @@ when they fall due.
   the floor and the pin to 16.3.8 (15.5.27 on the 15 line) and records all
   five. Red again from 2026-10-14 on three advisories (two Critical RCEs and a
   Server Actions DoS); 2.0.3 moves the floor and the pin to 16.4.1 (15.5.28 on
-  the 15 line). This bullet leaves the list once a
+  the 15 line). Red again on seven Moderate advisories upstream published on
+  2026-11-03; 2.0.8 moves the floor and the pin to 16.4.5 (15.5.29 on the 15
+  line) and records all seven. This bullet leaves the list once a
   scheduled run of the released tree is green end to end.
 - **Find why the scheduled device lane's perf-harness phase goes red.** The
   mutation journey of issue #10 has passed since 1.0.0 fixed it, but

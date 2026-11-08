@@ -1393,5 +1393,37 @@
       ],
       "why": "2.0.7 opens no escape and closes none. The population above is 2.0.0's, restated because a direct hop from any of these vintages crosses 2.0.0's record: the 1.1.0 fleet falls due as it does at 2.0.0, and the documented sweep (docs/runbooks/harness-upgrade.md, the 1.1.0 and 2.0.0 sections; scripts/ci/upgrade-sweep.mjs SWEEPS['1.1.0'] and SWEEPS['2.0.0']) is what clears it. A 1.1.0, 2.0.0, 2.0.1, 2.0.2, 2.0.3, 2.0.4, 2.0.5 or 2.0.6 install meets nothing that expires. Read the count off `node scripts/ci/ramp-expectations.mjs <base> 2.0.7`, never off this paragraph."
     }
+  },
+  "2.0.8": {
+    "//": [
+      "2.0.8 — a security patch. The version bump changes the nine hook version stamps and the upgrade runbook, both OWNED and re-planted by `update` when sha-unmodified, and tools/framework-floor.json moves (below). A patch opens no ramp and moves no deadline, so the record carries no removed/renamed/configSteps/seedOnInitOnly/seededSourceFixes/dependencyObligations and no rampExtensions, and scripts/ci/upgrade-sweep.mjs needs no SWEEPS['2.0.8'] entry: nothing is withheld.",
+      "THE `next` FLOOR MOVES TO 16.4.5, AND THE 15.x FLOOR TO 15.5.29 (security), and it reds every install below them, which is not a ramp and exempts no vintage. Seven Moderate advisories upstream published on 2026-11-03, none in OSV on the day of review (2026-11-08): GHSA-pc58-hwjq-p385 (response injection across clients when a route handler returns a fetched response unchanged, self-hosted behind a pipelining HTTP/1.1 proxy, both lines), GHSA-rhh4-g77r-r9qj (use cache keys collide on binary arguments), GHSA-vvgp-ww4w-46vf (fallback shell cache poisoning with cacheComponents under next start), GHSA-7qx7-33qx-rqx2 (an SVG past dangerouslyAllowSVG: false in /_next/image, self-hosted, both lines), GHSA-mfr8-8qww-v76h and GHSA-vc7v-qv4w-wrv8 (use cache entries served across root param values) and GHSA-f3mh-rxg3-f5g2 (HttpOnly cookie values in a response header on Edge routes, both lines). 16.4.5 fixes all seven and 15.5.29 the three on the 15 line. As shipped the scaffold enables no Cache Components, has no use cache function, and its two route handlers run on Node.js and return no fetched response, so none of the seven reaches it; the /_next/image endpoint exists in every install. tools/framework-floor.json is OWNED, so `update` re-plants it when sha-unmodified (minPatchByMajor 16 to 16.4.5 and 15 to 15.5.29, the seven rows, and the review window 2026-11-08 to 2026-12-08, which replaces the one that lapses on 2026-11-16), and the upgrade runbook with it. pnpm-workspace.yaml is SEEDED, so `update` does not touch the pin: fresh scaffolds pin 16.4.5, and on an existing install the first `pnpm validate` after the hop reds `version-sync` on any `next` pin below 16.4.5 (15.5.29 on the 15 line), naming the pin, the floor and the advisories. The remedy is the consumer's: raise the catalog pin, `pnpm install`, commit pnpm-lock.yaml and pnpm-workspace.yaml (docs/runbooks/harness-upgrade.md, 2.0.8 section). From 16.4.1 or 16.4.2 that is a patch on the same minor. scripts/ci/apply-framework-floor.mjs plays the same remedy in the upgrade lane before it judges the chain, as it did for 2.0.1 and 2.0.3. No catalogPinFloors entry, for 2.0.0's reason: the framework floor already judges this pin, in the chain."
+    ],
+    "rampExpiry": {
+      "//": "COMPUTED by scripts/check-ramp-ledger.mjs at version 2.0.8 and copied from its output, never typed. The vintage list is identical to 2.0.7's, and 2.0.0's, for the reason 1.0.4's was identical to 1.0.3's: a patch closes no new escape, but a direct hop from an old vintage crosses 2.0.0's record and meets its expiries on arrival, so the population is restated rather than inherited by implication.",
+      "affects": [
+        "0.1.3",
+        "0.2.0",
+        "0.2.1",
+        "0.3.0",
+        "0.4.0",
+        "0.5.0",
+        "0.6.0",
+        "0.7.0",
+        "0.8.0",
+        "0.9.0",
+        "0.9.5",
+        "0.9.9",
+        "0.10.0",
+        "0.11.0",
+        "0.11.1",
+        "1.0.0",
+        "1.0.1",
+        "1.0.2",
+        "1.0.3",
+        "1.0.4"
+      ],
+      "why": "2.0.8 opens no escape and closes none. The population above is 2.0.0's, restated because a direct hop from any of these vintages crosses 2.0.0's record: the 1.1.0 fleet falls due as it does at 2.0.0, and the documented sweep (docs/runbooks/harness-upgrade.md, the 1.1.0 and 2.0.0 sections; scripts/ci/upgrade-sweep.mjs SWEEPS['1.1.0'] and SWEEPS['2.0.0']) is what clears it. A 1.1.0, 2.0.0, 2.0.1, 2.0.2, 2.0.3, 2.0.4, 2.0.5, 2.0.6 or 2.0.7 install meets nothing that expires. Read the count off `node scripts/ci/ramp-expectations.mjs <base> 2.0.8`, never off this paragraph."
+    }
   }
 }

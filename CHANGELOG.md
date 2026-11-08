@@ -11,6 +11,51 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [2.0.8] — 2026-11-08
+
+**A security patch.** Seven `next` advisories upstream published on 2026-11-03 covered the
+16.4.1 floor and the 16.4.2 pin 2.0.7 shipped, three of them also the 15.5.28 floor, and the
+scheduled `floor-advisories` job in `hygiene.yml` is red on them. 2.0.8 moves the floor and
+the pin to 16.4.5 (15.5.29 on the 15 line), records all seven, and gives the floor a new
+review window. No gate is added, the chain length does not change, and no ramp opens or
+moves. The `template/migrations.json` record withholds nothing and restates 2.0.0's
+twenty-vintage `rampExpiry` population. `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by
+`2.0.7`.
+
+**This release reds existing installs, by design.** `update` refreshes the owned
+`tools/framework-floor.json` and leaves the seeded catalog alone, so `version-sync` reds on
+any `next` pin below the new floor until the consumer raises it. The remedy is in
+`docs/runbooks/harness-upgrade.md`, 2.0.8 section. An install that stays on an earlier
+release keeps the review window 2.0.3 set, which lapses on 2026-11-16, and its scheduled
+`floor-review` job then reds on it.
+
+### Security
+
+- **The `next` floor moves to 16.4.5 on the 16 line and 15.5.29 on the 15 line, and the
+  catalog pins 16.4.5.** Upstream published seven advisories on 2026-11-03, all Moderate,
+  none of them in OSV on the day of review (2026-11-08):
+  GHSA-pc58-hwjq-p385 (CVE-2026-119348, both lines) is response injection and disclosure
+  across clients in a self-hosted app whose route handler returns a fetched upstream response
+  unchanged, behind an HTTP/1.1 reverse proxy that queues pipelined requests.
+  GHSA-rhh4-g77r-r9qj (CVE-2026-119349) is cache disclosure and poisoning across users when
+  binary arguments reach a `use cache` function. GHSA-vvgp-ww4w-46vf (CVE-2026-119350, 16.4
+  only) is cache poisoning of a shared fallback shell in a self-hosted app built with
+  `cacheComponents: true` and Partial Prefetching off. GHSA-7qx7-33qx-rqx2 (CVE-2026-119347,
+  both lines) lets a self-hosted `/_next/image` process an SVG despite
+  `dangerouslyAllowSVG: false`. GHSA-mfr8-8qww-v76h (CVE-2026-119790) and GHSA-vc7v-qv4w-wrv8
+  (CVE-2026-119351) serve the result of a `use cache` function for the wrong root param value,
+  through `unstable_cache()` or a nested `use cache` function; upstream's release post rates
+  the first High and its advisory Moderate. GHSA-f3mh-rxg3-f5g2 (CVE-2026-119346, both lines)
+  puts cookie values, `HttpOnly` ones included, in a response header that same-origin
+  JavaScript can read, on Edge runtime routes. 16.4.5 fixes all seven and 15.5.29 the three on
+  the 15 line. As shipped, the scaffold enables no Cache Components, has no `use cache`
+  function, and its two route handlers run on Node.js and return no fetched response, so none
+  of the seven reaches it; the `/_next/image` endpoint exists in every install. The review
+  window moves to 2026-11-08 through 2026-12-08. `tools/framework-floor.json` carries the
+  seven rows and is owned, so `update` refreshes it. `pnpm-workspace.yaml` is seeded, so an
+  existing install raises its own pin (`docs/runbooks/harness-upgrade.md`, 2.0.8 section), and
+  `scripts/ci/apply-framework-floor.mjs` plays that remedy in the upgrade lane.
+
 ## [2.0.7] — 2026-11-07
 
 **A patch: the v2.0.x defect fixes continue.** No gate is added, the chain length does not

@@ -4640,6 +4640,66 @@ Through 2.0.6, the agent's note said its `mcp__corpus_search` server IS wired in
 `tools:` does, so it works as before. `update` plants the agent (owned), and nothing is left
 to you.
 
+## 2.0.8 — a security patch: the `next` floor moves to 16.4.5
+
+**No ramp here applies to any install.** 2.0.8 opens no ramp and moves no deadline. The
+population 2.0.0 reds is restated in this release's record, and the 1.1.0 and 2.0.0 sections
+above are still the sweep for an install below 1.1.0.
+
+**What `update` plants.** Owned files, re-planted when your copy still matches a released
+sha: `tools/framework-floor.json`, this runbook, and the hooks under `.claude/hooks/` (their
+version stamps). Nothing is withheld, and no seeded file changes on an existing install.
+
+### Expect `version-sync` to red on the `next` floor, whatever your `baseVersion`
+
+This one is not a ramp, and no `baseVersion` is exempt from it. The `next` floor moves from
+16.4.1 to **16.4.5** on the 16 line, and from 15.5.28 to **15.5.29** on the 15 line, for seven
+advisories upstream published on 2026-11-03, all rated Moderate:
+
+- [GHSA-pc58-hwjq-p385](https://github.com/vercel/next.js/security/advisories/GHSA-pc58-hwjq-p385)
+  (both lines): a self-hosted app whose route handler returns a fetched upstream response
+  unchanged can, behind an HTTP/1.1 reverse proxy that queues pipelined requests, send one
+  client's response to another.
+- [GHSA-rhh4-g77r-r9qj](https://github.com/vercel/next.js/security/advisories/GHSA-rhh4-g77r-r9qj):
+  distinct binary arguments to a `use cache` function can share one cache entry across users.
+- [GHSA-vvgp-ww4w-46vf](https://github.com/vercel/next.js/security/advisories/GHSA-vvgp-ww4w-46vf):
+  under `next start` with `cacheComponents: true` and Partial Prefetching off, one request can
+  poison a fallback shell that many routes share.
+- [GHSA-7qx7-33qx-rqx2](https://github.com/vercel/next.js/security/advisories/GHSA-7qx7-33qx-rqx2)
+  (both lines): on a self-hosted deployment, `/_next/image` can be made to process an SVG even
+  with `dangerouslyAllowSVG: false`.
+- [GHSA-mfr8-8qww-v76h](https://github.com/vercel/next.js/security/advisories/GHSA-mfr8-8qww-v76h)
+  and [GHSA-vc7v-qv4w-wrv8](https://github.com/vercel/next.js/security/advisories/GHSA-vc7v-qv4w-wrv8):
+  the result of a `use cache` function that reads a root param can be served for another root
+  param value, when the function is also called through `unstable_cache()` or nested in
+  another `use cache` function.
+- [GHSA-f3mh-rxg3-f5g2](https://github.com/vercel/next.js/security/advisories/GHSA-f3mh-rxg3-f5g2)
+  (both lines): a route on the Edge runtime that sets a cookie through `NextResponse` also
+  sends it in a header that same-origin JavaScript can read, even an `HttpOnly` one.
+
+As shipped, the scaffold enables no Cache Components, has no `use cache` function, and its two
+route handlers run on Node.js and return no fetched response, so none of the seven reaches a
+tree that added none of those. The `/_next/image` endpoint exists in every install. If yours
+added any of them, that advisory applies to it.
+
+`tools/framework-floor.json` is harness-owned, so `update` refreshes it, and with it the
+review window, which now runs to 2026-12-08. The window it replaces ends on 2026-11-16, and
+after that date your scheduled `floor-review` job reds on the lapsed window until you take
+this release.
+`pnpm-workspace.yaml` is seeded, so `update` does not touch your pins, and the first
+`pnpm validate` after the upgrade reds `version-sync` on a `next` pin below 16.4.5 (or 15.5.29
+on the 15 line), naming the pin, the floor and the advisories. Raise the pin yourself:
+
+```
+# in the pnpm-workspace.yaml catalog: next: 16.4.5
+pnpm install && git add pnpm-lock.yaml pnpm-workspace.yaml
+pnpm validate
+```
+
+From 16.4.1 or 16.4.2 this is a patch on the same minor. No flag lowers the floor. Do not use
+`update --refresh-seeded pnpm-workspace.yaml` to take the pin: it replaces your whole catalog
+with the template's.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

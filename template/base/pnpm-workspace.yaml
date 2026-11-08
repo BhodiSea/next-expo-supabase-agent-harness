@@ -131,7 +131,21 @@ catalog:
   # 16.3 release, so this pin crosses a MINOR again, as it did in 1.0.2; 16.4.1 is the
   # release that fixes all three, and it requires sharp >= 0.35.5, upstream's workaround.
   # SOURCE: https://github.com/vercel/next.js/security/advisories/GHSA-2464-fhr4-w9xw
-  next: 16.4.2
+  #
+  # 2.0.8: the floor moves to 16.4.5 (and the 15.x floor to 15.5.29) for seven Moderate
+  # advisories published upstream 2026-11-03, none in OSV on the day of review (2026-11-08):
+  # GHSA-pc58-hwjq-p385 (response injection when a route handler returns a fetched response
+  # unchanged, self-hosted behind a pipelining HTTP/1.1 proxy), GHSA-rhh4-g77r-r9qj,
+  # GHSA-mfr8-8qww-v76h and GHSA-vc7v-qv4w-wrv8 (`use cache` entries shared across users or
+  # root params), GHSA-vvgp-ww4w-46vf (fallback shell cache poisoning with cacheComponents
+  # under next start), GHSA-7qx7-33qx-rqx2 (an SVG past dangerouslyAllowSVG: false in
+  # /_next/image, self-hosted) and GHSA-f3mh-rxg3-f5g2 (HttpOnly cookie values in a response
+  # header on Edge routes). None reaches the scaffold as shipped: it enables no Cache
+  # Components, has no `use cache` function, and its two route handlers run on Node.js and
+  # return no fetched response; the /_next/image endpoint exists in every install. 16.4.5
+  # fixes all seven, a patch on the same minor; 15.5.29 fixes the three on the 15 line.
+  # SOURCE: https://nextjs.org/blog/november-2026-security-release
+  next: 16.4.5
   next-safe-action: ^8.5.3
   tailwindcss: ^4.3.0 # v4 CSS-first, WEB ONLY — mobile pins v3 in apps/mobile (see below)
   '@tailwindcss/postcss': ^4.3.0
