@@ -101,9 +101,9 @@ monorepo resolution):
 package gets `./client`; packages handling elevated writes are hardened to the
 single `"."` key.
 
-**The census lives in exactly one place: `tools/exports-walls.json`.** In
-`saltriders_v2` this list is copy-pasted three times (the exports-walls script
-and two dependency-cruiser regexes); they will drift and the weakest wins. All
+**The census lives in exactly one place: `tools/exports-walls.json`.**
+Copy-pasting this list (an exports-walls script plus two dependency-cruiser
+regexes) lets the copies drift, and the weakest wins. All
 three consumers here derive from the one file. It is classified **`owned`**, not
 `seeded` — it can *disable* a check, so `fileMode()` must hash-pin it.
 
@@ -113,7 +113,7 @@ three consumers here derive from the one file. It is classified **`owned`**, not
 source. It generates the web theme and the native theme; both generated outputs
 are committed and regen-diffed.
 
-Two structural constraints, both verified against `saltriders_v2`:
+Two structural constraints:
 
 - **The Tailwind split is real.** Web is Tailwind v4 (CSS-first `@theme`, no
   config file); mobile is pinned to Tailwind v3 because NativeWind 4 requires
@@ -122,8 +122,8 @@ Two structural constraints, both verified against `saltriders_v2`:
   `design-system-native` (RN views) share tokens and icon paths only. Do not
   scaffold a "universal component" package.
 
-Token flow is **TS → both** (inverted from `saltriders_v2`, where `tokens.ts` is
-derived from `app.css` and the test asserts the mirror). The drift test is
+Token flow is **TS → both** (not CSS → TS, where `tokens.ts` is derived from
+`app.css` and a test asserts the mirror). The drift test is
 therefore rewritten, not copied.
 
 ## 6. Catalog policy — one React
@@ -131,8 +131,7 @@ therefore rewritten, not copied.
 `react`/`react-dom` stay at a **single catalog pin, `19.2.3`, for both
 surfaces**. Verified: Expo 57's `bundledNativeModules` requires exactly 19.2.3
 (`expo install --check` reds drift), and Next 16 requires `^19.2.0`, which
-19.2.3 satisfies. `saltriders_v2` runs 19.2.7 on web only because that was
-latest at install time, not because Next needs it.
+19.2.3 satisfies.
 
 This keeps `pnpm-workspace.yaml`'s stated doctrine — *"version drift between
 workspaces is structurally impossible"* — literally true, rather than carving

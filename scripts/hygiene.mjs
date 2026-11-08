@@ -26,8 +26,7 @@ if (!existsSync(TEMPLATE)) {
 
 const LEAK_PATTERNS = [
   /cogvera/i,
-  /medqbank/i,
-  /uwa\b/i, // no client names in the shipped artifact
+  // Private names are not spelled here: section 7 reads them from a secret.
   /BhodiSea/, // template files must use {{GITHUB_OWNER}}, never the real handle
   /\/Users\//, // absolute developer paths
   /@cogveralabs/i,
@@ -336,9 +335,72 @@ const STANDARDS_CLAIM_EXEMPT = new Map([
   ],
 ])
 
+// ---------------------------------------------------------------------------
+// 7. No private name anywhere in the repository (2.0.8) — same listing, same loop.
+// ---------------------------------------------------------------------------
+// A name spelled in this file would be published, so the list is the HYGIENE_PRIVATE_NAMES
+// Actions secret: one case-insensitive regular expression per line, blank lines and lines
+// starting with # ignored, entries numbered from 1. It judges every path in the listing and
+// every line of every text file the NUL sweep reads, because the whole repository is public,
+// not only template/.
+//
+// Nothing may print an entry or the text it matched: either would put the name in a public CI
+// log. A finding names a path, a line and the entry's number, and a bad entry only its number
+// (the engine's own error quotes the pattern; an entry that matches an empty line would match
+// every line). Each failure line is printed with every match of an entry replaced, so a path
+// that holds a name cannot print it either. Without the secret (a fork's pull request, a
+// Dependabot run, a local run) the check prints one line saying it skipped, and passes.
+const PRIVATE_NAMES = 'HYGIENE_PRIVATE_NAMES'
+
+/**
+ * The variable's entries, compiled. A bad entry becomes a failure, named by its number only.
+ * @param {string} value @param {string[]} errors
+ * @returns {{ count: number, names: { n: number, re: RegExp, every: RegExp }[] }}
+ */
+function privateNameEntries(value, errors) {
+  const names = []
+  let count = 0
+  for (const raw of value.split('\n')) {
+    const source = raw.trim()
+    if (source === '' || source.startsWith('#')) continue
+    count += 1
+    const label = `entry ${String(count)} of ${PRIVATE_NAMES}`
+    let re
+    try {
+      re = new RegExp(source, 'i')
+    } catch {
+      errors.push(`${label} is not a valid regular expression`)
+      continue
+    }
+    if (re.test('')) errors.push(`${label} matches an empty line, so it would match every line`)
+    else names.push({ n: count, re, every: new RegExp(source, 'gi') })
+  }
+  return { count, names }
+}
+
+const privateNames = privateNameEntries(process.env[PRIVATE_NAMES] ?? '', failures)
+if (privateNames.count === 0) {
+  console.log(
+    `HYGIENE: private-name check SKIPPED — ${PRIVATE_NAMES} is unset or empty, as in a fork's pull request, a Dependabot run or a local run`,
+  )
+}
+
+/** @param {string} subject a path, or one line of a file @returns {number[]} the entries it matches */
+const privateNamesIn = (subject) => privateNames.names.filter(({ re }) => re.test(subject)).map(({ n }) => n)
+
+/** @param {string} line a failure line @returns {string} the line with every private-name match replaced */
+function redacted(line) {
+  let out = line
+  for (const { n, every } of privateNames.names) out = out.replace(every, `[entry ${String(n)}]`)
+  return out
+}
+
 let textFilesScanned = 0
 let standardsSurfaceScanned = 0
 for (const relPath of repoFiles) {
+  for (const n of privateNamesIn(relPath)) {
+    failures.push(`${relPath} (the path) matches entry ${String(n)} of ${PRIVATE_NAMES}`)
+  }
   if (BINARY_EXT.test(relPath)) continue
   // `--cached` lists a path deleted from the working tree but still in the index; a file
   // that is not there cannot carry a NUL.
@@ -347,8 +409,15 @@ for (const relPath of repoFiles) {
   const buf = readFileSync(join(ROOT, relPath))
   const at = buf.indexOf(0)
   if (at === -1) {
-    if (CLAIM_SWEEP_EXEMPT.has(relPath)) continue
     const text = buf.toString('utf8')
+    if (privateNames.names.length > 0) {
+      for (const [i, line] of text.split('\n').entries()) {
+        for (const n of privateNamesIn(line)) {
+          failures.push(`${relPath}:${String(i + 1)} matches entry ${String(n)} of ${PRIVATE_NAMES}`)
+        }
+      }
+    }
+    if (CLAIM_SWEEP_EXEMPT.has(relPath)) continue
     for (const { line, claim } of maturityClaims(text)) {
       failures.push(
         `${relPath}:${String(line)} claims "${claim}". Nothing this repository generates holds an Essential Eight maturity level: maturity attaches to an organisation's SYSTEM, ASD certifies no products, and a repo-scoped reading of the model yields Maturity Level ZERO, not Three (template/base/docs/compliance/essential-eight.md sets out why, with sources). Say the true thing instead — this project produces machine-checkable evidence for the portions of an ML3 assessment a codebase can carry, and hands the rest to the operator.`,
@@ -372,7 +441,7 @@ for (const relPath of repoFiles) {
 
 if (failures.length > 0) {
   console.error(`HYGIENE: FAIL (${failures.length})`)
-  for (const f of failures) console.error(`  - ${f}`)
+  for (const f of failures) console.error(`  - ${redacted(f)}`)
   process.exit(1)
 }
 // A sweep that scanned nothing is a false green, the same way the missing-template check
@@ -391,6 +460,9 @@ if (standardsSurfaceScanned === 0) {
   )
   process.exit(1)
 }
+const entries = privateNames.count === 1 ? 'entry' : 'entries'
+const privateNamesNote =
+  privateNames.count === 0 ? '' : `; ${String(privateNames.count)} ${PRIVATE_NAMES} ${entries} matched no path or line`
 console.log(
-  `HYGIENE: CLEAN (${String(listingsChecked)} directory listing(s) sorted; ${String(textFilesScanned)} text file(s) free of NUL bytes and of unearned maturity claims; ${String(standardsSurfaceScanned)} shipped/prose file(s) free of ASVS/MASVS/CRA standing claims)`,
+  `HYGIENE: CLEAN (${String(listingsChecked)} directory listing(s) sorted; ${String(textFilesScanned)} text file(s) free of NUL bytes and of unearned maturity claims; ${String(standardsSurfaceScanned)} shipped/prose file(s) free of ASVS/MASVS/CRA standing claims${privateNamesNote})`,
 )

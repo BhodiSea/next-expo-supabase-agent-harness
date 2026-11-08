@@ -89,6 +89,17 @@ no gate reads the Claude Code version a developer runs.
   Claude Code's auto-update has already delivered the fixes, and the runbook's 2.0.8 section
   says how to check the version.
 
+### Changed
+
+- **The hygiene gate reads the private names it looks for from a secret.**
+  `scripts/hygiene.mjs` reads them from the `HYGIENE_PRIVATE_NAMES` Actions secret instead of
+  its own code, one case-insensitive regular expression per line, and fails on any path or
+  line in the repository that matches one, not only under `template/`. A finding names the
+  path, the line and the entry's number, never the name or the text. Without the secret, as
+  in a fork's pull request, a Dependabot run or a local run, the gate says it skipped the
+  check and passes. `hygiene.yml` and `release.yml` pass the secret to the step that runs the
+  gate. Factory only: nothing changes for an install.
+
 ## [2.0.7] — 2026-11-07
 
 **A patch: the v2.0.x defect fixes continue.** No gate is added, the chain length does not

@@ -45,6 +45,9 @@ jobs:
         with:
           node-version: 22
       - name: Gates
+        env:
+          # scripts/hygiene.mjs's private-name check reads its list from this secret.
+          HYGIENE_PRIVATE_NAMES: ${{ secrets.HYGIENE_PRIVATE_NAMES }}
         run: |
           node scripts/check-syntax.mjs
           node scripts/hygiene.mjs

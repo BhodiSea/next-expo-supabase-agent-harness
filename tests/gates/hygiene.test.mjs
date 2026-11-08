@@ -185,3 +185,85 @@ test("the rule module's exemption is load-bearing, not decorative — it really 
     `${rel} is exempt from the maturity-claim sweep but no longer contains a claim shape — the exemption now hides nothing, so it should be removed rather than left standing`,
   )
 })
+
+// ── THE PRIVATE-NAME CHECK (2.0.8) ────────────────────────────────────────────────
+// The real list is the HYGIENE_PRIVATE_NAMES secret, so these tests bring a made-up one. The
+// name is built rather than typed: this file is in the scan, and a literal here would match
+// itself. Every test also asserts that the name never reaches the output.
+const NAME = ['zorb', 'lax'].join('')
+const SHOWS_NAME = new RegExp(NAME, 'i')
+
+/**
+ * Run the sweep with HYGIENE_PRIVATE_NAMES set to `names`, or unset when it is undefined.
+ * @param {string | undefined} names
+ * @returns {{ code: number | null, out: string }}
+ */
+function hygieneWithNames(names) {
+  const env = { ...process.env }
+  delete env.HYGIENE_PRIVATE_NAMES
+  if (names !== undefined) env.HYGIENE_PRIVATE_NAMES = names
+  const r = spawnSync(process.execPath, [SCRIPT], { cwd: ROOT, encoding: 'utf8', env })
+  return { code: r.status, out: `${r.stdout}${r.stderr}` }
+}
+
+test('RED: a line that matches an entry is named by path, line and entry number, never by its text', () => {
+  const rel = 'hygiene-private-name-fixture.tmp.md'
+  withFixture(
+    rel,
+    () => {
+      assert.equal(ignored(rel), false, `${rel} is covered by .gitignore, so this test would go green without the sweep ever reading it`)
+      // A comment and a blank line are not entries, a CRLF line end is not part of one, and
+      // case does not matter.
+      const { code, out } = hygieneWithNames(['# made up', '', `${NAME}x`, NAME.toUpperCase()].join('\r\n'))
+      assert.equal(code, 1, `the sweep passed a line naming a listed name:\n${out}`)
+      assert.match(out, /hygiene-private-name-fixture\.tmp\.md:3 matches entry 2 of HYGIENE_PRIVATE_NAMES/)
+      assert.doesNotMatch(out, /entry 1 of/)
+      assert.doesNotMatch(out, SHOWS_NAME)
+      assert.doesNotMatch(out, /app is private/)
+    },
+    `# Fixture\n\nThe ${NAME} app is private.\n`,
+  )
+})
+
+test('RED: a path that holds a name is reported with the name replaced', () => {
+  const rel = `hygiene-${NAME}-fixture.tmp.md`
+  withFixture(
+    rel,
+    () => {
+      assert.equal(ignored(rel), false, `${rel} is covered by .gitignore, so this test would go green without the sweep ever reading it`)
+      const { code, out } = hygieneWithNames(NAME)
+      assert.equal(code, 1, `the sweep passed a path naming a listed name:\n${out}`)
+      assert.match(out, /hygiene-\[entry 1\]-fixture\.tmp\.md \(the path\) matches entry 1 of HYGIENE_PRIVATE_NAMES/)
+      assert.doesNotMatch(out, SHOWS_NAME)
+    },
+    'Nothing private on this line.\n',
+  )
+})
+
+test('GREEN: entries that match nothing pass, and the CLEAN line counts them', () => {
+  const { code, out } = hygieneWithNames([NAME, `${NAME}x`].join('\n'))
+  assert.equal(code, 0, out)
+  assert.match(out, /; 2 HYGIENE_PRIVATE_NAMES entries matched no path or line\)/)
+  assert.doesNotMatch(out, /SKIPPED/)
+  assert.doesNotMatch(out, SHOWS_NAME)
+})
+
+test('RED: an entry that does not compile, or that matches an empty line, fails by its number alone', () => {
+  const { code, out } = hygieneWithNames([`${NAME}(`, `${NAME}|`, NAME].join('\n'))
+  assert.equal(code, 1, out)
+  assert.match(out, /entry 1 of HYGIENE_PRIVATE_NAMES is not a valid regular expression/)
+  assert.match(out, /entry 2 of HYGIENE_PRIVATE_NAMES matches an empty line/)
+  assert.doesNotMatch(out, /entry 3 of/)
+  // The engine's own message quotes the pattern.
+  assert.doesNotMatch(out, /Invalid regular expression/)
+  assert.doesNotMatch(out, SHOWS_NAME)
+})
+
+test('GREEN: without the variable, or with no entry in it, the check says it skipped, on one line', () => {
+  for (const names of [undefined, '', '# only a comment\n\n']) {
+    const { code, out } = hygieneWithNames(names)
+    assert.equal(code, 0, out)
+    assert.equal(out.split('\n').filter((l) => l.includes('private-name check SKIPPED')).length, 1, out)
+    assert.doesNotMatch(out, /HYGIENE_PRIVATE_NAMES entr/)
+  }
+})
