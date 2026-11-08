@@ -1,12 +1,19 @@
 # CONTROL-PLANE-FACTS — what Claude Code actually hands a hook
 
-**Observed 2026-08-07, re-verified 2026-08-15** against Claude Code in the VS Code
-extension (originally `CLAUDE_AGENT_SDK_VERSION=0.3.222`; the re-verification ran
-against **Claude Code 2.1.232 / SDK 0.3.232**, `CLAUDE_CODE_ENTRYPOINT=claude-vscode`,
-same probe method — a probe hook in `.claude/settings.local.json` capturing raw stdin,
-plus the empirical exit-code matrix for Fact 12 and the advisory re-query for Fact 10).
-Facts 1, 2, 3, 5, 6, 10 and 12 were re-verified by execution; Facts 7, 8, 9, 11 and 13
-are documentation-sourced and were re-read, not re-probed. Fact 14 (read 2026-09-30) is
+**Observed 2026-08-07, last re-verified 2026-11-08** against **Claude Code 2.1.292** in
+print mode, when harness 2.0.8 moved the required floor to 2.1.260. The earlier runs used
+the VS Code extension: SDK 0.3.222, then Claude Code 2.1.232 / SDK 0.3.232 on 2026-08-15.
+The method has not changed: probe hooks in `.claude/settings.local.json` that record raw
+stdin, plus the exit-code matrix for Fact 12. The 2026-11-08 run used a fresh core
+install, `claude -p --output-format stream-json --verbose --include-hook-events
+--setting-sources local`, and a launch environment cut to `PATH`, `HOME`, `USER`,
+`LOGNAME`, `SHELL`, `TMPDIR`, `LANG` and `TERM`, so any other variable a hook saw came from
+Claude Code or the shell that ran the hook. Loading only the local settings kept the
+install's own Stop chain out of the run. Facts 1, 2, 3, 4, 4b, 5, 6 and 12 were
+re-verified by execution, and Fact 10 by the advisory census of the same day. Facts 7, 8,
+9, 11 and 13 were re-read against the hooks, permissions and memory pages and the
+changelog to 2.1.319. Not re-run on 2026-11-08: the VS Code extension, and Facts 14 to 18,
+whose own dates follow. Fact 14 (read 2026-09-30) is
 documentation-sourced and has **not** been probed: it records what is documented about
 `agent_id` across a resumed subagent, and the probe that still owes an observed answer.
 Fact 15 (read 2026-09-30, for the 1.1.0 SessionStart brief) is documentation-sourced on the
@@ -42,11 +49,24 @@ configuration does **not** require a restart. This matters twice: it is what mak
 this one cheap, and it is what makes `disableAllHooks` in a local settings file an immediate
 single point of failure rather than a next-session one.
 
+Re-observed 2026-11-08 (2.1.292). A hook on the session's first prompt rewrote
+`settings.local.json`, adding hooks and an `env` block. A SubagentStart 2.2 s later still
+ran the old hooks; the SubagentStop 3.8 s after the write, and every event after it, ran
+the new hooks and saw the new variables. The hooks reference says such edits are "normally
+picked up automatically by the file watcher". A change lands within seconds and without a
+restart, but not always on the very next event.
+
 ## Fact 2 — `SubagentStop` fires and carries everything W4 needs
 
-Re-observed 2026-08-15 (2.1.232): the payload key list below is **key-for-key
-identical**, `last_assistant_message` again arrived untruncated with the verdict as
-its last non-empty line, and `agent_type` again matched the roster name.
+Re-observed 2026-08-15 (2.1.232) and 2026-11-08 (2.1.292): the payload key list below is
+**key-for-key identical** and `agent_type` matched the roster name. On 2026-08-15
+`last_assistant_message` arrived untruncated with the verdict as its last non-empty line.
+On 2026-11-08 the subagent answered in one line, so the field held its whole reply,
+`VERDICT: PASS`; a long reply was not re-tested. The file at `agent_transcript_path`
+existed when the hook ran. SubagentStop fired once per subagent, at its end, for one
+background and one foreground subagent of about 70 s each. (The 2.1.311 changelog fixes
+"`SubagentStop` hooks running about twice a minute for each running subagent instead of
+once when it finishes"; 2.1.292 did not show it, and no source says which versions did.)
 
 Payload keys, verbatim:
 
@@ -73,7 +93,8 @@ last non-empty line: "VERDICT: PASS"
 
 ## Fact 3 — `SubagentStart` fires too, with a narrower payload
 
-Re-observed 2026-08-15 (2.1.232): identical seven-key payload.
+Re-observed 2026-08-15 (2.1.232) and 2026-11-08 (2.1.292): identical seven-key payload.
+The eighth key Fact 16 saw at 2.1.285, `scratchpad_dir`, was absent on 2026-11-08.
 
 ```
 agent_id  agent_type  cwd  hook_event_name  prompt_id  session_id  transcript_path
@@ -84,16 +105,18 @@ started" record, not for a verdict.
 
 ## Fact 4 — the `Stop` payload, and `stop_hook_active` is REAL
 
-2026-08-15 re-verification status: the `Stop` payload was re-captured (2.1.232) and is
-**key-for-key identical** to the list below — `stop_hook_active: false` on an ordinary
-turn, no `agent_*` fields, `last_assistant_message` present and untruncated. The
-one-shot `true` transition was not re-run (it requires deliberately blocking a turn);
-the 2026-08-07 observation stands for that half, at the original version.
+Re-verified 2026-11-08 (2.1.292), both halves. The `Stop` payload is **key-for-key
+identical** to the list below: no `agent_*` fields, `last_assistant_message` present and
+whole. A one-shot probe blocked the turn's first Stop, whose payload carried
+`stop_hook_active: false`; the Stop that followed carried `true` under the same
+`prompt_id`. (On 2026-08-15, at 2.1.232, the payload was re-captured and the transition
+was not re-run.)
 
 `stop-validate-gate.mjs` reads `input?.stop_hook_active === true`, and
-`docs/harness/README.md` states that it "escalates the message on repeat blocks". The current
-hooks reference does **not** list it among the Stop event's fields, and every test in this repo
-supplies it synthetically — so nothing proved Claude Code ever sends it. Now observed:
+`docs/harness/README.md` states that it "escalates the message on repeat blocks". The hooks
+reference of the time did **not** list it among the Stop event's fields (it does now, read
+2026-11-08), and every test in this repo supplies it synthetically — so nothing proved Claude
+Code ever sends it. Now observed:
 
 ```
 background_tasks  cwd  effort  hook_event_name  last_assistant_message  permission_mode
@@ -136,6 +159,14 @@ the scaffold sets that cap in `settings.json`'s `env` block. Had settings `env` 
 Bash-tool subprocesses and not to hooks, every consumer would silently fall back to the default
 — which happens to be the same number, so nothing would ever have looked wrong.
 
+Re-observed 2026-11-08 (2.1.292): `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` and a probe variable,
+added to the `env` block of `.claude/settings.local.json` mid-session, reached every hook
+that ran after the re-read (Fact 1). The hooks reference, read the same day, adds that the
+count of consecutive continuations "resets each time Claude calls a tool". The harness's
+count in `.harness/turn-outcomes.jsonl` resets only on a green record, so it can run ahead
+of Claude Code's and call a block the last one too early: the direction
+`turn-outcomes.mjs` chose. Not probed.
+
 ## Fact 7 — a hook matcher is an EXACT TOOL NAME; a `Bash(...)` permission rule is not
 
 This is the distinction 0.5.0's live bypass turned on, and it is easy to read past:
@@ -166,6 +197,17 @@ the way Bash commands are (the sandbox docs never mention Monitor); and whether 
 `Bash`-matching PreToolUse hook fires for a skill's `` !`command` `` expansion (the docs call
 that preprocessing and say nothing about hook dispatch). Do not build a control on either.
 
+Re-read 2026-11-08 (hooks reference and changelog; not probed). The matcher grammar is
+unchanged. From 2.1.314 a `PreToolUse` or `PermissionRequest` hook whose matcher names
+`Bash` also runs on the shell commands the Monitor tool starts (its `allow` and
+`updatedInput` have no effect there), so the table's "nothing else" holds only below
+2.1.314; the shipped matcher names `Monitor` either way. On Windows without Git Bash, a
+hook that sets no `shell` runs in PowerShell. Before 2.1.299 a failing one let the tool
+call through; since then any exit other than 0 or 2 blocks the call. The shipped hooks set
+no `shell`, and whether their commands run cleanly in PowerShell has not been probed. The
+2.1.290 changelog speaks of "sandboxed Monitor tool commands"; whether they are sandboxed
+as Bash commands are is still not established.
+
 ## Fact 8 — `Write(path)` permission rules are accepted and never consulted
 
 File-permission rules are consulted under `Edit(...)` and `Read(...)`. A `Write(path)` rule is
@@ -178,17 +220,28 @@ protection holds — but that was an accident of authoring in a file whose whole
 asserted. `check-wiring.mjs` now requires the twin. The `Write(...)` lines stay: they cost
 nothing, they document intent, and they are already right if Claude Code ever consults them.
 
+Re-read 2026-11-08: the permissions page still says file checks use `Edit(path)` and
+`Read(path)` rules only. It lists `Write(path)`, with `NotebookEdit` and legacy `MultiEdit`,
+beside `Glob(path)` and `Grep(path)` as rules it accepts and never matches, and it no longer
+mentions a `--allowedTools` exception.
+
 ## Fact 9 — path-scoped rules load on demand, and compaction drops them
 
 | Instruction file | Loaded | Survives compaction |
 |---|---|---|
 | project-root `CLAUDE.md`, parent-dir `CLAUDE.md`, user memory | session start | yes |
 | `.claude/rules/*.md` **without** `paths:` | session start | yes |
-| `.claude/rules/*.md` **with** `paths:` | when a matching file is read | **no** — lost until a matching file is read again |
-| nested `CLAUDE.md` in a subdirectory | when a file in that subtree is read | **no** — same |
+| `.claude/rules/*.md` **with** `paths:` | when a matching file is read, written or edited | **no** — lost until Claude works with a matching file again |
+| nested `CLAUDE.md` in a subdirectory | when a file in that subtree is read, written or edited | **no** — same |
 
-`paths:` in a *rules* file takes a **YAML list** of globs (since 2.1.84). The comma-separated
-string form documented for **skills** is not documented for rules — do not accept it.
+`paths:` in a *rules* file takes a **YAML list** of globs (since 2.1.84), and the shipped
+rules use YAML lists. Re-read 2026-11-08 (memory page and changelog): a scoped rule now also
+loads when Claude writes or edits a matching file (since 2.1.288) or views one with a
+single-file `cat`, `head`, `tail`, `sed -n` or `grep` in Bash (since 2.1.293). After
+compaction the project-root `CLAUDE.md` is re-injected, while scoped rules and nested
+`CLAUDE.md` files "load again on demand". `paths:` in a rule now also accepts a
+comma-separated string, and a frontmatter that does not parse loads the rule as if it had no
+`paths:`, so always: the safe direction.
 
 The harness ships two scoped rules, `boundaries.md` and `mobile-server-split.md`, and both
 already open with "best-effort scoped; the gates are the invariant". That framing is now
@@ -298,7 +351,11 @@ Deployment paths, the drop-in directory semantics, the minimal correct policy, a
 hook needs a dispatcher (it fires in *every* project on the machine, including ones with no
 harness installed) are in `template/base/docs/security/managed-settings.md`.
 
-## Fact 12 — a hook file that cannot PARSE fails OPEN (probed 2026-08-10, node v26; re-probed 2026-08-15, node v26.4.0 — matrix identical)
+Re-read 2026-11-08 (hooks reference): unchanged. Only `disableAllHooks` at the managed level
+disables managed hooks, and `allowManagedHooksOnly` blocks user, project, local and plugin
+hooks; hooks from plugins force-enabled in managed `enabledPlugins` are exempt.
+
+## Fact 12 — a hook file that cannot PARSE fails OPEN (probed 2026-08-10, node v26; re-probed 2026-08-15 and 2026-11-08, node v26.4.0 — matrix identical)
 
 The fail-closed guarantee lives *inside* `hooks/lib/hookio.mjs` — its
 `uncaughtException`/`unhandledRejection` → `exit(2)` handlers — and those install only after
@@ -307,8 +364,8 @@ the shipped hooks (`pretool-write-guard.mjs` and `stop-validate-gate.mjs`, reali
 
 | damage to `hookio.mjs` | node's failure | exit | Claude Code's reading |
 |---|---|---|---|
-| truncated mid-statement (60%) | in-file `SyntaxError: Unexpected end of input` | 1 | non-blocking — **action proceeds** |
-| truncated to 0 bytes | valid empty module; importer throws `does not provide an export` | 1 | non-blocking — **action proceeds** |
+| truncated mid-statement (60%) | in-file `SyntaxError` (`Invalid or unexpected token` at the 2026-11-08 cut) | 1 | non-blocking — **action proceeds** |
+| truncated to 0 bytes | valid empty module; a named import throws `does not provide an export`, the Stop gate's namespace import a `TypeError` at its first call | 1 | non-blocking — **action proceeds** |
 | deleted | `ERR_MODULE_NOT_FOUND` | 1 | non-blocking — **action proceeds** |
 | intact, malformed stdin | runtime throw → installed handler | 2 | **blocked** (fail-closed, correct) |
 
@@ -328,6 +385,22 @@ directly instead: the launcher reports a load failure as "failing closed, action
 which would be false for an event that cannot block, and the brief exits 0 on every path
 (Fact 15).
 
+Re-probed 2026-11-08 (node v26.4.0, Claude Code 2.1.292). Claude Code's reading was observed
+live, not read: a PreToolUse hook exiting 1 let its Read run, one exiting 2 blocked its Glob
+with the launcher's message as the tool error, and a Stop hook exiting 1 let the turn end
+with a "Stop hook error occurred" notice. Through `launch.mjs` every row above exits 2, for
+both hooks. The launcher's own tearing fails open in two ways. A `launch.mjs` that is empty,
+or cut anywhere in its leading comment block (the first 64% of its bytes), is a valid module
+that runs nothing and exits 0: Claude Code reads that as success, with no notice at all. Cut
+later, it exited 1 at every 5% step from 65% to 95%, as a deleted one does: the
+non-blocking error above.
+
+Since 2.1.295 a command hook may set `"onFailure": "block"`: a hook that cannot start, exits
+with a code other than 0 or 2, times out or prints invalid JSON then does what exit 2 does.
+It has no effect on Stop or SubagentStop. On the three PreToolUse guards it would turn the
+launcher's exit-1 tears into blocks; it cannot see the exit-0 ones. The required floor is
+below 2.1.295, and the shipped settings do not set it.
+
 ## Fact 13 — a bare tool name in `permissions.allow` retires every scoped rule for that tool
 
 Within a scope the evaluation order is deny → ask → allow, first match wins, and **rule
@@ -339,9 +412,15 @@ deny rule (`Write(./.claude/hooks/**)`) holds over any allow, from any scope ("d
 any scope are evaluated before allow rules"). The shipped scaffold settings carried bare
 `Bash`/`WebFetch`/`WebSearch` allows at 0.8.0; 0.9.0 drops them.
 
+Re-read 2026-11-08 (permissions page): unchanged. Rules are evaluated deny, then ask, then
+allow; the first match wins; "rule specificity doesn't change the order"; and "deny rules
+from any scope are evaluated before allow rules".
+
 ## Fact 14 — `agent_id` across a RESUMED subagent: documented, NOT yet observed
 
 **Status, 2026-09-30: documentation-sourced, not probed, no Claude Code version observed.**
+Re-read 2026-11-08: the hooks reference still says nothing about a resumed subagent, and the
+changelog to 2.1.319 settles neither point below, so the probe is still owed.
 Recorded before the reviewer ledger v2 (1.1.0, #70) coded its standing-BLOCK rule, because
 that rule keys on `agent_id`: a BLOCK stands until the SAME `agent_id` returns PASS at the
 current digest. The session that wrote 1.1.0 could not start a Claude Code session of its
@@ -646,8 +725,11 @@ prints the same finding as an ADVISORY line.
 ## Fact 5 — no CI lane in this repository spawns Claude at all
 
 Searched `.github/workflows/` and `template/base/github/workflows/` for `claude -p`,
-`claude --print` and `anthropics/claude-code`: **no matches** (re-run 2026-08-15,
-still zero).
+`claude --print` and `anthropics/claude-code`: **no matches** (re-run 2026-08-15 and
+2026-11-08, still zero; the eight module workflow directories under `template/modules/`
+hold none either). The lint lane does run `npx --yes @anthropic-ai/claude-code@latest
+plugin validate`, twice and advisory: that is the CLI checking manifests, not a session,
+so no model, hook or subagent runs.
 
 This settles an open W4 risk. Since v2.1.198 subagents run in the background by default, and in
 non-interactive mode a tool call is denied when no `PermissionRequest` hook returns a decision —
@@ -657,25 +739,39 @@ someone adds one, which is the reason this is written down rather than concluded
 
 ## Fact 6 — the hook environment
 
-Variables a hook can see (`CLAUDE*` / `HARNESS*` only), re-captured 2026-08-15
-(2.1.232 / SDK 0.3.232):
+Variables a hook can see, re-captured 2026-11-08 (2.1.292, print mode). The launch
+environment held only `PATH`, `HOME`, `USER`, `LOGNAME`, `SHELL`, `TMPDIR`, `LANG` and
+`TERM`, so Claude Code added each name below. Names only; no value was recorded.
 
 ```
-CLAUDECODE=1                       CLAUDE_CODE_ENTRYPOINT=claude-vscode
-CLAUDE_PROJECT_DIR=<repo root>     CLAUDE_CODE_SESSION_ID=<uuid>
-CLAUDE_PID=<pid>                   CLAUDE_CODE_CHILD_SESSION=1
-CLAUDE_AGENT_SDK_VERSION=0.3.232   CLAUDE_EFFORT=xhigh        (SubagentStop only)
-CLAUDE_CODE_ENABLE_TASKS=0         CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING=true
-CLAUDE_CODE_MESSAGING_SOCKET=<path>   CLAUDE_CODE_MESSAGING_TOKEN=<hex>   (new at 2.1.232)
+CLAUDECODE                     CLAUDE_CODE_ENTRYPOINT
+CLAUDE_PROJECT_DIR             CLAUDE_CODE_SESSION_ID
+CLAUDE_PID                     CLAUDE_CODE_CHILD_SESSION
+CLAUDE_CODE_MESSAGING_SOCKET   CLAUDE_CODE_MESSAGING_TOKEN
+CLAUDE_CODE_SESSION_ATTENDED   (new since 2026-08-15)
+CLAUDE_EFFORT                  (SubagentStop and Stop; not UserPromptSubmit or SubagentStart)
+AI_AGENT   COREPACK_ENABLE_AUTO_PIN   NoDefaultCurrentDirectoryInExePath
 ```
 
-Two deltas since 2026-08-07, both additive: `CLAUDE_CODE_MESSAGING_SOCKET` and
-`CLAUDE_CODE_MESSAGING_TOKEN` now reach hooks — treat the token as a secret (a hook
-that logs its environment now logs a credential). A `CLAUDE_CODE_EXECPATH` variable was
-observed in the **Bash-tool subprocess** environment but NOT in the hook environment;
-the two channels are not the same set, which is one more reason a hook must read the
-payload, not the ambient env. `CLAUDE_CODE_CHILD_SESSION=1` was again observed in a
-MAIN VS Code session — re-confirming that a control keyed on it would misfire.
+The settings `env` block is added as well (Fact 4b), and the shell that runs the command
+adds `PWD`, `SHLVL` and `_`. The last row sits outside the `CLAUDE*` filter the earlier
+captures used, so whether those three were there before is not known.
+
+Against the 2026-08-15 capture (VS Code extension, 2.1.232 / SDK 0.3.232): `CLAUDE_EFFORT`,
+then recorded on SubagentStop only, now reaches Stop hooks too (the hooks reference ties it
+to the events whose payload carries `effort`), and `CLAUDE_CODE_SESSION_ATTENDED` is new.
+`CLAUDE_AGENT_SDK_VERSION`, `CLAUDE_CODE_ENABLE_TASKS` and
+`CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING` were absent: an SDK host sets them (an
+SDK-hosted session carries all three in its own environment), and the extension was not
+re-probed.
+
+`CLAUDE_CODE_MESSAGING_TOKEN` still reaches hooks, and Bash-tool commands too: treat it as a
+secret (a hook that logs its environment logs a credential). The **Bash-tool subprocess**
+environment again differs from the hook environment: it adds `CLAUDE_CODE_EXECPATH` and
+`GIT_EDITOR` and lacks `CLAUDE_PROJECT_DIR`, one more reason a hook must read the payload,
+not the ambient env. `CLAUDE_CODE_CHILD_SESSION` was set in a MAIN print-mode session whose
+launch environment did not carry it, so Claude Code sets it itself: a control keyed on it
+would misfire.
 
 `CLAUDE_CODE_SESSION_ID` duplicates the payload's `session_id`; prefer the payload, which is
 the documented channel and is present for every event.

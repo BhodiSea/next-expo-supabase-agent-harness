@@ -123,6 +123,15 @@ reds nothing: no gate reads the Claude Code version a developer runs.
   vendor's table now calls `react-native` 0.85 Unsupported, so it leaves the set; every
   release of this harness pins 0.86.2. **The register is seeded, so `update` does not
   deliver the review**: the runbook's 2.0.8 section says how to take it.
+- **The control-plane facts are re-verified, against Claude Code 2.1.292.**
+  `design/CONTROL-PLANE-FACTS.md` records the 2026-11-08 probes: the hook payloads and the exit
+  codes the guards rely on are unchanged, and the `stop_hook_active` transition was observed
+  again. One finding is new: a `.claude/hooks/launch.mjs` that is empty, or cut inside its
+  leading comment, is a valid module that exits 0, so that tear fails open with no notice.
+  The `control-plane-facts-currency` obligation now anchors on the lines of
+  `tools/cc-floor.json` that state the required floor, so the next floor move reds
+  `check-obligations` until the facts are re-verified; its old anchor, `2.1.163`, stayed true
+  through this move. Factory only: nothing changes for an install.
 
 ## [2.0.7] — 2026-11-07
 
