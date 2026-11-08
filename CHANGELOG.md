@@ -70,8 +70,9 @@ reds nothing: no gate reads the Claude Code version a developer runs.
   `registers-clockful` job read only `framework-floor.json` and `eol.json`, so nothing here
   noticed; it now reads `cc-floor.json` and `support-register.json` too. Re-taken on
   2026-11-08, GitHub's reviewed database returns 29 advisories, one more than before:
-  GHSA-pq7j-f95f-qfcv (CVE-2026-86063, High, fixed in 2.1.179), where installing a plugin
-  pinned to a commit SHA could install a branch named like that SHA. Anthropic's own
+  GHSA-pq7j-f95f-qfcv (CVE-2026-86063, High, fixed in 2.1.179), where, on a git host that
+  allows branch names shaped like a SHA, installing a plugin pinned to a commit SHA could
+  install a branch named like that SHA. Anthropic's own
   advisory page lists three more npm advisories that neither that database nor OSV's npm
   records held that day: GHSA-5j29-h97v-84ch (CVE-2026-103435, High, 2.1.129) and
   GHSA-5xjx-9qx6-jcrv (CVE-2026-88968, High, 2.1.251), where a symlink swapped in after the
