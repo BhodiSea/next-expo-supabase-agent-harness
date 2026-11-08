@@ -62,7 +62,7 @@ is the set of repo-root sites that hardcode the upstream owner:
   opens a discussion for each release in the `Announcements` category; in a
   repository without Discussions or without that category, that step prints a
   warning and the job still succeeds
-- `README.md`: the `npx` command and the lineage links
+- `README.md`: the `npx` command and the lineage sentence
 - `docs/forking.md`: this checklist
 - `CITATION.cff`: `title`, `authors`, `repository-code`
 - `CHANGELOG.md`: the lineage note at the top (it names this repo as the
@@ -96,7 +96,7 @@ is the set of repo-root sites that hardcode the upstream owner:
 - `tests/gates/check-reuse.test.mjs`: it asserts the upstream copyright string
 - `scripts/check-corpus-fidelity.mjs`: the User-Agent contact URL
 - `scripts/check-floor-advisories.mjs`: the User-Agent contact URL
-- `installer/lib/detect.mjs`: the sibling-harness redirect messages
+- `installer/lib/detect.mjs`: the messages that refuse a Hono server and a Tauri project
 - `scripts/hygiene.mjs`: two edits, described below
 
 ## The two `scripts/hygiene.mjs` edits

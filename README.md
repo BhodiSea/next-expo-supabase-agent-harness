@@ -299,10 +299,8 @@ counts the requirements of three further standards
 
 To fork the harness itself into a sibling for a different stack, start from a
 clone with a fresh history, as [docs/forking.md](docs/forking.md) describes.
-This repository is descended from
-[expo-postgres-agent-harness](https://github.com/BhodiSea/expo-postgres-agent-harness)
-and
-[tauri-postgres-agent-harness](https://github.com/BhodiSea/tauri-postgres-agent-harness).
+This repository is descended from the retired `expo-postgres-agent-harness` and
+`tauri-postgres-agent-harness`.
 
 ## License
 

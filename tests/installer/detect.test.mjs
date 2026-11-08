@@ -51,26 +51,31 @@ test('non-empty dir WITHOUT package.json → bootstrap, empty: false (current be
 // detect(): rejections
 // ---------------------------------------------------------------------------
 
-test('a hono-without-next project is redirected to the expo-postgres harness', () => {
+// The sibling harnesses these targets were once sent to are retired, so each refusal says
+// what to do and points at no repository.
+const POINTER = /github:|https?:\/\//
+
+test('a hono-without-next project is refused, with what to do instead', () => {
   const d = dir('nesah-det-hono-')
   writePkg(d, { name: 'x', dependencies: { hono: '^4.0.0' } })
   assert.throws(
     () => detect(d),
     (/** @type {Error} */ err) => {
       assert.match(err.message, /`hono` but not `next`/)
-      assert.match(err.message, /expo-postgres-agent-harness/)
+      assert.match(err.message, /Move the backend to Supabase first, or bootstrap a fresh scaffold/)
+      assert.doesNotMatch(err.message, POINTER)
       return true
     },
   )
 })
 
-test('`hono` in devDependencies is redirected too (deps and devDeps are merged)', () => {
+test('`hono` in devDependencies is refused too (deps and devDeps are merged)', () => {
   const d = dir('nesah-det-honodev-')
   writePkg(d, { name: 'x', devDependencies: { hono: '^4.0.0' } })
-  assert.throws(() => detect(d), /expo-postgres-agent-harness/)
+  assert.throws(() => detect(d), /`hono` but not `next`/)
 })
 
-test('hono ALONGSIDE next is NOT redirected — this lineage owns two-surface workspaces', () => {
+test('hono ALONGSIDE next is NOT refused — this lineage owns two-surface workspaces', () => {
   const d = dir('nesah-det-hononext-')
   writePkg(d, { name: 'x', dependencies: { hono: '^4.0.0', next: '16.0.0' } })
   writeFileSync(join(d, 'pnpm-workspace.yaml'), 'packages:\n  - apps/*\n')
@@ -79,14 +84,15 @@ test('hono ALONGSIDE next is NOT redirected — this lineage owns two-surface wo
   assert.equal(r.hasWeb, true)
 })
 
-test('a Tauri project (dep or src-tauri dir) is redirected to the tauri harness', () => {
+test('a Tauri project (dep or src-tauri dir) is refused, with what to do instead', () => {
   const byDep = dir('epah-det-tauridep-')
   writePkg(byDep, { name: 'x', dependencies: { '@tauri-apps/api': '^2.0.0' } })
   assert.throws(
     () => detect(byDep),
     (/** @type {Error} */ err) => {
       assert.match(err.message, /Tauri desktop project/)
-      assert.match(err.message, /tauri-postgres-agent-harness/)
+      assert.match(err.message, /Run init in a workspace without the Tauri app, or in an empty directory/)
+      assert.doesNotMatch(err.message, POINTER)
       return true
     },
   )
@@ -94,7 +100,7 @@ test('a Tauri project (dep or src-tauri dir) is redirected to the tauri harness'
   const byDir = dir('epah-det-tauridir-')
   writePkg(byDir, { name: 'x' })
   mkdirSync(join(byDir, 'apps/desktop/src-tauri'), { recursive: true })
-  assert.throws(() => detect(byDir), /tauri-postgres-agent-harness/)
+  assert.throws(() => detect(byDir), /does not support Tauri/)
 })
 
 test('each foreign lockfile throws, naming the lockfile and the pnpm migration path', () => {

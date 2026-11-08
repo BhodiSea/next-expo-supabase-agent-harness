@@ -125,7 +125,7 @@ try {
 if (baselineText === null && !writeMode) {
   skipOrFail(
     GATE,
-    `${BASELINE} is absent — this install has not adopted the mutation ratchet. Seed it deliberately: run the lane, then \`node tools/check-mutation-ratchet.mjs --write\`, write a reason for every survivor, and commit (the file is write-guard-protected). Pull the template's: \`npx expo-postgres-agent-harness update --refresh-seeded tools/mutation-baseline.json\``,
+    `${BASELINE} is absent — this install has not adopted the mutation ratchet. Seed it deliberately: run the lane, then \`node tools/check-mutation-ratchet.mjs --write\`, write a reason for every survivor, and commit (the file is write-guard-protected). Pull the template's: \`npx next-expo-supabase-agent-harness@latest update --refresh-seeded tools/mutation-baseline.json\``,
   )
 }
 

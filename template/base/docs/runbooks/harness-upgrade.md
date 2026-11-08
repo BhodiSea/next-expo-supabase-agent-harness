@@ -4648,8 +4648,10 @@ above are still the sweep for an install below 1.1.0.
 
 **What `update` plants.** Owned files, re-planted when your copy still matches a released
 sha: `tools/framework-floor.json`, `tools/cc-floor.json`, `tools/lib/cc-floor.mjs`,
-`docs/harness/gates-catalog.md`, this runbook, and the hooks under `.claude/hooks/` (their
-version stamps). Nothing is withheld, and no seeded file changes on an existing install.
+`docs/harness/gates-catalog.md`, `tools/check-mutation-ratchet.mjs` (its advice for a
+missing `tools/mutation-baseline.json` now names this harness's package), this runbook, and
+the hooks under `.claude/hooks/` (their version stamps). Nothing is withheld, and no seeded
+file changes on an existing install.
 
 ### Expect `version-sync` to red on the `next` floor, whatever your `baseVersion`
 

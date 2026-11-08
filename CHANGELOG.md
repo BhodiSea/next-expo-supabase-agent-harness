@@ -5,7 +5,7 @@ All notable changes to this project are documented here. The format follows
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 **Lineage note.** This harness was forked from
-[`expo-postgres-agent-harness`](https://github.com/BhodiSea/expo-postgres-agent-harness)
+`expo-postgres-agent-harness`
 and the version line continues from it. Entries at **0.1.2 and below are the
 ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
@@ -99,6 +99,14 @@ no gate reads the Claude Code version a developer runs.
   in a fork's pull request, a Dependabot run or a local run, the gate says it skipped the
   check and passes. `hygiene.yml` and `release.yml` pass the secret to the step that runs the
   gate. Factory only: nothing changes for an install.
+- **Nothing points to the retired Expo and Tauri harnesses.** The README, the lineage note
+  above and `design/PORT-SPEC.md` name `expo-postgres-agent-harness` and
+  `tauri-postgres-agent-harness` without a link. `init` still refuses a target that depends
+  on `hono` but not `next`, and a Tauri desktop project, and now says what to do instead of
+  naming a harness. With no `tools/mutation-baseline.json`, `mutation-ratchet` told an
+  install to pull the template's copy with `npx expo-postgres-agent-harness update`, and now
+  with `npx next-expo-supabase-agent-harness@latest update`. The gate is owned and reaches an
+  install with `update`.
 
 ## [2.0.7] — 2026-11-07
 
