@@ -1,19 +1,20 @@
 {
-  "comment": "THE CLAUDE CODE VERSION FLOOR — the harness's enforcement layer IS `.claude/settings.json` plus hooks, which makes Claude Code its most load-bearing dependency and the only one whose own security history it never consulted. Through 0.5.0 this file did not exist: the harness held every framework it ships to a cited floor (tools/framework-floor.json) and held the tool it RUNS INSIDE to nothing. THE CITATIONS ARE THE POINT, not the number. A bare `\"floor\": \"2.1.163\"` is a number the next maintainer lowers when a teammate's CLI is old, because nothing in the file says what it costs; a floor whose every digit is attached to a published advisory is a number nobody lowers by accident. `advisories` is a SNAPSHOT of `gh api /advisories?ecosystem=npm&affects=@anthropic-ai/claude-code`, taken on `checkedOn`, reduced to the advisories that set the floor plus every one that lands on this harness's own surface — it is evidence, not a vulnerability database, and the gate re-derives the floor FROM it rather than trusting the scalar. TWO GATES READ THIS FILE, SPLIT ON THE CLOCK, and no third one exists: the CLOCKLESS arithmetic (does the scalar equal the evidence beside it?) rides `version-sync` in the chain, because `pnpm validate` must give the same verdict on the same tree forever; the CLOCKFUL question (has anyone re-queried lately?) rides the scheduled `floor-review` job, where a lapsed review blocks a maintainer rather than a contributor. SOURCE: design/CONTROL-PLANE-FACTS.md (Fact 10)",
+  "comment": "THE CLAUDE CODE VERSION FLOOR — the harness's enforcement layer IS `.claude/settings.json` plus hooks, which makes Claude Code its most load-bearing dependency and the only one whose own security history it never consulted. Through 0.5.0 this file did not exist: the harness held every framework it ships to a cited floor (tools/framework-floor.json) and held the tool it RUNS INSIDE to nothing. THE CITATIONS ARE THE POINT, not the number. A bare `\"floor\": \"2.1.163\"` is a number the next maintainer lowers when a teammate's CLI is old, because nothing in the file says what it costs; a floor whose every digit is attached to a published advisory is a number nobody lowers by accident. `advisories` is a SNAPSHOT of `gh api /advisories?ecosystem=npm&affects=@anthropic-ai/claude-code` and of the vendor's own advisory page (`vendorAdvisorySource`), taken on `checkedOn`, reduced to the advisories that set the floor plus every one that lands on this harness's own surface — it is evidence, not a vulnerability database, and the gate re-derives the floor FROM it rather than trusting the scalar. TWO GATES READ THIS FILE, SPLIT ON THE CLOCK, and no third one exists: the CLOCKLESS arithmetic (does the scalar equal the evidence beside it?) rides `version-sync` in the chain, because `pnpm validate` must give the same verdict on the same tree forever; the CLOCKFUL question (has anyone re-queried lately?) rides the scheduled `floor-review` job, where a lapsed review blocks a maintainer rather than a contributor. SOURCE: design/CONTROL-PLANE-FACTS.md (Fact 10)",
 
-  "checkedOn": "2026-08-15",
-  "advisoryCount": 28,
+  "checkedOn": "2026-11-08",
+  "advisoryCount": 29,
   "advisorySource": "gh api \"/advisories?ecosystem=npm&affects=@anthropic-ai/claude-code&per_page=100\"",
+  "vendorAdvisorySource": "gh api \"/repos/anthropics/claude-code/security-advisories?per_page=100\"",
 
   "required": {
-    "version": "2.1.163",
-    "why": "The earliest release outside EVERY published vulnerable range: the maximum `first_patched_version` across all 28 npm-scoped advisories. Derived, not chosen — `version-sync` recomputes it from `surfaceAdvisories` below and reds if this scalar drifts from the evidence in either direction.",
-    "setBy": ["CVE-2026-55607", "CVE-2026-54316"]
+    "version": "2.1.260",
+    "why": "The earliest release outside EVERY published vulnerable range: the maximum patched version across the 29 npm-scoped advisories `advisorySource` returns and the three that, on `checkedOn`, only `vendorAdvisorySource` listed (the rows with a `vendorUrl`). Derived, not chosen — `version-sync` recomputes it from `surfaceAdvisories` below and reds if this scalar drifts from the evidence in either direction.",
+    "setBy": ["CVE-2026-103012"]
   },
 
   "recommended": {
-    "version": "2.1.219",
-    "why": "`sandbox.network.strictAllowlist` — the setting that makes a non-allowlisted host FAIL rather than prompt. Recommended rather than required because the sandbox is opt-in in this harness (see docs/security/sandbox-and-supply-chain.md) and requiring 56 releases beyond the security evidence would be a floor the evidence does not support. A floor that overreaches is a floor people route around.",
+    "version": "2.1.260",
+    "why": "The same as `required.version`, which covers every feature below. The field stays so that a feature above the security floor can be recommended without being required: a floor that overreaches is a floor people route around.",
     "featureFloors": [
       {
         "version": "2.1.47",
@@ -25,7 +26,7 @@
       },
       {
         "version": "2.1.163",
-        "feature": "`hookSpecificOutput.additionalContext` on Stop/SubagentStop. Not used today; noted because it lands on the same version the security floor already requires."
+        "feature": "`hookSpecificOutput.additionalContext` on Stop/SubagentStop. Not used today, and below the security floor."
       },
       {
         "version": "2.1.219",
@@ -113,7 +114,7 @@
       "patched": "2.1.163",
       "summary": "Sandbox escape via git worktree path confusion allows unsandboxed code execution",
       "url": "https://github.com/advisories/GHSA-7835-87q9-rgvv",
-      "whyItMattersHere": "The second worktree escape, and one of the two advisories that SET the required floor."
+      "whyItMattersHere": "The second worktree escape. With CVE-2026-54316 it set the required floor, 2.1.163, from harness 0.6.0 to 2.0.7."
     },
     {
       "id": "CVE-2026-54316",
@@ -123,7 +124,7 @@
       "patched": "2.1.163",
       "summary": "Out-of-band data exfiltration via a pre-approved domain in WebFetch",
       "url": "https://github.com/advisories/GHSA-fg94-h982-f3mm",
-      "whyItMattersHere": "The other advisory that sets the floor — and a direct argument against treating a domain allowlist as an exfiltration control, which is how docs/security/sandbox-and-supply-chain.md must describe it."
+      "whyItMattersHere": "With CVE-2026-55607 it set the floor from harness 0.6.0 to 2.0.7 — and it is a direct argument against treating a domain allowlist as an exfiltration control, which is how docs/security/sandbox-and-supply-chain.md must describe it."
     },
     {
       "id": "CVE-2026-46406",
@@ -133,7 +134,50 @@
       "patched": "2.1.128",
       "summary": "Insecure temporary file in the /copy command enables response disclosure and symlink-based file write",
       "url": "https://github.com/advisories/GHSA-4vp2-6q8c-pvq2",
-      "whyItMattersHere": "The newest advisory in the set. Included because 'newest' and 'sets the floor' are different properties, and conflating them is how a floor gets lowered."
+      "whyItMattersHere": "pretool-write-guard.mjs judges the paths tools name. This write came from Claude Code's own /copy temporary file, which no hook is asked about, so only the version floor covers it."
+    },
+    {
+      "id": "CVE-2026-103012",
+      "ghsa": "GHSA-gfvf-j8jh-jxxw",
+      "severity": "low",
+      "published": "2026-09-29",
+      "patched": "2.1.260",
+      "summary": "Managed settings not applied when a stored API key was preferred over Enterprise sign-in",
+      "url": "https://github.com/advisories/GHSA-gfvf-j8jh-jxxw",
+      "vendorUrl": "https://github.com/anthropics/claude-code/security/advisories/GHSA-gfvf-j8jh-jxxw",
+      "whyItMattersHere": "docs/security/managed-settings.md makes managed settings the one layer a developer cannot switch off, and server-managed delivery is one of its routes. A stored API key could start an Enterprise or Team session without that policy, or on a stale copy of it; file and MDM delivery were not affected. It sets the required floor."
+    },
+    {
+      "id": "CVE-2026-103435",
+      "ghsa": "GHSA-5j29-h97v-84ch",
+      "severity": "high",
+      "published": "2026-10-05",
+      "patched": "2.1.129",
+      "summary": "Arbitrary file write via write-time symlink following (TOCTOU)",
+      "url": "https://github.com/advisories/GHSA-5j29-h97v-84ch",
+      "vendorUrl": "https://github.com/anthropics/claude-code/security/advisories/GHSA-5j29-h97v-84ch",
+      "whyItMattersHere": "pretool-write-guard.mjs judges the path a write names before it runs. Claude Code resolved that path again at write time, so a file swapped for a symlink in between took the write outside the project whatever the guard decided: CVE-2026-39861's class, one step later."
+    },
+    {
+      "id": "CVE-2026-86063",
+      "ghsa": "GHSA-pq7j-f95f-qfcv",
+      "severity": "high",
+      "published": "2026-10-15",
+      "patched": "2.1.179",
+      "summary": "Plugin commit SHA pin bypass allows installation of attacker-controlled code",
+      "url": "https://github.com/advisories/GHSA-pq7j-f95f-qfcv",
+      "whyItMattersHere": "This harness also ships as a Claude Code plugin. A marketplace entry pinned to a reviewed commit is what tells a user which plugin code they get, and below 2.1.179 a branch named like that SHA in the plugin's repository was installed instead."
+    },
+    {
+      "id": "CVE-2026-88968",
+      "ghsa": "GHSA-5xjx-9qx6-jcrv",
+      "severity": "high",
+      "published": "2026-10-26",
+      "patched": "2.1.251",
+      "summary": "TOCTOU race in the Edit tool allows file writes outside the workspace",
+      "url": "https://github.com/advisories/GHSA-5xjx-9qx6-jcrv",
+      "vendorUrl": "https://github.com/anthropics/claude-code/security/advisories/GHSA-5xjx-9qx6-jcrv",
+      "whyItMattersHere": "On macOS, code inside the Bash sandbox could swap a workspace directory for a symlink after Edit's path check, and the unsandboxed Edit then wrote outside the workspace: the sandbox that docs/security/sandbox-and-supply-chain.md recommends for sensitive code, escaped through a tool pretool-write-guard.mjs had let through. It is also the newest advisory here and does not set the floor: 'newest' and 'sets the floor' are different properties, and conflating them is how a floor gets lowered."
     }
   ],
 
@@ -165,8 +209,18 @@
       "ghsa": "GHSA-3rwf-2g6p-c2f9",
       "product": "Claude Desktop (SSH remote development, not Windows-specific)",
       "why": "Same: repository advisory page, `anthropic` ecosystem, returns 404 from /advisories/<ghsa>."
+    },
+    {
+      "ghsa": "GHSA-v234-4jrq-mgg6",
+      "product": "Claude Desktop (macOS)",
+      "why": "Same: repository advisory page, ecosystem `other`, returns 404 from /advisories/<ghsa>."
+    },
+    {
+      "ghsa": "GHSA-4p2j-qj3c-6x84",
+      "product": "Claude Desktop (Windows)",
+      "why": "Same: repository advisory page, `anthropic` ecosystem, returns 404 from /advisories/<ghsa>."
     }
   ],
 
-  "howToRefresh": "Re-run `advisorySource`, update `checkedOn`, `advisoryCount`, and any advisory whose `first_patched_version` exceeds the current `required.version`. Then re-run `node tools/check-version-sync.mjs`, which recomputes the floor from `surfaceAdvisories` and reds if the scalar disagrees. RAISING the floor is routine. LOWERING it is not: every digit below is attached to a published advisory, so a lower number means a consumer running a version with a known escape in the tool that enforces everything else."
+  "howToRefresh": "Re-run `advisorySource` and `vendorAdvisorySource`, update `checkedOn`, `advisoryCount`, and any advisory whose patched version exceeds the current `required.version`. An npm advisory that the vendor's page lists and GitHub's reviewed database does not yet still counts: its `url` is the address that database will give it, and its `vendorUrl` is the vendor's record, which opens now; drop `vendorUrl` once `url` opens. Then re-run `node tools/check-version-sync.mjs`, which recomputes the floor from `surfaceAdvisories` and reds if the scalar disagrees. RAISING the floor is routine. LOWERING it is not: every digit below is attached to a published advisory, so a lower number means a consumer running a version with a known escape in the tool that enforces everything else."
 }

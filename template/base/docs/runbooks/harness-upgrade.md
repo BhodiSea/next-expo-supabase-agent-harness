@@ -4640,15 +4640,16 @@ Through 2.0.6, the agent's note said its `mcp__corpus_search` server IS wired in
 `tools:` does, so it works as before. `update` plants the agent (owned), and nothing is left
 to you.
 
-## 2.0.8 — a security patch: the `next` floor moves to 16.4.5
+## 2.0.8 — a security patch: the `next` floor moves to 16.4.5, the Claude Code floor to 2.1.260
 
 **No ramp here applies to any install.** 2.0.8 opens no ramp and moves no deadline. The
 population 2.0.0 reds is restated in this release's record, and the 1.1.0 and 2.0.0 sections
 above are still the sweep for an install below 1.1.0.
 
 **What `update` plants.** Owned files, re-planted when your copy still matches a released
-sha: `tools/framework-floor.json`, this runbook, and the hooks under `.claude/hooks/` (their
-version stamps). Nothing is withheld, and no seeded file changes on an existing install.
+sha: `tools/framework-floor.json`, `tools/cc-floor.json`, this runbook, and the hooks under
+`.claude/hooks/` (their version stamps). Nothing is withheld, and no seeded file changes on
+an existing install.
 
 ### Expect `version-sync` to red on the `next` floor, whatever your `baseVersion`
 
@@ -4699,6 +4700,37 @@ pnpm validate
 From 16.4.1 or 16.4.2 this is a patch on the same minor. No flag lowers the floor. Do not use
 `update --refresh-seeded pnpm-workspace.yaml` to take the pin: it replaces your whole catalog
 with the template's.
+
+### The Claude Code floor moves to 2.1.260, and its review is current again
+
+`tools/cc-floor.json` holds Claude Code itself to a cited minimum. Its advisory snapshot was
+taken on 2026-08-15 and its 45-day window ended on 2026-09-29, so your scheduled
+`floor-review` job has been red on it since. 2.0.8 re-takes the snapshot on 2026-11-08, so the
+next review falls due by 2026-12-23, and moves the floor from 2.1.163 to **2.1.260** for four
+npm advisories Anthropic has published since:
+
+- [CVE-2026-103012](https://github.com/anthropics/claude-code/security/advisories/GHSA-gfvf-j8jh-jxxw)
+  (Low, fixed in 2.1.260): a stored API key, preferred over an Enterprise or Team sign-in,
+  could start a session without the organisation's server-managed settings, or with a stale
+  copy of them. File and MDM managed settings were not affected.
+- [CVE-2026-88968](https://github.com/anthropics/claude-code/security/advisories/GHSA-5xjx-9qx6-jcrv)
+  (High, fixed in 2.1.251): on macOS, code inside the Bash sandbox could make an Edit write
+  outside the workspace by swapping a directory for a symlink after the path check.
+- [CVE-2026-86063](https://github.com/anthropics/claude-code/security/advisories/GHSA-pq7j-f95f-qfcv)
+  (High, fixed in 2.1.179): installing a plugin pinned to a commit SHA could install a branch
+  named like that SHA instead.
+- [CVE-2026-103435](https://github.com/anthropics/claude-code/security/advisories/GHSA-5j29-h97v-84ch)
+  (High, fixed in 2.1.129): a file swapped for a symlink between the permission check and the
+  write took the write outside the project.
+
+`tools/cc-floor.json` is harness-owned, so `update` refreshes it and the `floor-review` red
+clears. Nothing reds on the floor itself: no gate reads the version of Claude Code you run.
+Claude Code's auto-update has already delivered these fixes; if you update it by hand, check
+that it reports 2.1.260 or later:
+
+```
+claude --version
+```
 
 ## RECOVERY — when an `update` is interrupted or fails
 

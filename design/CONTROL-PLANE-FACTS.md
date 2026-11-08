@@ -212,15 +212,14 @@ re-loaded after a compaction. **Which** file classes emit it is not documented, 
 that watched for it and concluded "my scoped rule came back" would be resting on undocumented
 behaviour.
 
-## Fact 10 — the published advisory surface, queried 2026-08-07, re-queried 2026-08-15
+## Fact 10 — the published advisory surface, queried 2026-08-07, re-queried 2026-08-15 and 2026-11-08
 
-`gh api "/advisories?ecosystem=npm&affects=@anthropic-ai/claude-code"` returns **28**
-advisories. The maximum `first_patched_version` across all of them is **2.1.163**, which is
+`gh api "/advisories?ecosystem=npm&affects=@anthropic-ai/claude-code"` returned **28**
+advisories on 2026-08-07, and the SAME 28 on 2026-08-15: none had published since 2026-07-24
+(CVE-2026-55607). The maximum `first_patched_version` across them was **2.1.163**, which was
 also the earliest version outside every published vulnerable range. That number, not a
-round one, is the floor — see `template/base/tools/cc-floor.json` for the per-advisory
-citations. The 2026-08-15 re-query returned the SAME 28 advisories and the same maximum
-`first_patched_version`: no new advisory has published since 2026-07-24 (CVE-2026-55607),
-so the floor is unchanged and only `checkedOn` moves.
+round one, was the floor — see `template/base/tools/cc-floor.json` for the per-advisory
+citations.
 
 Ten land on the harness's own enforcement surface: settings-file config injection
 (CVE-2026-25725, patched 2.1.2), repo-controlled settings trust bypass (CVE-2026-33068,
@@ -232,14 +231,29 @@ escape (CVE-2026-39861, 2.1.64), Windows system-wide-config privilege escalation
 CVE-2026-55607, 2.1.163) — which is the answer to whether reviewer subagents should use
 worktree isolation: only above the floor.
 
-Two advisories on the `anthropics/claude-code` repository advisory page are scoped to the
-`anthropic`/**Claude Desktop** ecosystem, not npm, and **must not** set this floor.
+The 2026-11-08 re-query (harness 2.0.8) returned **29**. The new one, CVE-2026-86063
+(patched 2.1.179), let a branch named like a plugin's pinned commit SHA be installed in its
+place. The vendor's own advisory page
+(`gh api "/repos/anthropics/claude-code/security-advisories"`) lists three more npm-scoped
+advisories that neither GitHub's reviewed database nor OSV's npm records held that day:
+CVE-2026-103435 (2.1.129) and CVE-2026-88968 (2.1.251), symlink races that took a file write
+outside the workspace, and CVE-2026-103012 (2.1.260), server-managed settings not applied
+when a stored API key was preferred over an Enterprise or Team sign-in. Each is a published
+vulnerable range of the npm package, so the floor counts them and is now **2.1.260**; all
+four are rows in the file.
+
+Four advisories on the `anthropics/claude-code` repository advisory page, two of them since
+2026-08-15, are scoped to **Claude Desktop** (ecosystem `anthropic` or `other`), not npm, and
+**must not** set this floor.
 
 Separately, three changelog fixes matter to a harness whose enforcement layer is hooks, and
 none carries a CVE: a PreToolUse hook returning `"allow"` could bypass `permissions.deny`
 including enterprise managed settings (2.1.77); `permissions.deny` did not override a hook's
 `permissionDecision: "ask"` (2.1.101); and `PermissionRequest` `updatedInput` was not
-re-checked against `permissions.deny` (2.1.110).
+re-checked against `permissions.deny` (2.1.110). The changelog from 2.1.163 to 2.1.319, read
+on 2026-11-08, adds more hook-versus-permission fixes, and none reaches the shipped hooks:
+they only deny or stay silent, never approve or rewrite a call, and the bash guard matches
+`Monitor` itself (2.1.314 made Bash-matching hooks run on Monitor's commands).
 
 ## Fact 11 — only MANAGED hooks survive `disableAllHooks`
 
@@ -606,10 +620,11 @@ model to write a file and then quote any context a hook had added to the tool re
    output with `hookEventName: literal("PostToolUse"), additionalContext:
    string().optional()` and copies it into the result for `PostToolUse` beside
    `UserPromptSubmit` and `SessionStart`. The required floor in `tools/cc-floor.json` is
-   2.1.163, so the field needs no `featureFloors` row. The hooks reference, read the same
-   day (https://code.claude.com/docs/en/hooks), documents the field for `PostToolUse` and
-   caps the string at 10,000 characters, past which Claude Code saves it to a file and
-   keeps a 2,000-character preview; the hook caps its list at 20 sites.
+   2.1.260 (2.1.163 when this was probed), so the field needs no `featureFloors` row. The
+   hooks reference, read the same day (https://code.claude.com/docs/en/hooks), documents
+   the field for `PostToolUse` and caps the string at 10,000 characters, past which Claude
+   Code saves it to a file and keeps a 2,000-character preview; the hook caps its list at 20
+   sites.
 
 **Not observed.** How the interactive terminal, the VS Code extension and the desktop app
 show the note to the user; the hook does not rely on the user seeing it, since the gate

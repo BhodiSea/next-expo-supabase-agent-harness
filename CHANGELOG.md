@@ -17,7 +17,9 @@ This lineage's own history starts at 0.1.3.
 16.4.1 floor and the 16.4.2 pin 2.0.7 shipped, three of them also the 15.5.28 floor, and the
 scheduled `floor-advisories` job in `hygiene.yml` is red on them. 2.0.8 moves the floor and
 the pin to 16.4.5 (15.5.29 on the 15 line), records all seven, and gives the floor a new
-review window. No gate is added, the chain length does not change, and no ramp opens or
+review window. It also re-takes the Claude Code advisory snapshot, whose review window ended
+on 2026-09-29, and moves the Claude Code floor from 2.1.163 to 2.1.260 for four advisories
+published since. No gate is added, the chain length does not change, and no ramp opens or
 moves. The `template/migrations.json` record withholds nothing and restates 2.0.0's
 twenty-vintage `rampExpiry` population. `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by
 `2.0.7`.
@@ -27,7 +29,9 @@ twenty-vintage `rampExpiry` population. `scripts/lib/ramp-sites.mjs` `VINTAGES` 
 any `next` pin below the new floor until the consumer raises it. The remedy is in
 `docs/runbooks/harness-upgrade.md`, 2.0.8 section. An install that stays on an earlier
 release keeps the review window 2.0.3 set, which lapses on 2026-11-16, and its scheduled
-`floor-review` job then reds on it.
+`floor-review` job then reds on it. That job has been red since 2026-09-30 on the lapsed
+Claude Code snapshot, and taking 2.0.8 clears it. The Claude Code floor itself reds nothing:
+no gate reads the Claude Code version a developer runs.
 
 ### Security
 
@@ -55,6 +59,26 @@ release keeps the review window 2.0.3 set, which lapses on 2026-11-16, and its s
   seven rows and is owned, so `update` refreshes it. `pnpm-workspace.yaml` is seeded, so an
   existing install raises its own pin (`docs/runbooks/harness-upgrade.md`, 2.0.8 section), and
   `scripts/ci/apply-framework-floor.mjs` plays that remedy in the upgrade lane.
+- **The Claude Code floor moves from 2.1.163 to 2.1.260, and its advisory snapshot is
+  re-taken.** The snapshot in `tools/cc-floor.json` dated from 2026-08-15 and its 45-day window
+  ended on 2026-09-29, so the scheduled `floor-review` job has been red on it since 2026-09-30,
+  in every install and in every scaffold made since. The factory's nightly
+  `registers-clockful` job reads only `framework-floor.json` and `eol.json`, so nothing here
+  noticed. Re-taken on 2026-11-08, GitHub's reviewed database returns 29 advisories, one more
+  than before: GHSA-pq7j-f95f-qfcv (CVE-2026-86063, High, fixed in 2.1.179), where installing
+  a plugin pinned to a commit SHA could install a branch named like that SHA. Anthropic's own
+  advisory page lists three more npm advisories that neither that database nor OSV's npm
+  records held that day: GHSA-5j29-h97v-84ch (CVE-2026-103435, High, 2.1.129) and
+  GHSA-5xjx-9qx6-jcrv (CVE-2026-88968, High, 2.1.251), where a symlink swapped in after the
+  path check took a file write outside the workspace, and GHSA-gfvf-j8jh-jxxw
+  (CVE-2026-103012, Low, 2.1.260), where a stored API key could start an Enterprise or Team
+  session without its server-managed settings. The floor is the earliest release outside
+  every published vulnerable range, so it counts all four; the three rows that database lacks
+  cite the vendor's record beside the address the database will give them. `recommended`
+  moves to 2.1.260 as well, since the floor now covers `sandbox.network.strictAllowlist`
+  (2.1.219). The next review falls due by 2026-12-23. The file is owned, so `update` refreshes
+  it. Claude Code's auto-update has already delivered the fixes, and the runbook's 2.0.8
+  section says how to check the version.
 
 ## [2.0.7] — 2026-11-07
 

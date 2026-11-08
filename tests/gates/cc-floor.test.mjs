@@ -138,7 +138,10 @@ test('the freshness half is CLOCKFUL and lives on the scheduled job, not in the 
   // Same split framework-floor.mjs argues for: `pnpm validate` must give the same verdict on
   // the same tree forever, so a wall-clock comparison cannot ride it.
   assert.deepEqual(staleCcReview({ floor: SHIPPED, today: SHIPPED.checkedOn }), [])
-  const lapsed = staleCcReview({ floor: SHIPPED, today: '2026-12-01' })
+  // The first day past the 45-day window, counted from the shipped snapshot, so a refresh
+  // of the snapshot cannot turn this into a test of the calendar.
+  const dayAfter = new Date(Date.parse(`${SHIPPED.checkedOn}T00:00:00Z`) + 46 * 86_400_000)
+  const lapsed = staleCcReview({ floor: SHIPPED, today: dayAfter.toISOString().slice(0, 10) })
   assert.equal(lapsed.length, 1)
   assert.match(lapsed[0], /Re-run/)
   assert.match(lapsed[0], /moving the date alone is the one edit this control cannot tell/)
