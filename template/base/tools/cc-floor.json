@@ -166,7 +166,7 @@
       "patched": "2.1.179",
       "summary": "Plugin commit SHA pin bypass allows installation of attacker-controlled code",
       "url": "https://github.com/advisories/GHSA-pq7j-f95f-qfcv",
-      "whyItMattersHere": "This harness also ships as a Claude Code plugin. A marketplace entry pinned to a reviewed commit is what tells a user which plugin code they get, and below 2.1.179 a branch named like that SHA in the plugin's repository was installed instead."
+      "whyItMattersHere": "This harness also ships as a Claude Code plugin, and a marketplace entry pinned to a reviewed commit is what tells a user which plugin code they get. Below 2.1.179, on a git host that allows branch names shaped like a SHA, a branch named like the pinned commit was installed in its place."
     },
     {
       "id": "CVE-2026-88968",

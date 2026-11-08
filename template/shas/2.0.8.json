@@ -1199,7 +1199,7 @@
     ],
     "tools/cc-floor.json": [
       {
-        "sha256": "f8be9fbdf3f7016dda1b26e59fc06a68f96bf1d6c6ec0b92d0166a65e9d5ffa0"
+        "sha256": "31716ffc164dc4d0ee3d6a6c1ae673b33105d7e3d0087b5280b9a586d9c216a6"
       }
     ],
     "tools/check-auth-posture.mjs": [
