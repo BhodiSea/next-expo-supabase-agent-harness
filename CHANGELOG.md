@@ -73,8 +73,9 @@ no gate reads the Claude Code version a developer runs.
   path check took a file write outside the workspace, and GHSA-gfvf-j8jh-jxxw
   (CVE-2026-103012, Low, 2.1.260), where a stored API key could start an Enterprise or Team
   session without its server-managed settings. The floor is the earliest release outside
-  every published vulnerable range, so it counts all four; the three rows that database lacks
-  cite the vendor's record beside the address the database will give them. `recommended`
+  every published vulnerable range, so it counts all four. The three rows that database lacks
+  cite the vendor's record until it has them: `version-sync` required a `github.com/advisories/`
+  address and now also accepts one on Claude Code's own advisory page. `recommended`
   moves to 2.1.260 as well, since the floor now covers `sandbox.network.strictAllowlist`
   (2.1.219). The next review falls due by 2026-12-23. The file is owned, so `update` refreshes
   it. Claude Code's auto-update has already delivered the fixes, and the runbook's 2.0.8

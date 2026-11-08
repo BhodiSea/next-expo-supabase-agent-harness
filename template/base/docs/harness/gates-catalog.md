@@ -607,7 +607,10 @@ INSIDE to a cited minimum — the one dependency whose compromise compromises ev
 and the only one that had no floor. The scalar is DERIVED: this step recomputes it as the newest
 `patched` among the advisories cited in the file and reds if the two disagree in either
 direction, `required.setBy` must match the evidence **both ways**, and every row must carry an
-openable `github.com/advisories/` URL plus a sentence on what it does to this harness. The edit
+openable advisory URL plus a sentence on what it does to this harness. The URL is on
+`github.com/advisories/`, or on Claude Code's own advisory page
+(`github.com/anthropics/claude-code/security/advisories/`) until GitHub's database has the
+advisory (2.0.8). The edit
 worth catching is not lowering the number — it is deleting an advisory row, after which the
 derived floor falls with it and nothing else would notice. Clockless and offline by design;
 "has anyone re-queried the advisory database lately" is the scheduled `floor-review` job's

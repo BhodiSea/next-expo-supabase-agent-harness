@@ -4647,9 +4647,9 @@ population 2.0.0 reds is restated in this release's record, and the 1.1.0 and 2.
 above are still the sweep for an install below 1.1.0.
 
 **What `update` plants.** Owned files, re-planted when your copy still matches a released
-sha: `tools/framework-floor.json`, `tools/cc-floor.json`, this runbook, and the hooks under
-`.claude/hooks/` (their version stamps). Nothing is withheld, and no seeded file changes on
-an existing install.
+sha: `tools/framework-floor.json`, `tools/cc-floor.json`, `tools/lib/cc-floor.mjs`,
+`docs/harness/gates-catalog.md`, this runbook, and the hooks under `.claude/hooks/` (their
+version stamps). Nothing is withheld, and no seeded file changes on an existing install.
 
 ### Expect `version-sync` to red on the `next` floor, whatever your `baseVersion`
 
@@ -4722,6 +4722,10 @@ npm advisories Anthropic has published since:
 - [CVE-2026-103435](https://github.com/anthropics/claude-code/security/advisories/GHSA-5j29-h97v-84ch)
   (High, fixed in 2.1.129): a file swapped for a symlink between the permission check and the
   write took the write outside the project.
+
+GitHub's advisory database does not have the first, second and fourth yet, so their rows cite
+Anthropic's record, and `tools/lib/cc-floor.mjs`, which `version-sync` runs, now accepts that
+address beside `github.com/advisories/`.
 
 `tools/cc-floor.json` is harness-owned, so `update` refreshes it and the `floor-review` red
 clears. Nothing reds on the floor itself: no gate reads the version of Claude Code you run.

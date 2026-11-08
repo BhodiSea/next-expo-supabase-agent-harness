@@ -31,8 +31,16 @@ export function cmpVersion(a, b) {
   return 0
 }
 
-/** The advisory host whose pages carry a machine-readable, permanently-addressed record. */
-const ADVISORY_HOST = 'https://github.com/advisories/'
+/**
+ * The two advisory pages whose records are machine-readable and permanently addressed:
+ * GitHub's reviewed database, and Claude Code's own repository advisories, which list an
+ * advisory before that database has reviewed it (2.0.8: three of them on the day of
+ * review). Each is compared as a whole prefix, so a lookalike host or repository fails.
+ */
+const ADVISORY_PREFIXES = [
+  'https://github.com/advisories/',
+  'https://github.com/anthropics/claude-code/security/advisories/',
+]
 
 const REQUIRED_FIELDS = ['id', 'ghsa', 'severity', 'published', 'patched', 'summary', 'url']
 
@@ -51,9 +59,9 @@ function rowProblems(list, path) {
         `${at}: \`patched\` is ${JSON.stringify(a?.patched)}, not an x.y.z version — the floor is derived from these, so an unparseable one silently drops out of the arithmetic.`,
       )
     }
-    if (typeof a?.url === 'string' && !a.url.startsWith(ADVISORY_HOST)) {
+    if (typeof a?.url === 'string' && !ADVISORY_PREFIXES.some((p) => a.url.startsWith(p))) {
       problems.push(
-        `${at}: \`url\` is ${JSON.stringify(a.url)}. Cite ${ADVISORY_HOST}<GHSA-id> — a permanent, machine-readable record. A blog post about an advisory is not the advisory.`,
+        `${at}: \`url\` is ${JSON.stringify(a.url)}. Cite ${ADVISORY_PREFIXES[0]}<GHSA-id>, or ${ADVISORY_PREFIXES[1]}<GHSA-id> until GitHub's database has the advisory — a permanent, machine-readable record. A blog post about an advisory is not the advisory.`,
       )
     }
     // Without this the list is a copy of a database, and a copy of a database goes stale

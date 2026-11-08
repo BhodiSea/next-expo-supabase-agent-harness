@@ -107,6 +107,31 @@ test('RED: a citation nobody can open, and a row that never says why it is here'
   assert.match(why.problems.join('\n'), /stale copy of a vulnerability database/)
 })
 
+test("a row cites GitHub's database or Claude Code's own advisory page, and no other address", () => {
+  // 2.0.8: three advisories were on the vendor's page and not yet in GitHub's database, so
+  // the vendor's address is accepted too. The whole prefix is compared, so a lookalike host,
+  // an http:// spelling or another repository's advisory page is still refused.
+  for (const url of [
+    'https://github.com/advisories/GHSA-aaaa-bbbb-cccc',
+    'https://github.com/anthropics/claude-code/security/advisories/GHSA-aaaa-bbbb-cccc',
+  ]) {
+    assert.deepEqual(judgeCcFloor({ floor: floorOf([adv({ url })]) }).problems, [], url)
+  }
+  for (const url of [
+    'http://github.com/advisories/GHSA-aaaa-bbbb-cccc',
+    'https://github.com.example/advisories/GHSA-aaaa-bbbb-cccc',
+    'https://example.com/https://github.com/advisories/GHSA-aaaa-bbbb-cccc',
+    'https://github.com/anthropics/claude-code-fork/security/advisories/GHSA-aaaa-bbbb-cccc',
+    'https://github.com/example/claude-code/security/advisories/GHSA-aaaa-bbbb-cccc',
+  ]) {
+    assert.match(
+      judgeCcFloor({ floor: floorOf([adv({ url })]) }).problems.join('\n'),
+      /A blog post about an advisory is not the advisory/,
+      url,
+    )
+  }
+})
+
 test('RED: an empty advisory list — a bare version number is what this file exists to refuse', () => {
   const r = judgeCcFloor({ floor: { required: { version: '2.1.163' }, surfaceAdvisories: [] } })
   assert.equal(r.judged, 0)

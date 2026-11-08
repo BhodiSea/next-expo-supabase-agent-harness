@@ -731,14 +731,14 @@
     ],
     "docs/harness/gates-catalog.md": [
       {
-        "sha256": "c68ae99bbdacf6f04a580fd2f5ab3946bd8d926b7ba72c04aaf0252f22a3e6e8",
+        "sha256": "7e36fc502039f78f1cd0f76ecca529ba475800882ae00b2a1d7928ff60a9fea4",
         "sites": [
           [
             27862,
             "SECURITY_OWNERS"
           ],
           [
-            152094,
+            152265,
             "SECURITY_TXT_EXPIRES"
           ]
         ]
@@ -926,7 +926,7 @@
     ],
     "docs/runbooks/harness-upgrade.md": [
       {
-        "sha256": "4ced722d818b4946cb74104438d437c14852f4e8b82baef38b5da8ab2c0f8a0a",
+        "sha256": "a85cb44e8c730b070720a8a507f7782dab1cd443bb0ded721b38bc7c40e27e00",
         "sites": [
           [
             14122,
@@ -1199,7 +1199,7 @@
     ],
     "tools/cc-floor.json": [
       {
-        "sha256": "31716ffc164dc4d0ee3d6a6c1ae673b33105d7e3d0087b5280b9a586d9c216a6"
+        "sha256": "8aebe81ed2829a07547cae85cee9e94332fffcfea81ce8f77628c3f4fb143294"
       }
     ],
     "tools/check-auth-posture.mjs": [
@@ -1684,7 +1684,7 @@
     ],
     "tools/lib/cc-floor.mjs": [
       {
-        "sha256": "5fa832a8f4a3426629fa02ee463482ff6cdb22eec98996ffca316fc4d949c3cd"
+        "sha256": "46906146894de7e6ea0e0cc948a921a271d2207af941a507f6ce82459a88fd67"
       }
     ],
     "tools/lib/citation-domains.mjs": [

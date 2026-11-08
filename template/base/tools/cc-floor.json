@@ -8,7 +8,7 @@
 
   "required": {
     "version": "2.1.260",
-    "why": "The earliest release outside EVERY published vulnerable range: the maximum patched version across the 29 npm-scoped advisories `advisorySource` returns and the three that, on `checkedOn`, only `vendorAdvisorySource` listed (the rows with a `vendorUrl`). Derived, not chosen — `version-sync` recomputes it from `surfaceAdvisories` below and reds if this scalar drifts from the evidence in either direction.",
+    "why": "The earliest release outside EVERY published vulnerable range: the maximum patched version across the 29 npm-scoped advisories `advisorySource` returns and the three that, on `checkedOn`, only `vendorAdvisorySource` listed (the rows whose `url` is the vendor's). Derived, not chosen — `version-sync` recomputes it from `surfaceAdvisories` below and reds if this scalar drifts from the evidence in either direction.",
     "setBy": ["CVE-2026-103012"]
   },
 
@@ -143,8 +143,7 @@
       "published": "2026-09-29",
       "patched": "2.1.260",
       "summary": "Managed settings not applied when a stored API key was preferred over Enterprise sign-in",
-      "url": "https://github.com/advisories/GHSA-gfvf-j8jh-jxxw",
-      "vendorUrl": "https://github.com/anthropics/claude-code/security/advisories/GHSA-gfvf-j8jh-jxxw",
+      "url": "https://github.com/anthropics/claude-code/security/advisories/GHSA-gfvf-j8jh-jxxw",
       "whyItMattersHere": "docs/security/managed-settings.md makes managed settings the one layer a developer cannot switch off, and server-managed delivery is one of its routes. A stored API key could start an Enterprise or Team session without that policy, or on a stale copy of it; file and MDM delivery were not affected. It sets the required floor."
     },
     {
@@ -154,8 +153,7 @@
       "published": "2026-10-05",
       "patched": "2.1.129",
       "summary": "Arbitrary file write via write-time symlink following (TOCTOU)",
-      "url": "https://github.com/advisories/GHSA-5j29-h97v-84ch",
-      "vendorUrl": "https://github.com/anthropics/claude-code/security/advisories/GHSA-5j29-h97v-84ch",
+      "url": "https://github.com/anthropics/claude-code/security/advisories/GHSA-5j29-h97v-84ch",
       "whyItMattersHere": "pretool-write-guard.mjs judges the path a write names before it runs. Claude Code resolved that path again at write time, so a file swapped for a symlink in between took the write outside the project whatever the guard decided: CVE-2026-39861's class, one step later."
     },
     {
@@ -175,8 +173,7 @@
       "published": "2026-10-26",
       "patched": "2.1.251",
       "summary": "TOCTOU race in the Edit tool allows file writes outside the workspace",
-      "url": "https://github.com/advisories/GHSA-5xjx-9qx6-jcrv",
-      "vendorUrl": "https://github.com/anthropics/claude-code/security/advisories/GHSA-5xjx-9qx6-jcrv",
+      "url": "https://github.com/anthropics/claude-code/security/advisories/GHSA-5xjx-9qx6-jcrv",
       "whyItMattersHere": "On macOS, code inside the Bash sandbox could swap a workspace directory for a symlink after Edit's path check, and the unsandboxed Edit then wrote outside the workspace: the sandbox that docs/security/sandbox-and-supply-chain.md recommends for sensitive code, escaped through a tool pretool-write-guard.mjs had let through. It is also the newest advisory here and does not set the floor: 'newest' and 'sets the floor' are different properties, and conflating them is how a floor gets lowered."
     }
   ],
@@ -222,5 +219,5 @@
     }
   ],
 
-  "howToRefresh": "Re-run `advisorySource` and `vendorAdvisorySource`, update `checkedOn`, `advisoryCount`, and any advisory whose patched version exceeds the current `required.version`. An npm advisory that the vendor's page lists and GitHub's reviewed database does not yet still counts: its `url` is the address that database will give it, and its `vendorUrl` is the vendor's record, which opens now; drop `vendorUrl` once `url` opens. Then re-run `node tools/check-version-sync.mjs`, which recomputes the floor from `surfaceAdvisories` and reds if the scalar disagrees. RAISING the floor is routine. LOWERING it is not: every digit below is attached to a published advisory, so a lower number means a consumer running a version with a known escape in the tool that enforces everything else."
+  "howToRefresh": "Re-run `advisorySource` and `vendorAdvisorySource`, update `checkedOn`, `advisoryCount`, and any advisory whose patched version exceeds the current `required.version`. An npm advisory that the vendor's page lists and GitHub's reviewed database does not yet list still counts: its `url` is the vendor's record, `https://github.com/anthropics/claude-code/security/advisories/<GHSA-id>`, until that database has the advisory, and then `https://github.com/advisories/<GHSA-id>`. Then re-run `node tools/check-version-sync.mjs`, which recomputes the floor from `surfaceAdvisories` and reds if the scalar disagrees. RAISING the floor is routine. LOWERING it is not: every digit below is attached to a published advisory, so a lower number means a consumer running a version with a known escape in the tool that enforces everything else."
 }
