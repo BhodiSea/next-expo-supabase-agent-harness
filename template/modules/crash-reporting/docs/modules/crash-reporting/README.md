@@ -154,7 +154,7 @@ Two halves, both in `release-sourcemaps.patch.md`:
   assert the payload your ingest host received shows `[redacted]` /
   `[redacted-email]` (mobile patch, step 7) — this proves the WIRING calls the
   policy, not just that the policy exists.
-- Extend the fixtures with YOUR PII shapes (student identifiers, tenant
+- Extend the fixtures with YOUR PII shapes (account identifiers, tenant
   names); a generic-shapes-only redaction test undertests your data.
 
 ## Honest limits

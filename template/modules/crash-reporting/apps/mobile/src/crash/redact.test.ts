@@ -5,7 +5,7 @@ import { type CrashEvent, redactCrashEvent, redactText } from './redact'
 // Redaction policy tests (crash-reporting module). These run under jest-expo —
 // the Stop chain's mobile-unit step and the CI unit lane — the moment the
 // module is enabled: the policy is enforced BEFORE any crash transport exists.
-// Extend the fixtures with every PII shape your deployment handles (student
+// Extend the fixtures with every PII shape your deployment handles (account
 // identifiers, tenant names, …): a redaction test that only covers generic
 // shapes undertests YOUR data.
 //
@@ -52,7 +52,7 @@ describe('redactText', () => {
   })
 
   it('strips e-mail addresses and home-directory usernames', () => {
-    expect(redactText('user jane.doe@example.edu reported')).toBe('user [redacted-email] reported')
+    expect(redactText('user jane.doe@example.com reported')).toBe('user [redacted-email] reported')
     expect(redactText('at C:\\Users\\jdoe\\AppData\\Roaming\\app\\logs')).toBe(
       'at C:\\Users\\[redacted]\\AppData\\Roaming\\app\\logs',
     )

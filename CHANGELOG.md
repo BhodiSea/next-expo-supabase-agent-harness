@@ -107,6 +107,11 @@ no gate reads the Claude Code version a developer runs.
   install to pull the template's copy with `npx expo-postgres-agent-harness update`, and now
   with `npx next-expo-supabase-agent-harness@latest update`. The gate is owned and reaches an
   install with `update`.
+- **Neutral example names.** The installer's prompts give "Acme Notes", `com.acme.notes` and
+  `acmenotes` as examples. The crash-reporting module's ingest host and e-mail fixture use
+  `example.com`, and its README and redaction test name account identifiers among the PII
+  shapes to add. The module's two docs are owned and reach an install with `update`; the
+  test is seeded, so only a new scaffold gets it.
 
 ## [2.0.7] — 2026-11-07
 

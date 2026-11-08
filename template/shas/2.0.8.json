@@ -775,12 +775,12 @@
     ],
     "docs/modules/crash-reporting/README.md": [
       {
-        "sha256": "4171b9ac50f56f59be4994d678ff48eadf16ecf3ddcb08688787cb8097a95b49"
+        "sha256": "1e693b18757808ea4aa8b98a1e779cea2df62cca2f1614632f3c82985d21f7c2"
       }
     ],
     "docs/modules/crash-reporting/mobile-sentry.patch.md": [
       {
-        "sha256": "0c3775f1addc3456d35d09263318fb9e42a86aee8e3448d62e2d9f1f33462d62",
+        "sha256": "0151ca61ba82e6f99db8b2b2fc045334df025f8a8055d534d9ba4e05d3a9fddd",
         "sites": [
           [
             5137,
@@ -926,7 +926,7 @@
     ],
     "docs/runbooks/harness-upgrade.md": [
       {
-        "sha256": "343fe1564d5955bde5f6f195edfb1c966a5c97faabe19a512f0f436506e26453",
+        "sha256": "2dc4cd7539a4ae7c167890dfc242a66877a58c12b3dd881f1c560b92a1b2c8b5",
         "sites": [
           [
             14122,

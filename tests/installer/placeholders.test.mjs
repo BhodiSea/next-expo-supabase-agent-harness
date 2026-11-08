@@ -30,13 +30,13 @@ test('SECURITY_OWNERS defaults to @GITHUB_OWNER', () => {
 })
 
 test('APP_IDENTIFIER derives reverse-DNS from slug, stripping non-alphanumerics', () => {
-  const ctx = { answers: { PROJECT_SLUG: 'acme-curriculum' } }
-  assert.equal(PLACEHOLDERS.APP_IDENTIFIER.default(ctx), 'com.example.acmecurriculum')
+  const ctx = { answers: { PROJECT_SLUG: 'acme-notes' } }
+  assert.equal(PLACEHOLDERS.APP_IDENTIFIER.default(ctx), 'com.example.acmenotes')
 })
 
 test('APP_IDENTIFIER validation enforces the iOS∩Android intersection (no hyphens, no underscores)', () => {
   const v = PLACEHOLDERS.APP_IDENTIFIER.validate
-  assert.equal(v('com.acme.curriculum'), null)
+  assert.equal(v('com.acme.notes'), null)
   assert.match(v('com.acme.my-app') ?? '', /Android forbids/)
   assert.match(v('com.acme.my_app') ?? '', /iOS forbids/)
   assert.match(v('acme') ?? '', /reverse-DNS/)
@@ -44,10 +44,10 @@ test('APP_IDENTIFIER validation enforces the iOS∩Android intersection (no hyph
 })
 
 test('APP_SCHEME derives from the slug with dashes stripped, and rejects non-alphanumerics', () => {
-  const ctx = { answers: { PROJECT_SLUG: 'acme-curriculum' } }
-  assert.equal(PLACEHOLDERS.APP_SCHEME.default(ctx), 'acmecurriculum')
-  assert.equal(PLACEHOLDERS.APP_SCHEME.validate('acmecurriculum'), null)
-  assert.notEqual(PLACEHOLDERS.APP_SCHEME.validate('acme-curriculum'), null)
+  const ctx = { answers: { PROJECT_SLUG: 'acme-notes' } }
+  assert.equal(PLACEHOLDERS.APP_SCHEME.default(ctx), 'acmenotes')
+  assert.equal(PLACEHOLDERS.APP_SCHEME.validate('acmenotes'), null)
+  assert.notEqual(PLACEHOLDERS.APP_SCHEME.validate('acme-notes'), null)
   assert.notEqual(PLACEHOLDERS.APP_SCHEME.validate('9acme'), null)
 })
 
