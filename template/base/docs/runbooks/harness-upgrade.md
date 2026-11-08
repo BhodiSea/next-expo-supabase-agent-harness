@@ -4649,7 +4649,8 @@ above are still the sweep for an install below 1.1.0.
 **What `update` plants.** Owned files, re-planted when your copy still matches a released
 sha: `tools/framework-floor.json`, `tools/cc-floor.json`, `tools/lib/cc-floor.mjs`,
 `docs/harness/gates-catalog.md`, `tools/check-mutation-ratchet.mjs` (its advice for a
-missing `tools/mutation-baseline.json` now names this harness's package), with the
+missing `tools/mutation-baseline.json` now names this harness's package),
+`tools/lib/planted-shas.json` (it now knows this release's `tools/eol.json`), with the
 crash-reporting module its `mobile-sentry.patch.md` and `README.md` under
 `docs/modules/crash-reporting/` (example values only), this runbook, and the hooks under
 `.claude/hooks/` (their version stamps). Nothing is withheld, and no seeded file changes on
