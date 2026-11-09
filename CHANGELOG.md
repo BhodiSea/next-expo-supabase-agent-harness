@@ -123,10 +123,11 @@ reds nothing: no gate reads the Claude Code version a developer runs.
   above and `design/PORT-SPEC.md` name `expo-postgres-agent-harness` and
   `tauri-postgres-agent-harness` without a link. `init` still refuses a target that depends
   on `hono` but not `next`, and a Tauri desktop project, and now says what to do instead of
-  naming a harness. With no `tools/mutation-baseline.json`, `mutation-ratchet` told an
-  install to pull the template's copy with `npx expo-postgres-agent-harness update`, and now
-  with `npx next-expo-supabase-agent-harness@latest update`. The gate is owned and reaches an
-  install with `update`.
+  naming a harness. With no `tools/mutation-baseline.json`, `mutation-ratchet` named the
+  retired `expo-postgres-agent-harness` package in the command that pulls the template's
+  copy, and now gives
+  `npx next-expo-supabase-agent-harness@latest update --refresh-seeded tools/mutation-baseline.json`.
+  The gate is owned and reaches an install with `update`.
 - **Neutral example names.** The installer's prompts give "Acme Notes", `com.acme.notes` and
   `acmenotes` as examples. The crash-reporting module's ingest host and e-mail fixture use
   `example.com`, and its README and redaction test name account identifiers among the PII
