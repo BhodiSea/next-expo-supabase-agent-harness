@@ -244,6 +244,29 @@ test('RED: a path that holds a name is reported with the name replaced', () => {
   )
 })
 
+test('RED: a name that two entries match, one inside the other or across it, prints as one label', () => {
+  // Replaced one entry at a time, entry 1's label broke entry 2's match and the rest of the
+  // name printed: hygiene-[entry 1]-<other>-fixture for the first list, and
+  // hygiene-<the name's start>[entry 1]<the other's end>-fixture for the second.
+  const other = ['quim', 'bel'].join('')
+  const rel = `hygiene-${NAME}-${other}-fixture.tmp.md`
+  withFixture(
+    rel,
+    () => {
+      assert.equal(ignored(rel), false, `${rel} is covered by .gitignore, so this test would go green without the sweep ever reading it`)
+      for (const first of [NAME, `${NAME.slice(-3)}-${other.slice(0, 2)}`]) {
+        const { code, out } = hygieneWithNames([first, `${NAME}-${other}`].join('\n'))
+        assert.equal(code, 1, out)
+        for (const n of [1, 2]) {
+          assert.match(out, new RegExp(`hygiene-\\[entry \\d\\]-fixture\\.tmp\\.md \\(the path\\) matches entry ${String(n)} of HYGIENE_PRIVATE_NAMES`))
+        }
+        assert.doesNotMatch(out, SHOWS_NAME)
+      }
+    },
+    'Nothing private on this line.\n',
+  )
+})
+
 test('GREEN: entries that match nothing pass, and the CLEAN line counts them', () => {
   const { code, out } = hygieneWithNames([NAME, `${NAME}x`].join('\n'))
   assert.equal(code, 0, out)

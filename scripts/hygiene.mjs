@@ -353,11 +353,16 @@ const STANDARDS_CLAIM_EXEMPT = new Map([
 // the text around it, which the printed line changes: `name$` matches the path `notes/name`
 // but not the line `notes/name (the path) matches entry 1 …`, which would then print the
 // name. So an entry with ^ or $ outside a character class, or with a lookaround group, is
-// refused by its number too. Without the secret (a fork, a fork's pull request, a Dependabot
-// run, a local run) the check prints one line saying it skipped, and passes, unless
-// HYGIENE_REQUIRE_PRIVATE_NAMES is 1. hygiene.yml sets it on a push to main or a tag, and
-// release.yml on its tag, both only in this repository; there a missing or empty list fails,
-// naming the secret. No pull request sets it, so a fork's pull request still skips.
+// refused by its number too. It also needs every entry matched before any match is replaced:
+// one entry at a time, an earlier entry's label broke a later entry's match, so the entries
+// `name` and `name-?surname` printed the path `notes/name-surname` as
+// `notes/[entry 1]-surname`.
+//
+// Without the secret (a fork, a fork's pull request, a Dependabot run, a local run) the check
+// prints one line saying it skipped, and passes, unless HYGIENE_REQUIRE_PRIVATE_NAMES is 1.
+// hygiene.yml sets it on a push to main or a tag, and release.yml on its tag, both only in this
+// repository; there a missing or empty list fails, naming the secret. No pull request sets it,
+// so a fork's pull request still skips.
 const PRIVATE_NAMES = 'HYGIENE_PRIVATE_NAMES'
 const REQUIRE_PRIVATE_NAMES = 'HYGIENE_REQUIRE_PRIVATE_NAMES'
 
@@ -423,10 +428,24 @@ if (privateNames.count === 0 && process.env[REQUIRE_PRIVATE_NAMES] === '1') {
 /** @param {string} subject a path, or one line of a file @returns {number[]} the entries it matches */
 const privateNamesIn = (subject) => privateNames.names.filter(({ re }) => re.test(subject)).map(({ n }) => n)
 
-/** @param {string} line a failure line @returns {string} the line with every private-name match replaced */
+/**
+ * A failure line with every private-name match replaced. Every entry is matched against the
+ * line as it stands, and then each run of matched characters becomes one `[entry N]`, N being
+ * the lowest-numbered entry that matched the run's first character.
+ * @param {string} line a failure line @returns {string}
+ */
 function redacted(line) {
-  let out = line
-  for (const { n, every } of privateNames.names) out = out.replace(every, `[entry ${String(n)}]`)
+  const by = new Uint32Array(line.length)
+  for (const { n, every } of privateNames.names) {
+    for (const m of line.matchAll(every)) {
+      for (let i = m.index; i < m.index + m[0].length; i += 1) by[i] ||= n
+    }
+  }
+  let out = ''
+  for (let i = 0; i < line.length; i += 1) {
+    if (by[i] === 0) out += line[i]
+    else if (i === 0 || by[i - 1] === 0) out += `[entry ${String(by[i])}]`
+  }
   return out
 }
 
