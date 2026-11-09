@@ -83,7 +83,11 @@ reds nothing: no gate reads the Claude Code version a developer runs.
   outside every published vulnerable range, so it counts all four. The three rows that
   database lacks cite the vendor's record until it has them: `version-sync` required a
   `github.com/advisories/` address and now also accepts one on Claude Code's own advisory
-  page. `recommended` moves to 2.1.311, for four hook fixes above the floor that carry no
+  page. Either way the address must be the page followed by the row's own GHSA id and
+  nothing more, so the bare page, another advisory's id and a path that climbs out of the
+  page fail. When the snapshot lapses, `floor-review` now names both advisory queries to
+  re-run, as the file's `howToRefresh` does.
+  `recommended` moves to 2.1.311, for four hook fixes above the floor that carry no
   advisory and reach the shipped hooks. Before them a PreToolUse hook was skipped when
   matching it failed or the tool's input could not be serialized (2.1.288), on Windows
   without Git for Windows a hook that set no shell failed open (2.1.299) and one that ran in

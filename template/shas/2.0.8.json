@@ -731,14 +731,14 @@
     ],
     "docs/harness/gates-catalog.md": [
       {
-        "sha256": "7e36fc502039f78f1cd0f76ecca529ba475800882ae00b2a1d7928ff60a9fea4",
+        "sha256": "1ffb88be487b94c9287cac1b550e78da9b7b24bb0056c9a582c6fb955d27600d",
         "sites": [
           [
             27862,
             "SECURITY_OWNERS"
           ],
           [
-            152265,
+            152305,
             "SECURITY_TXT_EXPIRES"
           ]
         ]
@@ -1684,7 +1684,7 @@
     ],
     "tools/lib/cc-floor.mjs": [
       {
-        "sha256": "46906146894de7e6ea0e0cc948a921a271d2207af941a507f6ce82459a88fd67"
+        "sha256": "d15e6843f7dd02faf251c114a30318940a4e7718107535caddb17ce7404c030f"
       }
     ],
     "tools/lib/citation-domains.mjs": [
