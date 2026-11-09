@@ -325,7 +325,7 @@ fixes "`SubagentStop` hooks running about twice a minute for each running subage
 once when it finishes". No source says which versions had it, and 2.1.292 did not (Fact 2).
 If it lives anywhere from 2.1.293 to 2.1.310, `subagent-verdict.mjs` runs there on a reviewer
 subagent still at work after about 30 s, finds no verdict yet, exits 2 and records a block in
-`.harness/turn-outcomes.jsonl`. Neither this fix nor the three guard fixes carries an
+`.harness/turn-outcomes.jsonl`. Neither this fix nor the three guard fixes carry an
 advisory, so they set no required floor, and `recommended` is **2.1.311** for all four.
 
 ## Fact 11 — only MANAGED hooks survive `disableAllHooks`
