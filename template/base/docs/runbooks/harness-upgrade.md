@@ -4735,12 +4735,16 @@ address beside `github.com/advisories/`.
 
 `tools/cc-floor.json` is harness-owned, so `update` refreshes it and its `floor-review` finding
 clears. Nothing reds on the floor itself: no gate reads the version of Claude Code you run.
-The file also recommends **2.1.309**. Three hook fixes since the floor, none with an
-advisory, keep the harness's guards from failing open: a PreToolUse hook was skipped when
-matching it failed or the tool's input could not be serialized (2.1.288), and on Windows
+The file also recommends **2.1.311**, for four hook fixes since the floor, none with an
+advisory. Three keep the harness's guards from failing open: a PreToolUse hook was skipped
+when matching it failed or the tool's input could not be serialized (2.1.288), and on Windows
 without Git for Windows a hook that set no shell failed open (2.1.299) and one that ran in
-PowerShell did not block on exit code 2 (2.1.309). Claude Code's auto-update has already
-delivered these fixes; if you update it by hand, check that it reports 2.1.309 or later:
+PowerShell did not block on exit code 2 (2.1.309). The fourth stops `SubagentStop` hooks from
+running about twice a minute for each running subagent (2.1.311). No source says which
+versions did that; on one that did, `.claude/hooks/subagent-verdict.mjs` could run on a
+reviewer still at work after about 30 seconds, find no verdict, and block. Claude Code's
+auto-update has already delivered these fixes; if you update it by hand, check that it
+reports 2.1.311 or later:
 
 ```
 claude --version

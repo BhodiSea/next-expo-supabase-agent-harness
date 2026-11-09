@@ -83,13 +83,17 @@ reds nothing: no gate reads the Claude Code version a developer runs.
   outside every published vulnerable range, so it counts all four. The three rows that
   database lacks cite the vendor's record until it has them: `version-sync` required a
   `github.com/advisories/` address and now also accepts one on Claude Code's own advisory
-  page. `recommended` moves to 2.1.309, for three hook fixes above the floor that carry no
-  advisory and reach the shipped guards: before them a PreToolUse hook was skipped when
-  matching it failed or the tool's input could not be serialized (2.1.288), and on Windows
+  page. `recommended` moves to 2.1.311, for four hook fixes above the floor that carry no
+  advisory and reach the shipped hooks. Before them a PreToolUse hook was skipped when
+  matching it failed or the tool's input could not be serialized (2.1.288), on Windows
   without Git for Windows a hook that set no shell failed open (2.1.299) and one that ran in
-  PowerShell did not block on exit code 2 (2.1.309). The file's `uncvedHookFixes` records
-  them beside the hook fixes that do not reach the shipped guards, and a new note lists three
-  VulnCheck CVE records that neither of its advisory queries returns, all below the floor.
+  PowerShell did not block on exit code 2 (2.1.309), and `SubagentStop` hooks ran about twice
+  a minute for each running subagent (2.1.311). No source says which versions had that last
+  one, and 2.1.292 did not. On one that did, `.claude/hooks/subagent-verdict.mjs` would run on
+  a reviewer still at work after about 30 seconds, find no verdict, exit 2 and record a block.
+  The file's `uncvedHookFixes` records the four beside the hook fixes that do not reach the
+  shipped hooks, and a new note lists three VulnCheck CVE records that neither of its
+  advisory queries returns, all below the floor.
   The next review falls due by 2026-12-23. The file is owned, so `update` refreshes it.
   Claude Code's auto-update has already delivered the fixes, and the runbook's 2.0.8 section
   says how to check the version.

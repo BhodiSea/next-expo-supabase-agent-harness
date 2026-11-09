@@ -315,11 +315,18 @@ it, every one but those its note sets aside. Three, all above the floor, reach t
 guards, which set no shell and fail closed through exit 2: PreToolUse hooks were skipped when
 matching them failed or the tool's input could not be serialized to JSON (2.1.288), and on
 Windows without Git for Windows a hook that set no shell failed open (2.1.299) and a hook
-that ran in PowerShell did not block on exit code 2 (2.1.309). They carry no advisory, so
-they set no required floor, and `recommended` is **2.1.309** for them. The others need what
-the shipped guards never do: approve, ask or rewrite a call, run a command that is only quoted
+that ran in PowerShell did not block on exit code 2 (2.1.309). The others need what the
+shipped guards never do: approve, ask or rewrite a call, run a command that is only quoted
 strings (2.1.310) or that begins with a type cast, `param`, `using` or an attribute (2.1.316),
 or match `Bash` without `Monitor` (2.1.314).
+
+The list also holds one fix that is not about permissions and reaches a shipped hook. 2.1.311
+fixes "`SubagentStop` hooks running about twice a minute for each running subagent instead of
+once when it finishes". No source says which versions had it, and 2.1.292 did not (Fact 2).
+If it lives anywhere from 2.1.293 to 2.1.310, `subagent-verdict.mjs` runs there on a reviewer
+subagent still at work after about 30 s, finds no verdict yet, exits 2 and records a block in
+`.harness/turn-outcomes.jsonl`. Neither this fix nor the three guard fixes carries an
+advisory, so they set no required floor, and `recommended` is **2.1.311** for all four.
 
 ## Fact 11 — only MANAGED hooks survive `disableAllHooks`
 
