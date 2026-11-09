@@ -395,24 +395,29 @@ test('GREEN: a flag that is not 1, such as the empty value a pull request gets, 
   }
 })
 
-test('only the step that runs scripts/hygiene.mjs gets the list or the flag, and no pull request sets the flag', () => {
-  // Read as text, like the other workflow checks here. A step starts at a `      - ` line.
+test('only the step that runs scripts/hygiene.mjs names the list or the flag, and no pull request sets the flag', () => {
+  // Read as text, like the other workflow checks here. A step starts at a `      - ` line. A
+  // step that names either variable outside a comment, as a key or in `secrets.`, gets the
+  // list or the flag, so it must run the gate and nothing else.
   const dir = join(ROOT, '.github/workflows')
   const homes = []
   for (const file of readdirSync(dir).filter((f) => f.endsWith('.yml')).sort()) {
     const text = readFileSync(join(dir, file), 'utf8')
     for (const step of text.split(/\n(?= {6}- )/)) {
-      if (!/^\s+HYGIENE_(?:REQUIRE_)?PRIVATE_NAMES:/m.test(step)) continue
+      if (!/HYGIENE_(?:REQUIRE_)?PRIVATE_NAMES/i.test(step.replace(/^\s*#.*$/gm, ''))) continue
       homes.push(file)
       assert.match(step, /^\s+(?:- )?run: node scripts\/hygiene\.mjs$/m, `${file}: this step runs more than scripts/hygiene.mjs:\n${step}`)
       const flag = /^\s+HYGIENE_REQUIRE_PRIVATE_NAMES:(.*)$/m.exec(step)?.[1]
       if (flag === undefined) continue
-      // A workflow that runs only on a tag push needs no event check; any other must limit
-      // the flag to a push.
+      // A workflow that runs only on a tag push needs no event check. In any other, every event
+      // the flag compares must be a push, and the flag must name no pull request: a fork's pull
+      // request runs with this repository's id, so the event check is what keeps it out.
       const on = /^on:\n([\s\S]*?)\n\S/m.exec(text)?.[1]
       assert.notEqual(on, undefined, `${file}: no on: block to read`)
+      const events = flag.match(/github\.event_name\s*[!=]=\s*'[^']*'/gi) ?? []
+      const pushOnly = events.length > 0 && events.every((e) => /^github\.event_name\s*==\s*'push'$/i.test(e))
       assert.ok(
-        flag.includes("github.event_name == 'push'") || !/pull_request|branches|schedule|workflow_dispatch/.test(on ?? ''),
+        !/pull_request/i.test(flag) && (pushOnly || !/pull_request|branches|schedule|workflow_dispatch/.test(on ?? '')),
         `${file}: the flag is not limited to a push, and the workflow has other triggers:\n${step}`,
       )
     }
