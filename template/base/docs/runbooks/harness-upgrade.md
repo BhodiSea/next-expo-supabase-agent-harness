@@ -4731,7 +4731,9 @@ npm advisories Anthropic has published since:
 
 GitHub's advisory database does not have the first, second and fourth yet, so their rows cite
 Anthropic's record, and `tools/lib/cc-floor.mjs`, which `version-sync` runs, now accepts that
-address beside `github.com/advisories/`.
+address beside `github.com/advisories/`. On either page the address must be the row's own GHSA
+id and nothing more. Every `tools/cc-floor.json` a release shipped meets that, so
+`version-sync` reds only on a row you added yourself with another address.
 
 `tools/cc-floor.json` is harness-owned, so `update` refreshes it and its `floor-review` finding
 clears. Nothing reds on the floor itself: no gate reads the version of Claude Code you run.
