@@ -47,6 +47,23 @@ when they fall due.
   breached cap and its measured value (the 1.0.4 CHANGELOG, "What stays
   open"); the fix follows from that line.
 
+## Open findings
+
+- **The hook launcher's own tearing fails open.** Every guard hook starts
+  through `.claude/hooks/launch.mjs`, which blocks the call when the hook
+  cannot load. The launcher itself has no such cover. One that is empty, or
+  cut inside its leading comment, is a valid module that exits 0, so the call
+  runs and Claude Code shows no notice. Cut later, it exits 1, which Claude
+  Code reads as an error that blocks nothing, so the call runs then too
+  ([design/CONTROL-PLANE-FACTS.md](design/CONTROL-PLANE-FACTS.md), Fact 12).
+  With its code above the comment, most tears would exit 1 or leave the code
+  whole. Since Claude Code 2.1.295 a command hook may set
+  `"onFailure": "block"`, which would turn the exit-1 tears into blocks on the
+  three PreToolUse guards; it cannot see an exit 0. Adopting the key needs a
+  feature floor above the 2.1.260 required floor, and first a check of how
+  2.1.260 to 2.1.294 treat a key they do not know: print mode ignores a
+  settings file that fails validation, which would drop every hook.
+
 ## Next: 2.0.0
 
 1.1.0 opened a set of dated advisory notes for existing installs, all but three
