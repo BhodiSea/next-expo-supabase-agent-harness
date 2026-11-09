@@ -356,7 +356,8 @@ const STANDARDS_CLAIM_EXEMPT = new Map([
 // refused by its number too. It also needs every entry matched before any match is replaced:
 // one entry at a time, an earlier entry's label broke a later entry's match, so the entries
 // `name` and `name-?surname` printed the path `notes/name-surname` as
-// `notes/[entry 1]-surname`.
+// `notes/[entry 1]-surname`. A refused entry cannot hide the name it stands for, so while one
+// stands the gate prints only the refusals, with a count of its other findings.
 //
 // Without the secret (a fork, a fork's pull request, a Dependabot run, a local run) the check
 // prints one line saying it skipped, and passes, unless HYGIENE_REQUIRE_PRIVATE_NAMES is 1.
@@ -385,11 +386,12 @@ function anchorOrLookaround(source) {
 }
 
 /**
- * The variable's entries, compiled. A bad entry becomes a failure, named by its number only.
- * @param {string} value @param {string[]} errors
+ * The variable's entries, compiled. A refused entry becomes a failure in `refused`, named by
+ * its number only.
+ * @param {string} value @param {string[]} refused
  * @returns {{ count: number, names: { n: number, re: RegExp, every: RegExp }[] }}
  */
-function privateNameEntries(value, errors) {
+function privateNameEntries(value, refused) {
   const names = []
   let count = 0
   for (const raw of value.split('\n')) {
@@ -401,20 +403,22 @@ function privateNameEntries(value, errors) {
     try {
       re = new RegExp(source, 'i')
     } catch {
-      errors.push(`${label} is not a valid regular expression`)
+      refused.push(`${label} is not a valid regular expression`)
       continue
     }
     if (anchorOrLookaround(source)) {
-      errors.push(
+      refused.push(
         `${label} has ^ or $ outside a character class, or a lookaround group, so the line that reports a match could print the name; write the entry without them`,
       )
-    } else if (re.test('')) errors.push(`${label} matches an empty line, so it would match every line`)
+    } else if (re.test('')) refused.push(`${label} matches an empty line, so it would match every line`)
     else names.push({ n: count, re, every: new RegExp(source, 'gi') })
   }
   return { count, names }
 }
 
-const privateNames = privateNameEntries(process.env[PRIVATE_NAMES] ?? '', failures)
+/** @type {string[]} */
+const refusedEntries = []
+const privateNames = privateNameEntries(process.env[PRIVATE_NAMES] ?? '', refusedEntries)
 if (privateNames.count === 0 && process.env[REQUIRE_PRIVATE_NAMES] === '1') {
   failures.push(
     `${PRIVATE_NAMES} is unset or empty, and ${REQUIRE_PRIVATE_NAMES} is 1: a release tag and a push to main must run the private-name check. Set the ${PRIVATE_NAMES} Actions secret in the repository settings`,
@@ -494,6 +498,19 @@ for (const relPath of repoFiles) {
   )
 }
 
+// A refused entry is not in the redaction, so any other failure line could print the name it
+// stands for: a NUL byte in a file whose path holds the name prints that path. Until every
+// entry is accepted, only the refusals print, with a count of the rest.
+if (refusedEntries.length > 0) {
+  console.error(`HYGIENE: FAIL (${String(refusedEntries.length + failures.length)})`)
+  for (const f of refusedEntries) console.error(`  - ${f}`)
+  if (failures.length > 0) {
+    console.error(
+      `  - ${String(failures.length)} other finding(s) held back: a refused ${PRIVATE_NAMES} entry cannot hide the name it stands for, so they print once every entry is accepted`,
+    )
+  }
+  process.exit(1)
+}
 if (failures.length > 0) {
   console.error(`HYGIENE: FAIL (${failures.length})`)
   for (const f of failures) console.error(`  - ${redacted(f)}`)

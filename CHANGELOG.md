@@ -112,7 +112,9 @@ reds nothing: no gate reads the Claude Code version a developer runs.
   prints as `[entry N]`. An entry with `^` or `$` outside a character class, or with a
   lookaround group, could match a path and not the line that reports it, so the gate fails
   on it by its number, as it does on an entry that does not compile or that matches an empty
-  line. A file with CRLF line ends gets the findings it would get with LF. `hygiene.yml` and
+  line. While an entry is refused, the gate prints only the refusals and a count of its other
+  findings, since that entry cannot hide its name in them. A file with CRLF line ends gets the
+  findings it would get with LF. `hygiene.yml` and
   `release.yml` pass the secret to the step that runs the gate. On a release tag and on a
   push to `main` in this repository they also set `HYGIENE_REQUIRE_PRIVATE_NAMES`, and a
   missing or empty list then fails the gate, naming the secret, so the secret has to be set

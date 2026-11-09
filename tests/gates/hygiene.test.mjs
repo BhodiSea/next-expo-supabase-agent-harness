@@ -323,6 +323,21 @@ test('RED: a path that an anchored or lookahead entry matches does not print the
   )
 })
 
+test('RED: while an entry is refused, the other findings are counted, not printed', () => {
+  // A refused entry is not in the redaction. Before this, the NUL-byte line printed this
+  // fixture's path, name and all.
+  const rel = `hygiene-nul-${NAME}-fixture.tmp.md`
+  withFixture(rel, () => {
+    assert.equal(ignored(rel), false, `${rel} is covered by .gitignore, so this test would go green without the sweep ever reading it`)
+    const { code, out } = hygieneWithNames(`${NAME}$`)
+    assert.equal(code, 1, out)
+    assert.match(out, /entry 1 of HYGIENE_PRIVATE_NAMES has \^ or \$/)
+    assert.match(out, /1 other finding\(s\) held back/)
+    assert.doesNotMatch(out, /NUL byte/)
+    assert.doesNotMatch(out, SHOWS_NAME)
+  })
+})
+
 test('RED: a CRLF checkout and an LF checkout get the same findings', () => {
   // Entry 2 wants white space after the name. Lines split on \n alone kept a CRLF line's \r,
   // which \s matches, so the CRLF copy of this file had one finding more.
