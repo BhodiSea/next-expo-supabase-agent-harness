@@ -259,6 +259,62 @@ test('RED: an entry that does not compile, or that matches an empty line, fails 
   assert.doesNotMatch(out, SHOWS_NAME)
 })
 
+test('RED: an entry with ^ or $ outside a class, or with a lookaround group, fails by its number alone', () => {
+  // The last one escapes a backslash, not the lookahead after it.
+  const refused = [`^${NAME}`, `${NAME}$`, `${NAME}x|^y`, `${NAME}(?=x)`, `${NAME}(?!x)`, `(?<=x)${NAME}`, `(?<!x)${NAME}`, `\\\\(?=${NAME})`]
+  const { code, out } = hygieneWithNames(refused.join('\n'))
+  assert.equal(code, 1, out)
+  for (const n of refused.keys()) {
+    assert.match(out, new RegExp(`entry ${String(n + 1)} of HYGIENE_PRIVATE_NAMES has \\^ or \\$ outside a character class, or a lookaround group`))
+  }
+  assert.doesNotMatch(out, SHOWS_NAME)
+})
+
+test('GREEN: an escaped ^ or $, a class that holds one, a negated class and a named group are not refused', () => {
+  const accepted = [`\\^${NAME}`, `${NAME}\\$`, `[$^]${NAME}`, `${NAME}[^a]`, `${NAME}[\\]^]`, `(?<who>${NAME})`, `${NAME}\\(?=`]
+  const { code, out } = hygieneWithNames(accepted.join('\n'))
+  assert.equal(code, 0, out)
+  assert.match(out, new RegExp(`; ${String(accepted.length)} HYGIENE_PRIVATE_NAMES entries matched no path or line\\)`))
+  assert.doesNotMatch(out, SHOWS_NAME)
+})
+
+test('RED: a path that an anchored or lookahead entry matches does not print the name', () => {
+  // Before the refusal, both entries matched the path and not the failure line, which has
+  // other text after the path, so the line printed the name.
+  const rel = `hygiene-fixture-${NAME}.tmp.md`
+  withFixture(
+    rel,
+    () => {
+      assert.equal(ignored(rel), false, `${rel} is covered by .gitignore, so this test would go green without the sweep ever reading it`)
+      const { code, out } = hygieneWithNames([`${NAME}\\.tmp\\.md$`, `${NAME}(?=\\.tmp)`].join('\n'))
+      assert.equal(code, 1, out)
+      assert.match(out, /entry 1 of HYGIENE_PRIVATE_NAMES has \^ or \$/)
+      assert.match(out, /entry 2 of HYGIENE_PRIVATE_NAMES has \^ or \$/)
+      assert.doesNotMatch(out, SHOWS_NAME)
+    },
+    'Nothing private on this line.\n',
+  )
+})
+
+test('RED: a CRLF checkout and an LF checkout get the same findings', () => {
+  // Entry 2 wants white space after the name. Lines split on \n alone kept a CRLF line's \r,
+  // which \s matches, so the CRLF copy of this file had one finding more.
+  const rel = 'hygiene-private-name-crlf-fixture.tmp.md'
+  for (const eol of ['\n', '\r\n']) {
+    withFixture(
+      rel,
+      () => {
+        const { code, out } = hygieneWithNames([NAME, `${NAME}\\s`].join('\n'))
+        assert.equal(code, 1, out)
+        assert.match(out, /hygiene-private-name-crlf-fixture\.tmp\.md:3 matches entry 1 of HYGIENE_PRIVATE_NAMES/)
+        assert.doesNotMatch(out, /entry 2 of/)
+        assert.doesNotMatch(out, SHOWS_NAME)
+      },
+      ['# Fixture', '', `The last word is ${NAME}`, ''].join(eol),
+    )
+  }
+})
+
 test('GREEN: without the variable, or with no entry in it, the check says it skipped, on one line', () => {
   for (const names of [undefined, '', '# only a comment\n\n']) {
     const { code, out } = hygieneWithNames(names)

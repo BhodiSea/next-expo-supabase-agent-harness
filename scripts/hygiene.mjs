@@ -348,9 +348,32 @@ const STANDARDS_CLAIM_EXEMPT = new Map([
 // log. A finding names a path, a line and the entry's number, and a bad entry only its number
 // (the engine's own error quotes the pattern; an entry that matches an empty line would match
 // every line). Each failure line is printed with every match of an entry replaced, so a path
-// that holds a name cannot print it either. Without the secret (a fork's pull request, a
-// Dependabot run, a local run) the check prints one line saying it skipped, and passes.
+// that holds a name prints `[entry N]` in its place. That needs the entry to match the
+// printed line wherever it matched the path, and an anchor or a lookaround ties a match to
+// the text around it, which the printed line changes: `name$` matches the path `notes/name`
+// but not the line `notes/name (the path) matches entry 1 …`, which would then print the
+// name. So an entry with ^ or $ outside a character class, or with a lookaround group, is
+// refused by its number too. Without the secret (a fork's pull request, a Dependabot run, a
+// local run) the check prints one line saying it skipped, and passes.
 const PRIVATE_NAMES = 'HYGIENE_PRIVATE_NAMES'
+
+/**
+ * Whether a pattern has an anchor (^ or $ outside a character class) or a lookaround group.
+ * A backslash escapes the character after it, and a ^ that opens a class (`[^a]`) negates
+ * the class: neither is an anchor.
+ * @param {string} source
+ */
+function anchorOrLookaround(source) {
+  let inClass = false
+  for (let i = 0; i < source.length; i += 1) {
+    const c = source[i]
+    if (c === '\\') i += 1
+    else if (inClass) inClass = c !== ']'
+    else if (c === '[') inClass = true
+    else if (c === '^' || c === '$' || /^\(\?<?[=!]/.test(source.slice(i, i + 4))) return true
+  }
+  return false
+}
 
 /**
  * The variable's entries, compiled. A bad entry becomes a failure, named by its number only.
@@ -372,7 +395,11 @@ function privateNameEntries(value, errors) {
       errors.push(`${label} is not a valid regular expression`)
       continue
     }
-    if (re.test('')) errors.push(`${label} matches an empty line, so it would match every line`)
+    if (anchorOrLookaround(source)) {
+      errors.push(
+        `${label} has ^ or $ outside a character class, or a lookaround group, so the line that reports a match could print the name; write the entry without them`,
+      )
+    } else if (re.test('')) errors.push(`${label} matches an empty line, so it would match every line`)
     else names.push({ n: count, re, every: new RegExp(source, 'gi') })
   }
   return { count, names }
@@ -411,7 +438,8 @@ for (const relPath of repoFiles) {
   if (at === -1) {
     const text = buf.toString('utf8')
     if (privateNames.names.length > 0) {
-      for (const [i, line] of text.split('\n').entries()) {
+      // Split on CRLF too: a line keeps no \r, so a CRLF checkout gets the verdict an LF one gets.
+      for (const [i, line] of text.split(/\r?\n/).entries()) {
         for (const n of privateNamesIn(line)) {
           failures.push(`${relPath}:${String(i + 1)} matches entry ${String(n)} of ${PRIVATE_NAMES}`)
         }

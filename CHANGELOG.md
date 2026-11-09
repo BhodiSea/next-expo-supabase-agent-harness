@@ -104,9 +104,13 @@ reds nothing: no gate reads the Claude Code version a developer runs.
   `scripts/hygiene.mjs` reads them from the `HYGIENE_PRIVATE_NAMES` Actions secret instead of
   its own code, one case-insensitive regular expression per line, and fails on any path or
   line in the repository that matches one, not only under `template/`. A finding names the
-  path, the line and the entry's number, never the name or the text. Without the secret, as
-  in a fork's pull request, a Dependabot run or a local run, the gate says it skipped the
-  check and passes. `hygiene.yml` and `release.yml` pass the secret to the step that runs the
+  path, the line and the entry's number, never the line's text, and a name in the path
+  prints as `[entry N]`. An entry with `^` or `$` outside a character class, or with a
+  lookaround group, could match a path and not the line that reports it, so the gate fails
+  on it by its number, as it does on an entry that does not compile or that matches an empty
+  line. A file with CRLF line ends gets the findings it would get with LF. Without the
+  secret, as in a fork's pull request, a Dependabot run or a local run, the gate says it
+  skipped the check and passes. `hygiene.yml` and `release.yml` pass the secret to the step that runs the
   gate. Factory only: nothing changes for an install.
 - **Nothing points to the retired Expo and Tauri harnesses.** The README, the lineage note
   above and `design/PORT-SPEC.md` name `expo-postgres-agent-harness` and
