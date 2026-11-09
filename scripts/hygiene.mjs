@@ -353,9 +353,13 @@ const STANDARDS_CLAIM_EXEMPT = new Map([
 // the text around it, which the printed line changes: `name$` matches the path `notes/name`
 // but not the line `notes/name (the path) matches entry 1 …`, which would then print the
 // name. So an entry with ^ or $ outside a character class, or with a lookaround group, is
-// refused by its number too. Without the secret (a fork's pull request, a Dependabot run, a
-// local run) the check prints one line saying it skipped, and passes.
+// refused by its number too. Without the secret (a fork, a fork's pull request, a Dependabot
+// run, a local run) the check prints one line saying it skipped, and passes, unless
+// HYGIENE_REQUIRE_PRIVATE_NAMES is 1. hygiene.yml sets it on a push to main or a tag, and
+// release.yml on its tag, both only in this repository; there a missing or empty list fails,
+// naming the secret. No pull request sets it, so a fork's pull request still skips.
 const PRIVATE_NAMES = 'HYGIENE_PRIVATE_NAMES'
+const REQUIRE_PRIVATE_NAMES = 'HYGIENE_REQUIRE_PRIVATE_NAMES'
 
 /**
  * Whether a pattern has an anchor (^ or $ outside a character class) or a lookaround group.
@@ -406,9 +410,13 @@ function privateNameEntries(value, errors) {
 }
 
 const privateNames = privateNameEntries(process.env[PRIVATE_NAMES] ?? '', failures)
-if (privateNames.count === 0) {
+if (privateNames.count === 0 && process.env[REQUIRE_PRIVATE_NAMES] === '1') {
+  failures.push(
+    `${PRIVATE_NAMES} is unset or empty, and ${REQUIRE_PRIVATE_NAMES} is 1: a release tag and a push to main must run the private-name check. Set the ${PRIVATE_NAMES} Actions secret in the repository settings`,
+  )
+} else if (privateNames.count === 0) {
   console.log(
-    `HYGIENE: private-name check SKIPPED — ${PRIVATE_NAMES} is unset or empty, as in a fork's pull request, a Dependabot run or a local run`,
+    `HYGIENE: private-name check SKIPPED — ${PRIVATE_NAMES} is unset or empty, as in a fork, a fork's pull request, a Dependabot run or a local run`,
   )
 }
 

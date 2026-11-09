@@ -22,7 +22,7 @@
 // fixture git tracks makes the GREEN test pass for the wrong reason.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -194,14 +194,18 @@ const NAME = ['zorb', 'lax'].join('')
 const SHOWS_NAME = new RegExp(NAME, 'i')
 
 /**
- * Run the sweep with HYGIENE_PRIVATE_NAMES set to `names`, or unset when it is undefined.
+ * Run the sweep with HYGIENE_PRIVATE_NAMES set to `names` and HYGIENE_REQUIRE_PRIVATE_NAMES to
+ * `required`, each unset when undefined.
  * @param {string | undefined} names
+ * @param {string} [required]
  * @returns {{ code: number | null, out: string }}
  */
-function hygieneWithNames(names) {
+function hygieneWithNames(names, required) {
   const env = { ...process.env }
   delete env.HYGIENE_PRIVATE_NAMES
+  delete env.HYGIENE_REQUIRE_PRIVATE_NAMES
   if (names !== undefined) env.HYGIENE_PRIVATE_NAMES = names
+  if (required !== undefined) env.HYGIENE_REQUIRE_PRIVATE_NAMES = required
   const r = spawnSync(process.execPath, [SCRIPT], { cwd: ROOT, encoding: 'utf8', env })
   return { code: r.status, out: `${r.stdout}${r.stderr}` }
 }
@@ -322,4 +326,58 @@ test('GREEN: without the variable, or with no entry in it, the check says it ski
     assert.equal(out.split('\n').filter((l) => l.includes('private-name check SKIPPED')).length, 1, out)
     assert.doesNotMatch(out, /HYGIENE_PRIVATE_NAMES entr/)
   }
+})
+
+// ── WHERE THE CHECK MUST RUN (2.0.8) ──────────────────────────────────────────────
+// HYGIENE_REQUIRE_PRIVATE_NAMES=1, set on a release tag and a push to main, turns a missing
+// list into a failure. The workflows set it to '' everywhere else.
+
+test('RED: with HYGIENE_REQUIRE_PRIVATE_NAMES=1, a missing or empty list fails, naming the secret', () => {
+  for (const names of [undefined, '', '# only a comment\n\n']) {
+    const { code, out } = hygieneWithNames(names, '1')
+    assert.equal(code, 1, out)
+    assert.match(out, /HYGIENE_PRIVATE_NAMES is unset or empty, and HYGIENE_REQUIRE_PRIVATE_NAMES is 1/)
+    assert.match(out, /Set the HYGIENE_PRIVATE_NAMES Actions secret/)
+    assert.doesNotMatch(out, /SKIPPED/)
+  }
+})
+
+test('GREEN: with the flag set and a list, the check runs as it does without the flag', () => {
+  const { code, out } = hygieneWithNames(NAME, '1')
+  assert.equal(code, 0, out)
+  assert.match(out, /; 1 HYGIENE_PRIVATE_NAMES entry matched no path or line\)/)
+  assert.doesNotMatch(out, SHOWS_NAME)
+})
+
+test('GREEN: a flag that is not 1, such as the empty value a pull request gets, still skips on one line', () => {
+  for (const required of ['', '0', 'true']) {
+    const { code, out } = hygieneWithNames(undefined, required)
+    assert.equal(code, 0, out)
+    assert.equal(out.split('\n').filter((l) => l.includes('private-name check SKIPPED')).length, 1, out)
+  }
+})
+
+test('only the step that runs scripts/hygiene.mjs gets the list or the flag, and no pull request sets the flag', () => {
+  // Read as text, like the other workflow checks here. A step starts at a `      - ` line.
+  const dir = join(ROOT, '.github/workflows')
+  const homes = []
+  for (const file of readdirSync(dir).filter((f) => f.endsWith('.yml')).sort()) {
+    const text = readFileSync(join(dir, file), 'utf8')
+    for (const step of text.split(/\n(?= {6}- )/)) {
+      if (!/^\s+HYGIENE_(?:REQUIRE_)?PRIVATE_NAMES:/m.test(step)) continue
+      homes.push(file)
+      assert.match(step, /^\s+(?:- )?run: node scripts\/hygiene\.mjs$/m, `${file}: this step runs more than scripts/hygiene.mjs:\n${step}`)
+      const flag = /^\s+HYGIENE_REQUIRE_PRIVATE_NAMES:(.*)$/m.exec(step)?.[1]
+      if (flag === undefined) continue
+      // A workflow that runs only on a tag push needs no event check; any other must limit
+      // the flag to a push.
+      const on = /^on:\n([\s\S]*?)\n\S/m.exec(text)?.[1]
+      assert.notEqual(on, undefined, `${file}: no on: block to read`)
+      assert.ok(
+        flag.includes("github.event_name == 'push'") || !/pull_request|branches|schedule|workflow_dispatch/.test(on ?? ''),
+        `${file}: the flag is not limited to a push, and the workflow has other triggers:\n${step}`,
+      )
+    }
+  }
+  assert.deepEqual(homes, ['hygiene.yml', 'release.yml'])
 })

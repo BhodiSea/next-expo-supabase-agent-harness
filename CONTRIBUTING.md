@@ -300,6 +300,13 @@ step 5 compresses):
   environment with **npm publish** allowed, publishing access set to "require
   two-factor authentication and disallow tokens", and the `npm` environment
   restricted to `v*` tags in the repository settings.
+- **The hygiene gate's private-name list is a repository secret, and it must be
+  set.** `scripts/hygiene.mjs` reads the names it must never find from the
+  `HYGIENE_PRIVATE_NAMES` Actions secret, one regular expression per line.
+  `release.yml` on its tag, and `hygiene.yml` on a push to `main` or a tag, set
+  `HYGIENE_REQUIRE_PRIVATE_NAMES`, so there the gate fails while the secret is
+  unset or empty. Set it in the repository settings before 2.0.8 merges, or the
+  first push to `main` after the merge goes red.
 - **Post-tag follow-ups are part of the release**, not optional: dispatch the
   schedule-gated lanes once (`obligations-clockful`, `registers-clockful`,
   `floor-advisories`) so their first runs happen while the release context is

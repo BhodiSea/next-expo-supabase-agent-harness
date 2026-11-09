@@ -45,10 +45,12 @@ jobs:
         with:
           node-version: 22
       # The private-name list goes to scripts/hygiene.mjs alone, never to the gates below or
-      # the processes they start.
+      # the processes they start. A release tag in this repository must run the check, so
+      # the flag makes a missing list fail.
       - name: Hygiene
         env:
           HYGIENE_PRIVATE_NAMES: ${{ secrets.HYGIENE_PRIVATE_NAMES }}
+          HYGIENE_REQUIRE_PRIVATE_NAMES: ${{ github.repository_id == '1308800605' && '1' || '' }}
         run: node scripts/hygiene.mjs
       - name: Gates
         run: |

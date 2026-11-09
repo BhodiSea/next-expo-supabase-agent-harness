@@ -62,6 +62,12 @@ is the set of repo-root sites that hardcode the upstream owner:
   opens a discussion for each release in the `Announcements` category; in a
   repository without Discussions or without that category, that step prints a
   warning and the job still succeeds
+- `.github/workflows/hygiene.yml` and the `Hygiene` step of `release.yml`: on a push
+  to `main` and on a tag, the hygiene gate requires the `HYGIENE_PRIVATE_NAMES`
+  secret, the private names it must never find, only in this repository
+  (`github.repository_id == '1308800605'`). In a fork it skips that check on one
+  line. To hold your own list to the same rule, set the secret and put your
+  repository's id in both conditions
 - `README.md`: the `npx` command and the lineage sentence
 - `docs/forking.md`: this checklist
 - `CITATION.cff`: `title`, `authors`, `repository-code`
@@ -123,4 +129,4 @@ grep -rni "bhodisea\|cogvera\|1308800605" --exclude-dir=node_modules .
 This should return only the attribution you deliberately kept and the hygiene
 deny patterns. It ignores case because the upstream organisation, `cogvera-labs`, is
 lowercase in the repository and site addresses. `1308800605` is this repository's
-id, which the `release.yml` and `pages.yml` guards hold instead of a name.
+id, which the `hygiene.yml`, `release.yml` and `pages.yml` guards hold instead of a name.

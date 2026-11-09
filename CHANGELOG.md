@@ -108,10 +108,13 @@ reds nothing: no gate reads the Claude Code version a developer runs.
   prints as `[entry N]`. An entry with `^` or `$` outside a character class, or with a
   lookaround group, could match a path and not the line that reports it, so the gate fails
   on it by its number, as it does on an entry that does not compile or that matches an empty
-  line. A file with CRLF line ends gets the findings it would get with LF. Without the
-  secret, as in a fork's pull request, a Dependabot run or a local run, the gate says it
-  skipped the check and passes. `hygiene.yml` and `release.yml` pass the secret to the step that runs the
-  gate. Factory only: nothing changes for an install.
+  line. A file with CRLF line ends gets the findings it would get with LF. `hygiene.yml` and
+  `release.yml` pass the secret to the step that runs the gate. On a release tag and on a
+  push to `main` in this repository they also set `HYGIENE_REQUIRE_PRIVATE_NAMES`, and a
+  missing or empty list then fails the gate, naming the secret, so the secret has to be set
+  before this release merges. Elsewhere a missing list skips the check: in a fork, a fork's
+  pull request, a Dependabot run or a local run, the gate says on one line that the list is
+  not set, and passes. Factory only: nothing changes for an install.
 - **Nothing points to the retired Expo and Tauri harnesses.** The README, the lineage note
   above and `design/PORT-SPEC.md` name `expo-postgres-agent-harness` and
   `tauri-postgres-agent-harness` without a link. `init` still refuses a target that depends
