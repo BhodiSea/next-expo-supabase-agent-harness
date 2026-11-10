@@ -104,7 +104,7 @@ In `apps/mobile/app.config.ts`, append to the existing `plugins` array:
       [
         '@sentry/react-native/expo',
         {
-          url: 'https://sentry.internal.example.edu/', // YOUR ingest host, never a third-party SaaS
+          url: 'https://sentry.internal.example.com/', // YOUR ingest host, never a third-party SaaS
           organization: 'your-org-slug',
           project: '{{PROJECT_SLUG}}', // adjust to your Sentry project slug
         },

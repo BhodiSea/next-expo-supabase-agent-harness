@@ -2,7 +2,7 @@
 
 > ⚠️ **Historical. This document does not describe this repository.** It is the
 > design record for the port that produced the SIBLING harness
-> [`expo-postgres-agent-harness`](https://github.com/BhodiSea/expo-postgres-agent-harness)
+> `expo-postgres-agent-harness`
 > — Tauri → Expo, over a Hono/Drizzle backend — and is kept because the
 > surface-agnostic machinery it specifies was ported forward into this lineage
 > unchanged. Everything it says about the BACKEND ("Backend unchanged: Hono +

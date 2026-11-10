@@ -775,7 +775,7 @@ test('retrofit rejects hono-only, Tauri, foreign lockfiles, and non-workspace la
   writeFileSync(join(honoDir, 'package.json'), JSON.stringify({ dependencies: { hono: '^4.0.0' } }))
   const honoRes = run(['init', '--dir', honoDir, '--yes', ...SETS])
   assert.equal(honoRes.code, 1, honoRes.out)
-  assert.ok(honoRes.out.includes('expo-postgres-agent-harness'), honoRes.out)
+  assert.ok(honoRes.out.includes('Move the backend to Supabase first'), honoRes.out)
 
   const tauriDir = mkdtempSync(join(tmpdir(), 'nesah-tauri-'))
   writeFileSync(join(tauriDir, 'package.json'), JSON.stringify({ dependencies: { '@tauri-apps/api': '^2.0.0' } }))

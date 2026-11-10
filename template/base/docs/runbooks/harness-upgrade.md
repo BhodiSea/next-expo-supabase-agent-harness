@@ -4640,6 +4640,142 @@ Through 2.0.6, the agent's note said its `mcp__corpus_search` server IS wired in
 `tools:` does, so it works as before. `update` plants the agent (owned), and nothing is left
 to you.
 
+## 2.0.8 — a security patch: the `next` floor moves to 16.4.5, the Claude Code floor to 2.1.260
+
+**No ramp here applies to any install.** 2.0.8 opens no ramp and moves no deadline. The
+population 2.0.0 reds is restated in this release's record, and the 1.1.0 and 2.0.0 sections
+above are still the sweep for an install below 1.1.0.
+
+**What `update` plants.** Owned files, re-planted when your copy still matches a released
+sha: `tools/framework-floor.json`, `tools/cc-floor.json`, `tools/lib/cc-floor.mjs`,
+`docs/harness/gates-catalog.md`, `tools/check-mutation-ratchet.mjs` (its advice for a
+missing `tools/mutation-baseline.json` now names this harness's package),
+`tools/lib/planted-shas.json` (it now knows this release's `tools/eol.json`), with the
+crash-reporting module its `mobile-sentry.patch.md` and `README.md` under
+`docs/modules/crash-reporting/` (example values only), this runbook, and the hooks under
+`.claude/hooks/` (their version stamps). Nothing is withheld, and no seeded file changes on
+an existing install.
+
+### Expect `version-sync` to red on the `next` floor, whatever your `baseVersion`
+
+This one is not a ramp, and no `baseVersion` is exempt from it. The `next` floor moves from
+16.4.1 to **16.4.5** on the 16 line, and from 15.5.28 to **15.5.29** on the 15 line, for seven
+advisories upstream published on 2026-11-03, all rated Moderate:
+
+- [GHSA-pc58-hwjq-p385](https://github.com/vercel/next.js/security/advisories/GHSA-pc58-hwjq-p385)
+  (both lines): a self-hosted app whose route handler returns a fetched upstream response
+  unchanged can, behind an HTTP/1.1 reverse proxy that queues pipelined requests, send one
+  client's response to another.
+- [GHSA-rhh4-g77r-r9qj](https://github.com/vercel/next.js/security/advisories/GHSA-rhh4-g77r-r9qj):
+  distinct binary arguments to a `use cache` function can share one cache entry across users.
+- [GHSA-vvgp-ww4w-46vf](https://github.com/vercel/next.js/security/advisories/GHSA-vvgp-ww4w-46vf):
+  under `next start` with `cacheComponents: true` and Partial Prefetching off, one request can
+  poison a fallback shell that many routes share.
+- [GHSA-7qx7-33qx-rqx2](https://github.com/vercel/next.js/security/advisories/GHSA-7qx7-33qx-rqx2)
+  (both lines): on a self-hosted deployment, `/_next/image` can be made to process an SVG even
+  with `dangerouslyAllowSVG: false`.
+- [GHSA-mfr8-8qww-v76h](https://github.com/vercel/next.js/security/advisories/GHSA-mfr8-8qww-v76h)
+  and [GHSA-vc7v-qv4w-wrv8](https://github.com/vercel/next.js/security/advisories/GHSA-vc7v-qv4w-wrv8):
+  the result of a `use cache` function that reads a root param can be served for another root
+  param value, when the function is also called through `unstable_cache()` or nested in
+  another `use cache` function.
+- [GHSA-f3mh-rxg3-f5g2](https://github.com/vercel/next.js/security/advisories/GHSA-f3mh-rxg3-f5g2)
+  (both lines): a route on the Edge runtime that sets a cookie through `NextResponse` also
+  sends it in a header that same-origin JavaScript can read, even an `HttpOnly` one.
+
+As shipped, the scaffold enables no Cache Components, has no `use cache` function, and its two
+route handlers run on Node.js and return no fetched response, so none of the seven reaches a
+tree that added none of those. The `/_next/image` endpoint exists in every install. If yours
+added any of them, that advisory applies to it.
+
+`tools/framework-floor.json` is harness-owned, so `update` refreshes it, and with it the
+review window, which now runs to 2026-12-08. The window it replaces ends on 2026-11-16, and
+after that date your scheduled `floor-review` job reds on the lapsed window until you take
+this release.
+`pnpm-workspace.yaml` is seeded, so `update` does not touch your pins, and the first
+`pnpm validate` after the upgrade reds `version-sync` on a `next` pin below 16.4.5 (or 15.5.29
+on the 15 line), naming the pin, the floor and the advisories. Raise the pin yourself:
+
+```
+# in the pnpm-workspace.yaml catalog: next: 16.4.5
+pnpm install && git add pnpm-lock.yaml pnpm-workspace.yaml
+pnpm validate
+```
+
+From 16.4.1 or 16.4.2 this is a patch on the same minor. No flag lowers the floor. Do not use
+`update --refresh-seeded pnpm-workspace.yaml` to take the pin: it replaces your whole catalog
+with the template's.
+
+### The Claude Code floor moves to 2.1.260, and its review is current again
+
+`tools/cc-floor.json` holds Claude Code itself to a cited minimum. Its advisory snapshot was
+taken on 2026-08-15 and its 45-day window ended on 2026-09-29, so your scheduled
+`floor-review` job has been red on it since. 2.0.8 re-takes the snapshot on 2026-11-08, so the
+next review falls due by 2026-12-23, and moves the floor from 2.1.163 to **2.1.260** for four
+npm advisories Anthropic has published since:
+
+- [CVE-2026-103012](https://github.com/anthropics/claude-code/security/advisories/GHSA-gfvf-j8jh-jxxw)
+  (Low, fixed in 2.1.260): in a session signed in with an Enterprise or Team account, Claude
+  Code fetched the organisation's server-managed settings with a stored API key instead, and
+  when the endpoint refused the key, the session ran without those settings, or with a stale
+  copy of them. File and MDM managed settings were not affected.
+- [CVE-2026-88968](https://github.com/anthropics/claude-code/security/advisories/GHSA-5xjx-9qx6-jcrv)
+  (High, fixed in 2.1.251): on macOS, code inside the Bash sandbox could make an Edit write
+  outside the workspace by swapping a directory for a symlink after the path check.
+- [CVE-2026-86063](https://github.com/anthropics/claude-code/security/advisories/GHSA-pq7j-f95f-qfcv)
+  (High, fixed in 2.1.179): installing a plugin pinned to a commit SHA could install a branch
+  named like that SHA instead.
+- [CVE-2026-103435](https://github.com/anthropics/claude-code/security/advisories/GHSA-5j29-h97v-84ch)
+  (High, fixed in 2.1.129): a file swapped for a symlink between the permission check and the
+  write took the write outside the project.
+
+GitHub's advisory database does not have the first, second and fourth yet, so their rows cite
+Anthropic's record, and `tools/lib/cc-floor.mjs`, which `version-sync` runs, now accepts that
+address beside `github.com/advisories/`. On either page the address must be the row's own GHSA
+id and nothing more. Every `tools/cc-floor.json` a release shipped meets that, so
+`version-sync` reds only on a row you added yourself with another address.
+
+`tools/cc-floor.json` is harness-owned, so `update` refreshes it and its `floor-review` finding
+clears. Nothing reds on the floor itself: no gate reads the version of Claude Code you run.
+The file also recommends **2.1.311**, for four hook fixes since the floor, none with an
+advisory. Three keep the harness's guards from failing open: a PreToolUse hook was skipped
+when matching it failed or the tool's input could not be serialized (2.1.288), and on Windows
+without Git for Windows a hook that set no shell failed open (2.1.299) and one that ran in
+PowerShell did not block on exit code 2 (2.1.309). The fourth stops `SubagentStop` hooks from
+running about twice a minute for each running subagent (2.1.311). No source says which
+versions did that; on one that did, `.claude/hooks/subagent-verdict.mjs` could run on a
+reviewer still at work after about 30 seconds, find no verdict, and block. Claude Code's
+auto-update has already delivered these fixes; if you update it by hand, check that it
+reports 2.1.311 or later:
+
+```
+claude --version
+```
+
+### `tools/eol.json` re-reviewed
+
+The template's end-of-life register is re-reviewed to 2026-12-09. The registry sweep found no
+new deprecation, and Expo's supported set is unchanged. `react-native` 0.85 leaves the set,
+because the vendor's table now calls it Unsupported. The scaffold has never shipped below
+0.86, so that reds only a tree that was moved down by hand.
+
+The register is seeded, so `update` does not deliver the review. A register from 2.0.3 or
+earlier lapsed on 2026-10-20 or before, one from 2.0.4 to 2.0.7 lapses on 2026-11-20, and
+your scheduled `floor-review` job reds on a lapsed register whichever release you run. Two
+ways to clear it:
+
+```
+# if you have never edited tools/eol.json: take the harness's register
+# (overwrites when untouched, parks on drift)
+npx next-expo-supabase-agent-harness@latest update --refresh-seeded tools/eol.json
+
+# if you have your own rows: run pnpm install, re-read them against what it resolves,
+# and move reviewedOn and reviewedUntil yourself
+```
+
+From 2.0.3 or earlier, read the 2.0.4 section's `tools/eol.json` re-reviewed first: the
+refreshed register has no `uuid` row.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

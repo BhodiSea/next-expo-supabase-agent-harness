@@ -13,7 +13,7 @@
 // it), and a malformed WEB_ORIGIN is baked into the committed transport policy.
 export const PLACEHOLDERS = {
   PROJECT_NAME: {
-    prompt: 'Human-readable project name (e.g. "Acme Curriculum")',
+    prompt: 'Human-readable project name (e.g. "Acme Notes")',
     default: (ctx) => ctx.dirName ?? 'My Project',
     validate: (v) => (v.trim() === '' ? 'must not be empty' : null),
   },
@@ -33,7 +33,7 @@ export const PLACEHOLDERS = {
   // underscores. Intersection: segments of [a-z][a-z0-9]*, dot-separated, >= 2
   // segments. Immutable after first release (tools/identity.lock.json pins it).
   APP_IDENTIFIER: {
-    prompt: 'Reverse-DNS app identifier (e.g. com.acme.curriculum — iOS bundle id AND Android package, immutable after release)',
+    prompt: 'Reverse-DNS app identifier (e.g. com.acme.notes — iOS bundle id AND Android package, immutable after release)',
     default: (ctx) => {
       const slug = (ctx.answers.PROJECT_SLUG ?? ctx.dirName ?? 'my-project')
         .toLowerCase()
@@ -51,7 +51,7 @@ export const PLACEHOLDERS = {
   // A scheme is registered OS-wide, so collisions hijack redirects — derive it
   // from the slug and keep it plain lowercase alphanumerics.
   APP_SCHEME: {
-    prompt: 'Deep-link URL scheme (lowercase alphanumerics, e.g. acmecurriculum)',
+    prompt: 'Deep-link URL scheme (lowercase alphanumerics, e.g. acmenotes)',
     default: (ctx) =>
       (ctx.answers.PROJECT_SLUG ?? ctx.dirName ?? 'myapp').toLowerCase().replace(/[^a-z0-9]+/g, ''),
     validate: (v) => (/^[a-z][a-z0-9]*$/.test(v) ? null : 'must be a lowercase alphanumeric scheme starting with a letter'),

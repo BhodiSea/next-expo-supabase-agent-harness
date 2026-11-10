@@ -5,11 +5,152 @@ All notable changes to this project are documented here. The format follows
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 **Lineage note.** This harness was forked from
-[`expo-postgres-agent-harness`](https://github.com/BhodiSea/expo-postgres-agent-harness)
+`expo-postgres-agent-harness`
 and the version line continues from it. Entries at **0.1.2 and below are the
 ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
+
+## [2.0.8] — 2026-11-08
+
+**A security patch.** Seven `next` advisories upstream published on 2026-11-03 covered the
+16.4.1 floor and the 16.4.2 pin 2.0.7 shipped, three of them also the 15.5.28 floor, and the
+scheduled `floor-advisories` job in `hygiene.yml` is red on them. 2.0.8 moves the floor and
+the pin to 16.4.5 (15.5.29 on the 15 line), records all seven, and gives the floor a new
+review window. It also re-takes the Claude Code advisory snapshot, whose review window ended
+on 2026-09-29, moves the Claude Code floor from 2.1.163 to 2.1.260 for four advisories
+published since, and re-reviews `tools/eol.json`, whose window ends on 2026-11-20. No gate is
+added, the chain length does not change, and no ramp opens or moves. The
+`template/migrations.json` record withholds nothing and restates 2.0.0's
+twenty-vintage `rampExpiry` population. `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by
+`2.0.7`.
+
+**This release reds existing installs, by design.** `update` refreshes the owned
+`tools/framework-floor.json` and leaves the seeded catalog alone, so `version-sync` reds on
+any `next` pin below the new floor until the consumer raises it. The remedy is in
+`docs/runbooks/harness-upgrade.md`, 2.0.8 section. An install that stays on an earlier
+release keeps the review window 2.0.3 set, which lapses on 2026-11-16, and its scheduled
+`floor-review` job then reds on it. That job has been red since 2026-09-30 on the lapsed
+Claude Code snapshot, and taking 2.0.8 clears that finding. It does not deliver the
+re-reviewed `tools/eol.json`, which is seeded: an install's own register lapsed on 2026-10-20
+or before if it came from 2.0.3 or earlier, and lapses on 2026-11-20 if it came from 2.0.4 to
+2.0.7. The runbook's 2.0.8 section says how to take the new one. The Claude Code floor itself
+reds nothing: no gate reads the Claude Code version a developer runs.
+
+### Security
+
+- **The `next` floor moves to 16.4.5 on the 16 line and 15.5.29 on the 15 line, and the
+  catalog pins 16.4.5.** Upstream published seven advisories on 2026-11-03, all Moderate,
+  none of them in OSV on the day of review (2026-11-08):
+  GHSA-pc58-hwjq-p385 (CVE-2026-119348, both lines) is response injection and disclosure
+  across clients in a self-hosted app whose route handler returns a fetched upstream response
+  unchanged, behind an HTTP/1.1 reverse proxy that queues pipelined requests.
+  GHSA-rhh4-g77r-r9qj (CVE-2026-119349) is cache disclosure and poisoning across users when
+  binary arguments reach a `use cache` function. GHSA-vvgp-ww4w-46vf (CVE-2026-119350, 16.4
+  only) is cache poisoning of a shared fallback shell in a self-hosted app built with
+  `cacheComponents: true` and Partial Prefetching off. GHSA-7qx7-33qx-rqx2 (CVE-2026-119347,
+  both lines) lets a self-hosted `/_next/image` process an SVG despite
+  `dangerouslyAllowSVG: false`. GHSA-mfr8-8qww-v76h (CVE-2026-119790) and GHSA-vc7v-qv4w-wrv8
+  (CVE-2026-119351) serve the result of a `use cache` function for the wrong root param value,
+  through `unstable_cache()` or a nested `use cache` function; upstream's release post rates
+  the first High and its advisory Moderate. GHSA-f3mh-rxg3-f5g2 (CVE-2026-119346, both lines)
+  puts cookie values, `HttpOnly` ones included, in a response header that same-origin
+  JavaScript can read, on Edge runtime routes. 16.4.5 fixes all seven and 15.5.29 the three on
+  the 15 line. As shipped, the scaffold enables no Cache Components, has no `use cache`
+  function, and its two route handlers run on Node.js and return no fetched response, so none
+  of the seven reaches it; the `/_next/image` endpoint exists in every install. The review
+  window moves to 2026-11-08 through 2026-12-08. `tools/framework-floor.json` carries the
+  seven rows and is owned, so `update` refreshes it. `pnpm-workspace.yaml` is seeded, so an
+  existing install raises its own pin (`docs/runbooks/harness-upgrade.md`, 2.0.8 section), and
+  `scripts/ci/apply-framework-floor.mjs` plays that remedy in the upgrade lane.
+- **The Claude Code floor moves from 2.1.163 to 2.1.260, and its advisory snapshot is
+  re-taken.** The snapshot in `tools/cc-floor.json` dated from 2026-08-15 and its 45-day window
+  ended on 2026-09-29, so the scheduled `floor-review` job has been red on it since 2026-09-30,
+  in every install and in every scaffold made since. The factory's nightly
+  `registers-clockful` job read only `framework-floor.json` and `eol.json`, so nothing here
+  noticed; it now reads `cc-floor.json` and `support-register.json` too. Re-taken on
+  2026-11-08, GitHub's reviewed database returns 29 advisories, one more than before:
+  GHSA-pq7j-f95f-qfcv (CVE-2026-86063, High, fixed in 2.1.179), where, on a git host that
+  allows branch names shaped like a SHA, installing a plugin pinned to a commit SHA could
+  install a branch named like that SHA. Anthropic's own
+  advisory page lists three more npm advisories that neither that database nor OSV's npm
+  records held that day: GHSA-5j29-h97v-84ch (CVE-2026-103435, High, 2.1.129) and
+  GHSA-5xjx-9qx6-jcrv (CVE-2026-88968, High, 2.1.251), where a symlink swapped in after the
+  path check took a file write outside the workspace, and GHSA-gfvf-j8jh-jxxw
+  (CVE-2026-103012, Low, 2.1.260), where a session signed in with an Enterprise or Team
+  account fetched its server-managed settings with a stored API key, and ran without them, or
+  on a stale copy, when the endpoint refused the key. The floor is the earliest release
+  outside every published vulnerable range, so it counts all four. The three rows that
+  database lacks cite the vendor's record until it has them: `version-sync` required a
+  `github.com/advisories/` address and now also accepts one on Claude Code's own advisory
+  page. Either way the address must be the page followed by the row's own GHSA id and
+  nothing more, so the bare page, another advisory's id and a path that climbs out of the
+  page fail. When the snapshot lapses, `floor-review` now names both advisory queries to
+  re-run, as the file's `howToRefresh` does.
+  `recommended` moves to 2.1.311, for four hook fixes above the floor that carry no
+  advisory and reach the shipped hooks. Before them a PreToolUse hook was skipped when
+  matching it failed or the tool's input could not be serialized (2.1.288), on Windows
+  without Git for Windows a hook that set no shell failed open (2.1.299) and one that ran in
+  PowerShell did not block on exit code 2 (2.1.309), and `SubagentStop` hooks ran about twice
+  a minute for each running subagent (2.1.311). No source says which versions had that last
+  one, and 2.1.292 did not. On one that did, `.claude/hooks/subagent-verdict.mjs` would run on
+  a reviewer still at work after about 30 seconds, find no verdict, exit 2 and record a block.
+  The file's `uncvedHookFixes` records the four beside the hook fixes that do not reach the
+  shipped hooks, and a new note lists three VulnCheck CVE records that neither of its
+  advisory queries returns, all below the floor.
+  The next review falls due by 2026-12-23. The file is owned, so `update` refreshes it.
+  Claude Code's auto-update has already delivered the fixes, and the runbook's 2.0.8 section
+  says how to check the version.
+
+### Changed
+
+- **The hygiene gate reads the private names it looks for from a secret.**
+  `scripts/hygiene.mjs` reads them from the `HYGIENE_PRIVATE_NAMES` Actions secret instead of
+  its own code, one case-insensitive regular expression per line, and fails on any path or
+  line in the repository that matches one, not only under `template/`. A finding names the
+  path, the line and the entry's number, never the line's text, and a name in the path
+  prints as `[entry N]`. An entry with `^` or `$` outside a character class, or with a
+  lookaround group, could match a path and not the line that reports it, so the gate fails
+  on it by its number, as it does on an entry that does not compile or that matches an empty
+  line. While an entry is refused, the gate prints only the refusals and a count of its other
+  findings, since that entry cannot hide its name in them. A file with CRLF line ends gets the
+  findings it would get with LF. `hygiene.yml` and
+  `release.yml` pass the secret to the step that runs the gate. On a release tag and on a
+  push to `main` in this repository they also set `HYGIENE_REQUIRE_PRIVATE_NAMES`, and a
+  missing or empty list then fails the gate, naming the secret, so the secret has to be set
+  before this release merges. Elsewhere a missing list skips the check: in a fork, a fork's
+  pull request, a Dependabot run or a local run, the gate says on one line that the list is
+  not set, and passes. Factory only: nothing changes for an install.
+- **Nothing points to the retired Expo and Tauri harnesses.** The README, the lineage note
+  above and `design/PORT-SPEC.md` name `expo-postgres-agent-harness` and
+  `tauri-postgres-agent-harness` without a link. `init` still refuses a target that depends
+  on `hono` but not `next`, and a Tauri desktop project, and now says what to do instead of
+  naming a harness. With no `tools/mutation-baseline.json`, `mutation-ratchet` named the
+  retired `expo-postgres-agent-harness` package in the command that pulls the template's
+  copy, and now gives
+  `npx next-expo-supabase-agent-harness@latest update --refresh-seeded tools/mutation-baseline.json`.
+  The gate is owned and reaches an install with `update`.
+- **Neutral example names.** The installer's prompts give "Acme Notes", `com.acme.notes` and
+  `acmenotes` as examples. The crash-reporting module's ingest host and e-mail fixture use
+  `example.com`, and its README and redaction test name account identifiers among the PII
+  shapes to add. The module's two docs are owned and reach an install with `update`; the
+  test is seeded, so only a new scaffold gets it.
+- **`tools/eol.json` is re-reviewed, to 2026-12-09.** The window 2.0.4 set ends on
+  2026-11-20, after which every new scaffold's `floor-review` would have failed on it. The
+  registry sweep over a fresh strict-tier scaffold found the same six deprecations, none in
+  the production closure. Expo's supported set is unchanged (SDK 58, 57 and 56). The
+  vendor's table now calls `react-native` 0.85 Unsupported, so it leaves the set; every
+  release of this harness pins 0.86.2. **The register is seeded, so `update` does not
+  deliver the review**: the runbook's 2.0.8 section says how to take it.
+- **The control-plane facts are re-verified, against Claude Code 2.1.292.**
+  `design/CONTROL-PLANE-FACTS.md` records the 2026-11-08 probes: the hook payloads and the exit
+  codes the guards rely on are unchanged, and the `stop_hook_active` transition was observed
+  again. One finding is new: a `.claude/hooks/launch.mjs` that is empty, or cut inside its
+  leading comment, is a valid module that exits 0, so that tear fails open with no notice.
+  The `control-plane-facts-currency` obligation now anchors on the lines of
+  `tools/cc-floor.json` that state the required floor, so the next floor move reds
+  `check-obligations` until the facts are re-verified; its old anchor, `2.1.163`, stayed true
+  through this move. Factory only: nothing changes for an install.
 
 ## [2.0.7] — 2026-11-07
 

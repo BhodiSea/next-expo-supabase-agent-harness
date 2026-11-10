@@ -2,10 +2,10 @@
 // scripts/check-register-freshness.mjs — have the SHIPPED review-dated registers lapsed?
 //
 // WHY THIS IS FACTORY-SIDE, WHEN A CONSUMER LANE ALREADY ASKS THE SAME QUESTION. The
-// consumer's scheduled `floor-review` job judges tools/framework-floor.json and
-// tools/eol.json against today — but it only exists INSIDE AN INSTALL. The copies in
-// template/base/tools/ are the seeds every future scaffold is rendered from, and nothing
-// anywhere judges those. So a review can lapse in the factory and the first thing to
+// consumer's scheduled `floor-review` job judges tools/framework-floor.json,
+// tools/cc-floor.json, tools/eol.json and tools/support-register.json against today — but
+// it only exists INSIDE AN INSTALL. The copies in template/base/tools/ are the seeds every
+// future scaffold is rendered from, and nothing anywhere judges those. So a review can lapse in the factory and the first thing to
 // notice is a consumer who scaffolds and waits a week for their own cron: every project
 // generated between the lapse and the next harness release ships a register whose review
 // had already expired on arrival, and its first `floor-review` reds a tree the consumer
@@ -13,13 +13,19 @@
 // where the artefact is authored — the same argument scripts/check-tier-coverage.mjs and
 // scripts/check-essential-eight-evidence.mjs make for living here.
 //
-// WHY IT IS SCHEDULE-ONLY. Both verdicts change with the date and nothing else, so a
+// WHY IT IS SCHEDULE-ONLY. Every verdict here changes with the date and nothing else, so a
 // PR-blocking home would red an untouched commit overnight. It rides hygiene.yml's
 // scheduled block beside `obligations-clockful`, which is the same split for the same
-// reason. The CLOCKLESS half of both registers' review discipline — is the window the
-// reviewer granted themselves bounded at all — is not here: `reviewWindowProblems` and
-// `eolReviewWindow` run inside the shipped gates on every consumer chain, and the factory
-// runs them over these same seeds through the gates' own test suites.
+// reason. The CLOCKLESS half of the floor's and the eol register's review discipline — is
+// the window the reviewer granted themselves bounded at all — is not here:
+// `reviewWindowProblems` and `eolReviewWindow` run inside the shipped gates on every
+// consumer chain, and the factory runs them over these same seeds through the gates' own
+// test suites. cc-floor.json grants itself no window: its review lasts the gate's fixed 45
+// days from `checkedOn`.
+//
+// WHY THE OTHER TWO JOINED (2.0.8). Through 2.0.7 this read only framework-floor.json and
+// eol.json. The cc-floor.json snapshot lapsed on 2026-09-30, and every scaffold made after
+// that failed its first `floor-review` on it while this job stayed green.
 //
 // WHAT IT DELIBERATELY DOES NOT JUDGE. tools/essential-eight.json's per-row `reviewedOn`.
 // The register's shelf life is real and already owned: the obligations row
@@ -32,14 +38,17 @@
 // "has this lapsed" is how the factory and a consumer come to disagree about one date.
 //   usage: node scripts/check-register-freshness.mjs [--today=YYYY-MM-DD]
 // SOURCE: template/base/tools/lib/framework-floor.mjs (staleReviews) ·
-// template/base/tools/lib/eol.mjs (staleEolReview) · scripts/check-obligations.mjs (the
-// clockless/clockful split this follows)
+// template/base/tools/lib/cc-floor.mjs (staleCcReview) · template/base/tools/lib/eol.mjs
+// (staleEolReview) · template/base/tools/lib/support-register.mjs (staleSupportReviews) ·
+// scripts/check-obligations.mjs (the clockless/clockful split this follows)
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { staleCcReview } from '../template/base/tools/lib/cc-floor.mjs'
 import { staleEolReview } from '../template/base/tools/lib/eol.mjs'
 import { staleReviews } from '../template/base/tools/lib/framework-floor.mjs'
+import { staleSupportReviews } from '../template/base/tools/lib/support-register.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -55,9 +64,20 @@ const SEEDS = [
     judge: (doc, today) => staleReviews({ floor: doc, today }),
   },
   {
+    path: 'template/base/tools/cc-floor.json',
+    /** @param {any} doc @param {string} today */
+    judge: (doc, today) => staleCcReview({ floor: doc, today, path: 'tools/cc-floor.json' }),
+  },
+  {
     path: 'template/base/tools/eol.json',
     /** @param {any} doc @param {string} today */
     judge: (doc, today) => staleEolReview({ register: doc, path: 'tools/eol.json', today }),
+  },
+  {
+    path: 'template/base/tools/support-register.json',
+    /** @param {any} doc @param {string} today */
+    judge: (doc, today) =>
+      staleSupportReviews({ register: doc, today, path: 'tools/support-register.json' }),
   },
 ]
 
@@ -92,7 +112,7 @@ for (const seed of SEEDS) {
 
 // Anti-vacuity, in the shape check-secrets.mjs and check-obligations.mjs already use:
 // zero registers reached is a hard FAIL, never a green "nothing to do". A rename that
-// moved both seeds would otherwise turn this job into decoration on the day it mattered.
+// moved every seed would otherwise turn this job into decoration on the day it mattered.
 if (judged === 0) {
   problems.push(
     `no shipped register was read at all (${String(SEEDS.length)} declared) — this job asserts freshness by reading dates, so reading none of them is a failure and not a pass.`,

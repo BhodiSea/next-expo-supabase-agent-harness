@@ -42,7 +42,9 @@ what gets merged.
   `.github/workflows/release.yml` builds the release asset and signs its
   provenance attestation with a short-lived identity issued to the workflow run.
   The workflow uses only the token GitHub issues to that run.
-- **Secrets**: the repository's own workflows use no long-lived secrets.
+- **Secrets**: the repository's own workflows use no long-lived credentials. Their
+  one Actions secret, `HYGIENE_PRIVATE_NAMES`, is the list of private names the
+  hygiene gate looks for, and it grants no access (CONTRIBUTING.md, "Releases").
 
 ### Granting access
 

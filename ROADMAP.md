@@ -35,7 +35,9 @@ when they fall due.
   the floor and the pin to 16.3.8 (15.5.27 on the 15 line) and records all
   five. Red again from 2026-10-14 on three advisories (two Critical RCEs and a
   Server Actions DoS); 2.0.3 moves the floor and the pin to 16.4.1 (15.5.28 on
-  the 15 line). This bullet leaves the list once a
+  the 15 line). Red again on seven Moderate advisories upstream published on
+  2026-11-03; 2.0.8 moves the floor and the pin to 16.4.5 (15.5.29 on the 15
+  line) and records all seven. This bullet leaves the list once a
   scheduled run of the released tree is green end to end.
 - **Find why the scheduled device lane's perf-harness phase goes red.** The
   mutation journey of issue #10 has passed since 1.0.0 fixed it, but
@@ -44,6 +46,23 @@ when they fall due.
   marker. 1.0.4 makes the next red print the on-screen verdict, with each
   breached cap and its measured value (the 1.0.4 CHANGELOG, "What stays
   open"); the fix follows from that line.
+
+## Open findings
+
+- **The hook launcher's own tearing fails open.** Every guard hook starts
+  through `.claude/hooks/launch.mjs`, which blocks the call when the hook
+  cannot load. The launcher itself has no such cover. One that is empty, or
+  cut inside its leading comment, is a valid module that exits 0, so the call
+  runs and Claude Code shows no notice. Cut later, it exits 1, which Claude
+  Code reads as an error that blocks nothing, so the call runs then too
+  ([design/CONTROL-PLANE-FACTS.md](design/CONTROL-PLANE-FACTS.md), Fact 12).
+  With its code above the comment, most tears would exit 1 or leave the code
+  whole. Since Claude Code 2.1.295 a command hook may set
+  `"onFailure": "block"`, which would turn the exit-1 tears into blocks on the
+  three PreToolUse guards; it cannot see an exit 0. Adopting the key needs a
+  feature floor above the 2.1.260 required floor, and first a check of how
+  2.1.260 to 2.1.294 treat a key they do not know: print mode ignores a
+  settings file that fails validation, which would drop every hook.
 
 ## Next: 2.0.0
 

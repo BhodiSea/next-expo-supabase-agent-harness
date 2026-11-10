@@ -23,22 +23,23 @@ export function detect(targetDir) {
     throw new Error(`unreadable package.json at ${pkgPath}`)
   }
   const allDeps = { ...pkg.dependencies, ...pkg.devDependencies }
-  // This lineage OWNS Next.js + Expo together. The single-surface siblings own the
-  // halves, so a target that is unambiguously one of theirs is redirected rather than
-  // retrofitted into a two-surface shape it does not have.
+  // This lineage OWNS Next.js + Expo together. A target that is unambiguously a Hono
+  // server or a Tauri desktop app is refused rather than retrofitted into a two-surface
+  // shape it does not have. The sibling harnesses for those shapes are retired, so each
+  // message says what to do instead of naming one.
   if (allDeps.hono && !allDeps.next) {
     throw new Error(
       'target depends on `hono` but not `next` — this harness is for monorepos shipping a ' +
-        'Next.js web app AND an Expo mobile app over one shared Supabase backend. For a ' +
-        'standalone Hono + Drizzle/Postgres server with an Expo client use ' +
-        'github:BhodiSea/expo-postgres-agent-harness instead.',
+        'Next.js web app AND an Expo mobile app over one shared Supabase backend, not a ' +
+        'standalone Hono + Drizzle/Postgres server. Move the backend to Supabase first, or ' +
+        'bootstrap a fresh scaffold and move your Expo app into it.',
     )
   }
   if (allDeps['@tauri-apps/api'] || existsSync(join(targetDir, 'apps/desktop/src-tauri'))) {
     throw new Error(
       'target is a Tauri desktop project — this harness is for Next.js web + Expo mobile pnpm ' +
-        'monorepos on Supabase. For Tauri 2 desktop projects use ' +
-        'github:BhodiSea/tauri-postgres-agent-harness instead.',
+        'monorepos on Supabase and does not support Tauri. Run init in a workspace without the ' +
+        'Tauri app, or in an empty directory for a fresh scaffold.',
     )
   }
   for (const lock of ['package-lock.json', 'yarn.lock', 'bun.lockb', 'bun.lock']) {

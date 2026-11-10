@@ -107,6 +107,54 @@ test('RED: a citation nobody can open, and a row that never says why it is here'
   assert.match(why.problems.join('\n'), /stale copy of a vulnerability database/)
 })
 
+test("a row cites GitHub's database or Claude Code's own advisory page, and no other address", () => {
+  // 2.0.8: three advisories were on the vendor's page and not yet in GitHub's database, so
+  // the vendor's address is accepted too. The whole prefix is compared, so a lookalike host,
+  // an http:// spelling or another repository's advisory page is still refused.
+  for (const url of [
+    'https://github.com/advisories/GHSA-aaaa-bbbb-cccc',
+    'https://github.com/anthropics/claude-code/security/advisories/GHSA-aaaa-bbbb-cccc',
+  ]) {
+    assert.deepEqual(judgeCcFloor({ floor: floorOf([adv({ url })]) }).problems, [], url)
+  }
+  for (const url of [
+    'http://github.com/advisories/GHSA-aaaa-bbbb-cccc',
+    'https://github.com.example/advisories/GHSA-aaaa-bbbb-cccc',
+    'https://example.com/https://github.com/advisories/GHSA-aaaa-bbbb-cccc',
+    'https://github.com/anthropics/claude-code-fork/security/advisories/GHSA-aaaa-bbbb-cccc',
+    'https://github.com/example/claude-code/security/advisories/GHSA-aaaa-bbbb-cccc',
+  ]) {
+    assert.match(
+      judgeCcFloor({ floor: floorOf([adv({ url })]) }).problems.join('\n'),
+      /A blog post about an advisory is not the advisory/,
+      url,
+    )
+  }
+})
+
+test("RED: a url on the right page that is not the row's own advisory", () => {
+  // Judged by its prefix alone, each of these passed: the bare page, another advisory's id,
+  // and a path that climbs out of the page or adds to the address.
+  for (const url of [
+    'https://github.com/advisories/',
+    'https://github.com/anthropics/claude-code/security/advisories/',
+    'https://github.com/advisories/GHSA-dddd-eeee-ffff',
+    'https://github.com/anthropics/claude-code/security/advisories/GHSA-dddd-eeee-ffff',
+    'https://github.com/advisories/../../x',
+    'https://github.com/advisories/GHSA-aaaa-bbbb-cccc/../../x',
+    'https://github.com/advisories/GHSA-aaaa-bbbb-cccc?tab=x',
+  ]) {
+    assert.match(
+      judgeCcFloor({ floor: floorOf([adv({ url })]) }).problems.join('\n'),
+      /Cite https:\/\/github\.com\/advisories\/GHSA-aaaa-bbbb-cccc, or https:\/\/github\.com\/anthropics\/claude-code\/security\/advisories\/GHSA-aaaa-bbbb-cccc until/,
+      url,
+    )
+  }
+  // A `ghsa` that is not a GHSA id makes no address of its own, so it cannot carry a climb.
+  const climb = adv({ ghsa: '../../x', url: 'https://github.com/advisories/../../x' })
+  assert.match(judgeCcFloor({ floor: floorOf([climb]) }).problems.join('\n'), /Cite https:\/\/github\.com\/advisories\/<GHSA-id>/)
+})
+
 test('RED: an empty advisory list — a bare version number is what this file exists to refuse', () => {
   const r = judgeCcFloor({ floor: { required: { version: '2.1.163' }, surfaceAdvisories: [] } })
   assert.equal(r.judged, 0)
@@ -138,10 +186,18 @@ test('the freshness half is CLOCKFUL and lives on the scheduled job, not in the 
   // Same split framework-floor.mjs argues for: `pnpm validate` must give the same verdict on
   // the same tree forever, so a wall-clock comparison cannot ride it.
   assert.deepEqual(staleCcReview({ floor: SHIPPED, today: SHIPPED.checkedOn }), [])
-  const lapsed = staleCcReview({ floor: SHIPPED, today: '2026-12-01' })
+  // The first day past the 45-day window, counted from the shipped snapshot, so a refresh
+  // of the snapshot cannot turn this into a test of the calendar.
+  const dayAfter = new Date(Date.parse(`${SHIPPED.checkedOn}T00:00:00Z`) + 46 * 86_400_000)
+  const lapsed = staleCcReview({ floor: SHIPPED, today: dayAfter.toISOString().slice(0, 10) })
   assert.equal(lapsed.length, 1)
   assert.match(lapsed[0], /Re-run/)
   assert.match(lapsed[0], /moving the date alone is the one edit this control cannot tell/)
+  // Both queries, as howToRefresh says: the vendor's page can list an advisory GitHub's
+  // database does not have yet.
+  assert.ok(lapsed[0].includes(`Re-run \`${SHIPPED.advisorySource}\` and \`${SHIPPED.vendorAdvisorySource}\`,`), lapsed[0])
+  const bare = staleCcReview({ floor: { checkedOn: SHIPPED.checkedOn }, today: dayAfter.toISOString().slice(0, 10) })
+  assert.match(bare[0], /Re-run the advisory queries,/)
 })
 
 test('RED: a checkedOn that is not a date at all cannot be judged, and says so', () => {

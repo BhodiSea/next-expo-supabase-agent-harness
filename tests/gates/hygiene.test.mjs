@@ -22,7 +22,7 @@
 // fixture git tracks makes the GREEN test pass for the wrong reason.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -184,4 +184,243 @@ test("the rule module's exemption is load-bearing, not decorative — it really 
     maturityClaims(readFileSync(join(ROOT, rel), 'utf8')).length > 0,
     `${rel} is exempt from the maturity-claim sweep but no longer contains a claim shape — the exemption now hides nothing, so it should be removed rather than left standing`,
   )
+})
+
+// ── THE PRIVATE-NAME CHECK (2.0.8) ────────────────────────────────────────────────
+// The real list is the HYGIENE_PRIVATE_NAMES secret, so these tests bring a made-up one. The
+// name is built rather than typed: this file is in the scan, and a literal here would match
+// itself. Every test also asserts that the name never reaches the output.
+const NAME = ['zorb', 'lax'].join('')
+const SHOWS_NAME = new RegExp(NAME, 'i')
+
+/**
+ * Run the sweep with HYGIENE_PRIVATE_NAMES set to `names` and HYGIENE_REQUIRE_PRIVATE_NAMES to
+ * `required`, each unset when undefined.
+ * @param {string | undefined} names
+ * @param {string} [required]
+ * @returns {{ code: number | null, out: string }}
+ */
+function hygieneWithNames(names, required) {
+  const env = { ...process.env }
+  delete env.HYGIENE_PRIVATE_NAMES
+  delete env.HYGIENE_REQUIRE_PRIVATE_NAMES
+  if (names !== undefined) env.HYGIENE_PRIVATE_NAMES = names
+  if (required !== undefined) env.HYGIENE_REQUIRE_PRIVATE_NAMES = required
+  const r = spawnSync(process.execPath, [SCRIPT], { cwd: ROOT, encoding: 'utf8', env })
+  return { code: r.status, out: `${r.stdout}${r.stderr}` }
+}
+
+test('RED: a line that matches an entry is named by path, line and entry number, never by its text', () => {
+  const rel = 'hygiene-private-name-fixture.tmp.md'
+  withFixture(
+    rel,
+    () => {
+      assert.equal(ignored(rel), false, `${rel} is covered by .gitignore, so this test would go green without the sweep ever reading it`)
+      // A comment and a blank line are not entries, a CRLF line end is not part of one, and
+      // case does not matter.
+      const { code, out } = hygieneWithNames(['# made up', '', `${NAME}x`, NAME.toUpperCase()].join('\r\n'))
+      assert.equal(code, 1, `the sweep passed a line naming a listed name:\n${out}`)
+      assert.match(out, /hygiene-private-name-fixture\.tmp\.md:3 matches entry 2 of HYGIENE_PRIVATE_NAMES/)
+      assert.doesNotMatch(out, /entry 1 of/)
+      assert.doesNotMatch(out, SHOWS_NAME)
+      assert.doesNotMatch(out, /app is private/)
+    },
+    `# Fixture\n\nThe ${NAME} app is private.\n`,
+  )
+})
+
+test('RED: a path that holds a name is reported with the name replaced', () => {
+  const rel = `hygiene-${NAME}-fixture.tmp.md`
+  withFixture(
+    rel,
+    () => {
+      assert.equal(ignored(rel), false, `${rel} is covered by .gitignore, so this test would go green without the sweep ever reading it`)
+      const { code, out } = hygieneWithNames(NAME)
+      assert.equal(code, 1, `the sweep passed a path naming a listed name:\n${out}`)
+      assert.match(out, /hygiene-\[entry 1\]-fixture\.tmp\.md \(the path\) matches entry 1 of HYGIENE_PRIVATE_NAMES/)
+      assert.doesNotMatch(out, SHOWS_NAME)
+    },
+    'Nothing private on this line.\n',
+  )
+})
+
+test('RED: a name that two entries match, one inside the other or across it, prints as one label', () => {
+  // Replaced one entry at a time, entry 1's label broke entry 2's match and the rest of the
+  // name printed: hygiene-[entry 1]-<other>-fixture for the first list, and
+  // hygiene-<the name's start>[entry 1]<the other's end>-fixture for the second.
+  const other = ['quim', 'bel'].join('')
+  const rel = `hygiene-${NAME}-${other}-fixture.tmp.md`
+  withFixture(
+    rel,
+    () => {
+      assert.equal(ignored(rel), false, `${rel} is covered by .gitignore, so this test would go green without the sweep ever reading it`)
+      for (const first of [NAME, `${NAME.slice(-3)}-${other.slice(0, 2)}`]) {
+        const { code, out } = hygieneWithNames([first, `${NAME}-${other}`].join('\n'))
+        assert.equal(code, 1, out)
+        for (const n of [1, 2]) {
+          assert.match(out, new RegExp(`hygiene-\\[entry \\d\\]-fixture\\.tmp\\.md \\(the path\\) matches entry ${String(n)} of HYGIENE_PRIVATE_NAMES`))
+        }
+        assert.doesNotMatch(out, SHOWS_NAME)
+      }
+    },
+    'Nothing private on this line.\n',
+  )
+})
+
+test('GREEN: entries that match nothing pass, and the CLEAN line counts them', () => {
+  const { code, out } = hygieneWithNames([NAME, `${NAME}x`].join('\n'))
+  assert.equal(code, 0, out)
+  assert.match(out, /; 2 HYGIENE_PRIVATE_NAMES entries matched no path or line\)/)
+  assert.doesNotMatch(out, /SKIPPED/)
+  assert.doesNotMatch(out, SHOWS_NAME)
+})
+
+test('RED: an entry that does not compile, or that matches an empty line, fails by its number alone', () => {
+  const { code, out } = hygieneWithNames([`${NAME}(`, `${NAME}|`, NAME].join('\n'))
+  assert.equal(code, 1, out)
+  assert.match(out, /entry 1 of HYGIENE_PRIVATE_NAMES is not a valid regular expression/)
+  assert.match(out, /entry 2 of HYGIENE_PRIVATE_NAMES matches an empty line/)
+  assert.doesNotMatch(out, /entry 3 of/)
+  // The engine's own message quotes the pattern.
+  assert.doesNotMatch(out, /Invalid regular expression/)
+  assert.doesNotMatch(out, SHOWS_NAME)
+})
+
+test('RED: an entry with ^ or $ outside a class, or with a lookaround group, fails by its number alone', () => {
+  // The last one escapes a backslash, not the lookahead after it.
+  const refused = [`^${NAME}`, `${NAME}$`, `${NAME}x|^y`, `${NAME}(?=x)`, `${NAME}(?!x)`, `(?<=x)${NAME}`, `(?<!x)${NAME}`, `\\\\(?=${NAME})`]
+  const { code, out } = hygieneWithNames(refused.join('\n'))
+  assert.equal(code, 1, out)
+  for (const n of refused.keys()) {
+    assert.match(out, new RegExp(`entry ${String(n + 1)} of HYGIENE_PRIVATE_NAMES has \\^ or \\$ outside a character class, or a lookaround group`))
+  }
+  assert.doesNotMatch(out, SHOWS_NAME)
+})
+
+test('GREEN: an escaped ^ or $, a class that holds one, a negated class and a named group are not refused', () => {
+  const accepted = [`\\^${NAME}`, `${NAME}\\$`, `[$^]${NAME}`, `${NAME}[^a]`, `${NAME}[\\]^]`, `(?<who>${NAME})`, `${NAME}\\(?=`]
+  const { code, out } = hygieneWithNames(accepted.join('\n'))
+  assert.equal(code, 0, out)
+  assert.match(out, new RegExp(`; ${String(accepted.length)} HYGIENE_PRIVATE_NAMES entries matched no path or line\\)`))
+  assert.doesNotMatch(out, SHOWS_NAME)
+})
+
+test('RED: a path that an anchored or lookahead entry matches does not print the name', () => {
+  // Before the refusal, both entries matched the path and not the failure line, which has
+  // other text after the path, so the line printed the name.
+  const rel = `hygiene-fixture-${NAME}.tmp.md`
+  withFixture(
+    rel,
+    () => {
+      assert.equal(ignored(rel), false, `${rel} is covered by .gitignore, so this test would go green without the sweep ever reading it`)
+      const { code, out } = hygieneWithNames([`${NAME}\\.tmp\\.md$`, `${NAME}(?=\\.tmp)`].join('\n'))
+      assert.equal(code, 1, out)
+      assert.match(out, /entry 1 of HYGIENE_PRIVATE_NAMES has \^ or \$/)
+      assert.match(out, /entry 2 of HYGIENE_PRIVATE_NAMES has \^ or \$/)
+      assert.doesNotMatch(out, SHOWS_NAME)
+    },
+    'Nothing private on this line.\n',
+  )
+})
+
+test('RED: while an entry is refused, the other findings are counted, not printed', () => {
+  // A refused entry is not in the redaction. Before this, the NUL-byte line printed this
+  // fixture's path, name and all.
+  const rel = `hygiene-nul-${NAME}-fixture.tmp.md`
+  withFixture(rel, () => {
+    assert.equal(ignored(rel), false, `${rel} is covered by .gitignore, so this test would go green without the sweep ever reading it`)
+    const { code, out } = hygieneWithNames(`${NAME}$`)
+    assert.equal(code, 1, out)
+    assert.match(out, /entry 1 of HYGIENE_PRIVATE_NAMES has \^ or \$/)
+    assert.match(out, /1 other finding\(s\) held back/)
+    assert.doesNotMatch(out, /NUL byte/)
+    assert.doesNotMatch(out, SHOWS_NAME)
+  })
+})
+
+test('RED: a CRLF checkout and an LF checkout get the same findings', () => {
+  // Entry 2 wants white space after the name. Lines split on \n alone kept a CRLF line's \r,
+  // which \s matches, so the CRLF copy of this file had one finding more.
+  const rel = 'hygiene-private-name-crlf-fixture.tmp.md'
+  for (const eol of ['\n', '\r\n']) {
+    withFixture(
+      rel,
+      () => {
+        const { code, out } = hygieneWithNames([NAME, `${NAME}\\s`].join('\n'))
+        assert.equal(code, 1, out)
+        assert.match(out, /hygiene-private-name-crlf-fixture\.tmp\.md:3 matches entry 1 of HYGIENE_PRIVATE_NAMES/)
+        assert.doesNotMatch(out, /entry 2 of/)
+        assert.doesNotMatch(out, SHOWS_NAME)
+      },
+      ['# Fixture', '', `The last word is ${NAME}`, ''].join(eol),
+    )
+  }
+})
+
+test('GREEN: without the variable, or with no entry in it, the check says it skipped, on one line', () => {
+  for (const names of [undefined, '', '# only a comment\n\n']) {
+    const { code, out } = hygieneWithNames(names)
+    assert.equal(code, 0, out)
+    assert.equal(out.split('\n').filter((l) => l.includes('private-name check SKIPPED')).length, 1, out)
+    assert.doesNotMatch(out, /HYGIENE_PRIVATE_NAMES entr/)
+  }
+})
+
+// ── WHERE THE CHECK MUST RUN (2.0.8) ──────────────────────────────────────────────
+// HYGIENE_REQUIRE_PRIVATE_NAMES=1, set on a release tag and a push to main, turns a missing
+// list into a failure. The workflows set it to '' everywhere else.
+
+test('RED: with HYGIENE_REQUIRE_PRIVATE_NAMES=1, a missing or empty list fails, naming the secret', () => {
+  for (const names of [undefined, '', '# only a comment\n\n']) {
+    const { code, out } = hygieneWithNames(names, '1')
+    assert.equal(code, 1, out)
+    assert.match(out, /HYGIENE_PRIVATE_NAMES is unset or empty, and HYGIENE_REQUIRE_PRIVATE_NAMES is 1/)
+    assert.match(out, /Set the HYGIENE_PRIVATE_NAMES Actions secret/)
+    assert.doesNotMatch(out, /SKIPPED/)
+  }
+})
+
+test('GREEN: with the flag set and a list, the check runs as it does without the flag', () => {
+  const { code, out } = hygieneWithNames(NAME, '1')
+  assert.equal(code, 0, out)
+  assert.match(out, /; 1 HYGIENE_PRIVATE_NAMES entry matched no path or line\)/)
+  assert.doesNotMatch(out, SHOWS_NAME)
+})
+
+test('GREEN: a flag that is not 1, such as the empty value a pull request gets, still skips on one line', () => {
+  for (const required of ['', '0', 'true']) {
+    const { code, out } = hygieneWithNames(undefined, required)
+    assert.equal(code, 0, out)
+    assert.equal(out.split('\n').filter((l) => l.includes('private-name check SKIPPED')).length, 1, out)
+  }
+})
+
+test('only the step that runs scripts/hygiene.mjs names the list or the flag, and no pull request sets the flag', () => {
+  // Read as text, like the other workflow checks here. A step starts at a `      - ` line. A
+  // step that names either variable outside a comment, as a key or in `secrets.`, gets the
+  // list or the flag, so it must run the gate and nothing else.
+  const dir = join(ROOT, '.github/workflows')
+  const homes = []
+  for (const file of readdirSync(dir).filter((f) => f.endsWith('.yml')).sort()) {
+    const text = readFileSync(join(dir, file), 'utf8')
+    for (const step of text.split(/\n(?= {6}- )/)) {
+      if (!/HYGIENE_(?:REQUIRE_)?PRIVATE_NAMES/i.test(step.replace(/^\s*#.*$/gm, ''))) continue
+      homes.push(file)
+      assert.match(step, /^\s+(?:- )?run: node scripts\/hygiene\.mjs$/m, `${file}: this step runs more than scripts/hygiene.mjs:\n${step}`)
+      const flag = /^\s+HYGIENE_REQUIRE_PRIVATE_NAMES:(.*)$/m.exec(step)?.[1]
+      if (flag === undefined) continue
+      // A workflow that runs only on a tag push needs no event check. In any other, every event
+      // the flag compares must be a push, and the flag must name no pull request: a fork's pull
+      // request runs with this repository's id, so the event check is what keeps it out.
+      const on = /^on:\n([\s\S]*?)\n\S/m.exec(text)?.[1]
+      assert.notEqual(on, undefined, `${file}: no on: block to read`)
+      const events = flag.match(/github\.event_name\s*[!=]=\s*'[^']*'/gi) ?? []
+      const pushOnly = events.length > 0 && events.every((e) => /^github\.event_name\s*==\s*'push'$/i.test(e))
+      assert.ok(
+        !/pull_request/i.test(flag) && (pushOnly || !/pull_request|branches|schedule|workflow_dispatch/.test(on ?? '')),
+        `${file}: the flag is not limited to a push, and the workflow has other triggers:\n${step}`,
+      )
+    }
+  }
+  assert.deepEqual(homes, ['hygiene.yml', 'release.yml'])
 })

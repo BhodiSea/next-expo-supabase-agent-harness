@@ -265,6 +265,12 @@ test('an ABSENT baseline self-disables locally (adoption) and FAILS CLOSED in CI
   assert.equal(local.code, 0, local.out)
   assert.match(local.out, /SKIPPED/, local.out)
   assert.match(local.out, /--write/, local.out)
+  // The template's copy comes from this harness's package (2.0.8: it named a retired one).
+  assert.match(
+    local.out,
+    /npx next-expo-supabase-agent-harness@latest update --refresh-seeded tools\/mutation-baseline\.json/,
+    local.out,
+  )
 
   const r = spawnSync('node', ['tools/check-mutation-ratchet.mjs'], {
     cwd: dir,

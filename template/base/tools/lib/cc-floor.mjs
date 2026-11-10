@@ -31,8 +31,28 @@ export function cmpVersion(a, b) {
   return 0
 }
 
-/** The advisory host whose pages carry a machine-readable, permanently-addressed record. */
-const ADVISORY_HOST = 'https://github.com/advisories/'
+/**
+ * The two advisory pages whose records are machine-readable and permanently addressed:
+ * GitHub's reviewed database, and Claude Code's own repository advisories, which list an
+ * advisory before that database has reviewed it (2.0.8: three of them on the day of
+ * review). A row's `url` must be one of them followed by the row's own `ghsa`, a GHSA id,
+ * and nothing else. So a lookalike host or repository fails, and so do the bare page,
+ * another advisory's id and a path that climbs out of the page.
+ */
+const ADVISORY_PREFIXES = [
+  'https://github.com/advisories/',
+  'https://github.com/anthropics/claude-code/security/advisories/',
+]
+const GHSA = /^GHSA(?:-[0-9a-z]{4}){3}$/
+
+/** What is wrong with a row's `url`, or null when it is the row's own advisory's record. */
+function urlProblem(a, at) {
+  if (typeof a?.url !== 'string') return null
+  const id = typeof a.ghsa === 'string' && GHSA.test(a.ghsa) ? a.ghsa : null
+  if (id !== null && ADVISORY_PREFIXES.some((p) => a.url === `${p}${id}`)) return null
+  const cite = id ?? '<GHSA-id>'
+  return `${at}: \`url\` is ${JSON.stringify(a.url)}. Cite ${ADVISORY_PREFIXES[0]}${cite}, or ${ADVISORY_PREFIXES[1]}${cite} until GitHub's database has the advisory — this row's own advisory, at a permanent, machine-readable address. A blog post about an advisory is not the advisory.`
+}
 
 const REQUIRED_FIELDS = ['id', 'ghsa', 'severity', 'published', 'patched', 'summary', 'url']
 
@@ -51,11 +71,8 @@ function rowProblems(list, path) {
         `${at}: \`patched\` is ${JSON.stringify(a?.patched)}, not an x.y.z version — the floor is derived from these, so an unparseable one silently drops out of the arithmetic.`,
       )
     }
-    if (typeof a?.url === 'string' && !a.url.startsWith(ADVISORY_HOST)) {
-      problems.push(
-        `${at}: \`url\` is ${JSON.stringify(a.url)}. Cite ${ADVISORY_HOST}<GHSA-id> — a permanent, machine-readable record. A blog post about an advisory is not the advisory.`,
-      )
-    }
+    const url = urlProblem(a, at)
+    if (url !== null) problems.push(url)
     // Without this the list is a copy of a database, and a copy of a database goes stale
     // silently; with it, each row is an argument a reviewer can disagree with.
     if (typeof a?.whyItMattersHere !== 'string' || a.whyItMattersHere.trim().length < 40) {
@@ -200,8 +217,14 @@ export function staleCcReview({ floor, today, maxAgeDays = 45, path = 'tools/cc-
     (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${checkedOn}T00:00:00Z`)) / 86_400_000,
   )
   if (days > maxAgeDays) {
+    // Both queries, as `howToRefresh` says: the vendor's page can list an advisory that
+    // GitHub's database does not have yet (2.0.8: three on the day of review).
+    const queries = [floor?.advisorySource, floor?.vendorAdvisorySource]
+      .filter((q) => typeof q === 'string' && q.trim() !== '')
+      .map((q) => `\`${q}\``)
+    const rerun = queries.length === 0 ? 'the advisory queries' : queries.join(' and ')
     return [
-      `${path}: the advisory snapshot was taken on ${checkedOn}, ${String(days)} days ago (today is ${today}; the window is ${String(maxAgeDays)} days). Re-run \`${floor?.advisorySource ?? 'the advisory query'}\`, update every advisory patched above the current floor, and move \`checkedOn\` in the SAME commit — moving the date alone is the one edit this control cannot tell from a real review.`,
+      `${path}: the advisory snapshot was taken on ${checkedOn}, ${String(days)} days ago (today is ${today}; the window is ${String(maxAgeDays)} days). Re-run ${rerun}, update every advisory patched above the current floor, and move \`checkedOn\` in the SAME commit — moving the date alone is the one edit this control cannot tell from a real review.`,
     ]
   }
   return []
