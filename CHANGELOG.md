@@ -11,7 +11,7 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
-## [2.0.8] — 2026-11-08
+## [2.0.8] — 2026-11-11
 
 **A security patch.** Seven `next` advisories upstream published on 2026-11-03 covered the
 16.4.1 floor and the 16.4.2 pin 2.0.7 shipped, three of them also the 15.5.28 floor, and the
