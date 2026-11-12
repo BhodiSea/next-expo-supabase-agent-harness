@@ -1,22 +1,6 @@
-# Root machinery deps only (eslint/tsc/knip over installer/, scripts/, tests/,
-# template gate scripts) — this is NOT a monorepo workspace; pnpm 11 reads
-# settings from this file. The scaffold ships its OWN pnpm-workspace.yaml
-# (template/base/pnpm-workspace.yaml); `init --consume` overwrites this one.
-#
-# typescript is force-pinned tree-wide: eslint-plugin-sonarjs declares
-# `typescript: >=5` and would resolve to the 7.x native-compiler line, whose
-# CJS API drops ts.SyntaxKind — the plugin crashes at rule-load time.
-# 6.0.3 matches the consumer catalog pin (template/base/pnpm-workspace.yaml).
-#
-# minimatch below 11.0.1 is replaced tree-wide: GHSA-g3hv-75wg-m249 covers it, and
-# neither eslint 9's packages (^3.1.5) nor eslint-plugin-sonarjs (^10.2.6) has a fixed
-# release in range. All of these load here as CommonJS and only construct `Minimatch`,
-# and 11.x still exports it. Only `@eslint/eslintrc` and `@eslint/config-array` have
-# ES-module builds; those default-import minimatch, and 11.x has no default export. The
-# `minimatch-11-override` row in scripts/obligations.json says when this goes.
 overrides:
   typescript: 6.0.3
-  'minimatch@<11.0.1': 11.0.3
+  'minimatch@<11.0.1': 11.0.5
 
 # Same determinism pin as template/base/pnpm-workspace.yaml (see the full
 # rationale there): dependency aging is Renovate's job at the update-PR layer;
